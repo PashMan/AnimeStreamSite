@@ -71,10 +71,8 @@ const Home: React.FC = () => {
 
     const loadLists = () => {
         // Parallel fetches for other sections
-        // Trending: Changed to 'ranked' (Top Rated) to show high-quality anime instead of just popular
-        fetchAnimes({ order: 'ranked', limit: 12, status: 'released' }).then(setTrendingAnimes);
-        // New: Ongoing anime sorted by rating (ranked)
-        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(setNewAnimes);
+        fetchAnimes({ order: 'popularity', limit: 12 }).then(setTrendingAnimes);
+        fetchAnimes({ order: 'aired_on', status: 'ongoing', limit: 20 }).then(setNewAnimes);
         fetchAnimes({ order: 'popularity', status: 'anons', limit: 15 }).then(setUpcomingAnimes);
         fetchNews().then(setNews);
         fetchCalendar().then(setSchedule);
@@ -155,12 +153,9 @@ const Home: React.FC = () => {
             <div className="max-w-3xl space-y-6 animate-in slide-in-from-bottom-10 duration-700">
               <span className="px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg">Выходит сейчас</span>
               <h1 className="text-4xl md:text-7xl font-display font-black text-white drop-shadow-2xl uppercase tracking-tighter leading-[0.9] line-clamp-2">{currentHero.title}</h1>
-              <div className="relative group/desc">
-                  <p className="text-slate-200 text-lg font-medium max-w-2xl drop-shadow-md bg-black/20 backdrop-blur-sm p-6 rounded-2xl border border-white/5 max-h-[150px] overflow-y-auto custom-scrollbar pr-2">
-                    {currentHero.description || "Описание загружается..."}
-                  </p>
-                  <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/20 to-transparent pointer-events-none rounded-b-2xl"></div>
-              </div>
+              <p className="text-slate-200 text-lg line-clamp-3 font-medium max-w-2xl drop-shadow-md bg-black/20 backdrop-blur-sm p-4 rounded-2xl border border-white/5">
+                {currentHero.description || "Описание загружается..."}
+              </p>
               <div className="flex flex-wrap gap-4 items-center pt-4">
                 <Link to={`/anime/${currentHero.id}`} className="px-10 py-5 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
                   <PlayCircle className="w-6 h-6 fill-current" /> Смотреть
@@ -272,21 +267,15 @@ const Home: React.FC = () => {
 
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {news.slice(0, 4).map((item) => (
-                   <Link key={item.id} to={`/news/${item.id}`} className="group relative h-48 rounded-[2rem] overflow-hidden border border-white/5 hover:border-primary/30 transition-all shadow-xl bg-surface/50 hover:bg-surface">
-                      <div className="absolute inset-0 p-6 flex flex-col justify-between">
-                         <div className="flex justify-between items-start">
-                             <div className="text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded-lg">{item.category}</div>
-                             <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{item.date}</div>
-                         </div>
-                         
-                         <div>
-                             <h4 className="text-sm font-black text-white leading-tight line-clamp-3 uppercase tracking-tight group-hover:text-primary transition-colors mb-2">{item.title}</h4>
-                             <p className="text-[10px] text-slate-400 line-clamp-2">{item.summary.replace(/<[^>]*>?/gm, '')}</p>
-                         </div>
-                         
-                         <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-slate-500 group-hover:text-white transition-colors">
-                            Читать <ChevronRight className="w-3 h-3" />
-                         </div>
+                   <Link key={item.id} to={`/news/${item.id}`} className="group relative h-64 rounded-[2rem] overflow-hidden border border-white/5 hover:border-primary/30 transition-all shadow-xl">
+                      {item.image ? (
+                        <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="absolute inset-0 bg-surface/50"></div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/50 to-transparent p-6 flex flex-col justify-end">
+                         <div className="text-[9px] font-black text-primary uppercase tracking-widest mb-2">{item.category}</div>
+                         <h4 className="text-sm font-black text-white leading-tight line-clamp-2 uppercase tracking-tight group-hover:text-primary transition-colors">{item.title}</h4>
                       </div>
                    </Link>
                 ))}
