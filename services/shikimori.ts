@@ -61,6 +61,21 @@ const processNewsHtml = (html: string | undefined): string => {
     }
   );
 
+  // 3. Fix relative links and add target="_blank"
+  processed = processed.replace(
+    /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*?)>/gi,
+    (match, p1, href, p2) => {
+        let fullHref = href;
+        if (href.startsWith('/')) {
+            fullHref = `https://shikimori.one${href}`;
+        }
+        if (match.toLowerCase().includes('target=')) {
+            return `<a ${p1}href="${fullHref}"${p2}>`;
+        }
+        return `<a ${p1}href="${fullHref}" target="_blank" rel="noopener noreferrer"${p2}>`;
+    }
+  );
+
   return processed;
 };
 
@@ -223,9 +238,9 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
         });
     }
     });
-    return Object.entries(daysMap)
-    .filter(([_, a]) => a.length > 0)
-    .map(([day, animes]) => ({ day, animes }));
+    
+    const orderedDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    return orderedDays.map(day => ({ day, animes: daysMap[day] }));
   } catch (e) {
     return SCHEDULE;
   }
@@ -236,14 +251,23 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
     const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
-    return data.map(topic => ({
-      id: topic.id.toString(),
-      title: topic.topic_title || 'Без названия',
-      summary: (topic.body || '').slice(0, 150).replace(/\[.*?\]/g, '') + '...',
-      date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
-      category: 'Новости',
-      html_body: processNewsHtml(topic.html_body || topic.body) // Apply HTML processing
-    }));
+    return data.map(topic => {
+      const html = topic.html_body || topic.body || '';
+      const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+      const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+      const ytMatch = html.match(ytRegex);
+
+      return {
+        id: topic.id.toString(),
+        title: topic.topic_title || 'Без названия',
+        summary: (topic.body || '').slice(0, 150).replace(/\[.*?\]/g, '') + '...',
+        date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
+        category: 'Новости',
+        image: imgMatch ? imgMatch[1] : undefined,
+        video: ytMatch ? ytMatch[1] : undefined,
+        html_body: processNewsHtml(html) // Apply HTML processing
+      };
+    });
   } catch (e) {
     return MOCK_NEWS;
   }
@@ -254,13 +278,20 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
     const topic = await fetchApi(`/topics/${id}`);
     if (!topic) return MOCK_NEWS.find(n => n.id === id) || MOCK_NEWS[0];
 
+    const html = topic.html_body || topic.body || '';
+    const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+    const ytMatch = html.match(ytRegex);
+
     return {
       id: topic.id.toString(),
       title: topic.topic_title,
       summary: (topic.body || '').slice(0, 200).replace(/\[.*?\]/g, ''),
       date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
       category: 'Новости',
-      html_body: processNewsHtml(topic.html_body || topic.body) // Apply HTML processing
+      image: imgMatch ? imgMatch[1] : undefined,
+      video: ytMatch ? ytMatch[1] : undefined,
+      html_body: processNewsHtml(html) // Apply HTML processing
     };
   } catch (e) {
     return MOCK_NEWS.find(n => n.id === id) || MOCK_NEWS[0];
