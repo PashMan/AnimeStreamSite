@@ -5,12 +5,11 @@ class SocketService {
 
   connect() {
     if (!this.socket) {
-      this.socket = io(window.location.origin);
+      this.socket = io({
+        path: '/socket.io',
+        transports: ['polling', 'websocket']
+      });
     }
-    return this.socket;
-  }
-
-  getSocket() {
     return this.socket;
   }
 
@@ -18,16 +17,22 @@ class SocketService {
     this.socket?.emit("join-room", roomId);
   }
 
+  // Used for global chat page
   sendGlobalMessage(message: any) {
-    this.socket?.emit("send-global-message", message);
+    this.socket?.emit("global-message", message);
+  }
+
+  // Used for watch together room chat
+  sendRoomMessage(roomId: string, message: any) {
+      this.socket?.emit("room-message", { ...message, roomId });
   }
 
   onGlobalMessage(callback: (message: any) => void) {
     this.socket?.on("global-message", callback);
   }
 
-  syncWatch(data: { roomId: string; action: string; time: number; userId: string }) {
-    this.socket?.emit("watch-sync", data);
+  onRoomMessage(callback: (message: any) => void) {
+    this.socket?.on("room-message", callback);
   }
 
   onWatchSync(callback: (data: any) => void) {
@@ -35,8 +40,10 @@ class SocketService {
   }
 
   disconnect() {
-    this.socket?.disconnect();
-    this.socket = null;
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
   }
 }
 

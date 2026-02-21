@@ -1,14 +1,12 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare } from 'lucide-react';
+import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, FastForward } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-// Fix: Removed fetchComments from imports as it's not exported from shikimori service and unused here.
-// The app uses local database service (db.getUserComments) for comments.
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
 import { db } from '../services/db';
-import { Anime, Comment } from '../types';
+import { Anime, Comment, ChatMessage } from '../types';
 import AnimeCard from '../components/AnimeCard';
+import { socketService } from '../services/socketService';
 
 const Details: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,283 +14,340 @@ const Details: React.FC = () => {
   const { openAuthModal, user } = useAuth();
   const relatedRef = useRef<HTMLDivElement>(null);
   const similarRef = useRef<HTMLDivElement>(null);
-  
+  const playerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
   const [anime, setAnime] = useState<Anime | null>(null);
-  const [related, setRelated] = useState<{ relation: string; anime: Anime }[]>([]);
+  const [related, setRelated] = useState<Anime[]>([]);
   const [similar, setSimilar] = useState<Anime[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [userComment, setUserComment] = useState('');
-  
   const [isLoading, setIsLoading] = useState(true);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [isWatched, setIsWatched] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  const [isCommenting, setIsCommenting] = useState(false);
+  
+  // Watch Together State
+  const [isTogether, setIsTogether] = useState(false);
+  const [togetherMessages, setTogetherMessages] = useState<ChatMessage[]>([]);
+  const [chatText, setChatText] = useState('');
 
   useEffect(() => {
-    const loadDetails = async () => {
+    const loadData = async () => {
       if (!id) return;
       setIsLoading(true);
+      window.scrollTo(0, 0);
       try {
-        const [data, relatedData, similarData, userComments] = await Promise.all([
+        const [details, rel, sim] = await Promise.all([
           fetchAnimeDetails(id),
           fetchRelatedAnimes(id),
-          fetchSimilarAnimes(id),
-          db.getUserComments(id)
+          fetchSimilarAnimes(id)
         ]);
+        setAnime(details);
+        setRelated(rel.map(r => r.anime as unknown as Anime));
+        setSimilar(sim as unknown as Anime[]);
 
-        const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'];
-        const sortedRelated = [...relatedData].sort((a, b) => {
-          const aPri = priorityRelations.indexOf(a.relation);
-          const bPri = priorityRelations.indexOf(b.relation);
-          if (aPri !== -1 && bPri === -1) return -1;
-          if (aPri === -1 && bPri !== -1) return 1;
-          if (aPri !== -1 && bPri !== -1) return aPri - bPri;
-          return 0;
-        });
-
-        setAnime(data);
-        setRelated(sortedRelated);
-        setSimilar(similarData);
-        setComments(userComments);
-
-        if (user?.email) {
-          const [favs, watched] = await Promise.all([
+        if (user?.email && details) {
+          const [favs, watchedList] = await Promise.all([
             db.getFavorites(user.email),
             db.getWatched(user.email)
           ]);
           setIsFavorite(favs.includes(id));
-          setIsWatched(watched.includes(id));
+          setIsWatched(watchedList.includes(id));
+          
+          // Add to history
+          await db.addToHistory(user.email, details, 1);
         }
       } catch (err) {
-        console.error("Details Page Load Error:", err);
+        console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
-    loadDetails();
+    loadData();
   }, [id, user]);
 
-  const handleFavorite = async () => {
-    if (!user?.email) { openAuthModal(); return; }
+  // Socket connection for Watch Together
+  useEffect(() => {
+    if (isTogether && id) {
+      socketService.connect();
+      socketService.joinRoom(`watch_${id}`);
+      
+      const handleSync = (data: any) => {
+        if (data.userId !== user?.email) {
+          console.log("Syncing player:", data);
+        }
+      };
+
+      const handleMsg = (msg: any) => {
+        setTogetherMessages(prev => [...prev, msg]);
+      };
+
+      socketService.onWatchSync(handleSync);
+      socketService.onRoomMessage(handleMsg);
+
+      return () => {
+        socketService.disconnect();
+      };
+    }
+  }, [isTogether, id, user]);
+
+  const handleToggleFavorite = async () => {
+    if (!user) { openAuthModal(); return; }
+    if (!id) return;
     setIsActionLoading(true);
-    const newState = await db.toggleFavorite(user.email, id!);
-    setIsFavorite(newState);
+    try {
+      const newState = await db.toggleFavorite(user.email, id);
+      setIsFavorite(newState);
+    } catch (e) { console.error(e); }
     setIsActionLoading(false);
   };
 
   const handleWatched = async () => {
-    if (!user?.email) { openAuthModal(); return; }
+    if (!user) { openAuthModal(); return; }
+    if (!id) return;
     setIsActionLoading(true);
-    const newState = await db.toggleWatched(user.email, id!);
-    setIsWatched(newState);
+    try {
+      const newState = await db.toggleWatched(user.email, id);
+      setIsWatched(newState);
+    } catch (e) { console.error(e); }
     setIsActionLoading(false);
   };
 
-  const handleAddComment = async (e: React.FormEvent) => {
+  const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) { openAuthModal(); return; }
-    if (!userComment.trim()) return;
-    setIsCommenting(true);
-    try {
-      const newComment = await db.addComment(id!, user, userComment);
-      setComments([newComment, ...comments]);
-      setUserComment('');
-    } finally {
-      setIsCommenting(false);
+    if (!chatText.trim() || !user) return;
+    const msg: ChatMessage = {
+      id: Math.random().toString(),
+      user: { name: user.name, avatar: user.avatar, email: user.email },
+      text: chatText,
+      timestamp: Date.now()
+    };
+    if (id) {
+      socketService.sendRoomMessage(`watch_${id}`, msg);
+    }
+    setChatText('');
+  };
+
+  const skipOpening = () => {
+    if (iframeRef.current) {
+      iframeRef.current.contentWindow?.postMessage({ 
+        key: 'kodik_player_api', 
+        value: { method: 'seek', parameters: 85 } 
+      }, '*');
     }
   };
 
-  const scrollSlider = (ref: React.RefObject<HTMLDivElement>, direction: 'left' | 'right') => {
-    if (ref.current) {
-      const amount = direction === 'left' ? -400 : 400;
-      ref.current.scrollBy({ left: amount, behavior: 'smooth' });
-    }
+  const scrollToPlayer = () => {
+    playerRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>;
-  if (!anime) return <div className="text-center py-20 text-white font-bold">Аниме не найдено</div>;
+  if (!anime) return <div className="max-w-4xl mx-auto py-20 text-center"><h2 className="text-white mt-4 font-black uppercase">Аниме не найдено</h2></div>;
 
   return (
-    <div className="w-full relative overflow-x-hidden pb-20">
-      {/* Reduced blur on background image */}
-      <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0">
-        <img src={anime.cover || anime.image} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" />
-        <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/60 to-transparent" />
-      </div>
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="flex flex-col lg:flex-row gap-12">
+        {/* Left Column: Poster & Actions */}
+        <div className="w-full lg:w-80 flex-shrink-0 space-y-6">
+          <div className="relative aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl group">
+            <img src={anime.image} alt={anime.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+            <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-white">
+              {anime.type}
+            </div>
+            {anime.score && (
+              <div className="absolute top-4 right-4 bg-primary px-3 py-1 rounded-xl text-[10px] font-black text-white shadow-lg shadow-primary/30 flex items-center gap-1">
+                <Star className="w-3 h-3 fill-current" /> {anime.score}
+              </div>
+            )}
+          </div>
 
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-24 md:pt-32">
-        <div className="mb-10 animate-in slide-in-from-bottom-5 duration-700">
-           <div className="flex flex-wrap items-center gap-4 mb-4">
-              <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white">{anime.type}</span>
-              <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white">{anime.year}</span>
-              <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${anime.status === 'Ongoing' ? 'bg-green-500/20 text-green-400' : 'bg-primary/20 text-primary'}`}>{anime.status}</span>
-           </div>
-           <h1 className="text-4xl md:text-6xl font-display font-black text-white leading-tight mb-2 uppercase tracking-tighter drop-shadow-2xl">{anime.title}</h1>
-           {anime.originalName && <h2 className="text-xl md:text-2xl font-bold text-slate-400 mb-6">{anime.originalName}</h2>}
-           <div className="flex items-center gap-2 text-yellow-400 font-black text-lg bg-black/40 px-4 py-2 rounded-xl border border-white/5 w-fit shadow-xl">
-              <Star className="w-5 h-5 fill-current" /> {anime.rating}
-           </div>
+          <div className="space-y-3">
+            <button 
+              onClick={scrollToPlayer}
+              className="w-full py-4 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-primary/20 uppercase text-[10px] tracking-widest"
+            >
+              <Film className="w-4 h-4" /> Смотреть
+            </button>
+            <button 
+              onClick={handleToggleFavorite} 
+              disabled={isActionLoading} 
+              className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${isFavorite ? 'text-red-500 bg-red-500/10 border-red-500/20 shadow-lg shadow-red-500/10' : 'text-white hover:bg-white/10'}`}
+            >
+              <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} /> {isFavorite ? 'В ИЗБРАННОМ' : 'В ИЗБРАННОЕ'}
+            </button>
+            <button 
+              onClick={handleWatched} 
+              disabled={isActionLoading} 
+              className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${isWatched ? 'text-green-500 bg-green-500/10 border-green-500/20 shadow-lg shadow-green-500/10' : 'text-white hover:bg-white/10'}`}
+            >
+              <CheckCircle className={`w-4 h-4 ${isWatched ? 'fill-current' : ''}`} /> {isWatched ? 'ПРОСМОТРЕНО' : 'ОТМЕТИТЬ ПРОСМОТРЕННЫМ'}
+            </button>
+            <button 
+              onClick={() => navigate(`/forum?animeId=${id}`)}
+              className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
+            >
+              <MessageSquare className="w-4 h-4" /> ОБСУДИТЬ НА ФОРУМЕ
+            </button>
+          </div>
+
+          <div className="bg-surface/50 p-6 rounded-[2rem] border border-white/5 space-y-4 backdrop-blur-md shadow-xl">
+            <div className="flex justify-between items-center pb-4 border-b border-white/5">
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Статус</span>
+              <span className="text-white text-[10px] font-black uppercase tracking-widest">{anime.status === 'released' || anime.status === 'Completed' ? 'Вышел' : 'Онгоинг'}</span>
+            </div>
+            <div className="flex justify-between items-center pb-4 border-b border-white/5">
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Эпизоды</span>
+              <span className="text-white text-[10px] font-black uppercase tracking-widest">{anime.episodes || '?'}</span>
+            </div>
+            <div className="flex justify-between items-center pb-4 border-b border-white/5">
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Длительность</span>
+              <span className="text-white text-[10px] font-black uppercase tracking-widest">{anime.duration || '?'}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Рейтинг</span>
+              <span className="text-white text-[10px] font-black uppercase tracking-widest">{anime.score || anime.rating || '?'}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12">
-           <div className="flex flex-col gap-4">
-              <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block">
-                <img src={anime.image} alt={anime.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-              </div>
-              
-              <div className="grid grid-cols-1 gap-3">
+        {/* Right Column: Info & Player */}
+        <div className="flex-1 space-y-10">
+          <div>
+            <h1 className="text-4xl md:text-6xl font-display font-black text-white uppercase tracking-tighter leading-none mb-6">{anime.title}</h1>
+            <div className="flex flex-wrap gap-2 mb-8">
+              {anime.genres?.map(g => (
+                <span key={g} className="px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors cursor-default">
+                  {g}
+                </span>
+              ))}
+            </div>
+            <div className="prose prose-invert max-w-none">
+              <p className="text-slate-400 text-sm md:text-base leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: anime.description || 'Описание отсутствует' }} />
+            </div>
+          </div>
+
+          {/* Player Section */}
+          <div ref={playerRef} className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                <Film className="text-primary" /> Просмотр
+              </h2>
+              <button 
+                onClick={() => setIsTogether(!isTogether)}
+                className={`flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all font-black uppercase text-[10px] tracking-widest ${isTogether ? 'bg-primary text-white border-primary' : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'}`}
+              >
+                  <Users className="w-5 h-5" />
+                  {isTogether ? 'Совместный просмотр: ВКЛ' : 'Совместный просмотр'}
+              </button>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-6">
+              <div className="flex-1 relative aspect-video bg-black rounded-[2.5rem] overflow-hidden shadow-[0_20px_50px_-12px_rgba(0,0,0,1)] border border-white/10 ring-1 ring-white/5 z-0 group">
+                <iframe 
+                    ref={iframeRef}
+                    src={`https://kodik.cc/find-player?shikimoriID=${id}`} 
+                    className="w-full h-full border-0 rounded-[2.5rem]" 
+                    allowFullScreen 
+                    allow="autoplay *; fullscreen *"
+                    title="Anime Player"
+                />
+                
+                {/* Skip Opening Overlay */}
                 <button 
-                  onClick={handleFavorite} 
-                  disabled={isActionLoading} 
-                  className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${isFavorite ? 'text-pink-500 bg-pink-500/10 border-pink-500/20 shadow-lg shadow-pink-500/10' : 'text-white hover:bg-white/10'}`}
+                  onClick={skipOpening}
+                  className="absolute bottom-20 right-8 px-6 py-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-primary transition-all opacity-0 group-hover:opacity-100"
                 >
-                  <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} /> {isFavorite ? 'В ИЗБРАННОМ' : 'В ИЗБРАННОЕ'}
-                </button>
-                <button 
-                  onClick={handleWatched} 
-                  disabled={isActionLoading} 
-                  className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${isWatched ? 'text-green-500 bg-green-500/10 border-green-500/20 shadow-lg shadow-green-500/10' : 'text-white hover:bg-white/10'}`}
-                >
-                  <CheckCircle className={`w-4 h-4 ${isWatched ? 'fill-current' : ''}`} /> {isWatched ? 'ПРОСМОТРЕНО' : 'ОТМЕТИТЬ ПРОСМОТРЕННЫМ'}
-                </button>
-                <button 
-                  onClick={() => navigate(`/forum?animeId=${id}`)}
-                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
-                >
-                  <MessageSquare className="w-4 h-4" /> ОБСУДИТЬ НА ФОРУМЕ
+                  <FastForward className="w-4 h-4" /> Пропустить опенинг
                 </button>
               </div>
 
-              <div className="bg-surface/50 p-6 rounded-[2rem] border border-white/5 space-y-4 backdrop-blur-md shadow-xl">
-                 <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Информация</h3>
-                 <div className="space-y-3 text-sm font-medium">
-                    <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Тип</span><span className="font-bold text-white">{anime.type}</span></div>
-                    <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Эпизоды</span><span className="font-bold text-white">{anime.episodesAired} / {anime.episodes}</span></div>
-                    <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Студия</span><span className="font-bold text-white">{anime.studio}</span></div>
-                    <div className="pt-2">
-                       <span className="text-slate-400 block mb-2">Жанры</span>
-                       <div className="flex flex-wrap gap-2">
-                          {anime.genres.map(g => (
-                            <Link to={`/catalog?genre=${g}`} key={g} className="text-[10px] font-bold bg-white/5 px-2 py-1 rounded text-slate-300 hover:text-primary transition-colors">{g}</Link>
-                          ))}
-                       </div>
+              {/* Watch Together Chat */}
+              {isTogether && (
+                <aside className="w-full lg:w-[350px] flex flex-col bg-surface/30 rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl backdrop-blur-md animate-in slide-in-from-right-10 duration-500 h-[500px] lg:h-auto">
+                  <div className="p-6 border-b border-white/5 bg-white/5 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                      <MessageSquare className="w-5 h-5 text-primary" />
+                      <span className="font-black uppercase text-xs tracking-widest text-white">Чат комнаты</span>
                     </div>
-                 </div>
-              </div>
-           </div>
-
-           <div className="space-y-16">
-              <section className="bg-surface/30 p-8 md:p-10 rounded-[2.5rem] border border-white/5 shadow-xl backdrop-blur-sm">
-                 <h3 className="text-[10px] font-black text-slate-500 mb-6 uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-4 h-[2px] bg-primary"></div> Описание
-                 </h3>
-                 <p className="text-slate-200 leading-relaxed font-medium text-base md:text-lg">{anime.description}</p>
-              </section>
-
-              <section className="scroll-mt-24" id="watch">
-                <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-4">
-                   <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/20"><Film className="w-6 h-6" /></div> Смотреть онлайн
-                </h3>
-                <div className="w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)]">
-                    <iframe 
-                      src={`https://kodik.cc/find-player?shikimoriID=${id}`} 
-                      width="100%" 
-                      height="100%" 
-                      allow="autoplay *; fullscreen *" 
-                      referrerPolicy="origin" 
-                      className="w-full h-full border-0" 
-                      title="Player" 
-                    />
-                </div>
-              </section>
-
-              {related.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Связанное</h3>
-                    <div className="flex gap-2">
-                      <button onClick={() => scrollSlider(relatedRef, 'left')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
-                      <button onClick={() => scrollSlider(relatedRef, 'right')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-black/30 rounded-full border border-white/5">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">LIVE</span>
                     </div>
                   </div>
-                  <div ref={relatedRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
-                    {related.map((item, idx) => {
-                      const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
-                      return (
-                        <div key={idx} className="w-[180px] shrink-0 snap-start">
-                          <Link to={`/anime/${item.anime.id}`} className="block group relative">
-                            <div className={`aspect-[2/3] rounded-3xl overflow-hidden mb-3 border transition-all duration-500 shadow-xl ${isPriority ? 'border-primary shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'border-white/5 group-hover:border-primary/30'}`}>
-                              <img src={item.anime.image} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                              {isPriority && (
-                                <div className="absolute top-3 right-3 bg-primary text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-xl flex items-center gap-1 z-10 animate-pulse">
-                                  <Forward className="w-2 h-2" /> NEXT ARC
-                                </div>
-                              )}
-                            </div>
-                            <p className={`text-[10px] font-black uppercase mb-1 tracking-widest ${isPriority ? 'text-primary' : 'text-slate-500'}`}>{item.relation}</p>
-                            <h4 className={`text-sm font-bold text-white line-clamp-2 group-hover:text-primary transition-colors tracking-tight uppercase`}>{item.anime.title}</h4>
-                          </Link>
+                  
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
+                    {togetherMessages.map(msg => (
+                      <div key={msg.id} className="flex gap-3">
+                        <img src={msg.user.avatar} className="w-8 h-8 rounded-lg object-cover shrink-0" alt="" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-black text-white truncate">{msg.user.name}</span>
+                          </div>
+                          <div className="p-3 bg-white/5 rounded-2xl rounded-tl-none text-xs text-slate-300 border border-white/5 break-words">
+                            {msg.text}
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              {similar.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Похожее</h3>
-                    <div className="flex gap-2">
-                      <button onClick={() => scrollSlider(similarRef, 'left')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
-                      <button onClick={() => scrollSlider(similarRef, 'right')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
-                    </div>
-                  </div>
-                  <div ref={similarRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
-                    {similar.map((sim, idx) => (
-                      <div key={idx} className="w-[200px] md:w-[240px] shrink-0 snap-start">
-                        <AnimeCard anime={sim} />
                       </div>
                     ))}
                   </div>
-                </section>
+
+                  <form onSubmit={handleSendChat} className="p-6 bg-black/20 border-t border-white/5 flex gap-3 shrink-0">
+                    <input 
+                      type="text" 
+                      value={chatText}
+                      onChange={e => setChatText(e.target.value)}
+                      placeholder="Написать..."
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:border-primary outline-none"
+                    />
+                    <button type="submit" className="w-10 h-10 bg-primary hover:bg-violet-600 text-white rounded-xl flex items-center justify-center transition-all shrink-0">
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                </aside>
               )}
+            </div>
+          </div>
 
-              <section className="pt-10 border-t border-white/5">
-                <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({comments.length})</h3>
-                <div className="bg-surface/30 rounded-[2.5rem] p-8 border border-white/5 mb-12 shadow-2xl backdrop-blur-sm">
-                   {user ? (
-                      <form onSubmit={handleAddComment} className="flex flex-col gap-6">
-                         <div className="flex gap-5 items-start">
-                            <img src={user.avatar} className="w-14 h-14 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
-                            <textarea value={userComment} onChange={(e) => setUserComment(e.target.value)} placeholder="Напишите ваш отзыв..." className="flex-1 bg-dark/60 border border-white/10 rounded-3xl p-6 text-sm text-white focus:border-primary outline-none min-h-[140px] resize-none transition-all shadow-inner" />
-                         </div>
-                         <button type="submit" disabled={isCommenting || !userComment.trim()} className="self-end px-12 py-4 bg-primary text-white font-black text-[10px] uppercase rounded-2xl shadow-xl shadow-primary/20 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all tracking-widest">
-                            {isCommenting ? 'ОТПРАВКА...' : 'ОПУБЛИКОВАТЬ'}
-                         </button>
-                      </form>
-                   ) : (
-                      <div className="text-center py-10"><button onClick={openAuthModal} className="px-12 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-white text-[10px] uppercase hover:bg-white/10 transition-all tracking-widest">АВТОРИЗАЦИЯ</button></div>
-                   )}
+          {/* Related & Similar */}
+          <div className="space-y-12">
+            {related.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Связанное</h3>
+                  <div className="flex gap-2">
+                    <button onClick={() => relatedRef.current?.scrollBy({ left: -300, behavior: 'smooth' })} className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-all"><ChevronLeft className="w-5 h-5" /></button>
+                    <button onClick={() => relatedRef.current?.scrollBy({ left: 300, behavior: 'smooth' })} className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-all"><ChevronRight className="w-5 h-5" /></button>
+                  </div>
                 </div>
+                <div ref={relatedRef} className="flex gap-6 overflow-x-auto pb-8 snap-x scrollbar-hide">
+                  {related.map(anime => (
+                    <div key={anime.id} className="w-[200px] flex-shrink-0 snap-start">
+                      <AnimeCard anime={anime} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-                <div className="space-y-8">
-                   {comments.map((comment) => (
-                      <div key={comment.id} className="flex gap-6 group">
-                         <img src={comment.user.avatar} className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
-                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-3">
-                               <span className="font-black text-white text-base">{comment.user.name}</span>
-                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
-                            </div>
-                            <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">{comment.text}</div>
-                         </div>
-                      </div>
-                   ))}
+            {similar.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Похожее</h3>
+                  <div className="flex gap-2">
+                    <button onClick={() => similarRef.current?.scrollBy({ left: -300, behavior: 'smooth' })} className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-all"><ChevronLeft className="w-5 h-5" /></button>
+                    <button onClick={() => similarRef.current?.scrollBy({ left: 300, behavior: 'smooth' })} className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-all"><ChevronRight className="w-5 h-5" /></button>
+                  </div>
                 </div>
-             </section>
-           </div>
+                <div ref={similarRef} className="flex gap-6 overflow-x-auto pb-8 snap-x scrollbar-hide">
+                  {similar.map(anime => (
+                    <div key={anime.id} className="w-[200px] flex-shrink-0 snap-start">
+                      <AnimeCard anime={anime} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
         </div>
       </div>
     </div>

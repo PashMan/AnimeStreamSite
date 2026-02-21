@@ -6,14 +6,16 @@ export interface Anime {
   image: string;
   cover?: string;
   rating: number;
+  score?: number;
   year: number;
-  type: 'TV Series' | 'Movie' | 'OVA' | 'ONA';
+  type: 'TV Series' | 'Movie' | 'OVA' | 'ONA' | 'Special' | 'Music';
   genres: string[];
   episodes: number;
   episodesAired?: number;
-  status: 'Ongoing' | 'Completed' | 'Upcoming';
+  status: 'Ongoing' | 'Completed' | 'Upcoming' | 'released' | 'anons';
   description: string;
   studio: string;
+  duration?: string;
 }
 
 // Added missing Episode interface to resolve import error in constants.ts
