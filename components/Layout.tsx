@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, MessageSquareText } from 'lucide-react';
+import { Menu, X, Search, MessageSquareText, Shuffle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
+import { fetchAnimes } from '../services/shikimori';
 
 export const Logo: React.FC<{ className?: string }> = ({ className }) => (
   <div className={`flex items-center gap-3 select-none ${className}`}>
@@ -48,7 +49,7 @@ const Layout: React.FC = () => {
               <Logo />
             </Link>
 
-            <div className="flex-1 hidden md:flex justify-center max-w-xl">
+            <div className="flex-1 hidden md:flex justify-center max-w-xl gap-4">
               <form onSubmit={handleSearch} className="relative w-full group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                 <input
@@ -59,6 +60,16 @@ const Layout: React.FC = () => {
                   className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
                 />
               </form>
+              <button 
+                onClick={async () => {
+                  const animes = await fetchAnimes({ order: 'random', limit: 1 });
+                  if (animes.length > 0) navigate(`/anime/${animes[0].id}`);
+                }}
+                className="p-3 bg-white/5 hover:bg-primary hover:text-white rounded-2xl transition-all group"
+                title="Случайное аниме"
+              >
+                <Shuffle className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              </button>
             </div>
 
             <nav className="hidden lg:flex items-center gap-8 text-[11px] font-black uppercase tracking-[0.2em]">
