@@ -6,9 +6,15 @@ const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://ulum
 const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'placeholder';
 
 let supabaseClient: any = null;
+console.log('Initializing Supabase with URL:', supabaseUrl);
+console.log('Supabase Key present:', supabaseKey !== 'placeholder' && !!supabaseKey);
+
 try {
   if (supabaseUrl && supabaseKey && supabaseKey !== 'placeholder') {
     supabaseClient = createClient(supabaseUrl, supabaseKey);
+    console.log('Supabase client created successfully');
+  } else {
+    console.warn('Supabase client NOT created: URL or Key is missing/placeholder');
   }
 } catch (e) {
   console.error('Supabase initialization failed:', e);
@@ -16,7 +22,11 @@ try {
 
 class DatabaseService {
   private isSupabaseAvailable(): boolean {
-    return supabaseClient !== null;
+    const available = supabaseClient !== null;
+    if (!available) {
+      console.warn('Database operation attempted but Supabase is not available');
+    }
+    return available;
   }
 
   // Auth
