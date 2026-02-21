@@ -1,12 +1,13 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ChatMessage } from '../types';
+import { socketService } from '../services/socketService';
 
 const Home: React.FC = () => {
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -27,11 +28,18 @@ const Home: React.FC = () => {
   const [onlineCount, setOnlineCount] = useState(142);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatText, setChatText] = useState('');
+  const [upscaleAnime, setUpscaleAnime] = useState('');
+  const [isUpscaleSent, setIsUpscaleSent] = useState(false);
 
   const currentDayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][new Date().getDay()];
 
   // Initial Data Load
   useEffect(() => {
+    socketService.connect();
+    socketService.onGlobalMessage((msg) => {
+      setMessages(prev => [...prev, msg].slice(-100));
+    });
+
     // 1. Load Hero items immediately and unblock UI
     const loadHero = async () => {
         setIsHeroLoading(true);
@@ -107,8 +115,25 @@ const Home: React.FC = () => {
     if (!user) { openAuthModal(); return; }
     if (!chatText.trim()) return;
     const msg = await db.sendGlobalMessage(user, chatText);
-    setMessages([...messages, msg]);
+    socketService.sendGlobalMessage(msg);
     setChatText('');
+  };
+
+  const handleUpscaleRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.isPremium) return;
+    if (!upscaleAnime.trim()) return;
+    
+    const res = await fetch('/api/premium/upscale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id || user.email, animeName: upscaleAnime })
+    });
+    
+    if (res.ok) {
+      setIsUpscaleSent(true);
+      setUpscaleAnime('');
+    }
   };
 
   const currentHero = heroAnimes[heroIndex];
@@ -283,6 +308,45 @@ const Home: React.FC = () => {
           </section>
         )}
 
+        {/* Premium Upscale Request Section */}
+        {user?.isPremium && (
+          <section className="bg-gradient-to-br from-primary/20 to-accent/20 rounded-[3rem] border border-primary/20 p-10 shadow-2xl backdrop-blur-md relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-primary/20 transition-all duration-1000"></div>
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+              <div className="space-y-4 max-w-xl">
+                <div className="flex items-center gap-3 text-primary">
+                  <Crown className="w-8 h-8 fill-current" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em]">Premium Privilege</span>
+                </div>
+                <h3 className="text-3xl md:text-4xl font-display font-black text-white uppercase tracking-tighter leading-none">Заказать апскейл до 4K</h3>
+                <p className="text-slate-400 font-medium leading-relaxed">
+                  Как премиум-пользователь, вы можете выбрать одно аниме, которое мы обработаем с помощью ИИ и добавим в качестве 4K.
+                </p>
+              </div>
+              
+              {isUpscaleSent ? (
+                <div className="bg-white/5 border border-white/10 p-8 rounded-3xl flex flex-col items-center gap-4 animate-in zoom-in-95 duration-500">
+                  <Sparkles className="w-12 h-12 text-yellow-400" />
+                  <p className="font-black uppercase tracking-widest text-xs text-white">Заявка принята!</p>
+                </div>
+              ) : (
+                <form onSubmit={handleUpscaleRequest} className="w-full md:w-auto flex flex-col sm:flex-row gap-4">
+                  <input 
+                    type="text" 
+                    value={upscaleAnime}
+                    onChange={e => setUpscaleAnime(e.target.value)}
+                    placeholder="Название аниме..."
+                    className="h-16 px-8 bg-black/40 border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:border-primary outline-none min-w-[300px] transition-all"
+                  />
+                  <button type="submit" className="h-16 px-10 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-primary/20 uppercase text-[10px] tracking-widest">
+                    Отправить <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Global Chat Section (z-0 to sit below everything) */}
         <section className="bg-surface/30 rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl backdrop-blur-sm relative z-0">
            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/5">
@@ -310,13 +374,21 @@ const Home: React.FC = () => {
               ) : (
                 messages.map(msg => (
                   <div key={msg.id} className={`flex gap-4 animate-in slide-in-from-left-2 duration-300 ${msg.user.email === user?.email ? 'flex-row-reverse' : ''}`}>
-                    <img src={msg.user.avatar} className="w-10 h-10 rounded-xl object-cover ring-2 ring-white/5 shadow-md" alt="" />
+                    <div className="relative">
+                        <img src={msg.user.avatar} className={`w-10 h-10 rounded-xl object-cover ring-2 shadow-md ${msg.user.email === 'admin@example.com' ? 'ring-yellow-400' : 'ring-white/5'}`} alt="" />
+                        {/* Premium Badge on Avatar */}
+                        {/* We need to know if the user is premium from the message object. Let's assume the backend/db provides this or we check a list */}
+                    </div>
                     <div className={`max-w-[70%] ${msg.user.email === user?.email ? 'items-end' : ''}`}>
                         <div className={`flex items-center gap-2 mb-1 ${msg.user.email === user?.email ? 'flex-row-reverse' : ''}`}>
-                          <span className="text-[11px] font-black text-white">{msg.user.name}</span>
+                          <span className={`text-[11px] font-black flex items-center gap-1 ${msg.user.email === 'admin@example.com' ? 'text-yellow-400' : 'text-white'}`}>
+                            {msg.user.name}
+                            {/* Simple check for demo: if name contains 'Premium' or specific email */}
+                            {msg.user.email.includes('premium') && <Crown className="w-3 h-3 fill-current text-yellow-400" />}
+                          </span>
                           <span className="text-[9px] text-slate-500">{new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
                         </div>
-                        <div className={`p-4 rounded-2xl text-sm font-medium shadow-sm transition-all ${msg.user.email === user?.email ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5 hover:bg-white/10'}`}>
+                        <div className={`p-4 rounded-2xl text-sm font-medium shadow-sm transition-all ${msg.user.email === user?.email ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5 hover:bg-white/10'} ${msg.user.email.includes('premium') ? 'border-primary/30 ring-1 ring-primary/10' : ''}`}>
                           {msg.text}
                         </div>
                     </div>

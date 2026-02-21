@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 // Fix: Removed fetchComments from imports as it's not exported from shikimori service and unused here.
 // The app uses local database service (db.getUserComments) for comments.
@@ -12,6 +12,7 @@ import AnimeCard from '../components/AnimeCard';
 
 const Details: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { openAuthModal, user } = useAuth();
   const relatedRef = useRef<HTMLDivElement>(null);
   const similarRef = useRef<HTMLDivElement>(null);
@@ -154,6 +155,12 @@ const Details: React.FC = () => {
                   className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${isWatched ? 'text-green-500 bg-green-500/10 border-green-500/20 shadow-lg shadow-green-500/10' : 'text-white hover:bg-white/10'}`}
                 >
                   <CheckCircle className={`w-4 h-4 ${isWatched ? 'fill-current' : ''}`} /> {isWatched ? 'ПРОСМОТРЕНО' : 'ОТМЕТИТЬ ПРОСМОТРЕННЫМ'}
+                </button>
+                <button 
+                  onClick={() => navigate(`/forum?animeId=${id}`)}
+                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
+                >
+                  <MessageSquare className="w-4 h-4" /> ОБСУДИТЬ НА ФОРУМЕ
                 </button>
               </div>
 
