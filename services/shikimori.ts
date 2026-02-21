@@ -30,8 +30,9 @@ const proxyImage = (url: string | undefined | null) => {
     cleanUrl = `${IMG_BASE_URL}/${cleanUrl}`;
   }
   
-  // Use wsrv.nl for faster WebP delivery
-  return `https://wsrv.nl/?url=${encodeURIComponent(cleanUrl)}&output=webp&q=85`;
+  // Return direct URL with no-referrer policy in img tag instead of proxy
+  // This helps with 18+ content that might be blocked by image proxies
+  return cleanUrl;
 };
 
 const processNewsHtml = (html: string | undefined): string => {
