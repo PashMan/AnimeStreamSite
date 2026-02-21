@@ -8,6 +8,7 @@ interface AuthContextType {
   login: (credentials: { email: string; password: string }) => Promise<boolean>;
   register: (data: { name: string; email: string; password: string }) => Promise<boolean>;
   logout: () => void;
+  updateProfile: (updates: Partial<User>) => Promise<boolean>;
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
@@ -62,11 +63,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
   };
 
+  const updateProfile = async (updates: Partial<User>) => {
+    if (!user?.email) return false;
+    const updatedUser = await db.updateProfile(user.email, updates);
+    if (updatedUser) {
+      setUser(updatedUser);
+      return true;
+    }
+    return false;
+  };
+
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAuthModalOpen, openAuthModal, closeAuthModal }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateProfile, isAuthModalOpen, openAuthModal, closeAuthModal }}>
       {children}
     </AuthContext.Provider>
   );
