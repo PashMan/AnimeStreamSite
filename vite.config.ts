@@ -8,7 +8,7 @@ const proxyConfig = {
     target: 'https://shikimori.one',
     changeOrigin: true,
     secure: false, // Allow self-signed certs if needed, though Shikimori is valid
-    rewrite: (path) => path.replace(/^\/shikimori-proxy/, ''),
+    rewrite: (path: string) => path.replace(/^\/shikimori-proxy/, ''),
     headers: {
       'User-Agent': 'AnimeStream/1.0',
       'Referer': 'https://shikimori.one/'
@@ -18,7 +18,7 @@ const proxyConfig = {
     target: 'https://kodikapi.com',
     changeOrigin: true,
     secure: false,
-    rewrite: (path) => path.replace(/^\/kodik-proxy/, ''),
+    rewrite: (path: string) => path.replace(/^\/kodik-proxy/, ''),
   }
 };
 

@@ -11,6 +11,7 @@ import TextPage from './pages/TextPage';
 import News from './pages/News';
 import NewsDetails from './pages/NewsDetails';
 import Messages from './pages/Messages';
+import Forum from './pages/Forum';
 
 const App: React.FC = () => {
   return (
@@ -25,6 +26,7 @@ const App: React.FC = () => {
           <Route path="watch/:id" element={<Watch />} />
           <Route path="profile" element={<Profile />} />
           <Route path="messages" element={<Messages />} />
+          <Route path="forum" element={<Forum />} />
           
           {/* Footer Pages */}
           <Route path="privacy" element={<TextPage />} />

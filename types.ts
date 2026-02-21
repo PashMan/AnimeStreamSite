@@ -27,12 +27,34 @@ export interface Episode {
 }
 
 export interface User {
+  id?: string;
   name: string;
   email: string;
   avatar: string;
   isPremium: boolean;
+  premiumUntil?: string;
+  bio?: string;
   watchedTime: string;
   episodesWatched: number;
+  friends?: string[]; // array of user emails or IDs
+  watchedAnimeIds?: string[];
+}
+
+export interface ForumTopic {
+  id: string;
+  title: string;
+  author: string;
+  createdAt: string;
+  animeId?: string;
+  content: string;
+}
+
+export interface ForumPost {
+  id: string;
+  topicId: string;
+  author: string;
+  content: string;
+  createdAt: string;
 }
 
 export interface Comment {
