@@ -5,7 +5,6 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import Catalog from './pages/Catalog';
 import Details from './pages/Details';
-import Watch from './pages/Watch';
 import Profile from './pages/Profile';
 import TextPage from './pages/TextPage';
 import News from './pages/News';
@@ -24,7 +23,6 @@ const App: React.FC = () => {
           <Route path="news" element={<News />} />
           <Route path="news/:id" element={<NewsDetails />} />
           <Route path="anime/:id" element={<Details />} />
-          <Route path="watch/:id" element={<Watch />} />
           <Route path="profile" element={<Profile />} />
           <Route path="messages" element={<Messages />} />
           <Route path="forum" element={<Forum />} />

@@ -27,16 +27,9 @@ const Premium: React.FC = () => {
     if (!user?.isPremium) return;
     if (!upscaleAnime.trim()) return;
     
-    const res = await fetch('/api/premium/upscale', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id || user.email, animeName: upscaleAnime })
-    });
-    
-    if (res.ok) {
-      setIsUpscaleSent(true);
-      setUpscaleAnime('');
-    }
+    await db.requestUpscale(user.id || user.email, upscaleAnime);
+    setIsUpscaleSent(true);
+    setUpscaleAnime('');
   };
 
   return (

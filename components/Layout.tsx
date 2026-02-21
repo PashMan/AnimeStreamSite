@@ -8,22 +8,24 @@ import { fetchAnimes } from '../services/shikimori';
 
 // Helper to find a random anime with a player
 const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
-  for (let i = 0; i < 5; i++) {
-    try {
-      const animes = await fetchAnimes({ 
-        limit: 1, 
-        order: 'random',
-        kind: 'tv',
-        status: 'released',
-        score: 7
-      });
-      
-      if (animes.length > 0) {
-        return animes[0].id;
-      }
-    } catch (e) {
-      console.error(e);
+  // Shikimori has around 1000+ popular TV animes. Let's pick a random page.
+  const randomPage = Math.floor(Math.random() * 50) + 1;
+  try {
+    const animes = await fetchAnimes({ 
+      limit: 20, 
+      order: 'popularity',
+      kind: 'tv',
+      status: 'released',
+      score: 7,
+      page: randomPage
+    });
+    
+    if (animes && animes.length > 0) {
+      const randomIndex = Math.floor(Math.random() * animes.length);
+      return animes[randomIndex].id;
     }
+  } catch (e) {
+    console.error(e);
   }
   return null;
 };
@@ -85,7 +87,7 @@ const Layout: React.FC = () => {
               <button 
                 onClick={async () => {
                   const id = await findRandomAnimeWithPlayer();
-                  if (id) navigate(`/watch/${id}`);
+                  if (id) navigate(`/anime/${id}`);
                 }}
                 className="p-3 bg-white/5 hover:bg-primary hover:text-white rounded-2xl transition-all group"
                 title="Случайное аниме"
