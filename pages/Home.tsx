@@ -7,7 +7,6 @@ import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnim
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ChatMessage } from '../types';
-import { socketService } from '../services/socketService';
 
 const Home: React.FC = () => {
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -35,11 +34,6 @@ const Home: React.FC = () => {
 
   // Initial Data Load
   useEffect(() => {
-    socketService.connect();
-    socketService.onGlobalMessage((msg) => {
-      setMessages(prev => [...prev, msg].slice(-100));
-    });
-
     // 1. Load Hero items immediately and unblock UI
     const loadHero = async () => {
         setIsHeroLoading(true);
@@ -115,7 +109,7 @@ const Home: React.FC = () => {
     if (!user) { openAuthModal(); return; }
     if (!chatText.trim()) return;
     const msg = await db.sendGlobalMessage(user, chatText);
-    socketService.sendGlobalMessage(msg);
+    setMessages(prev => [...prev, msg].slice(-100));
     setChatText('');
   };
 
@@ -124,16 +118,9 @@ const Home: React.FC = () => {
     if (!user?.isPremium) return;
     if (!upscaleAnime.trim()) return;
     
-    const res = await fetch('/api/premium/upscale', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id || user.email, animeName: upscaleAnime })
-    });
-    
-    if (res.ok) {
-      setIsUpscaleSent(true);
-      setUpscaleAnime('');
-    }
+    await db.requestUpscale(user.id || user.email, upscaleAnime);
+    setIsUpscaleSent(true);
+    setUpscaleAnime('');
   };
 
   const currentHero = heroAnimes[heroIndex];

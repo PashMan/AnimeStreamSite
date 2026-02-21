@@ -35,7 +35,7 @@ const Details: React.FC = () => {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    if (isWatchTogether && id && user) {
+    if (isWatchTogether && id && user && supabase) {
       const channel = supabase.channel(`watch-${id}`, {
         config: {
           presence: {
@@ -49,10 +49,10 @@ const Details: React.FC = () => {
           const state = channel.presenceState();
           setWtUsers(Object.keys(state).length);
         })
-        .on('broadcast', { event: 'chat' }, ({ payload }) => {
+        .on('broadcast', { event: 'chat' }, ({ payload }: { payload: any }) => {
           setWtMessages(prev => [...prev, payload]);
         })
-        .subscribe(async (status) => {
+        .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             await channel.track({
               user: user.name,

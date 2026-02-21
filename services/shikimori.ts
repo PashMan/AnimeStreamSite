@@ -80,7 +80,7 @@ const processNewsHtml = (html: string | undefined): string => {
   return processed;
 };
 
-const fetchApi = async (endpoint: string) => {
+const fetchApi = async (endpoint: string, retries = 3) => {
   // 1. Check Cache
   const cached = requestCache.get(endpoint);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -90,27 +90,39 @@ const fetchApi = async (endpoint: string) => {
   // Use direct URL
   const url = `${BASE_API}${endpoint}`;
 
-  try {
-    const res = await fetch(url);
-    
-    if (!res.ok) {
-        console.warn(`[Shikimori API] Request failed: ${url} (${res.status})`);
-        throw new Error(`HTTP ${res.status}`);
-    }
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url);
+      
+      if (res.status === 429) {
+        // Rate limited, wait and retry
+        const waitTime = Math.pow(2, i) * 1000;
+        console.warn(`[Shikimori API] Rate limited (429). Waiting ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
 
-    const data = await res.json();
-    
-    if (data) {
-      requestCache.set(endpoint, { data, timestamp: Date.now() });
-      return data;
+      if (!res.ok) {
+          console.warn(`[Shikimori API] Request failed: ${url} (${res.status})`);
+          throw new Error(`HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      
+      if (data) {
+        requestCache.set(endpoint, { data, timestamp: Date.now() });
+        return data;
+      }
+    } catch (e) {
+      if (i === retries - 1) {
+        if (cached) return cached.data;
+        return null;
+      }
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
-  } catch (e) {
-    // console.error(`[Shikimori API] Error:`, e);
-    // Return cached data if available even if expired
-    if (cached) return cached.data;
-    return null;
   }
-  return null;
+  return cached ? cached.data : null;
 };
 
 export const mapAnime = (data: any): Anime => {
