@@ -28,9 +28,14 @@ class DatabaseService {
         .select('*')
         .eq('email', credentials.email)
         .single();
-      if (error || !data) return null;
+      if (error) {
+        console.error('Login error:', error.message);
+        return null;
+      }
+      if (!data) return null;
       return this.mapProfileToUser(data);
     } catch (e) {
+      console.error('Login exception:', e);
       return null;
     }
   }
@@ -54,9 +59,13 @@ class DatabaseService {
         .select()
         .single();
       
-      if (error || !profile) return null;
+      if (error) {
+        console.error('Registration error:', error.message);
+        return null;
+      }
       return this.mapProfileToUser(profile);
     } catch (e) {
+      console.error('Registration exception:', e);
       return null;
     }
   }
