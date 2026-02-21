@@ -12,6 +12,7 @@ import News from './pages/News';
 import NewsDetails from './pages/NewsDetails';
 import Messages from './pages/Messages';
 import Forum from './pages/Forum';
+import Premium from './pages/Premium';
 
 const App: React.FC = () => {
   return (
@@ -27,6 +28,7 @@ const App: React.FC = () => {
           <Route path="profile" element={<Profile />} />
           <Route path="messages" element={<Messages />} />
           <Route path="forum" element={<Forum />} />
+          <Route path="premium" element={<Premium />} />
           
           {/* Footer Pages */}
           <Route path="privacy" element={<TextPage />} />

@@ -3,7 +3,8 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { MessageSquare, Plus, User, Clock, ChevronRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
-import { ForumTopic } from '../types';
+import { ForumTopic, Anime } from '../types';
+import { fetchAnimeDetails } from '../services/shikimori';
 
 const Forum: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -11,6 +12,7 @@ const Forum: React.FC = () => {
   const { user, openAuthModal } = useAuth();
   
   const [topics, setTopics] = useState<ForumTopic[]>([]);
+  const [anime, setAnime] = useState<Anime | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   
@@ -18,13 +20,22 @@ const Forum: React.FC = () => {
   const [newTopicContent, setNewTopicContent] = useState('');
 
   useEffect(() => {
-    const loadTopics = async () => {
+    const loadData = async () => {
       setIsLoading(true);
-      const data = await db.getForumTopics(animeId || undefined);
-      setTopics(data);
-      setIsLoading(false);
+      try {
+        const [topicsData, animeData] = await Promise.all([
+          db.getForumTopics(animeId || undefined),
+          animeId ? fetchAnimeDetails(animeId) : Promise.resolve(null)
+        ]);
+        setTopics(topicsData);
+        setAnime(animeData);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
     };
-    loadTopics();
+    loadData();
   }, [animeId]);
 
   const handleCreateTopic = async (e: React.FormEvent) => {
@@ -56,9 +67,25 @@ const Forum: React.FC = () => {
           <Link to="/" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors mb-4">
             <ArrowLeft className="w-4 h-4" /> На главную
           </Link>
-          <h1 className="text-4xl md:text-5xl font-display font-black text-white uppercase tracking-tighter">
-            {animeId ? 'Обсуждение аниме' : 'Форум сообщества'}
-          </h1>
+          
+          {anime ? (
+            <div className="flex items-center gap-6 mb-4">
+              <img src={anime.image} className="w-20 h-28 object-cover rounded-xl shadow-lg" alt={anime.title} />
+              <div>
+                <h1 className="text-3xl md:text-4xl font-display font-black text-white uppercase tracking-tighter mb-2">
+                  Форум: {anime.title}
+                </h1>
+                <Link to={`/anime/${anime.id}`} className="text-primary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+                  Перейти к аниме
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <h1 className="text-4xl md:text-5xl font-display font-black text-white uppercase tracking-tighter">
+              Форум сообщества
+            </h1>
+          )}
+          
           <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em]">Делитесь мнениями и создавайте темы</p>
         </div>
         

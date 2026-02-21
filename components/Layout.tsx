@@ -1,10 +1,32 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, MessageSquareText, Shuffle } from 'lucide-react';
+import { Menu, X, Search, MessageSquareText, Shuffle, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
 import { fetchAnimes } from '../services/shikimori';
+
+// Helper to find a random anime with a player
+const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
+  for (let i = 0; i < 5; i++) {
+    try {
+      const animes = await fetchAnimes({ 
+        limit: 1, 
+        order: 'random',
+        kind: 'tv',
+        status: 'released',
+        score: 7
+      });
+      
+      if (animes.length > 0) {
+        return animes[0].id;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  return null;
+};
 
 export const Logo: React.FC<{ className?: string }> = ({ className }) => (
   <div className={`flex items-center gap-3 select-none ${className}`}>
@@ -62,8 +84,8 @@ const Layout: React.FC = () => {
               </form>
               <button 
                 onClick={async () => {
-                  const animes = await fetchAnimes({ order: 'random', limit: 1 });
-                  if (animes.length > 0) navigate(`/anime/${animes[0].id}`);
+                  const id = await findRandomAnimeWithPlayer();
+                  if (id) navigate(`/watch/${id}`);
                 }}
                 className="p-3 bg-white/5 hover:bg-primary hover:text-white rounded-2xl transition-all group"
                 title="Случайное аниме"
@@ -76,9 +98,13 @@ const Layout: React.FC = () => {
               <Link to="/" className={`${isActive('/') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Главная</Link>
               <Link to="/catalog" className={`${isActive('/catalog') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Каталог</Link>
               <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Новости</Link>
+              <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Форум</Link>
             </nav>
 
             <div className="flex items-center gap-4">
+              <Link to="/premium" title="Премиум" className="p-2.5 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-white rounded-xl transition-all relative group">
+                <Crown className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              </Link>
               {user && (
                 <Link to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
                    <MessageSquareText className="w-5 h-5" />
