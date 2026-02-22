@@ -1,11 +1,11 @@
--- 1. Удаляем старые таблицы, чтобы изменить тип ID
+-- 1. Drop old tables to ensure clean state
 drop table if exists public.forum_posts;
 drop table if exists public.forum_topics;
 
--- 2. Включаем расширение UUID (для генерации ID обычных тем)
+-- 2. Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- 3. Создаем таблицу тем (Topics) с ID типа TEXT
+-- 3. Create Topics Table (ID is TEXT)
 create table public.forum_topics (
   id text primary key default uuid_generate_v4()::text,
   title text not null,
@@ -18,7 +18,7 @@ create table public.forum_topics (
   replies_count integer default 0
 );
 
--- 4. Создаем таблицу ответов (Posts) с ID типа TEXT
+-- 4. Create Posts Table (ID is TEXT)
 create table public.forum_posts (
   id text primary key default uuid_generate_v4()::text,
   topic_id text references public.forum_topics(id) on delete cascade not null,
@@ -27,19 +27,29 @@ create table public.forum_posts (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 5. Настраиваем права доступа (RLS)
+-- 5. Enable RLS
 alter table public.forum_topics enable row level security;
 alter table public.forum_posts enable row level security;
 
--- Политики для чтения (доступно всем)
+-- 6. Create Policies (ALLOW PUBLIC ACCESS for this app architecture)
+-- Since the app handles auth via a custom 'profiles' table and not Supabase Auth,
+-- all requests come as 'anon'. We must allow 'anon' to insert.
+
+-- Read access (Public)
 create policy "Public topics select" on public.forum_topics for select using (true);
 create policy "Public posts select" on public.forum_posts for select using (true);
 
--- Политики для записи (только авторизованные)
-create policy "Auth topics insert" on public.forum_topics for insert to authenticated with check (true);
-create policy "Auth posts insert" on public.forum_posts for insert to authenticated with check (true);
+-- Insert access (Public/Anon - required for custom auth)
+create policy "Public topics insert" on public.forum_topics for insert with check (true);
+create policy "Public posts insert" on public.forum_posts for insert with check (true);
 
--- 6. Функции-счетчики (обновленные для типа TEXT)
+-- Update/Delete access (Public/Anon - ideally restricted by app logic)
+create policy "Public topics update" on public.forum_topics for update using (true);
+create policy "Public posts update" on public.forum_posts for update using (true);
+create policy "Public topics delete" on public.forum_topics for delete using (true);
+create policy "Public posts delete" on public.forum_posts for delete using (true);
+
+-- 7. Helper Functions
 create or replace function increment_topic_views(topic_id_param text)
 returns void as $$
 begin
@@ -58,11 +68,10 @@ begin
 end;
 $$ language plpgsql;
 
--- 7. Исправление связей с профилями (если таблица profiles существует)
+-- 8. Foreign Keys (if profiles table exists)
 do $$
 begin
   if exists (select 1 from information_schema.tables where table_name = 'profiles') then
-      -- Добавляем FK только если его нет
       if not exists (select 1 from pg_constraint where conname = 'forum_topics_author_email_fkey') then
         alter table public.forum_topics
         add constraint forum_topics_author_email_fkey
