@@ -1,11 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
-import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2 } from 'lucide-react';
+import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2, Camera, Upload } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { fetchAnimes } from '../services/shikimori';
 import { Anime, User } from '../types';
 import { Link } from 'react-router-dom';
+import imageCompression from 'browser-image-compression';
 
 const Profile: React.FC = () => {
   const { user, openAuthModal, updateProfile } = useAuth();
@@ -20,6 +21,55 @@ const Profile: React.FC = () => {
   const [editName, setEditName] = useState(user?.name || '');
   const [editBio, setEditBio] = useState(user?.bio || '');
   const [editAvatar, setEditAvatar] = useState(user?.avatar || '');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validation
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Неподдерживаемый формат файла. Разрешены: JPG, PNG, WEBP, GIF');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit before compression
+      setUploadError('Файл слишком большой. Максимум 10МБ');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      // Compression options
+      const options = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1024,
+        useWebWorker: true,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+      
+      const publicUrl = await db.uploadAvatar(compressedFile, user.id || user.email);
+      if (publicUrl) {
+        setEditAvatar(publicUrl);
+        // If not in editing mode, save immediately
+        if (!isEditing) {
+          await updateProfile({ avatar: publicUrl });
+        }
+      } else {
+        setUploadError('Ошибка при загрузке файла в хранилище');
+      }
+    } catch (err) {
+      console.error('Compression/Upload error:', err);
+      setUploadError('Произошла ошибка при обработке изображения');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?.email) return;
@@ -88,10 +138,16 @@ const Profile: React.FC = () => {
         <aside className="w-full lg:w-80 flex-shrink-0 space-y-6">
            <div className="glass p-10 rounded-[2.5rem] flex flex-col items-center text-center border border-white/10 shadow-2xl relative overflow-hidden">
               <div className={`absolute top-0 left-0 w-full h-32 ${user.isPremium ? 'bg-gradient-to-b from-yellow-500/20 to-transparent' : 'bg-gradient-to-b from-primary/20 to-transparent'}`}></div>
-              <div className="relative mb-6">
-                <img src={user.avatar} alt="Profile" className={`w-28 h-28 rounded-full border-4 border-dark ring-2 ${user.isPremium ? 'ring-yellow-400' : 'ring-primary/50'}`} />
+              <div className="relative mb-6 group">
+                <img src={editAvatar || user.avatar} alt="Profile" className={`w-28 h-28 rounded-full border-4 border-dark ring-2 object-cover ${user.isPremium ? 'ring-yellow-400' : 'ring-primary/50'}`} />
                 {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 fill-current drop-shadow-lg" />}
+                
+                <label className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
+                  <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
+                </label>
               </div>
+              {uploadError && <p className="text-[10px] text-red-400 font-bold uppercase mb-4">{uploadError}</p>}
               <h2 className="text-2xl font-black text-white uppercase tracking-tighter">{user.name}</h2>
               <div className="flex flex-col items-center gap-3 mt-4">
                  <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`}>

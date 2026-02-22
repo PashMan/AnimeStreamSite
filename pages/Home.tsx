@@ -334,17 +334,30 @@ const Home: React.FC = () => {
 
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {news.slice(0, 4).map((item) => (
-                   <Link key={item.id} to={`/news/${item.id}`} className="group relative h-64 rounded-[2rem] overflow-hidden border border-white/5 hover:border-primary/30 transition-all shadow-xl">
-                      {item.image ? (
-                        <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="absolute inset-0 bg-surface/50"></div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/50 to-transparent p-6 flex flex-col justify-end">
-                         <div className="text-[9px] font-black text-primary uppercase tracking-widest mb-2">{item.category}</div>
-                         <h4 className="text-sm font-black text-white leading-tight line-clamp-2 uppercase tracking-tight group-hover:text-primary transition-colors">{item.title}</h4>
-                      </div>
-                   </Link>
+                   <div key={item.id} className="group bg-surface/30 border border-white/5 hover:border-primary/30 rounded-[2rem] overflow-hidden transition-all shadow-xl flex flex-col">
+                      {item.video ? (
+                        <div className="aspect-video w-full bg-black">
+                           <iframe 
+                             src={`https://www.youtube.com/embed/${item.video}`} 
+                             className="w-full h-full" 
+                             frameBorder="0" 
+                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                             allowFullScreen
+                           ></iframe>
+                        </div>
+                      ) : null}
+                      <Link to={`/news/${item.id}`} className="p-6 flex-1 flex flex-col">
+                         <div className="flex items-center justify-between mb-3">
+                            <div className="text-[9px] font-black text-primary uppercase tracking-widest">{item.category}</div>
+                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{item.date}</div>
+                         </div>
+                         <h4 className="text-base font-black text-white leading-tight uppercase tracking-tight group-hover:text-primary transition-colors mb-3">{item.title}</h4>
+                         <p className="text-slate-400 text-xs line-clamp-3 leading-relaxed">{item.summary}</p>
+                         <div className="mt-auto pt-4 flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                            Читать далее <ChevronRight className="w-3 h-3" />
+                         </div>
+                      </Link>
+                   </div>
                 ))}
              </div>
           </section>

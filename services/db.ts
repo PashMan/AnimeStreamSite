@@ -120,6 +120,33 @@ class DatabaseService {
     }
   }
 
+  async uploadAvatar(file: File, userId: string): Promise<string | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}-${Math.random()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError.message);
+        return null;
+      }
+
+      const { data } = supabaseClient.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (e) {
+      console.error('Upload exception:', e);
+      return null;
+    }
+  }
+
   // Favorites
   async getFavorites(email: string): Promise<string[]> {
     if (!this.isSupabaseAvailable()) return [];

@@ -264,11 +264,27 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
     const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
-    return data.map(topic => {
+    const newsItems = await Promise.all(data.map(async topic => {
       const html = topic.html_body || topic.body || '';
       const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
       const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
       const ytMatch = html.match(ytRegex);
+      
+      let videoId = ytMatch ? ytMatch[1] : undefined;
+      
+      // If no video found in body but anime is linked, try to fetch its trailer
+      if (!videoId && topic.linked_id && topic.linked_type === 'Anime') {
+          try {
+              const videos = await fetchApi(`/animes/${topic.linked_id}/videos`);
+              if (Array.isArray(videos)) {
+                  const trailer = videos.find((v: any) => v.url && v.url.includes('youtube.com'));
+                  if (trailer) {
+                      const vMatch = trailer.url.match(ytRegex);
+                      if (vMatch) videoId = vMatch[1];
+                  }
+              }
+          } catch (e) {}
+      }
 
       return {
         id: topic.id.toString(),
@@ -277,10 +293,13 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
         date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
         category: 'Новости',
         image: imgMatch ? imgMatch[1] : undefined,
-        video: ytMatch ? ytMatch[1] : undefined,
+        video: videoId,
+        linkedId: topic.linked_id,
         html_body: processNewsHtml(html) // Apply HTML processing
       };
-    });
+    }));
+    
+    return newsItems;
   } catch (e) {
     return MOCK_NEWS;
   }
@@ -296,6 +315,21 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
     const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
     const ytMatch = html.match(ytRegex);
 
+    let videoId = ytMatch ? ytMatch[1] : undefined;
+
+    if (!videoId && topic.linked_id && topic.linked_type === 'Anime') {
+        try {
+            const videos = await fetchApi(`/animes/${topic.linked_id}/videos`);
+            if (Array.isArray(videos)) {
+                const trailer = videos.find((v: any) => v.url && v.url.includes('youtube.com'));
+                if (trailer) {
+                    const vMatch = trailer.url.match(ytRegex);
+                    if (vMatch) videoId = vMatch[1];
+                }
+            }
+        } catch (e) {}
+    }
+
     return {
       id: topic.id.toString(),
       title: topic.topic_title,
@@ -303,7 +337,8 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
       date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
       category: 'Новости',
       image: imgMatch ? imgMatch[1] : undefined,
-      video: ytMatch ? ytMatch[1] : undefined,
+      video: videoId,
+      linkedId: topic.linked_id,
       html_body: processNewsHtml(html) // Apply HTML processing
     };
   } catch (e) {

@@ -110,6 +110,7 @@ export interface NewsItem {
   image?: string;
   /* Added video property for YouTube links/embeds */
   video?: string;
+  linkedId?: number;
 }
 
 export interface ScheduleItem {
