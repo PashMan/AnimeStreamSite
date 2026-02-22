@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { Anime, User, Comment, ChatMessage, PrivateMessage, ForumTopic, ForumPost } from '../types';
 
-// Use environment variables or fallback to a dummy URL to prevent crashes
+// Use environment variables or fallback to the key you provided
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://ulumbarwutnsodmzxpst.supabase.co';
-const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'placeholder';
+const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsdW1iYXJ3dXRuc29kbXp4cHN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MDA5ODIsImV4cCI6MjA4NzI3Njk4Mn0.4HTww4JB9dcc9FcyONURPsdcu4CAdKzScsshAj3lJxs';
 
 let supabaseClient: any = null;
 console.log('Initializing Supabase with URL:', supabaseUrl);
