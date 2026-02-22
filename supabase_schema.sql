@@ -1,17 +1,7 @@
--- Enable UUID extension
+-- 1. Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- Ensure profiles email is unique
-do $$
-begin
-  if exists (select 1 from information_schema.tables where table_name = 'profiles') then
-    if not exists (select 1 from pg_constraint where conname = 'profiles_email_key') then
-      alter table public.profiles add constraint profiles_email_key unique (email);
-    end if;
-  end if;
-end $$;
-
--- Create Tables
+-- 2. Create Topics Table
 create table if not exists public.forum_topics (
   id uuid default uuid_generate_v4() primary key,
   title text not null,
@@ -24,6 +14,7 @@ create table if not exists public.forum_topics (
   replies_count integer default 0
 );
 
+-- 3. Create Posts Table
 create table if not exists public.forum_posts (
   id uuid default uuid_generate_v4() primary key,
   topic_id uuid references public.forum_topics(id) on delete cascade not null,
@@ -32,7 +23,26 @@ create table if not exists public.forum_posts (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Functions
+-- 4. Enable RLS
+alter table public.forum_topics enable row level security;
+alter table public.forum_posts enable row level security;
+
+-- 5. Drop old policies to avoid conflicts
+drop policy if exists "Public topics" on public.forum_topics;
+drop policy if exists "Public posts" on public.forum_posts;
+drop policy if exists "Auth insert topics" on public.forum_topics;
+drop policy if exists "Auth insert posts" on public.forum_posts;
+
+-- 6. Create Policies
+-- Read access for everyone
+create policy "Public topics" on public.forum_topics for select using (true);
+create policy "Public posts" on public.forum_posts for select using (true);
+
+-- Insert access for authenticated users
+create policy "Auth insert topics" on public.forum_topics for insert to authenticated with check (true);
+create policy "Auth insert posts" on public.forum_posts for insert to authenticated with check (true);
+
+-- 7. Helper Functions
 create or replace function increment_topic_views(topic_id_param uuid)
 returns void as $$
 begin
@@ -50,46 +60,3 @@ begin
   where id = topic_id_param;
 end;
 $$ language plpgsql;
-
--- RLS
-alter table public.forum_topics enable row level security;
-alter table public.forum_posts enable row level security;
-
--- Drop existing policies to avoid conflicts
-drop policy if exists "forum_topics_select" on public.forum_topics;
-drop policy if exists "forum_posts_select" on public.forum_posts;
-drop policy if exists "forum_topics_insert" on public.forum_topics;
-drop policy if exists "forum_posts_insert" on public.forum_posts;
-drop policy if exists "Forum topics are viewable by everyone" on public.forum_topics;
-drop policy if exists "Forum posts are viewable by everyone" on public.forum_posts;
-drop policy if exists "Users can create topics" on public.forum_topics;
-drop policy if exists "Users can create posts" on public.forum_posts;
-
--- Create Policies
-create policy "forum_topics_select" on public.forum_topics for select using (true);
-create policy "forum_posts_select" on public.forum_posts for select using (true);
-
-create policy "forum_topics_insert" on public.forum_topics for insert with check (auth.role() = 'authenticated');
-create policy "forum_posts_insert" on public.forum_posts for insert with check (auth.role() = 'authenticated');
-
--- FK Constraints
-do $$
-begin
-  if exists (select 1 from information_schema.tables where table_name = 'profiles') then
-      if not exists (select 1 from pg_constraint where conname = 'forum_topics_author_email_fkey') then
-        alter table public.forum_topics
-        add constraint forum_topics_author_email_fkey
-        foreign key (author_email)
-        references public.profiles(email)
-        on delete cascade;
-      end if;
-      
-      if not exists (select 1 from pg_constraint where conname = 'forum_posts_author_email_fkey') then
-        alter table public.forum_posts
-        add constraint forum_posts_author_email_fkey
-        foreign key (author_email)
-        references public.profiles(email)
-        on delete cascade;
-      end if;
-  end if;
-end $$;
