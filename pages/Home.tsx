@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
@@ -29,6 +29,7 @@ const Home: React.FC = () => {
   const [chatText, setChatText] = useState('');
   const [upscaleAnime, setUpscaleAnime] = useState('');
   const [isUpscaleSent, setIsUpscaleSent] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   const currentDayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][new Date().getDay()];
 
@@ -236,7 +237,8 @@ const Home: React.FC = () => {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+              {/* Desktop Grid */}
+              <div className="hidden md:grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
                 {schedule.map((day) => (
                   <div key={day.day} className="relative h-[160px] group">
                     <div className={`absolute top-0 left-0 right-0 w-full h-[160px] group-hover:h-[280px] overflow-hidden group-hover:overflow-y-auto bg-surface/90 border border-white/5 backdrop-blur-md rounded-[1.5rem] p-4 flex flex-col transition-all duration-300 ease-out origin-top z-10 group-hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] group-hover:bg-surface group-hover:border-white/10 ${day.day === currentDayName ? 'border-primary/50 ring-1 ring-primary/20' : ''} custom-scrollbar`}>
@@ -255,6 +257,47 @@ const Home: React.FC = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Mobile Accordion */}
+              <div className="md:hidden flex flex-col gap-3">
+                {schedule.map((day) => {
+                  const isExpanded = expandedDay === day.day || (expandedDay === null && day.day === currentDayName);
+                  return (
+                    <div key={day.day} className={`bg-surface/50 border ${isExpanded ? 'border-primary/30 bg-surface' : 'border-white/5'} rounded-2xl overflow-hidden transition-all duration-300`}>
+                      <button 
+                        onClick={() => setExpandedDay(isExpanded ? null : day.day)}
+                        className="w-full p-4 flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xs font-black uppercase tracking-widest ${day.day === currentDayName ? 'text-primary' : 'text-slate-400'}`}>{day.day}</span>
+                          {day.day === currentDayName && <span className="px-2 py-0.5 bg-primary/20 text-primary text-[8px] font-bold rounded uppercase tracking-wider">Сегодня</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] font-bold text-slate-500">{day.animes.length} релизов</span>
+                          <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </div>
+                      </button>
+                      
+                      {isExpanded && (
+                        <div className="px-4 pb-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                          {day.animes.length > 0 ? day.animes.map((item, idx) => (
+                            <Link key={idx} to={`/anime/${item.id}`} className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 active:scale-[0.98] transition-transform">
+                              <div className="mt-0.5 min-w-[40px] px-1.5 py-1 bg-black/40 rounded text-[9px] font-black text-primary text-center tracking-wider border border-white/5">
+                                {item.time}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-white leading-snug line-clamp-2">{item.title}</p>
+                              </div>
+                            </Link>
+                          )) : (
+                            <div className="text-center py-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Нет релизов</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </section>
         )}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, MessageSquareText, Shuffle, Crown } from 'lucide-react';
+import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
 import { fetchAnimes } from '../services/shikimori';
@@ -35,7 +35,7 @@ export const Logo: React.FC<{ className?: string }> = ({ className }) => (
     <div className="w-10 h-10 bg-gradient-to-br from-[#8B5CF6] to-[#06B6D4] rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
     </div>
-    <div className="font-display text-[26px] font-black tracking-tight text-white leading-none">
+    <div className="font-display text-[26px] font-black tracking-tight text-white leading-none hidden md:block">
       Anime<span className="text-primary">Stream</span>
     </div>
   </div>
@@ -43,6 +43,7 @@ export const Logo: React.FC<{ className?: string }> = ({ className }) => (
 
 const Layout: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { user, logout, openAuthModal } = useAuth();
   const { pathname } = useLocation();
@@ -52,6 +53,7 @@ const Layout: React.FC = () => {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    setIsMenuOpen(false);
   }, [pathname]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -132,21 +134,92 @@ const Layout: React.FC = () => {
         </div>
       </header>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu Overlay */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-dark pt-20 animate-in fade-in duration-300 md:hidden">
-          <nav className="flex flex-col p-8 gap-6 text-xl font-black uppercase tracking-widest font-display">
-            <Link to="/" onClick={() => setIsMenuOpen(false)} className="hover:text-primary">Главная</Link>
-            <Link to="/catalog" onClick={() => setIsMenuOpen(false)} className="hover:text-primary">Каталог</Link>
-            <Link to="/news" onClick={() => setIsMenuOpen(false)} className="hover:text-primary">Новости</Link>
-            {user ? (
-              <button onClick={() => { logout(); setIsMenuOpen(false); }} className="text-left text-red-500">Выйти</button>
-            ) : (
-              <button onClick={() => { openAuthModal(); setIsMenuOpen(false); }} className="text-left text-primary">Войти</button>
-            )}
-          </nav>
-        </div>
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm md:hidden" onClick={() => setIsMenuOpen(false)} />
       )}
+
+      {/* Mobile Side Drawer */}
+      <div className={`fixed top-0 right-0 bottom-0 w-[75%] max-w-[320px] bg-surface border-l border-white/10 z-[70] transform transition-transform duration-300 ease-out md:hidden flex flex-col ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-widest text-slate-500">Меню</span>
+          <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+            <X className="w-6 h-6 text-white" />
+          </button>
+        </div>
+        
+        <nav className="flex-1 overflow-y-auto p-6 flex flex-col gap-2">
+          <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+            Главная
+          </Link>
+          
+          <div className="flex flex-col">
+            <button 
+              onClick={() => setIsCatalogOpen(!isCatalogOpen)}
+              className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors flex items-center justify-between ${isActive('/catalog') ? 'text-primary' : 'text-slate-300 hover:bg-white/5'}`}
+            >
+              Каталог
+              <ChevronDown className={`w-4 h-4 transition-transform ${isCatalogOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isCatalogOpen && (
+              <div className="flex flex-col gap-1 pl-4 pb-2 animate-in slide-in-from-top-2 duration-200">
+                <button 
+                  onClick={async () => {
+                    const id = await findRandomAnimeWithPlayer();
+                    if (id) navigate(`/anime/${id}`);
+                    setIsMenuOpen(false);
+                  }}
+                  className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 text-left flex items-center gap-2"
+                >
+                  <Shuffle className="w-3 h-3" /> Случайное
+                </button>
+                <Link to="/catalog?sort=score" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2">
+                  <Crown className="w-3 h-3 text-yellow-500" /> Топ 100
+                </Link>
+                <Link to="/catalog" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5">
+                  Все аниме
+                </Link>
+              </div>
+            )}
+          </div>
+
+          <Link to="/news" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/news') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+            Новости
+          </Link>
+          
+          <Link to="/forum" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/forum') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+            Форум
+          </Link>
+        </nav>
+
+        <div className="p-6 border-t border-white/5 bg-black/20">
+          {user ? (
+            <div className="flex flex-col gap-4">
+              <Link to="/profile" className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors">
+                <img src={user.avatar} className="w-10 h-10 rounded-lg object-cover" alt="" />
+                <div>
+                  <div className="font-bold text-white text-sm">{user.name}</div>
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">Профиль</div>
+                </div>
+              </Link>
+              <button 
+                onClick={() => { logout(); setIsMenuOpen(false); }} 
+                className="w-full py-3 bg-red-500/10 text-red-500 font-black uppercase tracking-widest text-xs rounded-xl hover:bg-red-500 hover:text-white transition-all"
+              >
+                Выйти
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => { openAuthModal(); setIsMenuOpen(false); }} 
+              className="w-full py-4 bg-primary text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+            >
+              Войти в аккаунт
+            </button>
+          )}
+        </div>
+      </div>
 
       <main className="flex-grow pt-20">
         <Outlet />
