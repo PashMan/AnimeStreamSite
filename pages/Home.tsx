@@ -1,12 +1,12 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
-import { Anime, ScheduleItem, NewsItem, ChatMessage } from '../types';
+import { Anime, ScheduleItem, NewsItem, ChatMessage, ForumTopic } from '../types';
 
 const Home: React.FC = () => {
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -21,6 +21,7 @@ const Home: React.FC = () => {
   const [upcomingAnimes, setUpcomingAnimes] = useState<Anime[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [forumTopics, setForumTopics] = useState<ForumTopic[]>([]);
   
   const [isHeroLoading, setIsHeroLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
@@ -72,7 +73,7 @@ const Home: React.FC = () => {
         }
     };
 
-    const loadLists = () => {
+    const loadLists = async () => {
         // Parallel fetches for other sections
         fetchAnimes({ order: 'popularity', limit: 12 }).then(setTrendingAnimes);
         fetchAnimes({ order: 'aired_on', status: 'ongoing', limit: 20 }).then(setNewAnimes);
@@ -80,6 +81,10 @@ const Home: React.FC = () => {
         fetchNews().then(setNews);
         fetchCalendar().then(setSchedule);
         db.getGlobalMessages().then(setMessages);
+        
+        // Fetch recent forum topics (excluding news)
+        const topics = await db.getForumTopics(undefined, undefined);
+        setForumTopics(topics.filter(t => t.category !== 'news').slice(0, 5));
     };
 
     loadHero();
@@ -333,6 +338,58 @@ const Home: React.FC = () => {
                          <h4 className="text-sm font-black text-white leading-tight line-clamp-2 uppercase tracking-tight group-hover:text-primary transition-colors">{item.title}</h4>
                       </div>
                    </Link>
+                ))}
+             </div>
+          </section>
+        )}
+
+        {/* Forum Discussions Section */}
+        {forumTopics.length > 0 && (
+          <section className="relative z-10">
+             <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-violet-500/20 rounded-xl flex items-center justify-center text-violet-400 shadow-lg shadow-violet-500/10">
+                        <MessageSquare className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">Обсуждения</h3>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Свежее на форуме</p>
+                    </div>
+                </div>
+                <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-1">
+                    Весь форум <ChevronRight className="w-4 h-4" />
+                </Link>
+             </div>
+
+             <div className="grid gap-4">
+                {forumTopics.map(topic => (
+                  <Link key={topic.id} to={`/forum/${topic.id}`} className="group bg-surface/30 hover:bg-surface/50 border border-white/5 hover:border-primary/30 rounded-[1.5rem] p-6 transition-all cursor-pointer shadow-lg backdrop-blur-sm flex items-center gap-6">
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <span className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[9px] font-black uppercase tracking-widest">
+                          {topic.category}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                           {topic.author.name}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                           <Clock className="w-3 h-3" /> {new Date(topic.createdAt).toLocaleDateString('ru-RU')}
+                        </span>
+                      </div>
+                      <h4 className="text-base font-black text-white group-hover:text-primary transition-colors uppercase tracking-tight line-clamp-1">
+                        {topic.title}
+                      </h4>
+                      <p className="text-slate-400 text-xs line-clamp-1">{topic.content}</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 shrink-0 border-l border-white/5 pl-6">
+                       <div className="text-center">
+                          <div className="text-xs font-black text-white">{topic.repliesCount}</div>
+                          <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Ответов</div>
+                       </div>
+                       <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </Link>
                 ))}
              </div>
           </section>

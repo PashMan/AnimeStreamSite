@@ -97,30 +97,33 @@ const Forum: React.FC = () => {
         if (topicId.startsWith('news-')) {
             // Handle News Detail
             const newsId = topicId.replace('news-', '');
+            // Try to get from DB first to get correct reply count and views
+            const [dbTopic, dbPosts] = await Promise.all([
+                db.getForumTopic(topicId),
+                db.getForumPosts(topicId)
+            ]);
+
             const newsItem = await import('../services/shikimori').then(m => m.fetchNewsDetails(newsId));
+            
             if (newsItem) {
-                // Strip HTML tags for forum display, but keep basic formatting if possible
-                // For now, we'll just use the summary or strip tags from html_body
-                const cleanContent = (newsItem.html_body || newsItem.summary).replace(/<[^>]*>?/gm, '');
-                
-                const topic: ForumTopic = {
+                setCurrentTopic({
                     id: topicId,
                     title: newsItem.title,
-                    content: cleanContent,
+                    // Use HTML body for detail view, do not strip tags
+                    content: newsItem.html_body || newsItem.summary,
                     author: { name: 'Shikimori', avatar: '', email: 'bot@shikimori.one' },
                     createdAt: new Date(newsItem.date.split('.').reverse().join('-')).toISOString(),
                     category: 'news',
-                    views: 0,
-                    repliesCount: 0
-                };
-                setCurrentTopic(topic);
-                setPosts([]); // News don't have comments in this implementation yet
+                    views: dbTopic?.views || 0,
+                    repliesCount: dbTopic?.repliesCount || dbPosts.length
+                });
+                setPosts(dbPosts);
             }
         } else {
             // Handle DB Topic Detail
             const [topic, topicPosts] = await Promise.all([
-            db.getForumTopic(topicId),
-            db.getForumPosts(topicId)
+              db.getForumTopic(topicId),
+              db.getForumPosts(topicId)
             ]);
             setCurrentTopic(topic);
             setPosts(topicPosts);
@@ -176,10 +179,12 @@ const Forum: React.FC = () => {
       if (currentTopic.id.startsWith('news-')) {
           const existing = await db.getForumTopic(currentTopic.id);
           if (!existing) {
+              // We need to fetch the news item again or use currentTopic data to create it
+              // currentTopic.content might contain HTML, which is fine for DB content
               const newTopic = await db.createForumTopic({
                   id: currentTopic.id,
                   title: currentTopic.title,
-                  content: currentTopic.content,
+                  content: currentTopic.content, // Save HTML content to DB
                   author: user.email, 
                   category: 'news',
                   animeId: undefined
@@ -213,6 +218,35 @@ const Forum: React.FC = () => {
   if (topicId && currentTopic) {
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-in fade-in duration-500">
+        <style>{`
+          .news-content img {
+              max-width: 100%;
+              height: auto;
+              border-radius: 1rem;
+              margin: 1.5rem 0;
+              box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+              display: block;
+              border: 1px solid rgba(255, 255, 255, 0.05);
+          }
+          .news-content iframe {
+              width: 100%;
+              aspect-ratio: 16/9;
+              border-radius: 1rem;
+              margin: 1.5rem 0;
+              border: 0;
+              box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+          }
+          .news-content a {
+              color: #8B5CF6;
+              text-decoration: none;
+              font-weight: 700;
+              transition: color 0.2s;
+          }
+          .news-content a:hover {
+              color: #fff;
+              text-decoration: underline;
+          }
+        `}</style>
         <div className="mb-8">
           <Link to="/forum" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors mb-4">
             <ArrowLeft className="w-4 h-4" /> Назад к списку
@@ -235,16 +269,20 @@ const Forum: React.FC = () => {
           <div className="bg-surface/30 border border-white/5 rounded-[2rem] p-8 md:p-10 relative overflow-hidden">
              <div className="flex flex-col md:flex-row gap-8">
                 <div className="flex flex-col items-center gap-3 shrink-0 md:w-40">
-                   <img src={currentTopic.author.avatar} className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
+                   <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
                    <div className="text-center">
                       <div className="font-black text-white text-sm">{currentTopic.author.name}</div>
                       <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Автор</div>
                    </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                   <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-wrap">
-                      {currentTopic.content}
-                   </div>
+                   {currentTopic.category === 'news' ? (
+                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed news-content" dangerouslySetInnerHTML={{ __html: currentTopic.content }} />
+                   ) : (
+                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-wrap">
+                          {currentTopic.content}
+                       </div>
+                   )}
                 </div>
              </div>
           </div>
