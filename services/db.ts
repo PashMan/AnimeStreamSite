@@ -311,6 +311,33 @@ class DatabaseService {
     } catch (e) {}
   }
 
+  // Watch Rooms
+  async createWatchRoom(roomId: string, animeId: string, hostName: string) {
+    if (!this.isSupabaseAvailable()) return;
+    try {
+      await supabaseClient.from('watch_rooms').insert([{ id: roomId, anime_id: animeId, host_name: hostName }]);
+    } catch (e) {
+      console.error('Error creating room:', e);
+    }
+  }
+
+  async checkWatchRoom(roomId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { data } = await supabaseClient.from('watch_rooms').select('id').eq('id', roomId).single();
+      return !!data;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async deleteWatchRoom(roomId: string) {
+    if (!this.isSupabaseAvailable()) return;
+    try {
+      await supabaseClient.from('watch_rooms').delete().eq('id', roomId);
+    } catch (e) {}
+  }
+
   // History (Keep local as it's per-device usually, or move to DB if requested)
   async addToHistory(email: string, anime: Anime, ep: number) {
     const data = localStorage.getItem(`as_history_${email}`);

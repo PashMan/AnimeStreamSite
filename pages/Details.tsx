@@ -29,8 +29,9 @@ const Details: React.FC = () => {
   const [isCommenting, setIsCommenting] = useState(false);
 
   // Watch Together State
-  const [isWatchTogether, setIsWatchTogether] = useState(searchParams.get('wt') === 'true');
-  const roomId = searchParams.get('room') || id;
+  const [isWatchTogether, setIsWatchTogether] = useState(false);
+  const roomIdFromUrl = searchParams.get('room');
+  const [roomId, setRoomId] = useState<string | null>(roomIdFromUrl);
   const [wtMessages, setWtMessages] = useState<{user: string, text: string, avatar: string}[]>([]);
   const [wtInput, setWtInput] = useState('');
   const [wtUsers, setWtUsers] = useState<number>(0);
@@ -57,21 +58,49 @@ const Details: React.FC = () => {
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  const toggleWatchTogether = () => {
+  const toggleWatchTogether = async () => {
     if (!isWatchTogether) {
-      // If starting fresh, generate a unique room ID if not already in URL
-      if (!searchParams.get('room')) {
-        const newRoomId = Math.random().toString(36).substring(2, 10);
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.set('wt', 'true');
-        newUrl.searchParams.set('room', newRoomId);
-        window.history.replaceState({}, '', newUrl.toString());
-      }
+      const newRoomId = Math.random().toString(36).substring(2, 10);
+      await db.createWatchRoom(newRoomId, id!, currentUser.name);
+      
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('wt', 'true');
+      newUrl.searchParams.set('room', newRoomId);
+      window.history.replaceState({}, '', newUrl.toString());
+      
+      setRoomId(newRoomId);
       setIsWatchTogether(true);
     } else {
+      if (roomId) await db.deleteWatchRoom(roomId);
       setIsWatchTogether(false);
+      setRoomId(null);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('wt');
+      newUrl.searchParams.delete('room');
+      window.history.replaceState({}, '', newUrl.toString());
     }
   };
+
+  // Auto-join logic
+  useEffect(() => {
+    const checkRoom = async () => {
+      if (roomIdFromUrl) {
+        const exists = await db.checkWatchRoom(roomIdFromUrl);
+        if (exists) {
+          setIsWatchTogether(true);
+          setRoomId(roomIdFromUrl);
+        } else {
+          console.warn('Room does not exist or expired');
+          // Clean up URL if room is invalid
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('wt');
+          newUrl.searchParams.delete('room');
+          window.history.replaceState({}, '', newUrl.toString());
+        }
+      }
+    };
+    checkRoom();
+  }, [roomIdFromUrl]);
 
   useEffect(() => {
     if (isWatchTogether && roomId && supabase) {
