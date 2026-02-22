@@ -21,12 +21,20 @@ const NewsDetails: React.FC = () => {
       if (!id) return;
       setIsLoading(true);
       try {
-        const [data, userComments] = await Promise.all([
+        const topicId = `news-${id}`;
+        const [data, forumPosts] = await Promise.all([
           fetchNewsDetails(id),
-          db.getUserComments(id)
+          db.getForumPosts(topicId)
         ]);
         setNewsItem(data);
-        setComments(userComments);
+        
+        const mappedComments: Comment[] = forumPosts.map(p => ({
+            id: p.id,
+            user: { name: p.author.name, avatar: p.author.avatar },
+            text: p.content,
+            date: new Date(p.createdAt).toLocaleDateString('ru-RU')
+        }));
+        setComments(mappedComments);
       } catch (err) {
         console.error(err);
       } finally {
@@ -39,13 +47,45 @@ const NewsDetails: React.FC = () => {
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { openAuthModal(); return; }
-    if (!userComment.trim()) return;
+    if (!userComment.trim() || !newsItem) return;
     
     setIsCommenting(true);
     try {
-      const newComment = await db.addComment(id!, user, userComment);
-      setComments([newComment, ...comments]);
-      setUserComment('');
+      const topicId = `news-${id}`;
+      
+      // Check if topic exists in DB
+      const existing = await db.getForumTopic(topicId);
+      
+      if (!existing) {
+          // Create topic if it doesn't exist
+          await db.createForumTopic({
+              id: topicId,
+              title: newsItem.title,
+              content: newsItem.summary,
+              author: user.email, 
+              category: 'news',
+              animeId: undefined
+          });
+      }
+
+      const post = await db.createForumPost({
+        topicId: topicId,
+        content: userComment,
+        author: user.email
+      });
+
+      if (post) {
+          const newComment: Comment = {
+              id: post.id,
+              user: { name: user.name, avatar: user.avatar },
+              text: post.content,
+              date: new Date(post.createdAt).toLocaleDateString('ru-RU')
+          };
+          setComments([newComment, ...comments]); // Prepend new comment
+          setUserComment('');
+      }
+    } catch (e) {
+        console.error(e);
     } finally {
       setIsCommenting(false);
     }

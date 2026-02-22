@@ -59,7 +59,7 @@ const Forum: React.FC = () => {
         const newsTopics: ForumTopic[] = newsData.map(n => ({
             id: `news-${n.id}`,
             title: n.title,
-            content: n.summary,
+            content: n.summary.replace(/<[^>]*>?/gm, ''), // Strip tags for list view
             author: { name: 'Shikimori', avatar: '', email: 'bot@shikimori.one' },
             createdAt: new Date(n.date.split('.').reverse().join('-')).toISOString(),
             category: 'news',
@@ -99,10 +99,14 @@ const Forum: React.FC = () => {
             const newsId = topicId.replace('news-', '');
             const newsItem = await import('../services/shikimori').then(m => m.fetchNewsDetails(newsId));
             if (newsItem) {
+                // Strip HTML tags for forum display, but keep basic formatting if possible
+                // For now, we'll just use the summary or strip tags from html_body
+                const cleanContent = (newsItem.html_body || newsItem.summary).replace(/<[^>]*>?/gm, '');
+                
                 const topic: ForumTopic = {
                     id: topicId,
                     title: newsItem.title,
-                    content: newsItem.html_body || newsItem.summary,
+                    content: cleanContent,
                     author: { name: 'Shikimori', avatar: '', email: 'bot@shikimori.one' },
                     createdAt: new Date(newsItem.date.split('.').reverse().join('-')).toISOString(),
                     category: 'news',
