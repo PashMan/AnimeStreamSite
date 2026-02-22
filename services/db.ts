@@ -238,16 +238,19 @@ class DatabaseService {
     }
   }
 
-  async createForumTopic(topic: { title: string, content: string, author: string, animeId?: string, category: string }): Promise<ForumTopic | null> {
+  async createForumTopic(topic: { id?: string, title: string, content: string, author: string, animeId?: string, category: string }): Promise<ForumTopic | null> {
     if (!this.isSupabaseAvailable()) return null;
     try {
-      const { data, error } = await supabaseClient.from('forum_topics').insert([{
+      const payload: any = {
         title: topic.title,
         author_email: topic.author,
         content: topic.content,
         anime_id: topic.animeId,
         category: topic.category
-      }]).select('*, profiles!author_email(name, avatar, email)').single();
+      };
+      if (topic.id) payload.id = topic.id;
+
+      const { data, error } = await supabaseClient.from('forum_topics').insert([payload]).select('*, profiles!author_email(name, avatar, email)').single();
       
       if (error || !data) return null;
       return {
