@@ -1,12 +1,14 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare, Reply } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ChatMessage, ForumTopic } from '../types';
+import { RichTextarea } from '../components/RichTextarea';
+import ReactMarkdown from 'react-markdown';
 
 const Home: React.FC = () => {
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -110,13 +112,18 @@ const Home: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendChat = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendChat = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!user) { openAuthModal(); return; }
     if (!chatText.trim()) return;
     const msg = await db.sendGlobalMessage(user, chatText);
     setMessages(prev => [...prev, msg].slice(-100));
     setChatText('');
+  };
+
+  const handleReplyToChatUser = (username: string) => {
+      const mention = `**${username}**, `;
+      setChatText(prev => prev + mention);
   };
 
   const handleUpscaleRequest = async (e: React.FormEvent) => {
@@ -475,8 +482,22 @@ const Home: React.FC = () => {
                           </span>
                           <span className="text-[9px] text-slate-500">{new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
                         </div>
-                        <div className={`p-4 rounded-2xl text-sm font-medium shadow-sm transition-all ${msg.user.email === user?.email ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5 hover:bg-white/10'} ${msg.user.email.includes('premium') ? 'border-primary/30 ring-1 ring-primary/10' : ''}`}>
-                          {msg.text}
+                        <div className={`p-4 rounded-2xl text-sm font-medium shadow-sm transition-all break-words markdown-body group/msg relative ${msg.user.email === user?.email ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5 hover:bg-white/10'} ${msg.user.email.includes('premium') ? 'border-primary/30 ring-1 ring-primary/10' : ''}`}>
+                          <ReactMarkdown 
+                               components={{
+                                   p: ({node, ...props}: any) => <p className="m-0" {...props} />,
+                                   u: ({node, ...props}: any) => <u {...props} />
+                               }}
+                          >
+                              {msg.text}
+                          </ReactMarkdown>
+                          
+                          <button 
+                            onClick={() => handleReplyToChatUser(msg.user.name)}
+                            className={`absolute -bottom-5 flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-all opacity-0 group-hover/msg:opacity-100 ${msg.user.email === user?.email ? 'right-0' : 'left-0'}`}
+                          >
+                             <Reply className="w-2.5 h-2.5" /> Ответить
+                          </button>
                         </div>
                     </div>
                   </div>
@@ -485,16 +506,18 @@ const Home: React.FC = () => {
               <div ref={chatEndRef} />
            </div>
 
-           <form onSubmit={handleSendChat} className="p-6 bg-dark/40 border-t border-white/5 flex gap-4">
-              <input 
-                type="text" 
-                value={chatText}
-                onChange={e => setChatText(e.target.value)}
-                placeholder={user ? "Введите ваше сообщение..." : "Авторизуйтесь, чтобы писать в чате"}
-                disabled={!user}
-                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white focus:border-primary outline-none"
-              />
-              <button type="submit" disabled={!user || !chatText.trim()} className="w-14 h-14 bg-primary hover:bg-violet-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-xl shadow-primary/20">
+           <form onSubmit={handleSendChat} className="p-6 bg-dark/40 border-t border-white/5 flex gap-4 items-end">
+              <div className="flex-1">
+                  <RichTextarea 
+                    value={chatText}
+                    onChange={e => setChatText(e.target.value)}
+                    placeholder={user ? "Введите ваше сообщение..." : "Авторизуйтесь, чтобы писать в чате"}
+                    disabled={!user}
+                    className="min-h-[60px] max-h-[120px]"
+                    onSubmit={() => handleSendChat()}
+                  />
+              </div>
+              <button type="submit" disabled={!user || !chatText.trim()} className="w-14 h-14 bg-primary hover:bg-violet-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-xl shadow-primary/20 mb-[1px]">
                  <Send className="w-6 h-6" />
               </button>
            </form>

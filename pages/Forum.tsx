@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useParams, useNavigate } from 'react-router-dom';
-import { MessageSquare, Plus, User, Clock, ChevronRight, ArrowLeft, Loader2, MessageCircle, Eye, Hash, Send } from 'lucide-react';
+import { MessageSquare, Plus, User, Clock, ChevronRight, ArrowLeft, Loader2, MessageCircle, Eye, Hash, Send, Reply } from 'lucide-react';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { ForumTopic, ForumPost, Anime } from '../types';
 import { fetchAnimeDetails, fetchNews } from '../services/shikimori';
+import { RichTextarea } from '../components/RichTextarea';
+import ReactMarkdown from 'react-markdown';
 
 const CATEGORIES = [
   { id: 'general', name: 'Общее', description: 'Общие обсуждения на любые темы' },
@@ -166,8 +168,8 @@ const Forum: React.FC = () => {
     }
   };
 
-  const handleReply = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleReply = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!user) { openAuthModal(); return; }
     if (!replyContent.trim() || !currentTopic) return;
 
@@ -212,6 +214,16 @@ const Forum: React.FC = () => {
     }
   };
 
+  const handleReplyToUser = (username: string) => {
+      const mention = `**${username}**, `;
+      setReplyContent(prev => prev + mention);
+      // Focus textarea
+      const textarea = document.querySelector('textarea[name="replyContent"]') as HTMLTextAreaElement;
+      if (textarea) {
+          textarea.focus();
+      }
+  };
+
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>;
 
   // --- TOPIC DETAIL VIEW ---
@@ -246,6 +258,12 @@ const Forum: React.FC = () => {
               color: #fff;
               text-decoration: underline;
           }
+          /* Markdown Styles */
+          .markdown-body p { margin-bottom: 1em; }
+          .markdown-body strong { font-weight: 900; color: white; }
+          .markdown-body em { font-style: italic; color: #cbd5e1; }
+          .markdown-body blockquote { border-left: 4px solid #8B5CF6; padding-left: 1rem; margin: 1rem 0; color: #94a3b8; font-style: italic; }
+          .markdown-body u { text-decoration: underline; text-decoration-color: #8B5CF6; text-underline-offset: 4px; }
         `}</style>
         <div className="mb-8">
           <Link to="/forum" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors mb-4">
@@ -275,12 +293,19 @@ const Forum: React.FC = () => {
                       <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Автор</div>
                    </div>
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 overflow-hidden">
                    {currentTopic.category === 'news' ? (
-                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed news-content" dangerouslySetInnerHTML={{ __html: currentTopic.content }} />
+                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed news-content break-words" dangerouslySetInnerHTML={{ __html: currentTopic.content }} />
                    ) : (
-                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-wrap">
-                          {currentTopic.content}
+                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-wrap break-words markdown-body">
+                          <ReactMarkdown 
+                            components={{
+                                u: ({node, ...props}: any) => <u {...props} />
+                            }}
+                            rehypePlugins={[]}
+                          >
+                              {currentTopic.content}
+                          </ReactMarkdown>
                        </div>
                    )}
                 </div>
@@ -304,7 +329,21 @@ const Forum: React.FC = () => {
                        </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                       <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</div>
+                       <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words markdown-body">
+                          <ReactMarkdown
+                            components={{
+                                u: ({node, ...props}: any) => <u {...props} />
+                            }}
+                          >
+                              {post.content}
+                          </ReactMarkdown>
+                       </div>
+                       <button 
+                         onClick={() => handleReplyToUser(post.author.name)}
+                         className="mt-4 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                       >
+                           <Reply className="w-3 h-3" /> Ответить
+                       </button>
                     </div>
                  </div>
                </div>
@@ -318,12 +357,16 @@ const Forum: React.FC = () => {
                <form onSubmit={handleReply} className="space-y-4">
                  <div className="flex gap-4">
                     <img src={user.avatar} className="w-12 h-12 rounded-xl object-cover hidden md:block" alt="" />
-                    <textarea 
-                      value={replyContent}
-                      onChange={e => setReplyContent(e.target.value)}
-                      placeholder="Напишите комментарий..."
-                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl p-4 text-white focus:border-primary outline-none min-h-[120px] resize-none transition-all"
-                    />
+                   <div className="flex-1">
+                      <RichTextarea 
+                        name="replyContent"
+                        value={replyContent}
+                        onChange={e => setReplyContent(e.target.value)}
+                        placeholder="Напишите комментарий..."
+                        className="min-h-[120px]"
+                        onSubmit={() => handleReply()}
+                      />
+                   </div>
                  </div>
                  <div className="flex justify-end">
                     <button type="submit" disabled={isActionLoading || !replyContent.trim()} className="px-8 py-3 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-violet-600 transition-all flex items-center gap-2 disabled:opacity-50">
@@ -427,11 +470,11 @@ const Forum: React.FC = () => {
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Содержание</label>
-              <textarea 
+              <RichTextarea 
                 value={newTopicContent}
                 onChange={e => setNewTopicContent(e.target.value)}
                 placeholder="Раскройте вашу мысль..."
-                className="w-full h-40 p-6 bg-black/40 border border-white/10 rounded-[2rem] text-white focus:border-primary outline-none transition-all resize-none text-sm"
+                className="h-40"
               />
             </div>
             <div className="flex justify-end gap-4">
@@ -454,8 +497,8 @@ const Forum: React.FC = () => {
           </div>
         ) : (
           topics.map(topic => (
-            <Link to={`/forum/${topic.id}`} key={topic.id} className="group bg-surface/30 hover:bg-surface/50 border border-white/5 hover:border-primary/30 rounded-[2rem] p-6 md:p-8 transition-all cursor-pointer shadow-xl backdrop-blur-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
-              <div className="flex-1 min-w-0 space-y-3">
+            <Link to={`/forum/${topic.id}`} key={topic.id} className="group bg-surface/30 hover:bg-surface/50 border border-white/5 hover:border-primary/30 rounded-[2rem] p-6 md:p-8 transition-all cursor-pointer shadow-xl backdrop-blur-sm flex flex-col md:flex-row gap-6 items-start md:items-center overflow-hidden">
+              <div className="flex-1 min-w-0 space-y-3 w-full">
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className={`px-3 py-1 border rounded-lg text-[8px] font-black uppercase tracking-widest ${topic.category === 'news' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
                     {CATEGORIES.find(c => c.id === topic.category)?.name || topic.category}
