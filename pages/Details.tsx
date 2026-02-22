@@ -30,6 +30,7 @@ const Details: React.FC = () => {
 
   // Watch Together State
   const [isWatchTogether, setIsWatchTogether] = useState(searchParams.get('wt') === 'true');
+  const roomId = searchParams.get('room') || id;
   const [wtMessages, setWtMessages] = useState<{user: string, text: string, avatar: string}[]>([]);
   const [wtInput, setWtInput] = useState('');
   const [wtUsers, setWtUsers] = useState<number>(0);
@@ -39,20 +40,45 @@ const Details: React.FC = () => {
   const lastTimeRef = useRef<number>(0);
   const isRemoteAction = useRef<boolean>(false);
 
+  const anonymousUser = useRef({
+    name: `Аноним ${Math.floor(Math.random() * 1000)}`,
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Math.random()}`,
+    email: `anon-${Math.random()}@example.com`
+  });
+
+  const currentUser = user || anonymousUser.current;
+
   const copyInviteLink = () => {
     const url = new URL(window.location.href);
     url.searchParams.set('wt', 'true');
+    url.searchParams.set('room', roomId || id || '');
     navigator.clipboard.writeText(url.toString());
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
+  const toggleWatchTogether = () => {
+    if (!isWatchTogether) {
+      // If starting fresh, generate a unique room ID if not already in URL
+      if (!searchParams.get('room')) {
+        const newRoomId = Math.random().toString(36).substring(2, 10);
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('wt', 'true');
+        newUrl.searchParams.set('room', newRoomId);
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+      setIsWatchTogether(true);
+    } else {
+      setIsWatchTogether(false);
+    }
+  };
+
   useEffect(() => {
-    if (isWatchTogether && id && user && supabase) {
-      const channel = supabase.channel(`watch-${id}`, {
+    if (isWatchTogether && roomId && supabase) {
+      const channel = supabase.channel(`watch-${roomId}`, {
         config: {
           presence: {
-            key: user.email,
+            key: currentUser.email,
           },
         },
       });
@@ -84,7 +110,7 @@ const Details: React.FC = () => {
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             await channel.track({
-              user: user.name,
+              user: currentUser.name,
               online_at: new Date().toISOString(),
             });
           }
@@ -95,7 +121,7 @@ const Details: React.FC = () => {
         channel.unsubscribe();
       };
     }
-  }, [isWatchTogether, id, user]);
+  }, [isWatchTogether, roomId, currentUser.email]);
 
   useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
@@ -133,9 +159,9 @@ const Details: React.FC = () => {
 
   const sendWtMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!wtInput.trim() || !channelRef.current || !user) return;
+    if (!wtInput.trim() || !channelRef.current) return;
     
-    const msg = { user: user.name, text: wtInput, avatar: user.avatar };
+    const msg = { user: currentUser.name, text: wtInput, avatar: currentUser.avatar };
     channelRef.current.send({
       type: 'broadcast',
       event: 'chat',
@@ -322,7 +348,7 @@ const Details: React.FC = () => {
                       </button>
                     )}
                     <button 
-                      onClick={() => user ? setIsWatchTogether(!isWatchTogether) : openAuthModal()}
+                      onClick={toggleWatchTogether}
                       className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl ${isWatchTogether ? 'bg-primary text-white shadow-primary/20' : 'bg-white/5 text-slate-400 hover:text-white border border-white/10'}`}
                     >
                       <Users className="w-4 h-4" /> {isWatchTogether ? `СОВМЕСТНЫЙ ПРОСМОТР (${wtUsers})` : 'СОВМЕСТНЫЙ ПРОСМОТР'}
