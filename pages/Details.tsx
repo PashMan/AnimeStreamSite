@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X } from 'lucide-react';
+import { useSearchParams, useParams, Link, useNavigate } from 'react-router-dom';
+import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
 import { db, supabase } from '../services/db';
@@ -9,6 +9,7 @@ import AnimeCard from '../components/AnimeCard';
 
 const Details: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { openAuthModal, user } = useAuth();
   const relatedRef = useRef<HTMLDivElement>(null);
@@ -28,11 +29,23 @@ const Details: React.FC = () => {
   const [isCommenting, setIsCommenting] = useState(false);
 
   // Watch Together State
-  const [isWatchTogether, setIsWatchTogether] = useState(false);
+  const [isWatchTogether, setIsWatchTogether] = useState(searchParams.get('wt') === 'true');
   const [wtMessages, setWtMessages] = useState<{user: string, text: string, avatar: string}[]>([]);
   const [wtInput, setWtInput] = useState('');
   const [wtUsers, setWtUsers] = useState<number>(0);
+  const [copySuccess, setCopySuccess] = useState(false);
   const channelRef = useRef<any>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const lastTimeRef = useRef<number>(0);
+  const isRemoteAction = useRef<boolean>(false);
+
+  const copyInviteLink = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('wt', 'true');
+    navigator.clipboard.writeText(url.toString());
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
 
   useEffect(() => {
     if (isWatchTogether && id && user && supabase) {
@@ -52,6 +65,22 @@ const Details: React.FC = () => {
         .on('broadcast', { event: 'chat' }, ({ payload }: { payload: any }) => {
           setWtMessages(prev => [...prev, payload]);
         })
+        .on('broadcast', { event: 'player_sync' }, ({ payload }: { payload: any }) => {
+          if (!iframeRef.current?.contentWindow) return;
+          isRemoteAction.current = true;
+          const win = iframeRef.current.contentWindow;
+          
+          if (payload.action === 'play') {
+            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
+            win.postMessage({ key: 'kodik_player_play' }, '*');
+          } else if (payload.action === 'pause') {
+            win.postMessage({ key: 'kodik_player_pause' }, '*');
+          } else if (payload.action === 'seek') {
+            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
+          }
+          
+          setTimeout(() => { isRemoteAction.current = false; }, 1000);
+        })
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             await channel.track({
@@ -67,6 +96,34 @@ const Details: React.FC = () => {
       };
     }
   }, [isWatchTogether, id, user]);
+
+  useEffect(() => {
+    const handlePlayerMessage = (event: MessageEvent) => {
+      if (!isWatchTogether || !channelRef.current || isRemoteAction.current) return;
+      
+      const data = event.data;
+      if (typeof data !== 'object' || !data.key) return;
+
+      if (data.key === 'kodik_player_time_update') {
+        lastTimeRef.current = data.value;
+      } else if (data.key === 'kodik_player_play') {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'player_sync',
+          payload: { action: 'play', time: lastTimeRef.current }
+        });
+      } else if (data.key === 'kodik_player_pause') {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'player_sync',
+          payload: { action: 'pause' }
+        });
+      }
+    };
+
+    window.addEventListener('message', handlePlayerMessage);
+    return () => window.removeEventListener('message', handlePlayerMessage);
+  }, [isWatchTogether]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -254,18 +311,30 @@ const Details: React.FC = () => {
                     <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/20"><Film className="w-6 h-6" /></div> Смотреть онлайн
                   </h3>
                   
-                  <button 
-                    onClick={() => user ? setIsWatchTogether(!isWatchTogether) : openAuthModal()}
-                    className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl ${isWatchTogether ? 'bg-primary text-white shadow-primary/20' : 'bg-white/5 text-slate-400 hover:text-white border border-white/10'}`}
-                  >
-                    <Users className="w-4 h-4" /> {isWatchTogether ? `СОВМЕСТНЫЙ ПРОСМОТР (${wtUsers})` : 'СОВМЕСТНЫЙ ПРОСМОТР'}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {isWatchTogether && (
+                      <button 
+                        onClick={copyInviteLink}
+                        className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl ${copySuccess ? 'bg-green-500 text-white' : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'}`}
+                      >
+                        {copySuccess ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+                        {copySuccess ? 'ССЫЛКА СКОПИРОВАНА' : 'ПРИГЛАСИТЬ ДРУГА'}
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => user ? setIsWatchTogether(!isWatchTogether) : openAuthModal()}
+                      className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl ${isWatchTogether ? 'bg-primary text-white shadow-primary/20' : 'bg-white/5 text-slate-400 hover:text-white border border-white/10'}`}
+                    >
+                      <Users className="w-4 h-4" /> {isWatchTogether ? `СОВМЕСТНЫЙ ПРОСМОТР (${wtUsers})` : 'СОВМЕСТНЫЙ ПРОСМОТР'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className={`grid gap-6 transition-all duration-500 ${isWatchTogether ? 'grid-cols-1 xl:grid-cols-[1fr_350px]' : 'grid-cols-1'}`}>
                   <div className="w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
                       <iframe 
-                        src={`https://kodik.cc/find-player?shikimoriID=${id}`} 
+                        ref={iframeRef}
+                        src={`https://kodik.cc/find-player?shikimoriID=${id}&js_api=1`} 
                         width="100%" 
                         height="100%" 
                         allow="autoplay *; fullscreen *" 
