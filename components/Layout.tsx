@@ -174,8 +174,8 @@ const Layout: React.FC = () => {
                 >
                   <Shuffle className="w-3 h-3" /> Случайное
                 </button>
-                <Link to="/catalog?sort=score" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2">
-                  <Crown className="w-3 h-3 text-yellow-500" /> Топ 100
+                <Link to="/catalog?status=ongoing" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2">
+                  <Crown className="w-3 h-3 text-green-500" /> Онгоинги
                 </Link>
                 <Link to="/catalog" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5">
                   Все аниме

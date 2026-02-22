@@ -172,43 +172,153 @@ class DatabaseService {
   }
 
   // Forum
-  async getForumTopics(animeId?: string): Promise<ForumTopic[]> {
+  async getForumTopics(animeId?: string, category?: string): Promise<ForumTopic[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
-      let q = supabaseClient.from('forum_topics').select('*').order('created_at', { ascending: false });
+      let q = supabaseClient
+        .from('forum_topics')
+        .select('*, profiles!author_email(name, avatar, email)')
+        .order('created_at', { ascending: false });
+      
       if (animeId) q = q.eq('anime_id', animeId);
+      if (category) q = q.eq('category', category);
+      
       const { data } = await q;
       return data?.map((d: any) => ({
         id: d.id,
         title: d.title,
-        author: d.author_email,
+        content: d.content,
+        author: {
+            name: d.profiles?.name || 'Unknown',
+            avatar: d.profiles?.avatar || '',
+            email: d.profiles?.email || d.author_email
+        },
         createdAt: d.created_at,
+        category: d.category || 'General',
         animeId: d.anime_id,
-        content: d.content
+        views: d.views || 0,
+        repliesCount: d.replies_count || 0
       })) || [];
     } catch (e) {
       return [];
     }
   }
 
-  async createForumTopic(topic: Omit<ForumTopic, 'id' | 'createdAt'>): Promise<ForumTopic | null> {
+  async getForumTopic(id: string): Promise<ForumTopic | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data } = await supabaseClient
+        .from('forum_topics')
+        .select('*, profiles!author_email(name, avatar, email)')
+        .eq('id', id)
+        .single();
+        
+      if (!data) return null;
+      
+      // Increment views (fire and forget)
+      supabaseClient.rpc('increment_topic_views', { topic_id: id }).then(() => {});
+
+      return {
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        author: {
+            name: data.profiles?.name || 'Unknown',
+            avatar: data.profiles?.avatar || '',
+            email: data.profiles?.email || data.author_email
+        },
+        createdAt: data.created_at,
+        category: data.category || 'General',
+        animeId: data.anime_id,
+        views: (data.views || 0) + 1,
+        repliesCount: data.replies_count || 0
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async createForumTopic(topic: { title: string, content: string, author: string, animeId?: string, category: string }): Promise<ForumTopic | null> {
     if (!this.isSupabaseAvailable()) return null;
     try {
       const { data, error } = await supabaseClient.from('forum_topics').insert([{
         title: topic.title,
         author_email: topic.author,
         content: topic.content,
-        anime_id: topic.animeId
-      }]).select().single();
+        anime_id: topic.animeId,
+        category: topic.category
+      }]).select('*, profiles!author_email(name, avatar, email)').single();
       
       if (error || !data) return null;
       return {
         id: data.id,
         title: data.title,
-        author: data.author_email,
+        content: data.content,
+        author: {
+            name: data.profiles?.name || 'Unknown',
+            avatar: data.profiles?.avatar || '',
+            email: data.profiles?.email || data.author_email
+        },
         createdAt: data.created_at,
+        category: data.category,
         animeId: data.anime_id,
-        content: data.content
+        views: 0,
+        repliesCount: 0
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async getForumPosts(topicId: string): Promise<ForumPost[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('forum_posts')
+        .select('*, profiles!author_email(name, avatar, email)')
+        .eq('topic_id', topicId)
+        .order('created_at', { ascending: true });
+        
+      return data?.map((d: any) => ({
+        id: d.id,
+        topicId: d.topic_id,
+        content: d.content,
+        author: {
+            name: d.profiles?.name || 'Unknown',
+            avatar: d.profiles?.avatar || '',
+            email: d.profiles?.email || d.author_email
+        },
+        createdAt: d.created_at
+      })) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async createForumPost(post: { topicId: string, content: string, author: string }): Promise<ForumPost | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data, error } = await supabaseClient.from('forum_posts').insert([{
+        topic_id: post.topicId,
+        content: post.content,
+        author_email: post.author
+      }]).select('*, profiles!author_email(name, avatar, email)').single();
+      
+      if (error || !data) return null;
+      
+      // Increment replies count
+      supabaseClient.rpc('increment_topic_replies', { topic_id: post.topicId }).then(() => {});
+
+      return {
+        id: data.id,
+        topicId: data.topic_id,
+        content: data.content,
+        author: {
+            name: data.profiles?.name || 'Unknown',
+            avatar: data.profiles?.avatar || '',
+            email: data.profiles?.email || data.author_email
+        },
+        createdAt: data.created_at
       };
     } catch (e) {
       return null;

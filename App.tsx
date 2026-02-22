@@ -26,6 +26,7 @@ const App: React.FC = () => {
           <Route path="profile" element={<Profile />} />
           <Route path="messages" element={<Messages />} />
           <Route path="forum" element={<Forum />} />
+          <Route path="forum/:topicId" element={<Forum />} />
           <Route path="premium" element={<Premium />} />
           
           {/* Footer Pages */}

@@ -45,17 +45,28 @@ export interface User {
 export interface ForumTopic {
   id: string;
   title: string;
-  author: string;
-  createdAt: string;
-  animeId?: string;
   content: string;
+  author: {
+    name: string;
+    avatar: string;
+    email: string;
+  };
+  createdAt: string;
+  category: string;
+  animeId?: string;
+  views: number;
+  repliesCount: number;
 }
 
 export interface ForumPost {
   id: string;
   topicId: string;
-  author: string;
   content: string;
+  author: {
+    name: string;
+    avatar: string;
+    email: string;
+  };
   createdAt: string;
 }
 
