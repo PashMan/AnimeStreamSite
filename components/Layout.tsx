@@ -45,6 +45,8 @@ const Layout: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const { user, logout, openAuthModal } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -54,13 +56,34 @@ const Layout: React.FC = () => {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setIsMenuOpen(false);
+    setShowSuggestions(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSuggestions([]);
+        return;
+      }
+
+      try {
+        const results = await fetchAnimes({ search: searchQuery, limit: 5 });
+        setSuggestions(results);
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/catalog?q=${encodeURIComponent(searchQuery)}`);
       setIsMenuOpen(false);
+      setShowSuggestions(false);
     }
   };
 
@@ -81,10 +104,42 @@ const Layout: React.FC = () => {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   placeholder="Найти аниме..."
                   className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
                 />
+                
+                {/* Search Suggestions */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-2">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 py-2">Результаты поиска</div>
+                      {suggestions.map((anime) => (
+                        <Link
+                          key={anime.id}
+                          to={`/anime/${anime.id}`}
+                          className="flex items-center gap-4 p-2 hover:bg-white/5 rounded-xl transition-colors group/item"
+                          onClick={() => setShowSuggestions(false)}
+                        >
+                          <img src={anime.image} alt={anime.title} className="w-10 h-14 object-cover rounded-lg shadow-sm group-hover/item:scale-105 transition-transform" />
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-bold text-slate-200 group-hover/item:text-primary transition-colors truncate">{anime.title}</span>
+                            <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
+                              <span className="uppercase">{anime.kind}</span>
+                              <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+                              <span className="flex items-center gap-1 text-yellow-500"><Crown className="w-3 h-3" /> {anime.score}</span>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </form>
               <button 
                 onClick={async () => {

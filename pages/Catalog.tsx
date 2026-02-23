@@ -10,10 +10,11 @@ const Catalog: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const initialSort = searchParams.get('sort') || 'popularity';
+  const initialStatus = searchParams.get('status') || 'All';
   
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string>('All');
+  const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [currentSort, setCurrentSort] = useState(initialSort);
   
   const [animeList, setAnimeList] = useState<Anime[]>([]);
