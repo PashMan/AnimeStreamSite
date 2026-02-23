@@ -96,7 +96,10 @@ const NewsDetails: React.FC = () => {
 
   // Helper to ensure we have a valid YouTube embed URL
   const getEmbedUrl = (videoId: string) => {
-    if (videoId.includes('http')) {
+    if (!videoId) return '';
+    if (videoId.includes('youtube.com/embed/')) return videoId;
+    
+    if (videoId.includes('http') || videoId.includes('youtube.com') || videoId.includes('youtu.be')) {
         const idMatch = videoId.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
         return idMatch ? `https://www.youtube.com/embed/${idMatch[1]}` : videoId;
     }

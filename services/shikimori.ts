@@ -273,17 +273,20 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
       let videoId = ytMatch ? ytMatch[1] : undefined;
       
       // If no video found in body but anime is linked, try to fetch its trailer
-      if (!videoId && topic.linked_id && topic.linked_type === 'Anime') {
-          try {
-              const videos = await fetchApi(`/animes/${topic.linked_id}/videos`);
-              if (Array.isArray(videos)) {
-                  const trailer = videos.find((v: any) => v.url && v.url.includes('youtube.com'));
-                  if (trailer) {
-                      const vMatch = trailer.url.match(ytRegex);
-                      if (vMatch) videoId = vMatch[1];
+      if (!videoId && (topic.linked?.type === 'Anime' || topic.linked_type === 'Anime')) {
+          const animeId = topic.linked?.id || topic.linked_id;
+          if (animeId) {
+              try {
+                  const videos = await fetchApi(`/animes/${animeId}/videos`);
+                  if (Array.isArray(videos)) {
+                      const trailer = videos.find((v: any) => v.url && (v.url.includes('youtube.com') || v.url.includes('youtu.be')));
+                      if (trailer) {
+                          const vMatch = trailer.url.match(ytRegex);
+                          if (vMatch) videoId = vMatch[1];
+                      }
                   }
-              }
-          } catch (e) {}
+              } catch (e) {}
+          }
       }
 
       return {
@@ -317,17 +320,20 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
 
     let videoId = ytMatch ? ytMatch[1] : undefined;
 
-    if (!videoId && topic.linked_id && topic.linked_type === 'Anime') {
-        try {
-            const videos = await fetchApi(`/animes/${topic.linked_id}/videos`);
-            if (Array.isArray(videos)) {
-                const trailer = videos.find((v: any) => v.url && v.url.includes('youtube.com'));
-                if (trailer) {
-                    const vMatch = trailer.url.match(ytRegex);
-                    if (vMatch) videoId = vMatch[1];
+    if (!videoId && (topic.linked?.type === 'Anime' || topic.linked_type === 'Anime')) {
+        const animeId = topic.linked?.id || topic.linked_id;
+        if (animeId) {
+            try {
+                const videos = await fetchApi(`/animes/${animeId}/videos`);
+                if (Array.isArray(videos)) {
+                    const trailer = videos.find((v: any) => v.url && (v.url.includes('youtube.com') || v.url.includes('youtu.be')));
+                    if (trailer) {
+                        const vMatch = trailer.url.match(ytRegex);
+                        if (vMatch) videoId = vMatch[1];
+                    }
                 }
-            }
-        } catch (e) {}
+            } catch (e) {}
+        }
     }
 
     return {
