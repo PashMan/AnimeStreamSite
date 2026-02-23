@@ -1,4 +1,3 @@
-
 export default async function handler(req: any, res: any) {
   // Handle CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,13 +16,26 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Missing image path' });
   }
 
-  const targetUrl = `https://shikimori.one/${path}`;
+  // Get query params excluding 'path'
+  const query = new URLSearchParams();
+  for (const key in req.query) {
+    if (key !== 'path') {
+      if (Array.isArray(req.query[key])) {
+        req.query[key].forEach((v: string) => query.append(key, v));
+      } else {
+        query.append(key, req.query[key]);
+      }
+    }
+  }
+  
+  const search = query.toString() ? `?${query.toString()}` : '';
+  const targetUrl = `https://shikimori.one/${path}${search}`;
 
   try {
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'AnimeStreamProject/1.0 (contact: admin@anime-stream.ru)',
-        'Referer': 'https://shikimori.one/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) MyAnimeStream/1.0',
+        'Referer': 'https://shikimori.one'
       },
     });
 
@@ -36,7 +48,7 @@ export default async function handler(req: any, res: any) {
     const buffer = await response.arrayBuffer();
 
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, s-maxage=31536000, immutable'); // Cache for 1 year
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // Cache for 1 year
     return res.send(Buffer.from(buffer));
   } catch (error: any) {
     console.error(`Image proxy catch error for ${targetUrl}:`, error?.message);

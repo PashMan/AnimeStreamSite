@@ -339,7 +339,13 @@ const Details: React.FC = () => {
         }}
       />
       <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0">
-        <img src={anime.cover || anime.image} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" />
+        <img 
+          src={anime.cover || anime.image} 
+          alt="" 
+          referrerPolicy="no-referrer" 
+          onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/1920x1080?text=No+Image'; }}
+          className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" 
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/60 to-transparent" />
       </div>
 
@@ -371,7 +377,13 @@ const Details: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12">
            <div className="flex flex-col gap-4">
               <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block">
-                <img src={anime.image} alt={anime.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                <img 
+                  src={anime.image} 
+                  alt={anime.title} 
+                  referrerPolicy="no-referrer" 
+                  onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
+                  className="w-full h-full object-cover" 
+                />
               </div>
               
               <div className="grid grid-cols-1 gap-3">
@@ -521,7 +533,13 @@ const Details: React.FC = () => {
                         <div key={idx} className="w-[180px] shrink-0 snap-start">
                           <Link to={`/anime/${item.anime.id}`} className="block group relative">
                             <div className={`aspect-[2/3] rounded-3xl overflow-hidden mb-3 border transition-all duration-500 shadow-xl ${isPriority ? 'border-primary shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'border-white/5 group-hover:border-primary/30'}`}>
-                              <img src={item.anime.image} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                              <img 
+                                src={item.anime.image} 
+                                referrerPolicy="no-referrer" 
+                                onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                                alt="" 
+                              />
                               {isPriority && (
                                 <div className="absolute top-3 right-3 bg-primary text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-xl flex items-center gap-1 z-10 animate-pulse">
                                   <Forward className="w-2 h-2" /> NEXT ARC
