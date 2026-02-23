@@ -48,27 +48,37 @@ export const GENRE_MAP: Record<string, number> = {
 const proxyImage = (url: string | undefined | null) => {
   if (!url) return 'https://via.placeholder.com/300x450?text=No+Image';
   let cleanUrl = url.trim();
-  // Handle relative paths from Shikimori
-  if (cleanUrl.startsWith('/')) {
-    cleanUrl = `${IMG_BASE_URL}${cleanUrl}`;
-  } else if (!cleanUrl.startsWith('http')) {
-    cleanUrl = `${IMG_BASE_URL}/${cleanUrl}`;
+  
+  // If it's already a full URL to shikimori, extract the path
+  if (cleanUrl.startsWith(IMG_BASE_URL)) {
+    cleanUrl = cleanUrl.replace(IMG_BASE_URL, '');
+  } else if (cleanUrl.startsWith('http') && !cleanUrl.includes('shikimori.one')) {
+    // External images (not from shikimori) - return as is
+    return cleanUrl;
   }
   
-  // Return direct URL with no-referrer policy in img tag instead of proxy
-  // This helps with 18+ content that might be blocked by image proxies
+  // Ensure it starts with /
+  if (!cleanUrl.startsWith('/') && !cleanUrl.startsWith('http')) {
+    cleanUrl = '/' + cleanUrl;
+  }
+
+  // If it's a relative path or was a shikimori URL, use our proxy
+  if (cleanUrl.startsWith('/')) {
+    return `/api/image${cleanUrl}`;
+  }
+  
   return cleanUrl;
 };
 
 const processNewsHtml = (html: string | undefined): string => {
   if (!html) return '';
   
-  // 1. Inject no-referrer to images to bypass hotlink protection (403 Forbidden)
+  // 1. Proxy images to bypass hotlink protection (403 Forbidden)
   let processed = html.replace(
     /<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi, 
     (match, p1, src, p2) => {
-        if (match.toLowerCase().includes('referrerpolicy')) return match;
-        return `<img ${p1}src="${src}" referrerpolicy="no-referrer"${p2}>`;
+        const proxiedSrc = proxyImage(src);
+        return `<img ${p1}src="${proxiedSrc}"${p2}>`;
     }
   );
 

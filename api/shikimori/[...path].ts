@@ -46,7 +46,7 @@ export default async function handler(req: any, res: any) {
   try {
     const response = await fetchWithRetry(targetUrl, {
       headers: {
-        'User-Agent': 'MyAnimeStreamApp/1.0',
+        'User-Agent': 'AnimeStreamProject/1.0 (contact: admin@anime-stream.ru)',
         'Accept': 'application/json',
         'Referer': 'https://shikimori.one/'
       },
@@ -54,7 +54,9 @@ export default async function handler(req: any, res: any) {
 
     if (!response || !response.ok) {
       const status = response?.status || 500;
-      return res.status(status).json({ error: `Shikimori API error: ${status}` });
+      const errorText = response ? await response.text() : 'No response';
+      console.error(`Shikimori API error [${status}] for ${targetUrl}:`, errorText.slice(0, 500));
+      return res.status(status).json({ error: `Shikimori API error: ${status}`, details: errorText.slice(0, 200) });
     }
 
     const data = await response.json();
