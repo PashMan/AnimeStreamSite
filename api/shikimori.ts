@@ -1,44 +1,42 @@
 
-export const runtime = 'edge';
+export default async function handler(req: any, res: any) {
+  // Handle CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-export default async function handler(req: Request) {
-  const url = new URL(req.url);
-  // Extract the path after /api/shikimori
-  // Example: /api/shikimori/animes?limit=20 -> /animes?limit=20
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // Get the path from the URL
+  // req.url contains the full path including /api/shikimori
+  const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
   const path = url.pathname.replace('/api/shikimori', '');
   const search = url.search;
-  
+
   const targetUrl = `https://shikimori.one/api${path}${search}`;
 
   try {
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'AnimeStream-Vercel-Proxy',
+        'User-Agent': 'AnimeStream/1.0',
         'Accept': 'application/json',
+        'Referer': 'https://shikimori.one/'
       },
     });
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ error: `Shikimori API error: ${response.status}` }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return res.status(response.status).json({ error: `Shikimori API error: ${response.status}` });
     }
 
     const data = await response.json();
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=43200',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    // Aggressive Caching Headers
+    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=43200');
+    return res.status(200).json(data);
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: 'Proxy error', details: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    console.error(`Proxy error for ${targetUrl}:`, error?.message);
+    return res.status(500).json({ error: 'Proxy error', details: error?.message });
   }
 }

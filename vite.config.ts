@@ -3,12 +3,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const proxyConfig = {
-  // Use distinct proxy paths to avoid conflicts with reserved /api routes
-  '/shikimori-proxy': {
-    target: 'https://shikimori.one',
+  '/api/shikimori': {
+    target: 'https://shikimori.one/api',
     changeOrigin: true,
-    secure: false, // Allow self-signed certs if needed, though Shikimori is valid
-    rewrite: (path: string) => path.replace(/^\/shikimori-proxy/, ''),
+    secure: true,
+    rewrite: (path: string) => path.replace(/^\/api\/shikimori/, ''),
     headers: {
       'User-Agent': 'AnimeStream/1.0',
       'Referer': 'https://shikimori.one/'
