@@ -130,9 +130,15 @@ const Layout: React.FC = () => {
                           <div className="flex flex-col min-w-0">
                             <span className="text-sm font-bold text-slate-200 group-hover/item:text-primary transition-colors truncate">{anime.title}</span>
                             <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
-                              <span className="uppercase">{anime.kind}</span>
+                              <span className="uppercase">
+                                {anime.type === 'TV Series' ? 'TV' : 
+                                 anime.type === 'Movie' ? 'Фильм' : 
+                                 anime.type === 'Special' ? 'Спешл' : 
+                                 anime.type === 'Music' ? 'Клип' : 
+                                 anime.type}
+                              </span>
                               <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                              <span className="flex items-center gap-1 text-yellow-500"><Crown className="w-3 h-3" /> {anime.score}</span>
+                              <span className="flex items-center gap-1 text-yellow-500"><Crown className="w-3 h-3" /> {anime.rating}</span>
                             </div>
                           </div>
                         </Link>
