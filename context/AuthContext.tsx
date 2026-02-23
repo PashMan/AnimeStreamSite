@@ -24,6 +24,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
+    // Check for existing session
+    const checkSession = async () => {
+      const { data: { session } } = await db.getSession();
+      if (session?.user) {
+        const profile = await db.getProfile(session.user.email!);
+        if (profile) {
+            setUser(profile);
+        }
+      }
+    };
+    
+    checkSession();
+
+    // Listen for auth changes (e.g. email confirmation link clicked)
+    const { data: { subscription } } = db.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const profile = await db.getProfile(session.user.email!);
+        if (profile) {
+            setUser(profile);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     if (user) {
       localStorage.setItem('as_session', JSON.stringify(user));
     } else {

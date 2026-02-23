@@ -67,10 +67,33 @@ class DatabaseService {
     }
   }
 
+  // Auth Helpers
+  async getSession() {
+      return await supabaseClient.auth.getSession();
+  }
+
+  onAuthStateChange(callback: (event: string, session: any) => void) {
+      return supabaseClient.auth.onAuthStateChange((event, session) => {
+          callback(event, session);
+      });
+  }
+
+  async getProfile(email: string): Promise<User | null> {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      if (error || !data) return null;
+      return this.mapProfileToUser(data);
+  }
+
   async register(data: { name: string; email: string; password: string }): Promise<{ user: User | null, message?: string }> {
     if (!this.isSupabaseAvailable()) return { user: null, message: 'Database unavailable' };
     try {
       // 1. Sign up with Supabase Auth
+      // The trigger 'on_auth_user_created' will handle profile creation
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
         email: data.email,
         password: data.password,
@@ -94,40 +117,12 @@ class DatabaseService {
 
       if (!authData.user) return { user: null, message: 'Registration failed' };
 
-      // 2. Create Profile (if not created by trigger)
-      // Check if profile exists first
-      const { data: existingProfile } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('email', data.email)
-        .single();
+      // Wait a moment for trigger to create profile if session exists immediately
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      if (!existingProfile) {
-          const { data: profile, error } = await supabaseClient
-            .from('profiles')
-            .insert([{
-              id: authData.user.id, // Link to Auth ID
-              name: data.name,
-              email: data.email,
-              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name}`,
-              is_premium: false,
-              watched_time: "0ч 0м",
-              episodes_watched: 0,
-              bio: "",
-              friends: [],
-              watched_anime_ids: []
-            }])
-            .select()
-            .single();
-          
-          if (error) {
-            console.error('Profile creation error:', error.message);
-            return { user: null, message: 'Profile creation failed' };
-          }
-          return { user: this.mapProfileToUser(profile) };
-      }
+      const profile = await this.getProfile(data.email);
+      return { user: profile };
 
-      return { user: this.mapProfileToUser(existingProfile) };
     } catch (e) {
       console.error('Registration exception:', e);
       return { user: null, message: 'Exception occurred' };
