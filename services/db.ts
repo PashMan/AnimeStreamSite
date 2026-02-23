@@ -139,7 +139,7 @@ class DatabaseService {
     if (!this.isSupabaseAvailable()) return { success: false, message: 'Database unavailable' };
     try {
       const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + '/reset-password', // Ensure this route exists or handle it
+        redirectTo: window.location.origin,
       });
       if (error) {
         return { success: false, message: error.message };

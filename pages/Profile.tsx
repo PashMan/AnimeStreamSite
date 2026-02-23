@@ -168,7 +168,7 @@ const Profile: React.FC = () => {
     <div className="min-h-screen transition-all duration-500" style={containerStyle}>
       <div className="w-full h-full min-h-screen transition-all duration-500" style={overlayStyle}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className={`flex flex-col gap-10 ${user.profileLayout === 'reversed' ? 'lg:flex-row-reverse' : user.profileLayout === 'centered' ? 'lg:flex-col lg:items-center' : 'lg:flex-row'}`}>
+          <div className={`flex gap-10 ${user.profileLayout === 'reversed' ? 'flex-col-reverse lg:flex-row-reverse' : user.profileLayout === 'centered' ? 'flex-col items-center lg:items-center' : 'flex-col lg:flex-row'}`}>
             
             {/* Sidebar / Profile Card */}
             <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6`}>

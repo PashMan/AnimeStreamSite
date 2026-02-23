@@ -17,8 +17,14 @@ const Premium: React.FC = () => {
     setIsBuying(true);
     // Simulate payment process
     setTimeout(async () => {
-      await updateProfile({ isPremium: true });
+      const success = await updateProfile({ isPremium: true });
       setIsBuying(false);
+      if (success) {
+          // Success feedback could be a toast, but for now we rely on the UI update
+          // The component will re-render with the "You are Premium" view
+      } else {
+          alert('Не удалось оформить подписку. Возможно, произошла ошибка соединения.');
+      }
     }, 1500);
   };
 

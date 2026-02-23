@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
-import { db } from '../services/db';
+import { db, supabase } from '../services/db';
 
 interface AuthContextType {
   user: User | null;
@@ -25,33 +25,66 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
+    let profileSubscription: any = null;
+
+    // Function to fetch and set user profile
+    const fetchUserProfile = async (email: string) => {
+      const profile = await db.getProfile(email);
+      if (profile) {
+        setUser(profile);
+      }
+    };
+
+    // Function to subscribe to profile changes
+    const subscribeToProfile = (email: string) => {
+      if (profileSubscription) profileSubscription.unsubscribe();
+
+      profileSubscription = supabase
+        .channel('public:profiles')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `email=eq.${email}`,
+          },
+          (payload) => {
+            console.log('Profile updated:', payload);
+            fetchUserProfile(email);
+          }
+        )
+        .subscribe();
+    };
+
     // Check for existing session
     const checkSession = async () => {
       const { data: { session } } = await db.getSession();
-      if (session?.user) {
-        const profile = await db.getProfile(session.user.email!);
-        if (profile) {
-            setUser(profile);
-        }
+      if (session?.user?.email) {
+        await fetchUserProfile(session.user.email);
+        subscribeToProfile(session.user.email);
       }
     };
     
     checkSession();
 
     // Listen for auth changes (e.g. email confirmation link clicked)
-    const { data: { subscription } } = db.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const profile = await db.getProfile(session.user.email!);
-        if (profile) {
-            setUser(profile);
-        }
+    const { data: { subscription: authSubscription } } = db.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user?.email) {
+        await fetchUserProfile(session.user.email);
+        subscribeToProfile(session.user.email);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        if (profileSubscription) {
+            profileSubscription.unsubscribe();
+            profileSubscription = null;
+        }
       }
     });
 
     return () => {
-      subscription.unsubscribe();
+      authSubscription.unsubscribe();
+      if (profileSubscription) profileSubscription.unsubscribe();
     };
   }, []);
 
@@ -96,8 +129,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    await db.logout();
-    setUser(null);
+    try {
+        await db.logout();
+    } catch (e) {
+        console.error("Logout error:", e);
+    } finally {
+        // Always clear local state even if server logout fails
+        setUser(null);
+        localStorage.removeItem('as_session');
+        window.location.reload(); // Force reload to clear any lingering state
+    }
   };
 
   const resetPassword = async (email: string) => {

@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { HashRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { supabase } from './services/db';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Catalog from './pages/Catalog';
@@ -12,14 +13,32 @@ import NewsDetails from './pages/NewsDetails';
 import Messages from './pages/Messages';
 import Forum from './pages/Forum';
 import Premium from './pages/Premium';
+import ResetPassword from './pages/ResetPassword';
 
 import ScrollToTop from './components/ScrollToTop';
+
+const AuthEventHandler = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  return null;
+};
 
 const App: React.FC = () => {
   return (
     <Router>
+      <AuthEventHandler />
       <ScrollToTop />
       <Routes>
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="catalog" element={<Catalog />} />
