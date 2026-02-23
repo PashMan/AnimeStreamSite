@@ -33,8 +33,14 @@ const AuthModal: React.FC = () => {
           setIsLoading(false);
           return;
         }
-        const success = await register({ name: formData.name, email: formData.email, password: formData.password });
-        if (!success) setError('Этот email уже зарегистрирован');
+        const result = await register({ name: formData.name, email: formData.email, password: formData.password });
+        if (!result.success) {
+            setError(result.message || 'Ошибка регистрации');
+        } else if (result.message) {
+            // Success but with message (e.g. email confirmation)
+            alert(result.message);
+            closeAuthModal();
+        }
       }
     } catch (err) {
       setError('Произошла ошибка. Попробуйте позже.');

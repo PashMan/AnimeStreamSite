@@ -6,7 +6,7 @@ import { db } from '../services/db';
 interface AuthContextType {
   user: User | null;
   login: (credentials: { email: string; password: string }) => Promise<boolean>;
-  register: (data: { name: string; email: string; password: string }) => Promise<boolean>;
+  register: (data: { name: string; email: string; password: string }) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   updateProfile: (updates: Partial<User>) => Promise<boolean>;
   isAuthModalOpen: boolean;
@@ -47,19 +47,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const register = async (data: { name: string; email: string; password: string }) => {
     try {
-      const newUser = await db.register(data);
-      if (newUser) {
-        setUser(newUser);
+      const result = await db.register(data);
+      if (result.user) {
+        setUser(result.user);
         closeAuthModal();
-        return true;
+        return { success: true };
+      } else if (result.message === 'Confirmation email sent') {
+          return { success: true, message: 'На вашу почту отправлено письмо для подтверждения регистрации.' };
+      } else if (result.message) {
+          return { success: false, message: result.message };
       }
     } catch (e) {
       console.error(e);
     }
-    return false;
+    return { success: false, message: 'Ошибка регистрации' };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await db.logout();
     setUser(null);
   };
 

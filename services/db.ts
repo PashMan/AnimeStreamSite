@@ -33,16 +33,33 @@ class DatabaseService {
   async login(credentials: { email: string; password: string }): Promise<User | null> {
     if (!this.isSupabaseAvailable()) return null;
     try {
+      // 1. Try Supabase Auth Login
+      const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
+
+      if (authError) {
+        console.error('Supabase Auth Login Error:', authError.message);
+        return null;
+      }
+
+      if (!authData.user) return null;
+
+      // 2. Fetch Profile
       const { data, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('email', credentials.email)
         .single();
+      
       if (error) {
-        console.error('Login error:', error.message);
+        console.error('Profile fetch error:', error.message);
+        // If profile doesn't exist but auth does, maybe create it? 
+        // For now, return null or handle gracefully.
         return null;
       }
-      if (!data) return null;
+      
       return this.mapProfileToUser(data);
     } catch (e) {
       console.error('Login exception:', e);
@@ -50,34 +67,77 @@ class DatabaseService {
     }
   }
 
-  async register(data: { name: string; email: string; password: string }): Promise<User | null> {
-    if (!this.isSupabaseAvailable()) return null;
+  async register(data: { name: string; email: string; password: string }): Promise<{ user: User | null, message?: string }> {
+    if (!this.isSupabaseAvailable()) return { user: null, message: 'Database unavailable' };
     try {
-      const { data: profile, error } = await supabaseClient
-        .from('profiles')
-        .insert([{
-          name: data.name,
-          email: data.email,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name}`,
-          is_premium: false,
-          watched_time: "0ч 0м",
-          episodes_watched: 0,
-          bio: "",
-          friends: [],
-          watched_anime_ids: []
-        }])
-        .select()
-        .single();
-      
-      if (error) {
-        console.error('Registration error:', error.message);
-        return null;
+      // 1. Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            name: data.name,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name}`
+          }
+        }
+      });
+
+      if (authError) {
+        console.error('Supabase Auth Register Error:', authError.message);
+        return { user: null, message: authError.message };
       }
-      return this.mapProfileToUser(profile);
+
+      if (authData.user && !authData.session) {
+        // Email confirmation required
+        return { user: null, message: 'Confirmation email sent' };
+      }
+
+      if (!authData.user) return { user: null, message: 'Registration failed' };
+
+      // 2. Create Profile (if not created by trigger)
+      // Check if profile exists first
+      const { data: existingProfile } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('email', data.email)
+        .single();
+
+      if (!existingProfile) {
+          const { data: profile, error } = await supabaseClient
+            .from('profiles')
+            .insert([{
+              id: authData.user.id, // Link to Auth ID
+              name: data.name,
+              email: data.email,
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name}`,
+              is_premium: false,
+              watched_time: "0ч 0м",
+              episodes_watched: 0,
+              bio: "",
+              friends: [],
+              watched_anime_ids: []
+            }])
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('Profile creation error:', error.message);
+            return { user: null, message: 'Profile creation failed' };
+          }
+          return { user: this.mapProfileToUser(profile) };
+      }
+
+      return { user: this.mapProfileToUser(existingProfile) };
     } catch (e) {
       console.error('Registration exception:', e);
-      return null;
+      return { user: null, message: 'Exception occurred' };
     }
+  }
+
+  async logout() {
+      if (this.isSupabaseAvailable()) {
+          await supabaseClient.auth.signOut();
+      }
   }
 
   private mapProfileToUser(p: any): User {
