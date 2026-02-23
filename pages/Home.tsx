@@ -9,10 +9,12 @@ import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ChatMessage, ForumTopic } from '../types';
 import { RichTextarea } from '../components/RichTextarea';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 const Home: React.FC = () => {
   const sliderRef = useRef<HTMLDivElement>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'trending' | 'new' | 'upcoming'>('trending');
@@ -78,7 +80,7 @@ const Home: React.FC = () => {
     const loadLists = async () => {
         // Parallel fetches for other sections
         fetchAnimes({ order: 'popularity', limit: 12 }).then(setTrendingAnimes);
-        fetchAnimes({ order: 'aired_on', status: 'ongoing', limit: 20 }).then(setNewAnimes);
+        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(setNewAnimes);
         fetchAnimes({ order: 'popularity', status: 'anons', limit: 15 }).then(setUpcomingAnimes);
         fetchNews().then(setNews);
         fetchCalendar().then(setSchedule);
@@ -109,7 +111,9 @@ const Home: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   const handleSendChat = async (e?: React.FormEvent) => {
@@ -472,7 +476,7 @@ const Home: React.FC = () => {
               </div>
            </div>
 
-           <div className="h-[450px] overflow-y-auto p-8 space-y-6 flex flex-col hide-scrollbar bg-dark/20">
+           <div ref={chatContainerRef} className="h-[450px] overflow-y-auto p-8 space-y-6 flex flex-col hide-scrollbar bg-dark/20">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full opacity-20">
                   <MessageCircle className="w-16 h-16 mb-4" />
@@ -497,6 +501,8 @@ const Home: React.FC = () => {
                         </div>
                         <div className={`p-4 rounded-2xl text-sm font-medium shadow-sm transition-all break-words markdown-body group/msg relative ${msg.user.email === user?.email ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5 hover:bg-white/10'} ${msg.user.email.includes('premium') ? 'border-primary/30 ring-1 ring-primary/10' : ''}`}>
                           <ReactMarkdown 
+                               rehypePlugins={[rehypeRaw]}
+                               remarkPlugins={[remarkGfm]}
                                components={{
                                    p: ({node, ...props}: any) => <p className="m-0" {...props} />,
                                    u: ({node, ...props}: any) => <u {...props} />
@@ -516,7 +522,6 @@ const Home: React.FC = () => {
                   </div>
                 ))
               )}
-              <div ref={chatEndRef} />
            </div>
 
            <form onSubmit={handleSendChat} className="p-6 bg-dark/40 border-t border-white/5 flex gap-4 items-end">

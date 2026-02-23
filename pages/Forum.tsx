@@ -7,6 +7,8 @@ import { ForumTopic, ForumPost, Anime } from '../types';
 import { fetchAnimeDetails, fetchNews } from '../services/shikimori';
 import { RichTextarea } from '../components/RichTextarea';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 const CATEGORIES = [
   { id: 'general', name: 'Общее', description: 'Общие обсуждения на любые темы' },
@@ -299,10 +301,11 @@ const Forum: React.FC = () => {
                 ) : (
                     <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-wrap break-words markdown-body">
                        <ReactMarkdown 
+                         rehypePlugins={[rehypeRaw]}
+                         remarkPlugins={[remarkGfm]}
                          components={{
                              u: ({node, ...props}: any) => <u {...props} />
                          }}
-                         rehypePlugins={[]}
                        >
                            {currentTopic.content}
                        </ReactMarkdown>
@@ -330,6 +333,8 @@ const Forum: React.FC = () => {
                  <div className="min-w-0">
                     <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words markdown-body">
                        <ReactMarkdown
+                         rehypePlugins={[rehypeRaw]}
+                         remarkPlugins={[remarkGfm]}
                          components={{
                              u: ({node, ...props}: any) => <u {...props} />
                          }}
