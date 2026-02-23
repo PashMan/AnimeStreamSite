@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/shikimori/(.*)", "destination": "/api/shikimori.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

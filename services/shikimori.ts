@@ -5,6 +5,31 @@ import { MOCK_ANIME, SCHEDULE, MOCK_NEWS } from '../constants';
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 
+// Concurrency Limiter to prevent 429 errors
+class ConcurrencyManager {
+  private queue: (() => void)[] = [];
+  private activeCount = 0;
+  private maxConcurrency = 3;
+
+  async run<T>(task: () => Promise<T>): Promise<T> {
+    if (this.activeCount >= this.maxConcurrency) {
+      await new Promise<void>(resolve => this.queue.push(resolve));
+    }
+    this.activeCount++;
+    try {
+      return await task();
+    } finally {
+      this.activeCount--;
+      if (this.queue.length > 0) {
+        const next = this.queue.shift();
+        if (next) next();
+      }
+    }
+  }
+}
+
+const limiter = new ConcurrencyManager();
+
 // Cache configuration (Client-side secondary cache)
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes client-side cache
 const requestCache = new Map<string, { data: any; timestamp: number }>();
@@ -81,44 +106,46 @@ const processNewsHtml = (html: string | undefined): string => {
 };
 
 const fetchApi = async (endpoint: string, retries = 2) => {
-  // 1. Check Client Cache
-  const cached = requestCache.get(endpoint);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
-
-  // Use local proxy URL
-  const url = `${BASE_API}${endpoint}`;
-
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(url);
-      
-      if (!res.ok) {
-          console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
-          // If rate limited or gateway error, we might want to retry
-          if (res.status === 429 || res.status >= 500) {
-            const waitTime = Math.pow(2, i) * 500;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            continue;
-          }
-          throw new Error(`HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      
-      if (data) {
-        requestCache.set(endpoint, { data, timestamp: Date.now() });
-        return data;
-      }
-    } catch (e) {
-      if (i === retries - 1) {
-        return cached ? cached.data : null;
-      }
-      await new Promise(resolve => setTimeout(resolve, 300));
+  return limiter.run(async () => {
+    // 1. Check Client Cache
+    const cached = requestCache.get(endpoint);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
     }
-  }
-  return cached ? cached.data : null;
+
+    // Use local proxy URL
+    const url = `${BASE_API}${endpoint}`;
+
+    for (let i = 0; i < retries; i++) {
+      try {
+        const res = await fetch(url);
+        
+        if (!res.ok) {
+            console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
+            // If rate limited or gateway error, we might want to retry
+            if (res.status === 429 || res.status >= 500) {
+              const waitTime = Math.pow(2, i) * 1000; // Increased wait time
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              continue;
+            }
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        
+        if (data) {
+          requestCache.set(endpoint, { data, timestamp: Date.now() });
+          return data;
+        }
+      } catch (e) {
+        if (i === retries - 1) {
+          return cached ? cached.data : null;
+        }
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+    return cached ? cached.data : null;
+  });
 };
 
 export const mapAnime = (data: any): Anime => {
