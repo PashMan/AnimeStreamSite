@@ -2,11 +2,11 @@
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS } from '../constants';
 
-const BASE_API = 'https://shikimori.one/api';
+const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 
-// Cache configuration
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
+// Cache configuration (Client-side secondary cache)
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes client-side cache
 const requestCache = new Map<string, { data: any; timestamp: number }>();
 
 export const GENRE_MAP: Record<string, number> = {
@@ -80,30 +80,28 @@ const processNewsHtml = (html: string | undefined): string => {
   return processed;
 };
 
-const fetchApi = async (endpoint: string, retries = 3) => {
-  // 1. Check Cache
+const fetchApi = async (endpoint: string, retries = 2) => {
+  // 1. Check Client Cache
   const cached = requestCache.get(endpoint);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
-  // Use direct URL
+  // Use local proxy URL
   const url = `${BASE_API}${endpoint}`;
 
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url);
       
-      if (res.status === 429) {
-        // Rate limited, wait and retry
-        const waitTime = Math.pow(2, i) * 1000;
-        console.warn(`[Shikimori API] Rate limited (429). Waiting ${waitTime}ms...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
-      }
-
       if (!res.ok) {
-          console.warn(`[Shikimori API] Request failed: ${url} (${res.status})`);
+          console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
+          // If rate limited or gateway error, we might want to retry
+          if (res.status === 429 || res.status >= 500) {
+            const waitTime = Math.pow(2, i) * 500;
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          }
           throw new Error(`HTTP ${res.status}`);
       }
 
@@ -115,11 +113,9 @@ const fetchApi = async (endpoint: string, retries = 3) => {
       }
     } catch (e) {
       if (i === retries - 1) {
-        if (cached) return cached.data;
-        return null;
+        return cached ? cached.data : null;
       }
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
   return cached ? cached.data : null;

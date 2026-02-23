@@ -7,6 +7,7 @@ import { fetchAnimes } from '../services/shikimori';
 import { Anime, User } from '../types';
 import { Link } from 'react-router-dom';
 import imageCompression from 'browser-image-compression';
+import SEO from '../components/SEO';
 
 const Profile: React.FC = () => {
   const { user, openAuthModal, updateProfile } = useAuth();
@@ -186,6 +187,11 @@ const Profile: React.FC = () => {
 
   return (
     <div className="min-h-screen transition-all duration-500" style={containerStyle}>
+      <SEO 
+        title={`Профиль ${user.name}`} 
+        description={`Личный кабинет пользователя ${user.name} на AnimeStream. История просмотров, избранное и настройки.`}
+        image={user.avatar}
+      />
       <div className="w-full h-full min-h-screen transition-all duration-500" style={overlayStyle}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className={`flex gap-10 ${user.profileLayout === 'reversed' ? 'flex-col-reverse lg:flex-row-reverse' : user.profileLayout === 'centered' ? 'flex-col items-center lg:items-center' : 'flex-col lg:flex-row'}`}>

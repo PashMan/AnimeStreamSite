@@ -30,6 +30,9 @@ const SEO: React.FC<SEOProps> = ({
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
 
+      {/* Canonical URL */}
+      {url && <link rel="canonical" href={url} />}
+
       {/* Open Graph tags (Facebook, LinkedIn, etc.) */}
       <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={description} />

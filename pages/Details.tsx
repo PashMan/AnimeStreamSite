@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check } from 'lucide-react';
+import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
 import { db, supabase } from '../services/db';
@@ -295,20 +295,47 @@ const Details: React.FC = () => {
         keywords={`${anime.title}, смотреть ${anime.title}, ${anime.genres.join(', ')}, аниме онлайн`}
         schemaData={{
           "@context": "https://schema.org",
-          "@type": "Movie",
-          "name": anime.title,
-          "alternateName": anime.originalName,
-          "description": anime.description,
-          "image": anime.image,
-          "genre": anime.genres,
-          "datePublished": anime.year,
-          "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": anime.rating,
-            "bestRating": "10",
-            "worstRating": "1",
-            "ratingCount": "100" // Placeholder
-          }
+          "@graph": [
+            {
+              "@type": "Movie",
+              "name": anime.title,
+              "alternateName": anime.originalName,
+              "description": anime.description,
+              "image": anime.image,
+              "genre": anime.genres,
+              "datePublished": anime.year,
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": anime.rating,
+                "bestRating": "10",
+                "worstRating": "1",
+                "ratingCount": "100"
+              }
+            },
+            {
+              "@type": "BreadcrumbList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Главная",
+                  "item": "https://anime-stream.ru/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "Каталог",
+                  "item": "https://anime-stream.ru/catalog"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 3,
+                  "name": anime.title,
+                  "item": `https://anime-stream.ru/anime/${anime.id}`
+                }
+              ]
+            }
+          ]
         }}
       />
       <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0">
@@ -317,6 +344,17 @@ const Details: React.FC = () => {
       </div>
 
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-24 md:pt-32">
+        {/* Breadcrumbs */}
+        <nav className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-8 overflow-x-auto hide-scrollbar whitespace-nowrap">
+          <Link to="/" className="flex items-center gap-1.5 hover:text-white transition-colors">
+            <HomeIcon className="w-3 h-3" /> Главная
+          </Link>
+          <ChevronRight className="w-3 h-3 text-slate-700" />
+          <Link to="/catalog" className="hover:text-white transition-colors">Каталог</Link>
+          <ChevronRight className="w-3 h-3 text-slate-700" />
+          <span className="text-primary truncate max-w-[200px]">{anime.title}</span>
+        </nav>
+
         <div className="mb-10 animate-in slide-in-from-bottom-5 duration-700">
            <div className="flex flex-wrap items-center gap-4 mb-4">
               <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white">{anime.type}</span>
