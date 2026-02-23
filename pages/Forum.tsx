@@ -344,12 +344,7 @@ const Forum: React.FC = () => {
         <div className="space-y-2">
           {anime ? (
             <div className="flex items-center gap-6 mb-4">
-              <img 
-                src={anime.image} 
-                className="w-20 h-28 object-cover rounded-xl shadow-lg" 
-                alt={anime.title} 
-                onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
-              />
+              <img src={anime.image} className="w-20 h-28 object-cover rounded-xl shadow-lg" alt={anime.title} />
               <div>
                 <h1 className="text-3xl md:text-4xl font-display font-black text-white uppercase tracking-tighter mb-2">
                   Форум: {anime.title}

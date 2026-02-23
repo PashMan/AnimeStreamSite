@@ -513,26 +513,14 @@ const Profile: React.FC = () => {
                         <div className={activeTab === 'history' ? "grid gap-4" : "grid grid-cols-2 sm:grid-cols-4 gap-6"}>
                             {activeTab === 'history' ? history.map((item: any, idx: number) => (
                                 <Link to={`/watch/${item.animeId}?ep=${item.episode}`} key={idx} className="glass p-4 rounded-3xl flex items-center gap-6 group border border-transparent hover:border-white/10 transition-all">
-                                    <div className="w-40 h-24 rounded-2xl overflow-hidden shrink-0">
-                                      <img 
-                                        src={item.image} 
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" 
-                                        alt="" 
-                                        onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
-                                      />
-                                    </div>
+                                    <div className="w-40 h-24 rounded-2xl overflow-hidden shrink-0"><img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" /></div>
                                     <div className="flex-grow"><h4 className="text-lg font-black text-white truncate uppercase tracking-tighter">{item.title}</h4><p className="text-xs text-slate-400 font-bold mt-1 uppercase">Серия {item.episode}</p></div>
                                     <PlayCircle className="w-10 h-10 text-primary opacity-0 group-hover:opacity-100 transition-all" />
                                 </Link>
                             )) : (activeTab === 'favs' ? favorites : watched).map((anime: Anime) => (
                                 <Link to={`/anime/${anime.id}`} key={anime.id} className="group relative rounded-3xl overflow-hidden glass border border-transparent hover:border-primary transition-all">
                                    <div className="aspect-[2/3] relative">
-                                      <img 
-                                        src={anime.image} 
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" 
-                                        alt="" 
-                                        onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
-                                      />
+                                      <img src={anime.image} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />
                                       <div className="absolute inset-0 bg-gradient-to-t from-dark opacity-90"></div>
                                       <div className="absolute bottom-4 left-4 right-4"><h4 className="text-xs font-black text-white truncate uppercase mb-1">{anime.title}</h4><div className="text-[9px] font-black text-primary uppercase">{anime.type}</div></div>
                                    </div>

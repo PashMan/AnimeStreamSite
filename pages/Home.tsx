@@ -178,13 +178,7 @@ const Home: React.FC = () => {
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               {/* Use image as fallback while cover loads in background */}
-              <img 
-                src={anime.cover || anime.image} 
-                alt={anime.title} 
-                referrerPolicy="no-referrer" 
-                onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/1920x1080?text=No+Image'; }}
-                className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
-              />
+              <img src={anime.cover || anime.image} alt={anime.title} referrerPolicy="no-referrer" className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" />
               <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
               <div className="absolute inset-0 bg-black/20" />
             </div>
