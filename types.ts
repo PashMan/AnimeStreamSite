@@ -41,8 +41,12 @@ export interface User {
   friends?: string[]; // array of user emails or IDs
   watchedAnimeIds?: string[];
   profileBg?: string;
+  profileBanner?: string;
   profileLayout?: 'standard' | 'reversed' | 'centered';
   themeColor?: string;
+  avatarShape?: 'round' | 'rounded' | 'square';
+  cardOpacity?: number; // 0-100
+  cardBlur?: number; // 0-20
 }
 
 export interface ForumTopic {

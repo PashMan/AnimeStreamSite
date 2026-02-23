@@ -24,8 +24,12 @@ const Profile: React.FC = () => {
   
   // Design State
   const [editBg, setEditBg] = useState(user?.profileBg || '');
+  const [editBanner, setEditBanner] = useState(user?.profileBanner || '');
   const [editLayout, setEditLayout] = useState<'standard' | 'reversed' | 'centered'>(user?.profileLayout || 'standard');
-  const [editTheme, setEditTheme] = useState(user?.themeColor || 'primary');
+  const [editTheme, setEditTheme] = useState(user?.themeColor || '#8b5cf6'); // Default primary
+  const [editAvatarShape, setEditAvatarShape] = useState<'round' | 'rounded' | 'square'>(user?.avatarShape || 'round');
+  const [editCardOpacity, setEditCardOpacity] = useState(user?.cardOpacity ?? 80);
+  const [editCardBlur, setEditCardBlur] = useState(user?.cardBlur ?? 10);
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -115,8 +119,12 @@ const Profile: React.FC = () => {
         setEditBio(user.bio || '');
         setEditAvatar(user.avatar);
         setEditBg(user.profileBg || '');
+        setEditBanner(user.profileBanner || '');
         setEditLayout(user.profileLayout || 'standard');
-        setEditTheme(user.themeColor || 'primary');
+        setEditTheme(user.themeColor || '#8b5cf6');
+        setEditAvatarShape(user.avatarShape || 'round');
+        setEditCardOpacity(user.cardOpacity ?? 80);
+        setEditCardBlur(user.cardBlur ?? 10);
 
       } catch (err) {
         console.error(err);
@@ -134,8 +142,12 @@ const Profile: React.FC = () => {
       bio: editBio,
       avatar: editAvatar,
       profileBg: editBg,
+      profileBanner: editBanner,
       profileLayout: editLayout,
-      themeColor: editTheme
+      themeColor: editTheme,
+      avatarShape: editAvatarShape,
+      cardOpacity: editCardOpacity,
+      cardBlur: editCardBlur
     });
     if (success) setIsEditing(false);
   };
@@ -160,9 +172,17 @@ const Profile: React.FC = () => {
   } : {};
 
   const overlayStyle = user.profileBg ? {
-      backgroundColor: 'rgba(0,0,0,0.7)',
+      backgroundColor: `rgba(0,0,0,${1 - (user.cardOpacity ?? 80) / 100})`,
       backdropFilter: 'blur(10px)'
   } : {};
+
+  const cardStyle = {
+      backgroundColor: `rgba(20, 20, 20, ${(user.cardOpacity ?? 80) / 100})`,
+      backdropFilter: `blur(${user.cardBlur ?? 10}px)`,
+      borderColor: user.themeColor || 'rgba(255,255,255,0.1)'
+  };
+
+  const avatarClass = user.avatarShape === 'square' ? 'rounded-none' : user.avatarShape === 'rounded' ? 'rounded-2xl' : 'rounded-full';
 
   return (
     <div className="min-h-screen transition-all duration-500" style={containerStyle}>
@@ -172,13 +192,27 @@ const Profile: React.FC = () => {
             
             {/* Sidebar / Profile Card */}
             <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6`}>
-               <div className="glass p-10 rounded-[2.5rem] flex flex-col items-center text-center border border-white/10 shadow-2xl relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-full h-32 ${user.isPremium ? 'bg-gradient-to-b from-yellow-500/20 to-transparent' : 'bg-gradient-to-b from-primary/20 to-transparent'}`}></div>
+               <div className="p-10 rounded-[2.5rem] flex flex-col items-center text-center border shadow-2xl relative overflow-hidden transition-all duration-500" style={cardStyle}>
+                  <div 
+                    className="absolute top-0 left-0 w-full h-32 bg-cover bg-center"
+                    style={{ 
+                        backgroundImage: user.profileBanner ? `url(${user.profileBanner})` : undefined,
+                        backgroundColor: user.themeColor ? `${user.themeColor}33` : undefined // 20% opacity fallback
+                    }}
+                  >
+                    {!user.profileBanner && <div className={`w-full h-full ${user.isPremium ? 'bg-gradient-to-b from-yellow-500/20 to-transparent' : 'bg-gradient-to-b from-primary/20 to-transparent'}`}></div>}
+                  </div>
+                  
                   <div className="relative mb-6 group">
-                    <img src={editAvatar || user.avatar} alt="Profile" className={`w-28 h-28 rounded-full border-4 border-dark ring-2 object-cover ${user.isPremium ? 'ring-yellow-400' : 'ring-primary/50'}`} />
+                    <img 
+                        src={editAvatar || user.avatar} 
+                        alt="Profile" 
+                        className={`w-28 h-28 border-4 border-dark ring-2 object-cover transition-all duration-300 ${avatarClass}`}
+                        style={{ ringColor: user.themeColor || '#8b5cf6' }}
+                    />
                     {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 fill-current drop-shadow-lg" />}
                     
-                    <label className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <label className={`absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${avatarClass}`}>
                       {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
                       <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
                     </label>
@@ -194,27 +228,27 @@ const Profile: React.FC = () => {
                   {user.bio && <p className="mt-6 text-slate-400 text-xs font-medium leading-relaxed italic">"{user.bio}"</p>}
                </div>
 
-               <nav className="glass rounded-3xl p-3 space-y-2 border border-white/5 shadow-xl">
-                  <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-white/5'}`}>
+               <nav className="rounded-3xl p-3 space-y-2 border shadow-xl transition-all duration-500" style={cardStyle}>
+                  <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'favs' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><Heart className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Избранное</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{favorites.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-white/5'}`}>
+                  <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watched' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><CheckCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Просмотрено</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{watched.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'history' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-white/5'}`}>
+                  <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'history' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'history' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <History className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">История</span>
                   </button>
-                  <button onClick={() => setActiveTab('friends')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'friends' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-white/5'}`}>
+                  <button onClick={() => setActiveTab('friends')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'friends' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'friends' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><Users className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Друзья</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{friends.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-white/5'}`}>
+                  <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
                   </button>
                   {user.isPremium && (
-                      <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'bg-yellow-500 text-black' : 'text-yellow-500 hover:bg-white/5'}`}>
+                      <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'text-black' : 'text-yellow-500 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308' } : {}}>
                         <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
                       </button>
                   )}
@@ -224,14 +258,15 @@ const Profile: React.FC = () => {
             {/* Main Content Area */}
             <div className="flex-grow space-y-12">
                {isLoading ? (
-                 <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>
+                 <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin" style={{ color: user.themeColor || '#8b5cf6' }} /></div>
                ) : activeTab === 'settings' ? (
-                 <section className="glass p-10 rounded-[2.5rem] border border-white/10 shadow-2xl animate-in fade-in duration-500">
+                 <section className="p-10 rounded-[2.5rem] border shadow-2xl animate-in fade-in duration-500" style={cardStyle}>
                     <div className="flex items-center justify-between mb-10">
                       <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Настройки профиля</h3>
                       <button 
                         onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
-                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
+                        className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg"
+                        style={{ backgroundColor: user.themeColor || '#8b5cf6', boxShadow: `0 10px 15px -3px ${user.themeColor}40` }}
                       >
                         {isEditing ? <><Save className="w-4 h-4" /> Сохранить</> : <><Edit2 className="w-4 h-4" /> Редактировать</>}
                       </button>
@@ -288,66 +323,154 @@ const Profile: React.FC = () => {
                     </div>
                  </section>
                ) : activeTab === 'design' && user.isPremium ? (
-                  <section className="glass p-10 rounded-[2.5rem] border border-white/10 shadow-2xl animate-in fade-in duration-500">
+                 <section className="p-10 rounded-[2.5rem] border shadow-2xl animate-in fade-in duration-500" style={cardStyle}>
                     <div className="flex items-center justify-between mb-10">
-                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-                          <Palette className="text-yellow-400" /> Дизайн профиля
-                      </h3>
+                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Дизайн профиля</h3>
                       <button 
-                        onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
-                        className="flex items-center gap-2 px-6 py-3 bg-yellow-500 text-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-yellow-500/20"
+                        onClick={handleSaveProfile}
+                        className="flex items-center gap-2 px-6 py-3 bg-yellow-500 text-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-yellow-500/20 hover:bg-yellow-400 transition-colors"
                       >
-                        {isEditing ? <><Save className="w-4 h-4" /> Сохранить</> : <><Edit2 className="w-4 h-4" /> Редактировать</>}
+                        <Save className="w-4 h-4" /> Сохранить изменения
                       </button>
                     </div>
 
-                    <div className="grid gap-8 max-w-2xl">
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Фон профиля (URL)</label>
-                            <div className="flex gap-4">
-                                <input 
-                                type="text" 
-                                disabled={!isEditing}
-                                value={editBg}
-                                onChange={e => setEditBg(e.target.value)}
-                                placeholder="https://example.com/background.jpg"
-                                className="w-full h-14 px-6 bg-white/5 border border-white/10 rounded-2xl text-white focus:border-yellow-500 outline-none disabled:opacity-50 transition-all"
-                                />
-                            </div>
-                            <p className="text-[10px] text-slate-500 ml-2">Вставьте прямую ссылку на изображение</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      {/* Background Image */}
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Фоновое изображение (URL)</label>
+                        <div className="relative">
+                          <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                          <input 
+                            type="text" 
+                            value={editBg} 
+                            onChange={(e) => setEditBg(e.target.value)} 
+                            placeholder="https://example.com/background.jpg" 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-yellow-500 outline-none transition-all" 
+                          />
                         </div>
+                        <p className="text-[10px] text-slate-500 ml-2">Ссылка на изображение для фона всего профиля.</p>
+                      </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Макет страницы</label>
-                            <div className="grid grid-cols-3 gap-4">
-                                <button 
-                                    disabled={!isEditing}
-                                    onClick={() => setEditLayout('standard')}
-                                    className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${editLayout === 'standard' ? 'border-yellow-500 bg-yellow-500/10' : 'border-white/10 hover:border-white/30'}`}
-                                >
-                                    <Layout className="w-6 h-6" />
-                                    <span className="text-[10px] font-bold uppercase">Стандарт</span>
-                                </button>
-                                <button 
-                                    disabled={!isEditing}
-                                    onClick={() => setEditLayout('reversed')}
-                                    className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${editLayout === 'reversed' ? 'border-yellow-500 bg-yellow-500/10' : 'border-white/10 hover:border-white/30'}`}
-                                >
-                                    <Layout className="w-6 h-6 rotate-180" />
-                                    <span className="text-[10px] font-bold uppercase">Реверс</span>
-                                </button>
-                                <button 
-                                    disabled={!isEditing}
-                                    onClick={() => setEditLayout('centered')}
-                                    className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${editLayout === 'centered' ? 'border-yellow-500 bg-yellow-500/10' : 'border-white/10 hover:border-white/30'}`}
-                                >
-                                    <Layout className="w-6 h-6" />
-                                    <span className="text-[10px] font-bold uppercase">Центр</span>
-                                </button>
-                            </div>
+                      {/* Banner Image */}
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Баннер профиля (URL)</label>
+                        <div className="relative">
+                          <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                          <input 
+                            type="text" 
+                            value={editBanner} 
+                            onChange={(e) => setEditBanner(e.target.value)} 
+                            placeholder="https://example.com/banner.jpg" 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-yellow-500 outline-none transition-all" 
+                          />
                         </div>
+                        <p className="text-[10px] text-slate-500 ml-2">Ссылка на изображение для шапки карточки профиля.</p>
+                      </div>
+
+                      {/* Theme Color */}
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Акцентный цвет</label>
+                        <div className="flex items-center gap-4">
+                          <input 
+                            type="color" 
+                            value={editTheme} 
+                            onChange={(e) => setEditTheme(e.target.value)}
+                            className="w-12 h-12 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                          />
+                          <div className="flex-1">
+                             <input 
+                                type="text" 
+                                value={editTheme} 
+                                onChange={(e) => setEditTheme(e.target.value)} 
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white font-mono uppercase focus:border-yellow-500 outline-none transition-all"
+                             />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Layout */}
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Макет профиля</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          <button 
+                            onClick={() => setEditLayout('standard')}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'standard' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                          >
+                            <LayoutTemplate className="w-6 h-6" />
+                            <span className="text-[10px] font-bold uppercase">Стандарт</span>
+                          </button>
+                          <button 
+                            onClick={() => setEditLayout('reversed')}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'reversed' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                          >
+                            <LayoutTemplate className="w-6 h-6 rotate-180" />
+                            <span className="text-[10px] font-bold uppercase">Реверс</span>
+                          </button>
+                          <button 
+                            onClick={() => setEditLayout('centered')}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'centered' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                          >
+                            <LayoutTemplate className="w-6 h-6" />
+                            <span className="text-[10px] font-bold uppercase">Центр</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Avatar Shape */}
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Форма аватара</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          <button 
+                            onClick={() => setEditAvatarShape('round')}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'round' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                          >
+                            <div className="w-6 h-6 rounded-full bg-current opacity-50"></div>
+                            <span className="text-[10px] font-bold uppercase">Круг</span>
+                          </button>
+                          <button 
+                            onClick={() => setEditAvatarShape('rounded')}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'rounded' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                          >
+                            <div className="w-6 h-6 rounded-lg bg-current opacity-50"></div>
+                            <span className="text-[10px] font-bold uppercase">Скругленный</span>
+                          </button>
+                          <button 
+                            onClick={() => setEditAvatarShape('square')}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'square' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                          >
+                            <div className="w-6 h-6 rounded-none bg-current opacity-50"></div>
+                            <span className="text-[10px] font-bold uppercase">Квадрат</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Card Opacity & Blur */}
+                      <div className="space-y-4">
+                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Прозрачность карточек: {editCardOpacity}%</label>
+                         <input 
+                            type="range" 
+                            min="20" 
+                            max="100" 
+                            value={editCardOpacity} 
+                            onChange={(e) => setEditCardOpacity(Number(e.target.value))}
+                            className="w-full accent-yellow-500 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                         />
+                      </div>
+
+                      <div className="space-y-4">
+                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Размытие фона (Blur): {editCardBlur}px</label>
+                         <input 
+                            type="range" 
+                            min="0" 
+                            max="40" 
+                            value={editCardBlur} 
+                            onChange={(e) => setEditCardBlur(Number(e.target.value))}
+                            className="w-full accent-yellow-500 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                         />
+                      </div>
+
                     </div>
-                  </section>
+                 </section>
                ) : activeTab === 'friends' ? (
                  <section className="animate-in fade-in duration-500">
                     <h3 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter mb-8">

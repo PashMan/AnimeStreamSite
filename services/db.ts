@@ -165,8 +165,12 @@ class DatabaseService {
       friends: p.friends || [],
       watchedAnimeIds: p.watched_anime_ids || [],
       profileBg: p.profile_bg,
+      profileBanner: p.profile_banner,
       profileLayout: p.profile_layout as any,
-      themeColor: p.theme_color
+      themeColor: p.theme_color,
+      avatarShape: p.avatar_shape as any,
+      cardOpacity: p.card_opacity,
+      cardBlur: p.card_blur
     };
   }
 
@@ -180,8 +184,12 @@ class DatabaseService {
       if (updates.isPremium !== undefined) mapped.is_premium = updates.isPremium;
       if (updates.watchedAnimeIds) mapped.watched_anime_ids = updates.watchedAnimeIds;
       if (updates.profileBg !== undefined) mapped.profile_bg = updates.profileBg;
+      if (updates.profileBanner !== undefined) mapped.profile_banner = updates.profileBanner;
       if (updates.profileLayout !== undefined) mapped.profile_layout = updates.profileLayout;
       if (updates.themeColor !== undefined) mapped.theme_color = updates.themeColor;
+      if (updates.avatarShape !== undefined) mapped.avatar_shape = updates.avatarShape;
+      if (updates.cardOpacity !== undefined) mapped.card_opacity = updates.cardOpacity;
+      if (updates.cardBlur !== undefined) mapped.card_blur = updates.cardBlur;
 
       const { data, error } = await supabaseClient
         .from('profiles')
