@@ -14,6 +14,7 @@ import SEO from '../components/SEO';
 const CATEGORIES = [
   { id: 'general', name: 'Общее', description: 'Общие обсуждения на любые темы' },
   { id: 'anime', name: 'Аниме', description: 'Обсуждение аниме, персонажей и сюжетов' },
+  { id: 'news', name: 'Новости', description: 'Новости индустрии и сайта' },
   { id: 'offtopic', name: 'Оффтоп', description: 'Разговоры обо всем на свете' },
   { id: 'support', name: 'Поддержка', description: 'Вопросы, предложения и баги' },
 ];
@@ -53,13 +54,30 @@ const Forum: React.FC = () => {
     const loadList = async () => {
       setIsLoading(true);
       try {
-        const [topicsData, animeData] = await Promise.all([
+        const [topicsData, animeData, newsData] = await Promise.all([
           db.getForumTopics(animeIdParam || undefined, activeCategory !== 'all' ? activeCategory : undefined),
-          animeIdParam ? fetchAnimeDetails(animeIdParam) : Promise.resolve(null)
+          animeIdParam ? fetchAnimeDetails(animeIdParam) : Promise.resolve(null),
+          (activeCategory === 'all' || activeCategory === 'news') ? fetchNews() : Promise.resolve([])
         ]);
 
+        // Convert news to forum topics format
+        const newsTopics: ForumTopic[] = newsData.map(n => ({
+            id: `news-${n.id}`,
+            title: n.title,
+            content: n.summary.replace(/<[^>]*>?/gm, ''), // Strip tags for list view
+            author: { name: 'Shikimori', avatar: '', email: 'bot@shikimori.one' },
+            createdAt: new Date(n.date.split('.').reverse().join('-')).toISOString(),
+            category: 'news',
+            views: 0,
+            repliesCount: 0
+        }));
+
+        // Filter out news that are already in DB (to avoid duplicates)
+        const dbTopicIds = new Set(topicsData.map(t => t.id));
+        const uniqueNewsTopics = newsTopics.filter(n => !dbTopicIds.has(n.id));
+
         // Merge and sort
-        const allTopics = [...topicsData].sort((a, b) => 
+        const allTopics = [...topicsData, ...uniqueNewsTopics].sort((a, b) => 
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
 
@@ -81,13 +99,40 @@ const Forum: React.FC = () => {
     const loadDetail = async () => {
       setIsLoading(true);
       try {
-        // Handle DB Topic Detail
-        const [topic, topicPosts] = await Promise.all([
-          db.getForumTopic(topicId),
-          db.getForumPosts(topicId)
-        ]);
-        setCurrentTopic(topic);
-        setPosts(topicPosts);
+        if (topicId.startsWith('news-')) {
+            // Handle News Detail
+            const newsId = topicId.replace('news-', '');
+            // Try to get from DB first to get correct reply count and views
+            const [dbTopic, dbPosts] = await Promise.all([
+                db.getForumTopic(topicId),
+                db.getForumPosts(topicId)
+            ]);
+
+            const newsItem = await import('../services/shikimori').then(m => m.fetchNewsDetails(newsId));
+            
+            if (newsItem) {
+                setCurrentTopic({
+                    id: topicId,
+                    title: newsItem.title,
+                    // Use HTML body for detail view, do not strip tags
+                    content: newsItem.html_body || newsItem.summary,
+                    author: { name: 'Shikimori', avatar: '', email: 'bot@shikimori.one' },
+                    createdAt: new Date(newsItem.date.split('.').reverse().join('-')).toISOString(),
+                    category: 'news',
+                    views: dbTopic?.views || 0,
+                    repliesCount: dbTopic?.repliesCount || dbPosts.length
+                });
+                setPosts(dbPosts);
+            }
+        } else {
+            // Handle DB Topic Detail
+            const [topic, topicPosts] = await Promise.all([
+              db.getForumTopic(topicId),
+              db.getForumPosts(topicId)
+            ]);
+            setCurrentTopic(topic);
+            setPosts(topicPosts);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -133,8 +178,26 @@ const Forum: React.FC = () => {
 
     setIsActionLoading(true);
     try {
-      const targetTopicId = currentTopic.id;
+      let targetTopicId = currentTopic.id;
       
+      // If replying to a news item that isn't in DB yet, create it first
+      if (currentTopic.id.startsWith('news-')) {
+          const existing = await db.getForumTopic(currentTopic.id);
+          if (!existing) {
+              // We need to fetch the news item again or use currentTopic data to create it
+              // currentTopic.content might contain HTML, which is fine for DB content
+              const newTopic = await db.createForumTopic({
+                  id: currentTopic.id,
+                  title: currentTopic.title,
+                  content: currentTopic.content, // Save HTML content to DB
+                  author: user.email, 
+                  category: 'news',
+                  animeId: undefined
+              });
+              if (!newTopic) throw new Error('Failed to create news topic');
+          }
+      }
+
       const post = await db.createForumPost({
         topicId: targetTopicId,
         content: replyContent,
