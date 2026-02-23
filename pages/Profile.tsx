@@ -207,8 +207,8 @@ const Profile: React.FC = () => {
                     <img 
                         src={editAvatar || user.avatar} 
                         alt="Profile" 
-                        className={`w-28 h-28 border-4 border-dark ring-2 object-cover transition-all duration-300 ${avatarClass}`}
-                        style={{ ringColor: user.themeColor || '#8b5cf6' }}
+                        className={`w-28 h-28 border-4 border-dark outline outline-2 object-cover transition-all duration-300 ${avatarClass}`}
+                        style={{ outlineColor: user.themeColor || '#8b5cf6' }}
                     />
                     {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 fill-current drop-shadow-lg" />}
                     

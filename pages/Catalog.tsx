@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import AnimeCard from '../components/AnimeCard';
 import { fetchAnimes, GENRE_MAP } from '../services/shikimori';
 import { Anime } from '../types';
+import SEO from '../components/SEO';
 
 const Catalog: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -104,6 +105,10 @@ const Catalog: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <SEO 
+        title="Каталог аниме" 
+        description="Огромная база аниме: поиск по жанрам, годам и популярности. Найдите, что посмотреть сегодня."
+      />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
         <div className="flex items-center gap-4">
            <div className="p-3 bg-primary/10 rounded-2xl text-primary">

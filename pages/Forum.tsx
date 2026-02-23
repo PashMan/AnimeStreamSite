@@ -9,6 +9,7 @@ import { RichTextarea } from '../components/RichTextarea';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import SEO from '../components/SEO';
 
 const CATEGORIES = [
   { id: 'general', name: 'Общее', description: 'Общие обсуждения на любые темы' },
@@ -232,6 +233,11 @@ const Forum: React.FC = () => {
   if (topicId && currentTopic) {
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-in fade-in duration-500">
+        <SEO 
+          title={currentTopic.title} 
+          description={currentTopic.content.slice(0, 160)}
+          type="article"
+        />
         <style>{`
           .news-content img {
               max-width: 100%;
@@ -393,6 +399,10 @@ const Forum: React.FC = () => {
   // --- TOPIC LIST VIEW ---
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <SEO 
+        title="Форум сообщества" 
+        description="Обсуждайте любимые аниме, делитесь мнениями и находите новых друзей на нашем форуме."
+      />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
         <div className="space-y-2">
           {anime ? (

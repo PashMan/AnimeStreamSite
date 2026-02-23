@@ -73,7 +73,7 @@ class DatabaseService {
   }
 
   onAuthStateChange(callback: (event: string, session: any) => void) {
-      return supabaseClient.auth.onAuthStateChange((event, session) => {
+      return supabaseClient.auth.onAuthStateChange((event: string, session: any) => {
           callback(event, session);
       });
   }

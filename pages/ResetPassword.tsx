@@ -11,7 +11,8 @@ const ResetPassword: React.FC = () => {
 
   useEffect(() => {
     // Check if we have a session (Supabase handles the hash fragment automatically)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data }: any) => {
+      const session = data?.session;
       if (!session) {
         // If no session, maybe the link is invalid or expired
         setMessage({ type: 'error', text: 'Invalid or expired password reset link.' });

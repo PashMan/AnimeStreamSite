@@ -4,6 +4,7 @@ import { Calendar, ChevronRight, Megaphone, Loader2, ArrowLeft } from 'lucide-re
 import { Link } from 'react-router-dom';
 import { fetchNews } from '../services/shikimori';
 import { NewsItem } from '../types';
+import SEO from '../components/SEO';
 
 const News: React.FC = () => {
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
@@ -29,6 +30,10 @@ const News: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
+      <SEO 
+        title="Новости аниме" 
+        description="Последние новости из мира аниме: анонсы, трейлеры, даты выхода и важные события индустрии."
+      />
       <Link to="/" className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors group">
         <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" /> На главную
       </Link>

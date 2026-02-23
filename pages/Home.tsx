@@ -3,6 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare, Reply } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
+import SEO from '../components/SEO';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
@@ -167,6 +168,10 @@ const Home: React.FC = () => {
 
   return (
     <div className="space-y-24 pb-20 animate-in fade-in duration-700">
+      <SEO 
+        title="Главная" 
+        description="Смотрите аниме онлайн бесплатно в хорошем качестве. Новинки сезона, популярные тайтлы, удобный плеер и активное сообщество."
+      />
       {/* Hero Section */}
       {currentHero ? (
         <section className="relative h-[85vh] w-full overflow-hidden group">

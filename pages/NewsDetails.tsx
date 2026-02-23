@@ -6,6 +6,7 @@ import { fetchNewsDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { NewsItem, Comment } from '../types';
+import SEO from '../components/SEO';
 
 const NewsDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -110,6 +111,13 @@ const NewsDetails: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <SEO 
+        title={newsItem.title} 
+        description={newsItem.summary.replace(/<[^>]*>?/gm, '').slice(0, 160)}
+        image={newsItem.image}
+        type="article"
+        keywords={`${newsItem.title}, аниме новости, ${newsItem.category}`}
+      />
       <style>{`
         .news-content img {
             max-width: 100%;

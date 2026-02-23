@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             table: 'profiles',
             filter: `email=eq.${email}`,
           },
-          (payload) => {
+          (payload: any) => {
             console.log('Profile updated:', payload);
             fetchUserProfile(email);
           }
@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     checkSession();
 
     // Listen for auth changes (e.g. email confirmation link clicked)
-    const { data: { subscription: authSubscription } } = db.onAuthStateChange(async (event, session) => {
+    const { data: { subscription: authSubscription } } = db.onAuthStateChange(async (event: string, session: any) => {
       if (event === 'SIGNED_IN' && session?.user?.email) {
         await fetchUserProfile(session.user.email);
         subscribeToProfile(session.user.email);

@@ -6,6 +6,7 @@ import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../se
 import { db, supabase } from '../services/db';
 import { Anime, Comment } from '../types';
 import AnimeCard from '../components/AnimeCard';
+import SEO from '../components/SEO';
 
 const Details: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -286,6 +287,30 @@ const Details: React.FC = () => {
 
   return (
     <div className="w-full relative overflow-x-hidden pb-20">
+      <SEO 
+        title={`Смотреть ${anime.title}`} 
+        description={anime.description?.slice(0, 160) || `Смотреть аниме ${anime.title} онлайн бесплатно в хорошем качестве на AnimeStream.`}
+        image={anime.image}
+        type="video.movie"
+        keywords={`${anime.title}, смотреть ${anime.title}, ${anime.genres.join(', ')}, аниме онлайн`}
+        schemaData={{
+          "@context": "https://schema.org",
+          "@type": "Movie",
+          "name": anime.title,
+          "alternateName": anime.originalName,
+          "description": anime.description,
+          "image": anime.image,
+          "genre": anime.genres,
+          "datePublished": anime.year,
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": anime.rating,
+            "bestRating": "10",
+            "worstRating": "1",
+            "ratingCount": "100" // Placeholder
+          }
+        }}
+      />
       <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0">
         <img src={anime.cover || anime.image} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/60 to-transparent" />
