@@ -135,6 +135,22 @@ class DatabaseService {
       }
   }
 
+  async resetPassword(email: string): Promise<{ success: boolean; message?: string }> {
+    if (!this.isSupabaseAvailable()) return { success: false, message: 'Database unavailable' };
+    try {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/reset-password', // Ensure this route exists or handle it
+      });
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      return { success: true, message: 'Check your email for the password reset link' };
+    } catch (e) {
+      console.error('Reset password exception:', e);
+      return { success: false, message: 'Exception occurred' };
+    }
+  }
+
   private mapProfileToUser(p: any): User {
     return {
       id: p.id,
@@ -147,7 +163,10 @@ class DatabaseService {
       watchedTime: p.watched_time,
       episodesWatched: p.episodes_watched,
       friends: p.friends || [],
-      watchedAnimeIds: p.watched_anime_ids || []
+      watchedAnimeIds: p.watched_anime_ids || [],
+      profileBg: p.profile_bg,
+      profileLayout: p.profile_layout as any,
+      themeColor: p.theme_color
     };
   }
 
@@ -160,6 +179,9 @@ class DatabaseService {
       if (updates.bio !== undefined) mapped.bio = updates.bio;
       if (updates.isPremium !== undefined) mapped.is_premium = updates.isPremium;
       if (updates.watchedAnimeIds) mapped.watched_anime_ids = updates.watchedAnimeIds;
+      if (updates.profileBg !== undefined) mapped.profile_bg = updates.profileBg;
+      if (updates.profileLayout !== undefined) mapped.profile_layout = updates.profileLayout;
+      if (updates.themeColor !== undefined) mapped.theme_color = updates.themeColor;
 
       const { data, error } = await supabaseClient
         .from('profiles')

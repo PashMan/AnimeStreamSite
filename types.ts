@@ -40,6 +40,9 @@ export interface User {
   episodesWatched: number;
   friends?: string[]; // array of user emails or IDs
   watchedAnimeIds?: string[];
+  profileBg?: string;
+  profileLayout?: 'standard' | 'reversed' | 'centered';
+  themeColor?: string;
 }
 
 export interface ForumTopic {
