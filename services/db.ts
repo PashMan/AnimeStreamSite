@@ -132,8 +132,14 @@ class DatabaseService {
         .upload(filePath, file);
 
       if (uploadError) {
-        console.error('Upload error:', uploadError.message);
-        return null;
+        console.warn('Storage upload failed (likely RLS), falling back to Base64:', uploadError.message);
+        // Fallback to Base64
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+        });
       }
 
       const { data } = supabaseClient.storage
@@ -143,7 +149,13 @@ class DatabaseService {
       return data.publicUrl;
     } catch (e) {
       console.error('Upload exception:', e);
-      return null;
+      // Try Base64 fallback on exception too
+      return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+      });
     }
   }
 
