@@ -13,9 +13,12 @@ import Messages from './pages/Messages';
 import Forum from './pages/Forum';
 import Premium from './pages/Premium';
 
+import ScrollToTop from './components/ScrollToTop';
+
 const App: React.FC = () => {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />

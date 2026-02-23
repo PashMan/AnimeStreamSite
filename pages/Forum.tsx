@@ -285,30 +285,29 @@ const Forum: React.FC = () => {
         <div className="space-y-8">
           {/* Original Post */}
           <div className="bg-surface/30 border border-white/5 rounded-[2rem] p-8 md:p-10 relative overflow-hidden">
-             <div className="flex flex-col md:flex-row gap-8">
-                <div className="flex flex-col items-center gap-3 shrink-0 md:w-40">
-                   <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
-                   <div className="text-center">
-                      <div className="font-black text-white text-sm">{currentTopic.author.name}</div>
-                      <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Автор</div>
-                   </div>
+             <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-6">
+                <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} className="w-12 h-12 rounded-xl object-cover shadow-md ring-2 ring-white/5" alt="" />
+                <div>
+                   <div className="font-black text-white text-base">{currentTopic.author.name}</div>
+                   <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Автор темы</div>
                 </div>
-                <div className="flex-1 min-w-0 overflow-hidden">
-                   {currentTopic.category === 'news' ? (
-                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed news-content break-words" dangerouslySetInnerHTML={{ __html: currentTopic.content }} />
-                   ) : (
-                       <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-wrap break-words markdown-body">
-                          <ReactMarkdown 
-                            components={{
-                                u: ({node, ...props}: any) => <u {...props} />
-                            }}
-                            rehypePlugins={[]}
-                          >
-                              {currentTopic.content}
-                          </ReactMarkdown>
-                       </div>
-                   )}
-                </div>
+             </div>
+             
+             <div className="min-w-0 overflow-hidden">
+                {currentTopic.category === 'news' ? (
+                    <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed news-content break-words" dangerouslySetInnerHTML={{ __html: currentTopic.content }} />
+                ) : (
+                    <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-wrap break-words markdown-body">
+                       <ReactMarkdown 
+                         components={{
+                             u: ({node, ...props}: any) => <u {...props} />
+                         }}
+                         rehypePlugins={[]}
+                       >
+                           {currentTopic.content}
+                       </ReactMarkdown>
+                    </div>
+                )}
              </div>
           </div>
 
@@ -320,31 +319,30 @@ const Forum: React.FC = () => {
              
              {posts.map(post => (
                <div key={post.id} className="bg-surface/20 border border-white/5 rounded-[2rem] p-6 md:p-8">
-                 <div className="flex flex-col md:flex-row gap-6">
-                    <div className="flex flex-row md:flex-col items-center md:items-start gap-3 shrink-0 md:w-40">
-                       <img src={post.author.avatar} className="w-12 h-12 rounded-xl object-cover shadow-md" alt="" />
-                       <div>
-                          <div className="font-bold text-white text-xs">{post.author.name}</div>
-                          <div className="text-[9px] text-slate-500 uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</div>
-                       </div>
+                 <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
+                    <img src={post.author.avatar} className="w-10 h-10 rounded-xl object-cover shadow-md" alt="" />
+                    <div>
+                       <div className="font-bold text-white text-xs">{post.author.name}</div>
+                       <div className="text-[9px] text-slate-500 uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                       <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words markdown-body">
-                          <ReactMarkdown
-                            components={{
-                                u: ({node, ...props}: any) => <u {...props} />
-                            }}
-                          >
-                              {post.content}
-                          </ReactMarkdown>
-                       </div>
-                       <button 
-                         onClick={() => handleReplyToUser(post.author.name)}
-                         className="mt-4 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                 </div>
+                 
+                 <div className="min-w-0">
+                    <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words markdown-body">
+                       <ReactMarkdown
+                         components={{
+                             u: ({node, ...props}: any) => <u {...props} />
+                         }}
                        >
-                           <Reply className="w-3 h-3" /> Ответить
-                       </button>
+                           {post.content}
+                       </ReactMarkdown>
                     </div>
+                    <button 
+                      onClick={() => handleReplyToUser(post.author.name)}
+                      className="mt-4 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                        <Reply className="w-3 h-3" /> Ответить
+                    </button>
                  </div>
                </div>
              ))}
