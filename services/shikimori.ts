@@ -4,6 +4,7 @@ import { MOCK_ANIME, SCHEDULE, MOCK_NEWS } from '../constants';
 
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
+const FETCH_TIMEOUT = 15000; // 15 seconds timeout
 
 // Concurrency Limiter
 class RequestQueue {
@@ -135,8 +136,12 @@ const fetchApi = async (endpoint: string, retries = 2) => {
 
   return requestQueue.add(async () => {
     for (let i = 0; i < retries; i++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         
         if (!res.ok) {
             console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
@@ -155,7 +160,10 @@ const fetchApi = async (endpoint: string, retries = 2) => {
           requestCache.set(endpoint, { data, timestamp: Date.now() });
           return data;
         }
-      } catch (e) {
+      } catch (e: any) {
+        clearTimeout(timeoutId);
+        console.error(`[Fetch Error] ${url}:`, e.message || e);
+        
         if (i === retries - 1) {
           // If all retries fail, return cached data if available (stale-while-revalidate fallback)
           return cached ? cached.data : null;

@@ -28,6 +28,7 @@ const Details: React.FC = () => {
   const [isRelatedLoading, setIsRelatedLoading] = useState(true);
   const [isSimilarLoading, setIsSimilarLoading] = useState(true);
   const [isCommentsLoading, setIsCommentsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [isFavorite, setIsFavorite] = useState(false);
   const [isWatched, setIsWatched] = useState(false);
@@ -212,6 +213,7 @@ const Details: React.FC = () => {
       
       // Reset states
       setIsMainLoading(true);
+      setError(null);
       setIsRelatedLoading(true);
       setIsSimilarLoading(true);
       setIsCommentsLoading(true);
@@ -223,6 +225,11 @@ const Details: React.FC = () => {
       try {
         // 1. Critical Path: Main Details
         const data = await fetchAnimeDetails(id);
+        
+        if (!data) {
+          throw new Error("Не удалось загрузить данные об аниме");
+        }
+        
         setAnime(data);
         setIsMainLoading(false); // Unblock UI immediately
 
@@ -266,8 +273,9 @@ const Details: React.FC = () => {
           }).catch(err => console.error("User data fetch error", err));
         }
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Details Page Load Error:", err);
+        setError(err.message || "Произошла ошибка при загрузке");
         setIsMainLoading(false);
       }
     };
@@ -312,6 +320,7 @@ const Details: React.FC = () => {
   };
 
   if (isMainLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center text-red-400 font-bold text-xl">{error}</div>;
   if (!anime) return <div className="text-center py-20 text-white font-bold">Аниме не найдено</div>;
 
   return (
