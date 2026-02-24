@@ -86,35 +86,6 @@ const Home: React.FC = () => {
             
             // Start loading other lists in parallel AFTER hero is loaded
             loadLists();
-            
-            // 2. Background Enrichment: Fetch screenshots and details individually without blocking
-            data.forEach(async (anime, index) => {
-                try {
-                   // Small delay to prioritize other network requests
-                   await new Promise(r => setTimeout(r, index * 500)); 
-                   if (!isMounted) return;
-                   
-                   const [screens, details] = await Promise.all([
-                       fetchAnimeScreenshots(anime.id),
-                       fetchAnimeDetails(anime.id)
-                   ]);
-                   
-                   if (!isMounted) return;
-                   
-                   setHeroAnimes(prev => {
-                       const updated = [...prev];
-                       // Ensure we update the correct item
-                       if (updated[index] && updated[index].id === anime.id) {
-                           updated[index] = { 
-                               ...updated[index], 
-                               cover: screens.length > 0 ? screens[0] : updated[index].cover,
-                               description: details?.description || updated[index].description
-                           };
-                       }
-                       return updated;
-                   });
-                } catch(e) { /* ignore background errors */ }
-            });
         } else {
             setIsHeroLoading(false);
             loadLists();
