@@ -54,7 +54,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(2, 350);
+const requestQueue = new RequestQueue(2, 0);
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
@@ -256,7 +256,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
   };
 };
 
-export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Anime[]> => {
+export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue = false): Promise<Anime[]> => {
   try {
     const cleanParams: any = { limit: '20', order: 'popularity', censored: 'false' };
     Object.entries(params).forEach(([k, v]) => {
@@ -266,10 +266,7 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
     });
     const query = new URLSearchParams(cleanParams).toString();
     
-    // RAW FETCH - BYPASS ALL QUEUES AND CUSTOM CLIENTS
-    const response = await fetch(`${BASE_API}/animes?${query}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
+    const data = await fetchApi(`/animes?${query}`, 2, CACHE_TTL, bypassQueue);
     
     if (!data) return MOCK_ANIME;
     if (Array.isArray(data)) {
@@ -283,9 +280,18 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
 };
 
 export const getAnimeById = async (id: string | number) => {
-  const response = await fetch(`${BASE_API}/animes/${id}`);
-  if (!response.ok) throw new Error('Failed to fetch anime');
-  return response.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  
+  try {
+    const response = await fetch(`${BASE_API}/animes/${id}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!response.ok) throw new Error('Failed to fetch anime');
+    return await response.json();
+  } catch (e) {
+    clearTimeout(timeoutId);
+    throw e;
+  }
 };
 
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {

@@ -18,31 +18,44 @@ export default async function handler(req: any, res: any) {
   const targetUrl = `https://shikimori.one/api${path}${search}`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout to prevent 10s+ hangs
+
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'AnimeStream/1.0',
+        'User-Agent': 'AnimeStreamProject/1.0 (contact: admin@anime-stream.ru)',
         'Accept': 'application/json',
         'Referer': 'https://shikimori.one/'
       },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Shikimori API error: ${response.status}` });
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (contentType && !contentType.includes('application/json')) {
-       console.error(`Upstream API returned ${contentType}`);
-       return res.status(502).json({ error: 'Upstream API returned non-JSON response' });
-    }
-
-    const data = await response.json();
-
+    const data = await response.text();
+    
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
+    
     // Aggressive Caching Headers
-    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=43200');
-    return res.status(200).json(data);
+    let cacheControl = 'public, s-maxage=3600, stale-while-revalidate=1800';
+    try {
+      if (response.ok) {
+        const parsedData = JSON.parse(data);
+        if (parsedData && typeof parsedData === 'object' && !Array.isArray(parsedData)) {
+          if (parsedData.status === 'released') {
+            cacheControl = 'public, s-maxage=86400, stale-while-revalidate=43200';
+          }
+        }
+      }
+    } catch (e) {}
+
+    res.setHeader('Cache-Control', cacheControl);
+    return res.status(response.status).send(data);
   } catch (error: any) {
     console.error(`Proxy error for ${targetUrl}:`, error?.message);
+    if (error.name === 'AbortError') {
+       return res.status(504).json({ error: 'Gateway Timeout - Upstream took too long' });
+    }
     return res.status(500).json({ error: 'Proxy error', details: error?.message });
   }
 }
