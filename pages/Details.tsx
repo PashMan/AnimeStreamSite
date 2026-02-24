@@ -196,6 +196,10 @@ const Details: React.FC = () => {
     }
   }, [wtMessages]);
 
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
+  // Watch Together State
+
   const sendWtMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!wtInput.trim() || !channelRef.current) return;
@@ -210,9 +214,22 @@ const Details: React.FC = () => {
     setWtInput('');
   };
 
+  const lastLoadedId = useRef<string | null>(null);
+
   useEffect(() => {
     const loadDetails = async () => {
       if (!id) return;
+      
+      // If we already loaded this anime, only update user-specific data if user changed
+      if (lastLoadedId.current === id) {
+        if (user?.email) {
+          db.getFavorites(user.email).then(favs => setIsFavorite(favs.includes(id)));
+          db.getWatched(user.email).then(watched => setIsWatched(watched.includes(id)));
+        }
+        return;
+      }
+
+      lastLoadedId.current = id;
       
       // Reset states
       setIsMainLoading(true);
@@ -224,6 +241,7 @@ const Details: React.FC = () => {
       setRelated([]);
       setSimilar([]);
       setComments([]);
+      setIsDescriptionExpanded(false);
 
       try {
         // 1. Critical Path: Main Details
@@ -461,7 +479,21 @@ const Details: React.FC = () => {
                  <h3 className="text-[10px] font-black text-slate-500 mb-6 uppercase tracking-widest flex items-center gap-2">
                     <div className="w-4 h-[2px] bg-primary"></div> Описание
                  </h3>
-                 <p className="text-slate-200 leading-relaxed font-medium text-base md:text-lg">{anime.description}</p>
+                 <div className="relative">
+                    <p className={`text-slate-200 leading-relaxed font-medium text-base md:text-lg transition-all duration-500 overflow-hidden ${!isDescriptionExpanded ? 'max-h-[150px] md:max-h-none' : 'max-h-[2000px]'}`}>
+                      {anime.description}
+                    </p>
+                    {!isDescriptionExpanded && (
+                      <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-surface/80 to-transparent md:hidden pointer-events-none" />
+                    )}
+                    <button 
+                      onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                      className="mt-4 text-primary font-black text-[10px] uppercase tracking-widest md:hidden flex items-center gap-2"
+                    >
+                      {isDescriptionExpanded ? 'Свернуть' : 'Читать полностью'}
+                      <ChevronRight className={`w-3 h-3 transition-transform ${isDescriptionExpanded ? '-rotate-90' : 'rotate-90'}`} />
+                    </button>
+                  </div>
                </section>
 
               <section className="scroll-mt-24" id="watch">

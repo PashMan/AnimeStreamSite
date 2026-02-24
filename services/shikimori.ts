@@ -142,7 +142,7 @@ const processNewsHtml = (html: string | undefined): string => {
   return processed;
 };
 
-const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL) => {
+const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQueue = false) => {
   // 1. Check Client Cache
   const cached = requestCache.get(endpoint);
   if (cached && Date.now() - cached.timestamp < ttl) {
@@ -152,7 +152,7 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL) => {
   // Use local proxy URL
   const url = `${BASE_API}${endpoint}`;
 
-  return requestQueue.add(async () => {
+  const execute = async () => {
     for (let i = 0; i < retries; i++) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
@@ -206,7 +206,13 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL) => {
       }
     }
     return cached ? cached.data : null;
-  });
+  };
+
+  if (bypassQueue) {
+    return execute();
+  }
+
+  return requestQueue.add(execute);
 };
 
 export const mapAnime = async (data: any): Promise<Anime> => {
@@ -277,7 +283,8 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
 
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
   try {
-    const data = await fetchApi(`/animes/${id}`, 2, 30 * 60 * 1000);
+    // Critical request: bypass queue
+    const data = await fetchApi(`/animes/${id}`, 2, 30 * 60 * 1000, true);
     if (!data) {
         const mock = MOCK_ANIME.find(a => a.id === id);
         return mock || MOCK_ANIME[0];
@@ -288,6 +295,7 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
     // Fallback: If image is missing, try to fetch screenshots to find a cover
     if (anime.image === PLACEHOLDER_IMAGE) {
         try {
+            // Secondary request: use queue
             const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
             if (Array.isArray(screenshots) && screenshots.length > 0) {
                  const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
