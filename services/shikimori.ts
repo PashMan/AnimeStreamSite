@@ -42,6 +42,10 @@ class RequestQueue {
     });
   }
 
+  public clear() {
+    this.queue = [];
+  }
+
   private next() {
     if (this.activeCount < this.maxConcurrent && this.queue.length > 0) {
       const task = this.queue.shift();
@@ -51,6 +55,10 @@ class RequestQueue {
 }
 
 const requestQueue = new RequestQueue(2, 350);
+
+export const clearRequestQueue = () => {
+  requestQueue.clear();
+};
 
 // Cache configuration (Client-side secondary cache)
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes client-side cache
@@ -269,7 +277,8 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
       }
     });
     const query = new URLSearchParams(cleanParams).toString();
-    const data = await fetchApi(`/animes?${query}`, 2, 10 * 60 * 1000);
+    // Critical request: bypass queue
+    const data = await fetchApi(`/animes?${query}`, 2, 10 * 60 * 1000, true);
     
     if (!data) return MOCK_ANIME;
     if (Array.isArray(data)) {
@@ -371,7 +380,7 @@ export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
 
 export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
   try {
-    const data = await fetchApi(`/calendar`);
+    const data = await fetchApi(`/calendar`, 2, CACHE_TTL, true);
     if (!data || !Array.isArray(data)) return SCHEDULE;
 
     const daysMap: Record<string, any[]> = { 'Пн': [], 'Вт': [], 'Ср': [], 'Чт': [], 'Пт': [], 'Сб': [], 'Вс': [] };
@@ -400,7 +409,7 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
     // Cache news for 30 minutes to improve performance
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000);
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000, true);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
     const newsItems = data.map(topic => {
@@ -435,7 +444,7 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
 
 export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => {
   try {
-    const topic = await fetchApi(`/topics/${id}`, 2, 30 * 60 * 1000);
+    const topic = await fetchApi(`/topics/${id}`, 2, 30 * 60 * 1000, true);
     if (!topic) return MOCK_NEWS.find(n => n.id === id) || MOCK_NEWS[0];
 
     const html = topic.html_body || topic.body || '';
