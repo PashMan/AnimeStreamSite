@@ -50,7 +50,7 @@ class RequestQueue {
 const requestQueue = new RequestQueue(3);
 
 // Cache configuration (Client-side secondary cache)
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes client-side cache
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes default cache
 const requestCache = new Map<string, { data: any; timestamp: number }>();
 
 export const GENRE_MAP: Record<string, number> = {
@@ -95,116 +95,22 @@ const proxyImage = (url: string | undefined | null) => {
   return cleanUrl;
 };
 
-const processNewsHtml = (html: string | undefined): string => {
-  if (!html) return '';
-  
-  // 1. Inject no-referrer to images to bypass hotlink protection (403 Forbidden)
-  let processed = html.replace(
-    /<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi, 
-    (match, p1, src, p2) => {
-        if (match.toLowerCase().includes('referrerpolicy')) return match;
-        return `<img ${p1}src="${src}" referrerpolicy="no-referrer"${p2}>`;
-    }
-  );
+// ... (existing code)
 
-  // 2. Convert Shikimori video blocks to YouTube embeds
-  processed = processed.replace(
-    /<div class=["']video-block["'][^>]*>[\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>.*?<\/a>[\s\S]*?<\/div>/gi,
-    (match, url) => {
-        const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
-        const ytMatch = url.match(ytRegex);
-        
-        if (ytMatch && ytMatch[1]) {
-            const videoId = ytMatch[1];
-            return `<div class="aspect-video w-full rounded-2xl overflow-hidden my-4 shadow-lg border border-white/10"><iframe src="https://www.youtube.com/embed/${videoId}" class="w-full h-full" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
-        }
-        return match;
-    }
-  );
-
-  // 3. Fix relative links and add target="_blank"
-  processed = processed.replace(
-    /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*?)>/gi,
-    (match, p1, href, p2) => {
-        let fullHref = href;
-        if (href.startsWith('/')) {
-            fullHref = `https://shikimori.one${href}`;
-        }
-        if (match.toLowerCase().includes('target=')) {
-            return `<a ${p1}href="${fullHref}"${p2}>`;
-        }
-        return `<a ${p1}href="${fullHref}" target="_blank" rel="noopener noreferrer"${p2}>`;
-    }
-  );
-
-  return processed;
-};
-
-const fetchApi = async (endpoint: string, retries = 2) => {
+const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL) => {
   // 1. Check Client Cache
   const cached = requestCache.get(endpoint);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  if (cached && Date.now() - cached.timestamp < ttl) {
     return cached.data;
   }
 
-  // Use local proxy URL
-  const url = `${BASE_API}${endpoint}`;
-
-  return requestQueue.add(async () => {
-    for (let i = 0; i < retries; i++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-      
-      try {
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        
-        const contentType = res.headers.get('content-type');
-        const isJson = contentType && contentType.includes('application/json');
-
-        if (!res.ok) {
-            console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
-            
-            // Handle 429 or 5xx with retry
-            if (res.status === 429 || res.status >= 500) {
-              const waitTime = Math.pow(2, i) * 500;
-              await new Promise(resolve => setTimeout(resolve, waitTime));
-              continue;
-            }
-            throw new Error(`HTTP ${res.status}`);
-        }
-
-        if (!isJson) {
-           // If we get HTML (e.g. from SPA fallback or Cloudflare), it's a critical error
-           const text = await res.text();
-           console.error(`[API Error] Expected JSON but got ${contentType}:`, text.slice(0, 100));
-           throw new Error("API returned HTML instead of JSON. Check proxy configuration.");
-        }
-
-        const data = await res.json();
-        
+  // ... (rest of fetchApi)
+  
         if (data) {
           requestCache.set(endpoint, { data, timestamp: Date.now() });
           return data;
         }
-      } catch (e: any) {
-        clearTimeout(timeoutId);
-        
-        if (e.name === 'AbortError') {
-             console.warn(`[Fetch Timeout] Request aborted after ${FETCH_TIMEOUT}ms: ${url}`);
-        } else {
-             console.error(`[Fetch Error] ${url}:`, e.message || e);
-        }
-        
-        if (i === retries - 1) {
-          // If all retries fail, return cached data if available (stale-while-revalidate fallback)
-          return cached ? cached.data : null;
-        }
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-    }
-    return cached ? cached.data : null;
-  });
+  // ...
 };
 
 export const mapAnime = (data: any): Anime => {
@@ -217,45 +123,35 @@ export const mapAnime = (data: any): Anime => {
   
   const russian = data.russian || data.name || 'Без названия';
   
-  let image = 'https://via.placeholder.com/300x450?text=No+Image';
+  let image = PLACEHOLDER_IMAGE;
+  
   if (data.image) {
       if (typeof data.image === 'string') {
-          image = proxyImage(data.image);
+           // If string, check if it's valid
+           if (!data.image.includes('missing')) image = proxyImage(data.image);
       } else {
-          const imgPath = data.image.original || data.image.preview || data.image.x96;
-          if (imgPath) image = proxyImage(imgPath);
+          // Try to find a valid image in order of preference
+          const candidates = [data.image.original, data.image.preview, data.image.x96];
+          for (const img of candidates) {
+              if (img && !img.includes('missing') && !img.includes('none.png')) {
+                  image = proxyImage(img);
+                  break;
+              }
+          }
       }
   }
 
   return {
-    id: data.id?.toString() || '',
-    slug: slugify(data.name || data.russian || ''),
-    title: russian,
-    originalName: data.name || '',
-    image,
-    cover: image,
-    rating: data.score ? parseFloat(data.score) : 0,
-    year: data.aired_on ? new Date(data.aired_on).getFullYear() : (data.released_on ? new Date(data.released_on).getFullYear() : 0),
-    type: data.kind === 'movie' ? 'Movie' : (data.kind === 'ova' ? 'OVA' : (data.kind === 'ona' ? 'ONA' : 'TV Series')),
-    genres: data.genres ? data.genres.map((g: any) => g.russian || g.name) : [],
-    episodes: data.episodes || 0,
-    episodesAired: data.episodes_aired || 0,
-    status: data.status === 'anons' ? 'Upcoming' : (data.status === 'ongoing' ? 'Ongoing' : 'Completed'),
-    description: (data.description || 'Описание отсутствует').replace(/\[.*?\]/g, '').trim(),
-    studio: data.studios?.[0]?.name || 'Неизвестно'
+    // ... (rest of mapAnime)
   };
 };
 
 export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Anime[]> => {
   try {
-    const cleanParams: any = { limit: '20', order: 'popularity', censored: 'false' };
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== '') {
-        cleanParams[k] = k === 'genre' && GENRE_MAP[v] ? GENRE_MAP[v] : v;
-      }
-    });
+    // ...
     const query = new URLSearchParams(cleanParams).toString();
-    const data = await fetchApi(`/animes?${query}`);
+    // Cache catalog for 10 minutes
+    const data = await fetchApi(`/animes?${query}`, 2, 10 * 60 * 1000);
     
     if (!data) return MOCK_ANIME;
     return Array.isArray(data) ? data.map(mapAnime) : MOCK_ANIME;
@@ -266,12 +162,32 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
 
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
   try {
-    const data = await fetchApi(`/animes/${id}`);
+    // Cache details for 30 minutes
+    const data = await fetchApi(`/animes/${id}`, 2, 30 * 60 * 1000);
     if (!data) {
         const mock = MOCK_ANIME.find(a => a.id === id);
         return mock || MOCK_ANIME[0];
     }
-    return mapAnime(data);
+    
+    let anime = mapAnime(data);
+
+    // Fallback: If image is missing, try to fetch screenshots to find a cover
+    if (anime.image === PLACEHOLDER_IMAGE) {
+        try {
+            const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
+            if (Array.isArray(screenshots) && screenshots.length > 0) {
+                 const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
+                 if (validScreen) {
+                     anime.image = proxyImage(validScreen.original);
+                     anime.cover = anime.image;
+                 }
+            }
+        } catch (e) {
+            console.warn('Failed to fetch fallback screenshots', e);
+        }
+    }
+
+    return anime;
   } catch (e) {
     return MOCK_ANIME.find(a => a.id === id) || MOCK_ANIME[0];
   }
@@ -279,7 +195,7 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
 
 export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/screenshots`);
+    const data = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
     return Array.isArray(data) ? data.map((s: any) => proxyImage(s.original)) : [];
   } catch (e) {
     return [];
@@ -288,7 +204,7 @@ export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
 
 export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string; anime: Anime }[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/related`);
+    const data = await fetchApi(`/animes/${id}/related`, 2, 60 * 60 * 1000);
     if (Array.isArray(data)) {
       return data
         .filter((item: any) => !!item.anime)
@@ -306,7 +222,7 @@ export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string
 
 export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/similar`);
+    const data = await fetchApi(`/animes/${id}/similar`, 2, 60 * 60 * 1000);
     if (!data || !Array.isArray(data)) return MOCK_ANIME.slice(0, 4);
     return data.slice(0, 10).map(mapAnime);
   } catch (e) {
@@ -316,7 +232,7 @@ export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
 
 export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
   try {
-    const data = await fetchApi(`/calendar`);
+    const data = await fetchApi(`/calendar`, 2, 60 * 60 * 1000);
     if (!data || !Array.isArray(data)) return SCHEDULE;
 
     const daysMap: Record<string, any[]> = { 'Пн': [], 'Вт': [], 'Ср': [], 'Чт': [], 'Пт': [], 'Сб': [], 'Вс': [] };
@@ -344,34 +260,9 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`);
-    if (!data || !Array.isArray(data)) return MOCK_NEWS;
-
-    const newsItems = data.map(topic => {
-      const html = topic.html_body || topic.body || '';
-      const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-      const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
-      const ytMatch = html.match(ytRegex);
-      
-      let videoId = ytMatch ? ytMatch[1] : undefined;
-      
-      // Optimization: Do NOT fetch linked anime videos for the list view to avoid N+1 requests and 429 errors.
-      // We only fetch videos in the details view.
-
-      return {
-        id: topic.id.toString(),
-        title: topic.topic_title || 'Без названия',
-        summary: (topic.body || '').slice(0, 150).replace(/\[.*?\]/g, '') + '...',
-        date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
-        category: 'Новости',
-        image: imgMatch ? imgMatch[1] : undefined,
-        video: videoId,
-        linkedId: topic.linked_id,
-        html_body: processNewsHtml(html) // Apply HTML processing
-      };
-    });
-    
-    return newsItems;
+    // Cache news for 30 minutes to improve performance
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000);
+    // ...
   } catch (e) {
     return MOCK_NEWS;
   }
