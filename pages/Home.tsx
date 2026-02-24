@@ -211,7 +211,7 @@ const Home: React.FC = () => {
                 src={anime.cover || anime.image} 
                 alt={anime.title} 
                 referrerPolicy="no-referrer" 
-                loading={idx === 0 ? "eager" : "lazy"}
+                {...(idx === 0 ? { fetchpriority: "high" } : { loading: "lazy" })}
                 onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
               />
