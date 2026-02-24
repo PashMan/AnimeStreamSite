@@ -74,14 +74,15 @@ const slugify = (text: string): string => {
     .replace(/\-\-+/g, '-');  // Replace multiple - with single -
 };
 
+const PLACEHOLDER_IMAGE = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 450' width='300' height='450'%3E%3Crect width='300' height='450' fill='%231a1a1a'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' font-weight='bold' fill='%23333'%3ENO IMAGE%3C/text%3E%3C/svg%3E`;
+
 const proxyImage = (url: string | undefined | null) => {
-  if (!url) return 'https://via.placeholder.com/300x450?text=No+Image';
+  if (!url) return PLACEHOLDER_IMAGE;
   let cleanUrl = url.trim();
   
   // Check for known Shikimori 404/missing images
   if (cleanUrl.includes('missing_original') || cleanUrl.includes('none.png') || cleanUrl.includes('missing')) {
-      // Return a local placeholder or a better generic image
-      return 'https://via.placeholder.com/300x450?text=No+Image'; 
+      return PLACEHOLDER_IMAGE; 
   }
 
   // Handle relative paths from Shikimori
