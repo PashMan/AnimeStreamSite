@@ -143,15 +143,26 @@ const fetchApi = async (endpoint: string, retries = 2) => {
         const res = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
         
+        const contentType = res.headers.get('content-type');
+        const isJson = contentType && contentType.includes('application/json');
+
         if (!res.ok) {
             console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
-            // If rate limited or gateway error, we might want to retry
+            
+            // Handle 429 or 5xx with retry
             if (res.status === 429 || res.status >= 500) {
               const waitTime = Math.pow(2, i) * 500;
               await new Promise(resolve => setTimeout(resolve, waitTime));
               continue;
             }
             throw new Error(`HTTP ${res.status}`);
+        }
+
+        if (!isJson) {
+           // If we get HTML (e.g. from SPA fallback or Cloudflare), it's a critical error
+           const text = await res.text();
+           console.error(`[API Error] Expected JSON but got ${contentType}:`, text.slice(0, 100));
+           throw new Error("API returned HTML instead of JSON. Check proxy configuration.");
         }
 
         const data = await res.json();
