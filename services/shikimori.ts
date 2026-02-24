@@ -173,7 +173,12 @@ const fetchApi = async (endpoint: string, retries = 2) => {
         }
       } catch (e: any) {
         clearTimeout(timeoutId);
-        console.error(`[Fetch Error] ${url}:`, e.message || e);
+        
+        if (e.name === 'AbortError') {
+             console.warn(`[Fetch Timeout] Request aborted after ${FETCH_TIMEOUT}ms: ${url}`);
+        } else {
+             console.error(`[Fetch Error] ${url}:`, e.message || e);
+        }
         
         if (i === retries - 1) {
           // If all retries fail, return cached data if available (stale-while-revalidate fallback)
@@ -325,7 +330,7 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
     const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
-    const newsItems = await Promise.all(data.map(async topic => {
+    const newsItems = data.map(topic => {
       const html = topic.html_body || topic.body || '';
       const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
       const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
@@ -333,22 +338,8 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
       
       let videoId = ytMatch ? ytMatch[1] : undefined;
       
-      // If no video found in body but anime is linked, try to fetch its trailer
-      if (!videoId && (topic.linked?.type === 'Anime' || topic.linked_type === 'Anime')) {
-          const animeId = topic.linked?.id || topic.linked_id;
-          if (animeId) {
-              try {
-                  const videos = await fetchApi(`/animes/${animeId}/videos`);
-                  if (Array.isArray(videos)) {
-                      const trailer = videos.find((v: any) => v.url && (v.url.includes('youtube.com') || v.url.includes('youtu.be')));
-                      if (trailer) {
-                          const vMatch = trailer.url.match(ytRegex);
-                          if (vMatch) videoId = vMatch[1];
-                      }
-                  }
-              } catch (e) {}
-          }
-      }
+      // Optimization: Do NOT fetch linked anime videos for the list view to avoid N+1 requests and 429 errors.
+      // We only fetch videos in the details view.
 
       return {
         id: topic.id.toString(),
@@ -361,7 +352,7 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
         linkedId: topic.linked_id,
         html_body: processNewsHtml(html) // Apply HTML processing
       };
-    }));
+    });
     
     return newsItems;
   } catch (e) {
