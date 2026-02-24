@@ -316,6 +316,22 @@ export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
   }
 };
 
+export const fetchAnimeVideos = async (id: string): Promise<{ name: string; url: string; image: string }[]> => {
+  try {
+    const data = await fetchApi(`/animes/${id}/videos`);
+    if (Array.isArray(data)) {
+      return data.map((v: any) => ({
+        name: v.name || 'Трейлер',
+        url: v.url,
+        image: v.image_url
+      }));
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+};
+
 export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string; anime: Anime }[]> => {
   try {
     const data = await fetchApi(`/animes/${id}/related`, 2, 60 * 60 * 1000);

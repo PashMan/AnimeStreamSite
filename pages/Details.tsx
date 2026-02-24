@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon } from 'lucide-react';
+import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon, PlayCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
+import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes, fetchAnimeScreenshots, fetchAnimeVideos } from '../services/shikimori';
 import { db, supabase } from '../services/db';
 import { Anime, Comment } from '../types';
 import AnimeCard from '../components/AnimeCard';
@@ -23,13 +23,17 @@ const Details: React.FC = () => {
   const [anime, setAnime] = useState<Anime | null>(null);
   const [related, setRelated] = useState<{ relation: string; anime: Anime }[]>([]);
   const [similar, setSimilar] = useState<Anime[]>([]);
+  const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [videos, setVideos] = useState<{ name: string; url: string; image: string }[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [userComment, setUserComment] = useState('');
   
-  const [isLoading, setIsLoading] = useState(true); // Kept for backward compatibility if needed, but we'll use isMainLoading
+  const [isLoading, setIsLoading] = useState(true); 
   const [isMainLoading, setIsMainLoading] = useState(true);
   const [isRelatedLoading, setIsRelatedLoading] = useState(true);
   const [isSimilarLoading, setIsSimilarLoading] = useState(true);
+  const [isScreenshotsLoading, setIsScreenshotsLoading] = useState(true);
+  const [isVideosLoading, setIsVideosLoading] = useState(true);
   const [isCommentsLoading, setIsCommentsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -219,10 +223,14 @@ const Details: React.FC = () => {
       setError(null);
       setIsRelatedLoading(true);
       setIsSimilarLoading(true);
+      setIsScreenshotsLoading(true);
+      setIsVideosLoading(true);
       setIsCommentsLoading(true);
       setAnime(null);
       setRelated([]);
       setSimilar([]);
+      setScreenshots([]);
+      setVideos([]);
       setComments([]);
 
       try {
@@ -258,6 +266,18 @@ const Details: React.FC = () => {
           setSimilar(similarData);
         }).catch(err => console.error("Similar fetch error", err))
           .finally(() => setIsSimilarLoading(false));
+
+        // Fetch Screenshots
+        fetchAnimeScreenshots(id).then(screens => {
+          setScreenshots(screens);
+        }).catch(err => console.error("Screenshots fetch error", err))
+          .finally(() => setIsScreenshotsLoading(false));
+
+        // Fetch Videos
+        fetchAnimeVideos(id).then(videoData => {
+          setVideos(videoData);
+        }).catch(err => console.error("Videos fetch error", err))
+          .finally(() => setIsVideosLoading(false));
 
         // Fetch Comments
         db.getUserComments(id).then(userComments => {
@@ -463,6 +483,75 @@ const Details: React.FC = () => {
                  </h3>
                  <p className="text-slate-200 leading-relaxed font-medium text-base md:text-lg">{anime.description}</p>
               </section>
+
+               {/* Screenshots Section */}
+               {(isScreenshotsLoading || screenshots.length > 0) && (
+                 <section>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-4">
+                      <div className="w-12 h-12 bg-violet-500/20 rounded-2xl flex items-center justify-center text-violet-400 shadow-lg shadow-violet-500/20"><Film className="w-6 h-6" /></div> Кадры
+                    </h3>
+                    {isScreenshotsLoading ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="aspect-video bg-white/5 rounded-2xl animate-pulse"></div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {screenshots.map((src, i) => (
+                          <div key={i} className="aspect-video rounded-2xl overflow-hidden border border-white/5 group cursor-pointer">
+                            <img src={src} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                 </section>
+               )}
+
+               {/* Videos Section */}
+               {(isVideosLoading || videos.length > 0) && (
+                 <section>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8 flex items-center gap-4">
+                      <div className="w-12 h-12 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-400 shadow-lg shadow-red-500/20"><PlayCircle className="w-6 h-6" /></div> Трейлеры
+                    </h3>
+                    {isVideosLoading ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[...Array(2)].map((_, i) => (
+                          <div key={i} className="aspect-video bg-white/5 rounded-3xl animate-pulse"></div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {videos.map((v, i) => {
+                          const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+                          const ytMatch = v.url.match(ytRegex);
+                          const videoId = ytMatch ? ytMatch[1] : null;
+
+                          return (
+                            <div key={i} className="space-y-3">
+                              <div className="aspect-video rounded-3xl overflow-hidden border border-white/10 bg-black relative group">
+                                {videoId ? (
+                                  <iframe 
+                                    src={`https://www.youtube.com/embed/${videoId}`}
+                                    className="w-full h-full"
+                                    frameBorder="0"
+                                    allowFullScreen
+                                    title={v.name}
+                                  />
+                                ) : (
+                                  <a href={v.url} target="_blank" rel="noopener noreferrer" className="w-full h-full flex items-center justify-center bg-white/5 hover:bg-white/10 transition-colors">
+                                    <PlayCircle className="w-12 h-12 text-white/20" />
+                                  </a>
+                                )}
+                              </div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">{v.name}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                 </section>
+               )}
 
               <section className="scroll-mt-24" id="watch">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
