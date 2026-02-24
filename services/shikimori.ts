@@ -5,6 +5,18 @@ import { MOCK_ANIME, SCHEDULE, MOCK_NEWS } from '../constants';
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const FETCH_TIMEOUT = 15000; // 15 seconds timeout
+const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/300x450?text=No+Image';
+
+const fetchMalImage = async (query: string): Promise<string | null> => {
+  try {
+    const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=1`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data?.[0]?.images?.jpg?.large_image_url || null;
+  } catch (e) {
+    return null;
+  }
+};
 
 // Concurrency Limiter
 class RequestQueue {
@@ -139,10 +151,10 @@ const processNewsHtml = (html: string | undefined): string => {
   return processed;
 };
 
-const fetchApi = async (endpoint: string, retries = 2) => {
+const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL) => {
   // 1. Check Client Cache
   const cached = requestCache.get(endpoint);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  if (cached && Date.now() - cached.timestamp < ttl) {
     return cached.data;
   }
 
@@ -206,7 +218,7 @@ const fetchApi = async (endpoint: string, retries = 2) => {
   });
 };
 
-export const mapAnime = (data: any): Anime => {
+export const mapAnime = async (data: any): Promise<Anime> => {
   if (!data) return {} as Anime;
 
   // Handle mock data structure pass-through
@@ -216,14 +228,26 @@ export const mapAnime = (data: any): Anime => {
   
   const russian = data.russian || data.name || 'Без названия';
   
-  let image = 'https://via.placeholder.com/300x450?text=No+Image';
+  let image = PLACEHOLDER_IMAGE;
+  
   if (data.image) {
       if (typeof data.image === 'string') {
-          image = proxyImage(data.image);
+           if (!data.image.includes('missing')) image = proxyImage(data.image);
       } else {
-          const imgPath = data.image.original || data.image.preview || data.image.x96;
-          if (imgPath) image = proxyImage(imgPath);
+          const candidates = [data.image.original, data.image.preview, data.image.x96];
+          for (const img of candidates) {
+              if (img && !img.includes('missing') && !img.includes('none.png')) {
+                  image = proxyImage(img);
+                  break;
+              }
+          }
       }
+  }
+
+  // Fallback: If image is still missing, try Jikan API (only if we have a name)
+  if (image === PLACEHOLDER_IMAGE && (data.name || data.russian)) {
+      const fallback = await fetchMalImage(data.name || data.russian);
+      if (fallback) image = fallback;
   }
 
   return {
@@ -254,10 +278,13 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
       }
     });
     const query = new URLSearchParams(cleanParams).toString();
-    const data = await fetchApi(`/animes?${query}`);
+    const data = await fetchApi(`/animes?${query}`, 2, 10 * 60 * 1000);
     
     if (!data) return MOCK_ANIME;
-    return Array.isArray(data) ? data.map(mapAnime) : MOCK_ANIME;
+    if (Array.isArray(data)) {
+        return Promise.all(data.map(mapAnime));
+    }
+    return MOCK_ANIME;
   } catch (e) {
     return MOCK_ANIME;
   }
@@ -265,12 +292,31 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
 
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
   try {
-    const data = await fetchApi(`/animes/${id}`);
+    const data = await fetchApi(`/animes/${id}`, 2, 30 * 60 * 1000);
     if (!data) {
         const mock = MOCK_ANIME.find(a => a.id === id);
         return mock || MOCK_ANIME[0];
     }
-    return mapAnime(data);
+    
+    let anime = await mapAnime(data);
+
+    // Fallback: If image is missing, try to fetch screenshots to find a cover
+    if (anime.image === PLACEHOLDER_IMAGE) {
+        try {
+            const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
+            if (Array.isArray(screenshots) && screenshots.length > 0) {
+                 const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
+                 if (validScreen) {
+                     anime.image = proxyImage(validScreen.original);
+                     anime.cover = anime.image;
+                 }
+            }
+        } catch (e) {
+            console.warn('Failed to fetch fallback screenshots', e);
+        }
+    }
+
+    return anime;
   } catch (e) {
     return MOCK_ANIME.find(a => a.id === id) || MOCK_ANIME[0];
   }
@@ -287,15 +333,16 @@ export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
 
 export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string; anime: Anime }[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/related`);
+    const data = await fetchApi(`/animes/${id}/related`, 2, 60 * 60 * 1000);
     if (Array.isArray(data)) {
-      return data
+      const items = data
         .filter((item: any) => !!item.anime)
-        .slice(0, 10)
-        .map((item: any) => ({
+        .slice(0, 10);
+      
+      return Promise.all(items.map(async (item: any) => ({
           relation: item.relation_russian || item.relation || 'Связанное',
-          anime: mapAnime(item.anime)
-        }));
+          anime: await mapAnime(item.anime)
+      })));
     }
     return [];
   } catch (e) {
@@ -305,9 +352,9 @@ export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string
 
 export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/similar`);
+    const data = await fetchApi(`/animes/${id}/similar`, 2, 60 * 60 * 1000);
     if (!data || !Array.isArray(data)) return MOCK_ANIME.slice(0, 4);
-    return data.slice(0, 10).map(mapAnime);
+    return Promise.all(data.slice(0, 10).map(mapAnime));
   } catch (e) {
     return MOCK_ANIME.slice(0, 4);
   }
@@ -343,7 +390,8 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`);
+    // Cache news for 30 minutes to improve performance
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
     const newsItems = data.map(topic => {
@@ -378,7 +426,7 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
 
 export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => {
   try {
-    const topic = await fetchApi(`/topics/${id}`);
+    const topic = await fetchApi(`/topics/${id}`, 2, 30 * 60 * 1000);
     if (!topic) return MOCK_NEWS.find(n => n.id === id) || MOCK_NEWS[0];
 
     const html = topic.html_body || topic.body || '';
@@ -392,7 +440,7 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
         const animeId = topic.linked?.id || topic.linked_id;
         if (animeId) {
             try {
-                const videos = await fetchApi(`/animes/${animeId}/videos`);
+                const videos = await fetchApi(`/animes/${animeId}/videos`, 2, 60 * 60 * 1000);
                 if (Array.isArray(videos)) {
                     const trailer = videos.find((v: any) => v.url && (v.url.includes('youtube.com') || v.url.includes('youtu.be')));
                     if (trailer) {
