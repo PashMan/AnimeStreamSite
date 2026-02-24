@@ -7,17 +7,6 @@ const IMG_BASE_URL = 'https://shikimori.one';
 const FETCH_TIMEOUT = 15000; // 15 seconds timeout
 const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/300x450?text=No+Image';
 
-const fetchMalImage = async (query: string): Promise<string | null> => {
-  try {
-    const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=1`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.data?.[0]?.images?.jpg?.large_image_url || null;
-  } catch (e) {
-    return null;
-  }
-};
-
 // Concurrency Limiter
 class RequestQueue {
   private queue: (() => void)[] = [];
@@ -242,12 +231,6 @@ export const mapAnime = async (data: any): Promise<Anime> => {
               }
           }
       }
-  }
-
-  // Fallback: If image is still missing, try Jikan API (only if we have a name)
-  if (image === PLACEHOLDER_IMAGE && (data.name || data.russian)) {
-      const fallback = await fetchMalImage(data.name || data.russian);
-      if (fallback) image = fallback;
   }
 
   return {
