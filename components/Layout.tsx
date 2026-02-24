@@ -5,6 +5,7 @@ import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown } from 
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
 import { fetchAnimes } from '../services/shikimori';
+import { FALLBACK_IMAGE } from '../constants';
 
 // Helper to find a random anime with a player
 const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
@@ -94,7 +95,7 @@ const Layout: React.FC = () => {
       <header className="fixed top-0 w-full z-50 bg-dark/80 backdrop-blur-2xl border-b border-white/5">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20 gap-8">
-            <Link to="/" className="hover:opacity-90 transition-opacity">
+            <Link to="/" aria-label="AnimeStream Home" className="hover:opacity-90 transition-opacity">
               <Logo />
             </Link>
 
@@ -103,6 +104,7 @@ const Layout: React.FC = () => {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                 <input
                   type="text"
+                  aria-label="Поиск аниме"
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -129,7 +131,8 @@ const Layout: React.FC = () => {
                           <img 
                             src={anime.image} 
                             alt={anime.title} 
-                            onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
+                            loading="lazy"
+                            onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                             className="w-10 h-14 object-cover rounded-lg shadow-sm group-hover/item:scale-105 transition-transform" 
                           />
                           <div className="flex flex-col min-w-0">
@@ -152,7 +155,7 @@ const Layout: React.FC = () => {
                   </div>
                 )}
               </form>
-              <button 
+              <button aria-label="Random anime"
                 onClick={async () => {
                   const id = await findRandomAnimeWithPlayer();
                   if (id) navigate(`/anime/${id}`);
@@ -172,18 +175,18 @@ const Layout: React.FC = () => {
             </nav>
 
             <div className="flex items-center gap-4">
-              <Link to="/premium" title="Премиум" className="p-2.5 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-white rounded-xl transition-all relative group">
+              <Link aria-label="Premium" to="/premium" title="Премиум" className="p-2.5 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-white rounded-xl transition-all relative group">
                 <Crown className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </Link>
               {user && (
-                <Link to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
+                <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
                    <MessageSquareText className="w-5 h-5" />
                 </Link>
               )}
               {user ? (
                 <div className="flex items-center gap-4">
                   <Link to="/profile" className="w-10 h-10 rounded-2xl overflow-hidden ring-2 ring-primary/20 hover:ring-primary transition-all">
-                    <img src={user.avatar} alt="User" className="w-full h-full object-cover" />
+                    <img src={user.avatar} loading="lazy" alt="User" className="w-full h-full object-cover" />
                   </Link>
                   <button onClick={logout} className="text-[9px] font-black uppercase text-slate-500 hover:text-red-400 transition-colors tracking-widest hidden sm:block">Выйти</button>
                 </div>
@@ -192,7 +195,7 @@ const Layout: React.FC = () => {
                   Войти
                 </button>
               )}
-              <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              <button aria-label="Toggle menu" className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
                 {isMenuOpen ? <X /> : <Menu />}
               </button>
             </div>
@@ -209,7 +212,7 @@ const Layout: React.FC = () => {
       <div className={`fixed top-0 right-0 bottom-0 w-[75%] max-w-[320px] bg-surface border-l border-white/10 z-[70] transform transition-transform duration-300 ease-out md:hidden flex flex-col ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 border-b border-white/5 flex items-center justify-between">
           <span className="text-xs font-black uppercase tracking-widest text-slate-500">Меню</span>
-          <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+          <button aria-label="Close menu" onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
             <X className="w-6 h-6 text-white" />
           </button>
         </div>
@@ -263,7 +266,7 @@ const Layout: React.FC = () => {
           {user ? (
             <div className="flex flex-col gap-4">
               <Link to="/profile" className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors">
-                <img src={user.avatar} className="w-10 h-10 rounded-lg object-cover" alt="" />
+                <img src={user.avatar} loading="lazy" className="w-10 h-10 rounded-lg object-cover" alt="" />
                 <div>
                   <div className="font-bold text-white text-sm">{user.name}</div>
                   <div className="text-[10px] text-slate-500 uppercase tracking-wider">Профиль</div>

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { fetchAnimes } from '../services/shikimori';
 import { Anime, User } from '../types';
+import { FALLBACK_IMAGE } from '../constants';
 import { Link } from 'react-router-dom';
 import imageCompression from 'browser-image-compression';
 import SEO from '../components/SEO';
@@ -213,6 +214,7 @@ const Profile: React.FC = () => {
                     <img 
                         src={editAvatar || user.avatar} 
                         alt="Profile" 
+                        loading="lazy"
                         className={`w-28 h-28 border-4 border-dark outline outline-2 object-cover transition-all duration-300 ${avatarClass}`}
                         style={{ outlineColor: user.themeColor || '#8b5cf6' }}
                     />
@@ -293,14 +295,10 @@ const Profile: React.FC = () => {
                       <div className="space-y-3">
                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Аватар</label>
                         <div className="flex items-center gap-6">
-                            <img src={editAvatar} alt="Avatar Preview" className="w-20 h-20 rounded-2xl object-cover border border-white/10" />
+                            <img src={editAvatar} loading="lazy" alt="Avatar Preview" className="w-20 h-20 rounded-2xl object-cover border border-white/10" />
                             {isEditing && (
                                 <div className="flex flex-col gap-2">
-                                    <button 
-                                        onClick={() => fileInputRef.current?.click()} 
-                                        disabled={isUploading}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
-                                    >
+                    <button aria-label="Upload avatar" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all">
                                         {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                                         Загрузить изображение
                                     </button>
@@ -485,12 +483,12 @@ const Profile: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       {friends.length > 0 ? friends.map((friend: string, idx: number) => (
                         <div key={idx} className="glass p-6 rounded-[2rem] border border-white/5 flex items-center gap-4 group hover:border-primary/30 transition-all">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${friend}`} className="w-14 h-14 rounded-2xl object-cover" alt="" />
+                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${friend}`} loading="lazy" className="w-14 h-14 rounded-2xl object-cover" alt="" />
                           <div className="flex-grow">
                             <h4 className="text-white font-black uppercase tracking-tighter">{friend.split('@')[0]}</h4>
                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{friend}</p>
                           </div>
-                          <Link to={`/messages?to=${friend}`} className="p-3 bg-white/5 hover:bg-primary text-slate-400 hover:text-white rounded-xl transition-all">
+                          <Link aria-label="Send message" to={`/messages?to=${friend}`} className="p-3 bg-white/5 hover:bg-primary text-slate-400 hover:text-white rounded-xl transition-all">
                             <Mail className="w-5 h-5" />
                           </Link>
                         </div>
@@ -516,9 +514,10 @@ const Profile: React.FC = () => {
                                     <div className="w-40 h-24 rounded-2xl overflow-hidden shrink-0">
                                       <img 
                                         src={item.image} 
+                                        loading="lazy"
                                         className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" 
                                         alt="" 
-                                        onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
+                                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                                       />
                                     </div>
                                     <div className="flex-grow"><h4 className="text-lg font-black text-white truncate uppercase tracking-tighter">{item.title}</h4><p className="text-xs text-slate-400 font-bold mt-1 uppercase">Серия {item.episode}</p></div>
@@ -529,9 +528,10 @@ const Profile: React.FC = () => {
                                    <div className="aspect-[2/3] relative">
                                       <img 
                                         src={anime.image} 
+                                        loading="lazy"
                                         className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" 
                                         alt="" 
-                                        onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
+                                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                                       />
                                       <div className="absolute inset-0 bg-gradient-to-t from-dark opacity-90"></div>
                                       <div className="absolute bottom-4 left-4 right-4"><h4 className="text-xs font-black text-white truncate uppercase mb-1">{anime.title}</h4><div className="text-[9px] font-black text-primary uppercase">{anime.type}</div></div>

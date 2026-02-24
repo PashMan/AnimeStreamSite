@@ -3,6 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Star, PlayCircle } from 'lucide-react';
 import { Anime } from '../types';
+import { FALLBACK_IMAGE } from '../constants';
 
 interface AnimeCardProps {
   anime: Anime;
@@ -19,6 +20,8 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
           src={anime.image} 
           alt={anime.title} 
           referrerPolicy="no-referrer"
+          loading="lazy"
+          onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
           className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 will-change-transform" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-70" />

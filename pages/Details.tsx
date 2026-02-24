@@ -380,7 +380,7 @@ const Details: React.FC = () => {
         }}
       />
       <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0">
-        <img src={anime.cover || anime.image} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" />
+        <img src={anime.cover || anime.image} alt="" referrerPolicy="no-referrer" loading="eager" fetchPriority="high" className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/60 to-transparent" />
       </div>
 
@@ -509,7 +509,7 @@ const Details: React.FC = () => {
                         <span className="text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-2">
                           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> Чат комнаты
                         </span>
-                        <button onClick={() => setIsWatchTogether(false)} className="text-slate-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+                        <button aria-label="Close chat" onClick={() => setIsWatchTogether(false)} className="text-slate-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
                       </div>
                       
                       <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar">
@@ -521,7 +521,7 @@ const Details: React.FC = () => {
                         )}
                         {wtMessages.map((m, i) => (
                           <div key={i} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <img src={m.avatar} className="w-8 h-8 rounded-lg object-cover" alt="" />
+                            <img src={m.avatar} loading="lazy" className="w-8 h-8 rounded-lg object-cover" alt="" />
                             <div className="flex-1 min-w-0">
                               <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{m.user}</p>
                               <div className="bg-white/5 p-3 rounded-2xl rounded-tl-none border border-white/5 text-sm text-slate-300 break-words">{m.text}</div>
@@ -539,7 +539,7 @@ const Details: React.FC = () => {
                           placeholder="Сообщение..." 
                           className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-primary outline-none transition-all"
                         />
-                        <button type="submit" className="p-2 bg-primary text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Send className="w-4 h-4" /></button>
+                        <button aria-label="Send message" type="submit" className="p-2 bg-primary text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Send className="w-4 h-4" /></button>
                       </form>
                     </div>
                   )}
@@ -566,8 +566,8 @@ const Details: React.FC = () => {
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Связанное</h3>
                     <div className="flex gap-2">
-                      <button onClick={() => scrollSlider(relatedRef, 'left')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
-                      <button onClick={() => scrollSlider(relatedRef, 'right')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
+                      <button aria-label="Scroll left" onClick={() => scrollSlider(relatedRef, 'left')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
+                      <button aria-label="Scroll right" onClick={() => scrollSlider(relatedRef, 'right')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
                     </div>
                   </div>
                   <div ref={relatedRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
@@ -577,7 +577,7 @@ const Details: React.FC = () => {
                         <div key={idx} className="w-[180px] shrink-0 snap-start">
                           <Link to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className="block group relative">
                             <div className={`aspect-[2/3] rounded-3xl overflow-hidden mb-3 border transition-all duration-500 shadow-xl ${isPriority ? 'border-primary shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'border-white/5 group-hover:border-primary/30'}`}>
-                              <img src={item.anime.image} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                              <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
                               {isPriority && (
                                 <div className="absolute top-3 right-3 bg-primary text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-xl flex items-center gap-1 z-10 animate-pulse">
                                   <Forward className="w-2 h-2" /> NEXT ARC
@@ -614,8 +614,8 @@ const Details: React.FC = () => {
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Похожее</h3>
                     <div className="flex gap-2">
-                      <button onClick={() => scrollSlider(similarRef, 'left')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
-                      <button onClick={() => scrollSlider(similarRef, 'right')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
+                      <button aria-label="Scroll left" onClick={() => scrollSlider(similarRef, 'left')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
+                      <button aria-label="Scroll right" onClick={() => scrollSlider(similarRef, 'right')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
                     </div>
                   </div>
                   <div ref={similarRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
@@ -634,7 +634,7 @@ const Details: React.FC = () => {
                    {user ? (
                       <form onSubmit={handleAddComment} className="flex flex-col gap-6">
                          <div className="flex gap-5 items-start">
-                            <img src={user.avatar} className="w-14 h-14 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
+                            <img src={user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
                             <textarea value={userComment} onChange={(e) => setUserComment(e.target.value)} placeholder="Напишите ваш отзыв..." className="flex-1 bg-dark/60 border border-white/10 rounded-3xl p-6 text-sm text-white focus:border-primary outline-none min-h-[140px] resize-none transition-all shadow-inner" />
                          </div>
                          <button type="submit" disabled={isCommenting || !userComment.trim()} className="self-end px-12 py-4 bg-primary text-white font-black text-[10px] uppercase rounded-2xl shadow-xl shadow-primary/20 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all tracking-widest">
@@ -660,7 +660,7 @@ const Details: React.FC = () => {
                    ) : (
                      comments.map((comment) => (
                         <div key={comment.id} className="flex gap-6 group">
-                           <img src={comment.user.avatar} className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
+                           <img src={comment.user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-3 mb-3">
                                  <span className="font-black text-white text-base">{comment.user.name}</span>

@@ -69,7 +69,7 @@ const Messages: React.FC = () => {
                     onClick={() => setActiveThread(c.email)}
                     className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeThread === c.email ? 'bg-primary text-white' : 'hover:bg-white/5'}`}
                  >
-                    <img src={c.avatar} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
+                    <img src={c.avatar} loading="lazy" className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
                     <div className="text-left min-w-0">
                        <h4 className="font-black text-sm uppercase tracking-tight truncate">{c.name}</h4>
                        <p className={`text-[11px] truncate ${activeThread === c.email ? 'text-white/70' : 'text-slate-500'}`}>{c.lastText}</p>
@@ -90,8 +90,8 @@ const Messages: React.FC = () => {
            ) : (
              <>
                 <header className="p-6 border-b border-white/5 flex items-center gap-4 bg-white/5">
-                   <button onClick={() => setActiveThread(null)} className="md:hidden p-2 bg-white/5 rounded-lg"><ChevronLeft /></button>
-                   <img src={conversations.find(c => c.email === activeThread)?.avatar} className="w-10 h-10 rounded-xl" alt="" />
+                   <button aria-label="Back to conversations" onClick={() => setActiveThread(null)} className="md:hidden p-2 bg-white/5 rounded-lg"><ChevronLeft /></button>
+                   <img src={conversations.find(c => c.email === activeThread)?.avatar} loading="lazy" className="w-10 h-10 rounded-xl" alt="" />
                    <h3 className="font-black text-white uppercase tracking-tighter">{conversations.find(c => c.email === activeThread)?.name}</h3>
                 </header>
                 <div className="flex-1 overflow-y-auto p-8 space-y-6 hide-scrollbar">
@@ -113,7 +113,7 @@ const Messages: React.FC = () => {
                      placeholder="Введите сообщение..."
                      className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white focus:border-primary outline-none"
                    />
-                   <button type="submit" disabled={!inputText.trim()} className="w-14 h-14 bg-primary text-white rounded-2xl flex items-center justify-center transition-all disabled:opacity-50">
+                   <button aria-label="Send message" type="submit" disabled={!inputText.trim()} className="w-14 h-14 bg-primary text-white rounded-2xl flex items-center justify-center transition-all disabled:opacity-50">
                       <Send className="w-6 h-6" />
                    </button>
                 </form>

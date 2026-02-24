@@ -8,6 +8,7 @@ import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnim
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ChatMessage, ForumTopic } from '../types';
+import { FALLBACK_IMAGE } from '../constants';
 import { RichTextarea } from '../components/RichTextarea';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -182,7 +183,8 @@ const Home: React.FC = () => {
                 src={anime.cover || anime.image} 
                 alt={anime.title} 
                 referrerPolicy="no-referrer" 
-                onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/1920x1080?text=No+Image'; }}
+                loading={idx === 0 ? "eager" : "lazy"}
+                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
@@ -202,7 +204,7 @@ const Home: React.FC = () => {
                 </Link>
                 <div className="flex gap-2">
                   {heroAnimes.map((_, i) => (
-                    <button key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-8 bg-primary' : 'w-2 bg-white/5'}`} />
+                    <button aria-label={`Go to slide ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-8 bg-primary' : 'w-2 bg-white/5'}`} />
                   ))}
                 </div>
               </div>
@@ -226,8 +228,8 @@ const Home: React.FC = () => {
                 ))}
             </div>
             <div className="flex gap-3">
-               <button onClick={() => scrollSlider('left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
-               <button onClick={() => scrollSlider('right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+               <button aria-label="Scroll left" onClick={() => scrollSlider('left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
+               <button aria-label="Scroll right" onClick={() => scrollSlider('right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
             </div>
           </div>
           
@@ -497,7 +499,7 @@ const Home: React.FC = () => {
                 messages.map(msg => (
                   <div key={msg.id} className={`flex gap-4 animate-in slide-in-from-left-2 duration-300 ${msg.user.email === user?.email ? 'flex-row-reverse' : ''}`}>
                     <div className="relative">
-                        <img src={msg.user.avatar} className={`w-10 h-10 rounded-xl object-cover ring-2 shadow-md ${msg.user.email === 'admin@example.com' ? 'ring-yellow-400' : 'ring-white/5'}`} alt="" />
+                        <img src={msg.user.avatar} loading="lazy" className={`w-10 h-10 rounded-xl object-cover ring-2 shadow-md ${msg.user.email === 'admin@example.com' ? 'ring-yellow-400' : 'ring-white/5'}`} alt="" />
                         {/* Premium Badge on Avatar */}
                         {/* We need to know if the user is premium from the message object. Let's assume the backend/db provides this or we check a list */}
                     </div>
@@ -546,7 +548,7 @@ const Home: React.FC = () => {
                     onSubmit={() => handleSendChat()}
                   />
               </div>
-              <button type="submit" disabled={!user || !chatText.trim()} className="w-14 h-14 bg-primary hover:bg-violet-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-xl shadow-primary/20 mb-[1px]">
+              <button aria-label="Send message" type="submit" disabled={!user || !chatText.trim()} className="w-14 h-14 bg-primary hover:bg-violet-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-xl shadow-primary/20 mb-[1px]">
                  <Send className="w-6 h-6" />
               </button>
            </form>

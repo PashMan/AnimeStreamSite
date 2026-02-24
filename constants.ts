@@ -1,6 +1,8 @@
 
 import { Anime, Episode, ScheduleItem, User, NewsItem } from './types';
 
+export const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3ENo Image%3C/text%3E%3C/svg%3E";
+
 // Fix: Add missing email property to match the User interface requirement
 export const CURRENT_USER: User = {
   name: "Hiroshi_K",

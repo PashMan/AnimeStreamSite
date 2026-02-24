@@ -68,7 +68,7 @@ const AuthModal: React.FC = () => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeAuthModal} />
       <div className="relative w-full max-w-md glass border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 duration-200">
-        <button onClick={closeAuthModal} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+        <button aria-label="Close modal" onClick={closeAuthModal} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
           <X className="w-5 h-5" />
         </button>
 

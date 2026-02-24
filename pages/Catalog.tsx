@@ -126,6 +126,7 @@ const Catalog: React.FC = () => {
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-primary transition-colors z-10" />
             <input 
               type="text" 
+              aria-label="Поиск аниме"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Название аниме..." 
@@ -138,6 +139,7 @@ const Catalog: React.FC = () => {
              <SlidersHorizontal className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4 pointer-events-none" />
              <select 
                 value={currentSort}
+                aria-label="Сортировка"
                 onChange={(e) => handleSortChange(e.target.value)}
                 className="w-full bg-surface/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-xs font-black uppercase text-slate-300 outline-none focus:border-primary transition-all appearance-none cursor-pointer tracking-wider"
              >

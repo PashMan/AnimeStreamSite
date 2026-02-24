@@ -1,11 +1,11 @@
 
 import { Anime, ScheduleItem, NewsItem } from '../types';
-import { MOCK_ANIME, SCHEDULE, MOCK_NEWS } from '../constants';
+import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const FETCH_TIMEOUT = 15000; // 15 seconds timeout
-const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/300x450?text=No+Image';
+const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
 
 // Concurrency Limiter
 class RequestQueue {
@@ -78,13 +78,13 @@ const slugify = (text: string): string => {
 };
 
 const proxyImage = (url: string | undefined | null) => {
-  if (!url) return 'https://via.placeholder.com/300x450?text=No+Image';
+  if (!url) return PLACEHOLDER_IMAGE;
   let cleanUrl = url.trim();
   
   // Check for known Shikimori 404/missing images
   if (cleanUrl.includes('missing_original') || cleanUrl.includes('none.png') || cleanUrl.includes('missing')) {
       // Return a local placeholder or a better generic image
-      return 'https://via.placeholder.com/300x450?text=No+Image'; 
+      return PLACEHOLDER_IMAGE; 
   }
 
   // Handle relative paths from Shikimori

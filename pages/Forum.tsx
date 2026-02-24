@@ -5,6 +5,7 @@ import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { ForumTopic, ForumPost, Anime } from '../types';
 import { fetchAnimeDetails, fetchNews } from '../services/shikimori';
+import { FALLBACK_IMAGE } from '../constants';
 import { RichTextarea } from '../components/RichTextarea';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -231,7 +232,7 @@ const Forum: React.FC = () => {
           {/* Original Post */}
           <div className="bg-surface/30 border border-white/5 rounded-[2rem] p-8 md:p-10 relative overflow-hidden">
              <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-6">
-                <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} className="w-12 h-12 rounded-xl object-cover shadow-md ring-2 ring-white/5" alt="" />
+                <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} loading="lazy" className="w-12 h-12 rounded-xl object-cover shadow-md ring-2 ring-white/5" alt="" />
                 <div>
                    <div className="font-black text-white text-base">{currentTopic.author.name}</div>
                    <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Автор темы</div>
@@ -266,7 +267,7 @@ const Forum: React.FC = () => {
              {posts.map(post => (
                <div key={post.id} className="bg-surface/20 border border-white/5 rounded-[2rem] p-6 md:p-8">
                  <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
-                    <img src={post.author.avatar} className="w-10 h-10 rounded-xl object-cover shadow-md" alt="" />
+                    <img src={post.author.avatar} loading="lazy" className="w-10 h-10 rounded-xl object-cover shadow-md" alt="" />
                     <div>
                        <div className="font-bold text-white text-xs">{post.author.name}</div>
                        <div className="text-[9px] text-slate-500 uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</div>
@@ -302,7 +303,7 @@ const Forum: React.FC = () => {
              {user ? (
                <form onSubmit={handleReply} className="space-y-4">
                  <div className="flex gap-4">
-                    <img src={user.avatar} className="w-12 h-12 rounded-xl object-cover hidden md:block" alt="" />
+                    <img src={user.avatar} loading="lazy" className="w-12 h-12 rounded-xl object-cover hidden md:block" alt="" />
                    <div className="flex-1">
                       <RichTextarea 
                         name="replyContent"
@@ -346,9 +347,10 @@ const Forum: React.FC = () => {
             <div className="flex items-center gap-6 mb-4">
               <img 
                 src={anime.image} 
+                loading="lazy"
                 className="w-20 h-28 object-cover rounded-xl shadow-lg" 
                 alt={anime.title} 
-                onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
+                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
               />
               <div>
                 <h1 className="text-3xl md:text-4xl font-display font-black text-white uppercase tracking-tighter mb-2">
