@@ -280,9 +280,18 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
 };
 
 export const getAnimeById = async (id: string | number) => {
-  const data = await fetchApi(`/animes/${id}`, 2, CACHE_TTL, true);
-  if (!data) throw new Error('Failed to fetch anime');
-  return data;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  
+  try {
+    const response = await fetch(`${BASE_API}/animes/${id}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!response.ok) throw new Error('Failed to fetch anime');
+    return await response.json();
+  } catch (e) {
+    clearTimeout(timeoutId);
+    throw e;
+  }
 };
 
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
