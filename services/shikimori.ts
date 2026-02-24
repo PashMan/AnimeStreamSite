@@ -64,9 +64,26 @@ export const GENRE_MAP: Record<string, number> = {
   'Психологическое': 40, 'Триллер': 41, 'Сейнен': 42, 'Джосей': 43
 };
 
+const slugify = (text: string): string => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')     // Replace spaces with -
+    .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+    .replace(/\-\-+/g, '-');  // Replace multiple - with single -
+};
+
 const proxyImage = (url: string | undefined | null) => {
   if (!url) return 'https://via.placeholder.com/300x450?text=No+Image';
   let cleanUrl = url.trim();
+  
+  // Check for known Shikimori 404/missing images
+  if (cleanUrl.includes('missing_original') || cleanUrl.includes('none.png') || cleanUrl.includes('missing')) {
+      // Return a local placeholder or a better generic image
+      return 'https://via.placeholder.com/300x450?text=No+Image'; 
+  }
+
   // Handle relative paths from Shikimori
   if (cleanUrl.startsWith('/')) {
     cleanUrl = `${IMG_BASE_URL}${cleanUrl}`;
@@ -74,8 +91,6 @@ const proxyImage = (url: string | undefined | null) => {
     cleanUrl = `${IMG_BASE_URL}/${cleanUrl}`;
   }
   
-  // Return direct URL with no-referrer policy in img tag instead of proxy
-  // This helps with 18+ content that might be blocked by image proxies
   return cleanUrl;
 };
 
@@ -213,6 +228,7 @@ export const mapAnime = (data: any): Anime => {
 
   return {
     id: data.id?.toString() || '',
+    slug: slugify(data.name || data.russian || ''),
     title: russian,
     originalName: data.name || '',
     image,

@@ -1,6 +1,7 @@
 
 export interface Anime {
   id: string;
+  slug?: string;
   title: string;
   originalName: string;
   image: string;

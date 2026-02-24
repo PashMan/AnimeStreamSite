@@ -9,7 +9,10 @@ import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 
 const Details: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id: paramId } = useParams<{ id: string }>();
+  // Extract numeric ID from the start of the string (e.g. "123-anime-slug" -> "123")
+  const id = paramId ? parseInt(paramId).toString() : undefined;
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { openAuthModal, user } = useAuth();
@@ -369,7 +372,7 @@ const Details: React.FC = () => {
                   "@type": "ListItem",
                   "position": 3,
                   "name": anime.title,
-                  "item": `https://anime-stream.ru/anime/${anime.id}`
+                  "item": `https://anime-stream.ru/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`
                 }
               ]
             }
@@ -572,7 +575,7 @@ const Details: React.FC = () => {
                       const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
                       return (
                         <div key={idx} className="w-[180px] shrink-0 snap-start">
-                          <Link to={`/anime/${item.anime.id}`} className="block group relative">
+                          <Link to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className="block group relative">
                             <div className={`aspect-[2/3] rounded-3xl overflow-hidden mb-3 border transition-all duration-500 shadow-xl ${isPriority ? 'border-primary shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'border-white/5 group-hover:border-primary/30'}`}>
                               <img src={item.anime.image} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
                               {isPriority && (

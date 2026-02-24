@@ -13,13 +13,12 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
   const episodeCount = `${anime.episodesAired || 0} / ${anime.episodes || '?'}`;
 
   return (
-    <Link to={`/anime/${anime.id}`} className="group block relative w-full h-full">
+    <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group block relative w-full h-full">
       <div className="relative w-full aspect-[2/3] rounded-[2.5rem] overflow-hidden mb-5 bg-surface border border-white/5 group-hover:border-primary/50 transition-all shadow-xl group-hover:shadow-primary/20">
         <img 
           src={anime.image} 
           alt={anime.title} 
           referrerPolicy="no-referrer"
-          onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
           className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 will-change-transform" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-70" />
