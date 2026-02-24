@@ -1,19 +1,4 @@
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function fetchWithRetry(url: string, options: any, retries = 3, backoff = 1000) {
-  let lastResponse;
-  for (let i = 0; i < retries; i++) {
-    lastResponse = await fetch(url, options);
-    if (lastResponse.status === 429 && i < retries - 1) {
-      await sleep(backoff * Math.pow(2, i));
-      continue;
-    }
-    return lastResponse;
-  }
-  return lastResponse;
-}
-
 export default async function handler(req: any, res: any) {
   // Handle CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -44,7 +29,7 @@ export default async function handler(req: any, res: any) {
   const targetUrl = `https://shikimori.one/api/${path}${search}`;
 
   try {
-    const response = await fetchWithRetry(targetUrl, {
+    const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'AnimeStreamProject/1.0 (contact: admin@anime-stream.ru)',
         'Accept': 'application/json',
@@ -52,28 +37,31 @@ export default async function handler(req: any, res: any) {
       },
     });
 
-    if (!response || !response.ok) {
-      const status = response?.status || 500;
-      const errorText = response ? await response.text() : 'No response';
-      console.error(`Shikimori API error [${status}] for ${targetUrl}:`, errorText.slice(0, 500));
-      return res.status(status).json({ error: `Shikimori API error: ${status}`, details: errorText.slice(0, 200) });
-    }
-
-    const data = await response.json();
-
+    const data = await response.text();
+    
+    // Set appropriate headers based on the response
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
+    
     // Dynamic Caching Strategy
     // Default: 1 hour (for lists, searches, ongoing)
     let cacheControl = 'public, s-maxage=3600, stale-while-revalidate=1800';
     
-    // If it's a single anime object and it's released, cache for 24 hours
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-      if (data.status === 'released') {
-        cacheControl = 'public, s-maxage=86400, stale-while-revalidate=43200';
+    // Try to parse JSON to determine if it's a released anime for longer caching
+    try {
+      if (response.ok) {
+        const parsedData = JSON.parse(data);
+        if (parsedData && typeof parsedData === 'object' && !Array.isArray(parsedData)) {
+          if (parsedData.status === 'released') {
+            cacheControl = 'public, s-maxage=86400, stale-while-revalidate=43200';
+          }
+        }
       }
+    } catch (e) {
+      // Ignore parsing errors for cache control logic
     }
 
     res.setHeader('Cache-Control', cacheControl);
-    return res.status(200).json(data);
+    return res.status(response.status).send(data);
   } catch (error: any) {
     console.error(`Proxy error for ${targetUrl}:`, error?.message);
     return res.status(500).json({ error: 'Proxy error', details: error?.message });
