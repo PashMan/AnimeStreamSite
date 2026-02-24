@@ -19,14 +19,15 @@ export default async function sitemapHandler(req: Request, res: Response) {
       // 2. Fetch Top Anime from Shikimori (Real-time)
       const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
         headers: {
-          'User-Agent': 'AnimeStream/1.0'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
+          'Accept': 'application/json'
         }
       });
 
       if (response.ok) {
         animes = await response.json();
       } else {
-        console.error(`Sitemap: Failed to fetch anime. Status: ${response.status}`);
+        console.error("Sitemap Fetch Error:", response.status, await response.text());
       }
     } catch (fetchError) {
       console.error('Sitemap: Fetch error:', fetchError);
