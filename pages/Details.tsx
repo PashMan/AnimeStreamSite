@@ -217,14 +217,19 @@ const Details: React.FC = () => {
   const lastLoadedId = useRef<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     const loadDetails = async () => {
       if (!id) return;
       
       // If we already loaded this anime, only update user-specific data if user changed
       if (lastLoadedId.current === id) {
         if (user?.email) {
-          db.getFavorites(user.email).then(favs => setIsFavorite(favs.includes(id)));
-          db.getWatched(user.email).then(watched => setIsWatched(watched.includes(id)));
+          db.getFavorites(user.email).then(favs => {
+            if (isMounted) setIsFavorite(favs.includes(id));
+          });
+          db.getWatched(user.email).then(watched => {
+            if (isMounted) setIsWatched(watched.includes(id));
+          });
         }
         return;
       }
@@ -247,6 +252,8 @@ const Details: React.FC = () => {
         // 1. Critical Path: Main Details
         const data = await fetchAnimeDetails(id);
         
+        if (!isMounted) return;
+
         if (!data) {
           throw new Error("Не удалось загрузить данные об аниме");
         }
@@ -258,6 +265,7 @@ const Details: React.FC = () => {
         
         // Fetch Related
         fetchRelatedAnimes(id).then(relatedData => {
+          if (!isMounted) return;
           const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'];
           const sortedRelated = [...relatedData].sort((a, b) => {
             const aPri = priorityRelations.indexOf(a.relation);
@@ -269,19 +277,19 @@ const Details: React.FC = () => {
           });
           setRelated(sortedRelated);
         }).catch(err => console.error("Related fetch error", err))
-          .finally(() => setIsRelatedLoading(false));
+          .finally(() => { if (isMounted) setIsRelatedLoading(false); });
 
         // Fetch Similar
         fetchSimilarAnimes(id).then(similarData => {
-          setSimilar(similarData);
+          if (isMounted) setSimilar(similarData);
         }).catch(err => console.error("Similar fetch error", err))
-          .finally(() => setIsSimilarLoading(false));
+          .finally(() => { if (isMounted) setIsSimilarLoading(false); });
 
         // Fetch Comments
         db.getUserComments(id).then(userComments => {
-          setComments(userComments);
+          if (isMounted) setComments(userComments);
         }).catch(err => console.error("Comments fetch error", err))
-          .finally(() => setIsCommentsLoading(false));
+          .finally(() => { if (isMounted) setIsCommentsLoading(false); });
 
         // User specific data (Favorites/Watched) - can be done in parallel with lazy load
         if (user?.email) {
@@ -289,19 +297,23 @@ const Details: React.FC = () => {
             db.getFavorites(user.email),
             db.getWatched(user.email)
           ]).then(([favs, watched]) => {
-            setIsFavorite(favs.includes(id));
-            setIsWatched(watched.includes(id));
+            if (isMounted) {
+              setIsFavorite(favs.includes(id));
+              setIsWatched(watched.includes(id));
+            }
           }).catch(err => console.error("User data fetch error", err));
         }
 
       } catch (err: any) {
+        if (!isMounted) return;
         console.error("Details Page Load Error:", err);
         setError(err.message || "Произошла ошибка при загрузке");
         setIsMainLoading(false);
       }
     };
     loadDetails();
-  }, [id, user]);
+    return () => { isMounted = false; };
+  }, [id, user?.email]);
 
   const handleFavorite = async () => {
     if (!user?.email) { openAuthModal(); return; }

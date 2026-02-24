@@ -277,8 +277,11 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
       }
     });
     const query = new URLSearchParams(cleanParams).toString();
-    // Critical request: bypass queue
-    const data = await fetchApi(`/animes?${query}`, 2, 10 * 60 * 1000, true);
+    
+    // RAW FETCH - BYPASS ALL QUEUES AND CUSTOM CLIENTS
+    const response = await fetch(`${BASE_API}/animes?${query}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
     
     if (!data) return MOCK_ANIME;
     if (Array.isArray(data)) {
@@ -286,14 +289,21 @@ export const fetchAnimes = async (params: Record<string, any> = {}): Promise<Ani
     }
     return MOCK_ANIME;
   } catch (e) {
+    console.error("fetchAnimes error:", e);
     return MOCK_ANIME;
   }
 };
 
+export const getAnimeById = async (id: string | number) => {
+  const response = await fetch(`${BASE_API}/animes/${id}`);
+  if (!response.ok) throw new Error('Failed to fetch anime');
+  return response.json();
+};
+
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
   try {
-    // Critical request: bypass queue
-    const data = await fetchApi(`/animes/${id}`, 2, 30 * 60 * 1000, true);
+    // RAW FETCH - BYPASS ALL QUEUES AND CUSTOM CLIENTS
+    const data = await getAnimeById(id);
     if (!data) {
         const mock = MOCK_ANIME.find(a => a.id === id);
         return mock || MOCK_ANIME[0];
@@ -320,6 +330,7 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
 
     return anime;
   } catch (e) {
+    console.error("fetchAnimeDetails error:", e);
     return MOCK_ANIME.find(a => a.id === id) || MOCK_ANIME[0];
   }
 };

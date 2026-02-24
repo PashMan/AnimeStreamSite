@@ -25,6 +25,7 @@ const Catalog: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const loadInitial = async () => {
       setIsLoading(true);
       setPage(1);
@@ -46,13 +47,18 @@ const Catalog: React.FC = () => {
       if (selectedStatus !== 'All') params.status = selectedStatus;
 
       const results = await fetchAnimes(params);
-      setAnimeList(results);
-      setHasMore(results.length >= 20);
-      setIsLoading(false);
+      if (isMounted) {
+        setAnimeList(results);
+        setHasMore(results.length >= 20);
+        setIsLoading(false);
+      }
     };
 
     const timer = setTimeout(loadInitial, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [searchQuery, selectedGenre, selectedStatus, currentSort]);
 
   const handleLoadMore = async () => {

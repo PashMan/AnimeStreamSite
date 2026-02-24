@@ -42,10 +42,13 @@ const Home: React.FC = () => {
 
   // Initial Data Load
   useEffect(() => {
+    let isMounted = true;
     // 1. Load Hero items immediately and unblock UI
     const loadHero = async () => {
         setIsHeroLoading(true);
         const data = await fetchAnimes({ order: 'popularity', status: 'ongoing', limit: 5 });
+        if (!isMounted) return;
+        
         if (data && data.length > 0) {
             setHeroAnimes(data);
             setIsHeroLoading(false);
@@ -55,10 +58,14 @@ const Home: React.FC = () => {
                 try {
                    // Small delay to prioritize other network requests
                    await new Promise(r => setTimeout(r, index * 500)); 
+                   if (!isMounted) return;
+                   
                    const [screens, details] = await Promise.all([
                        fetchAnimeScreenshots(anime.id),
                        fetchAnimeDetails(anime.id)
                    ]);
+                   
+                   if (!isMounted) return;
                    
                    setHeroAnimes(prev => {
                        const updated = [...prev];
@@ -81,20 +88,35 @@ const Home: React.FC = () => {
 
     const loadLists = async () => {
         // Parallel fetches for other sections
-        fetchAnimes({ order: 'popularity', limit: 12 }).then(setTrendingAnimes);
-        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(setNewAnimes);
-        fetchAnimes({ order: 'popularity', status: 'anons', limit: 15 }).then(setUpcomingAnimes);
-        fetchNews().then(setNews);
-        fetchCalendar().then(setSchedule);
-        db.getGlobalMessages().then(setMessages);
+        fetchAnimes({ order: 'popularity', limit: 12 }).then(data => {
+          if (isMounted) setTrendingAnimes(data);
+        });
+        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(data => {
+          if (isMounted) setNewAnimes(data);
+        });
+        fetchAnimes({ order: 'popularity', status: 'anons', limit: 15 }).then(data => {
+          if (isMounted) setUpcomingAnimes(data);
+        });
+        fetchNews().then(data => {
+          if (isMounted) setNews(data);
+        });
+        fetchCalendar().then(data => {
+          if (isMounted) setSchedule(data);
+        });
+        db.getGlobalMessages().then(data => {
+          if (isMounted) setMessages(data);
+        });
         
         // Fetch recent forum topics (excluding news)
         const topics = await db.getForumTopics(undefined, undefined);
-        setForumTopics(topics.filter(t => t.category !== 'news').slice(0, 5));
+        if (isMounted) {
+          setForumTopics(topics.filter(t => t.category !== 'news').slice(0, 5));
+        }
     };
 
     loadHero();
     loadLists();
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
