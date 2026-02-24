@@ -5,6 +5,49 @@ import { MOCK_ANIME, SCHEDULE, MOCK_NEWS } from '../constants';
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 
+// Concurrency Limiter
+class RequestQueue {
+  private queue: (() => void)[] = [];
+  private activeCount = 0;
+  private maxConcurrent: number;
+
+  constructor(maxConcurrent: number) {
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  async add<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const task = async () => {
+        this.activeCount++;
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        } finally {
+          this.activeCount--;
+          this.next();
+        }
+      };
+
+      if (this.activeCount < this.maxConcurrent) {
+        task();
+      } else {
+        this.queue.push(task);
+      }
+    });
+  }
+
+  private next() {
+    if (this.activeCount < this.maxConcurrent && this.queue.length > 0) {
+      const task = this.queue.shift();
+      task?.();
+    }
+  }
+}
+
+const requestQueue = new RequestQueue(3);
+
 // Cache configuration (Client-side secondary cache)
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes client-side cache
 const requestCache = new Map<string, { data: any; timestamp: number }>();
@@ -90,35 +133,38 @@ const fetchApi = async (endpoint: string, retries = 2) => {
   // Use local proxy URL
   const url = `${BASE_API}${endpoint}`;
 
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(url);
-      
-      if (!res.ok) {
-          console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
-          // If rate limited or gateway error, we might want to retry
-          if (res.status === 429 || res.status >= 500) {
-            const waitTime = Math.pow(2, i) * 500;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            continue;
-          }
-          throw new Error(`HTTP ${res.status}`);
-      }
+  return requestQueue.add(async () => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const res = await fetch(url);
+        
+        if (!res.ok) {
+            console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
+            // If rate limited or gateway error, we might want to retry
+            if (res.status === 429 || res.status >= 500) {
+              const waitTime = Math.pow(2, i) * 500;
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              continue;
+            }
+            throw new Error(`HTTP ${res.status}`);
+        }
 
-      const data = await res.json();
-      
-      if (data) {
-        requestCache.set(endpoint, { data, timestamp: Date.now() });
-        return data;
+        const data = await res.json();
+        
+        if (data) {
+          requestCache.set(endpoint, { data, timestamp: Date.now() });
+          return data;
+        }
+      } catch (e) {
+        if (i === retries - 1) {
+          // If all retries fail, return cached data if available (stale-while-revalidate fallback)
+          return cached ? cached.data : null;
+        }
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
-    } catch (e) {
-      if (i === retries - 1) {
-        return cached ? cached.data : null;
-      }
-      await new Promise(resolve => setTimeout(resolve, 300));
     }
-  }
-  return cached ? cached.data : null;
+    return cached ? cached.data : null;
+  });
 };
 
 export const mapAnime = (data: any): Anime => {

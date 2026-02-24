@@ -126,7 +126,12 @@ const Layout: React.FC = () => {
                           className="flex items-center gap-4 p-2 hover:bg-white/5 rounded-xl transition-colors group/item"
                           onClick={() => setShowSuggestions(false)}
                         >
-                          <img src={anime.image} alt={anime.title} className="w-10 h-14 object-cover rounded-lg shadow-sm group-hover/item:scale-105 transition-transform" />
+                          <img 
+                            src={anime.image} 
+                            alt={anime.title} 
+                            onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/300x450?text=No+Image'; }}
+                            className="w-10 h-14 object-cover rounded-lg shadow-sm group-hover/item:scale-105 transition-transform" 
+                          />
                           <div className="flex flex-col min-w-0">
                             <span className="text-sm font-bold text-slate-200 group-hover/item:text-primary transition-colors truncate">{anime.title}</span>
                             <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">

@@ -182,7 +182,13 @@ const NewsDetails: React.FC = () => {
              </div>
            ) : newsItem.image && (
              <div className="mb-12 w-full aspect-video rounded-[2rem] overflow-hidden shadow-2xl border border-white/10 relative group">
-                <img src={newsItem.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img 
+                  src={newsItem.image} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                  onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/1920x1080?text=No+Image'; }}
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-dark/50 to-transparent"></div>
              </div>
            )}

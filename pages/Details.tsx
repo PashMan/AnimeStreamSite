@@ -23,7 +23,12 @@ const Details: React.FC = () => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [userComment, setUserComment] = useState('');
   
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Kept for backward compatibility if needed, but we'll use isMainLoading
+  const [isMainLoading, setIsMainLoading] = useState(true);
+  const [isRelatedLoading, setIsRelatedLoading] = useState(true);
+  const [isSimilarLoading, setIsSimilarLoading] = useState(true);
+  const [isCommentsLoading, setIsCommentsLoading] = useState(true);
+
   const [isFavorite, setIsFavorite] = useState(false);
   const [isWatched, setIsWatched] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -204,42 +209,66 @@ const Details: React.FC = () => {
   useEffect(() => {
     const loadDetails = async () => {
       if (!id) return;
-      setIsLoading(true);
+      
+      // Reset states
+      setIsMainLoading(true);
+      setIsRelatedLoading(true);
+      setIsSimilarLoading(true);
+      setIsCommentsLoading(true);
+      setAnime(null);
+      setRelated([]);
+      setSimilar([]);
+      setComments([]);
+
       try {
-        const [data, relatedData, similarData, userComments] = await Promise.all([
-          fetchAnimeDetails(id),
-          fetchRelatedAnimes(id),
-          fetchSimilarAnimes(id),
-          db.getUserComments(id)
-        ]);
-
-        const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'];
-        const sortedRelated = [...relatedData].sort((a, b) => {
-          const aPri = priorityRelations.indexOf(a.relation);
-          const bPri = priorityRelations.indexOf(b.relation);
-          if (aPri !== -1 && bPri === -1) return -1;
-          if (aPri === -1 && bPri !== -1) return 1;
-          if (aPri !== -1 && bPri !== -1) return aPri - bPri;
-          return 0;
-        });
-
+        // 1. Critical Path: Main Details
+        const data = await fetchAnimeDetails(id);
         setAnime(data);
-        setRelated(sortedRelated);
-        setSimilar(similarData);
-        setComments(userComments);
+        setIsMainLoading(false); // Unblock UI immediately
 
+        // 2. Lazy Path: Independent fetches
+        
+        // Fetch Related
+        fetchRelatedAnimes(id).then(relatedData => {
+          const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'];
+          const sortedRelated = [...relatedData].sort((a, b) => {
+            const aPri = priorityRelations.indexOf(a.relation);
+            const bPri = priorityRelations.indexOf(b.relation);
+            if (aPri !== -1 && bPri === -1) return -1;
+            if (aPri === -1 && bPri !== -1) return 1;
+            if (aPri !== -1 && bPri !== -1) return aPri - bPri;
+            return 0;
+          });
+          setRelated(sortedRelated);
+        }).catch(err => console.error("Related fetch error", err))
+          .finally(() => setIsRelatedLoading(false));
+
+        // Fetch Similar
+        fetchSimilarAnimes(id).then(similarData => {
+          setSimilar(similarData);
+        }).catch(err => console.error("Similar fetch error", err))
+          .finally(() => setIsSimilarLoading(false));
+
+        // Fetch Comments
+        db.getUserComments(id).then(userComments => {
+          setComments(userComments);
+        }).catch(err => console.error("Comments fetch error", err))
+          .finally(() => setIsCommentsLoading(false));
+
+        // User specific data (Favorites/Watched) - can be done in parallel with lazy load
         if (user?.email) {
-          const [favs, watched] = await Promise.all([
+          Promise.all([
             db.getFavorites(user.email),
             db.getWatched(user.email)
-          ]);
-          setIsFavorite(favs.includes(id));
-          setIsWatched(watched.includes(id));
+          ]).then(([favs, watched]) => {
+            setIsFavorite(favs.includes(id));
+            setIsWatched(watched.includes(id));
+          }).catch(err => console.error("User data fetch error", err));
         }
+
       } catch (err) {
         console.error("Details Page Load Error:", err);
-      } finally {
-        setIsLoading(false);
+        setIsMainLoading(false);
       }
     };
     loadDetails();
@@ -282,7 +311,7 @@ const Details: React.FC = () => {
     }
   };
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>;
+  if (isMainLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>;
   if (!anime) return <div className="text-center py-20 text-white font-bold">Аниме не найдено</div>;
 
   return (
@@ -505,7 +534,22 @@ const Details: React.FC = () => {
                 </div>
               </section>
 
-              {related.length > 0 && (
+              {isRelatedLoading ? (
+                <section>
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
+                  </div>
+                  <div className="flex gap-6 overflow-hidden">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="w-[180px] shrink-0">
+                        <div className="aspect-[2/3] bg-white/5 rounded-3xl mb-3 animate-pulse"></div>
+                        <div className="h-3 w-20 bg-white/5 rounded mb-2 animate-pulse"></div>
+                        <div className="h-4 w-full bg-white/5 rounded animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : related.length > 0 && (
                 <section>
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Связанное</h3>
@@ -538,7 +582,22 @@ const Details: React.FC = () => {
                 </section>
               )}
 
-              {similar.length > 0 && (
+              {isSimilarLoading ? (
+                <section>
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
+                  </div>
+                  <div className="flex gap-6 overflow-hidden">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="w-[200px] md:w-[240px] shrink-0">
+                        <div className="aspect-[2/3] bg-white/5 rounded-3xl mb-3 animate-pulse"></div>
+                        <div className="h-4 w-3/4 bg-white/5 rounded mb-2 animate-pulse"></div>
+                        <div className="h-3 w-1/2 bg-white/5 rounded animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : similar.length > 0 && (
                 <section>
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Похожее</h3>
@@ -558,7 +617,7 @@ const Details: React.FC = () => {
               )}
 
               <section className="pt-10 border-t border-white/5">
-                <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({comments.length})</h3>
+                <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({isCommentsLoading ? '...' : comments.length})</h3>
                 <div className="bg-surface/30 rounded-[2.5rem] p-8 border border-white/5 mb-12 shadow-2xl backdrop-blur-sm">
                    {user ? (
                       <form onSubmit={handleAddComment} className="flex flex-col gap-6">
@@ -576,18 +635,30 @@ const Details: React.FC = () => {
                 </div>
 
                 <div className="space-y-8">
-                   {comments.map((comment) => (
-                      <div key={comment.id} className="flex gap-6 group">
-                         <img src={comment.user.avatar} className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
-                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-3">
-                               <span className="font-black text-white text-base">{comment.user.name}</span>
-                               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
-                            </div>
-                            <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">{comment.text}</div>
-                         </div>
-                      </div>
-                   ))}
+                   {isCommentsLoading ? (
+                     [...Array(3)].map((_, i) => (
+                        <div key={i} className="flex gap-6">
+                           <div className="w-14 h-14 bg-white/5 rounded-2xl shrink-0 animate-pulse"></div>
+                           <div className="flex-1">
+                              <div className="h-4 w-32 bg-white/5 rounded mb-3 animate-pulse"></div>
+                              <div className="h-24 w-full bg-white/5 rounded-[2rem] animate-pulse"></div>
+                           </div>
+                        </div>
+                     ))
+                   ) : (
+                     comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-6 group">
+                           <img src={comment.user.avatar} className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
+                           <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-3">
+                                 <span className="font-black text-white text-base">{comment.user.name}</span>
+                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
+                              </div>
+                              <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">{comment.text}</div>
+                           </div>
+                        </div>
+                     ))
+                   )}
                 </div>
              </section>
            </div>
