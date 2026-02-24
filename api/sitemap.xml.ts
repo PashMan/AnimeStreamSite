@@ -13,21 +13,24 @@ export default async function sitemapHandler(req: Request, res: Response) {
       '/forum'
     ];
 
-    // 2. Fetch Top Anime from Shikimori (Top 50 Popular)
-    // Using fetch directly to avoid dependencies on internal services that might use browser APIs
-    const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
-      headers: {
-        'User-Agent': 'AnimeStream/1.0',
-        'Referer': 'https://shikimori.one/'
+    let animes: any[] = [];
+
+    try {
+      // 2. Fetch Top Anime from Shikimori (Real-time)
+      const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
+        headers: {
+          'User-Agent': 'AnimeStream/1.0'
+        }
+      });
+
+      if (response.ok) {
+        animes = await response.json();
+      } else {
+        console.error(`Sitemap: Failed to fetch anime. Status: ${response.status}`);
       }
-    });
-
-    if (!response.ok) {
-      console.error(`Shikimori API error: ${response.status}`);
-      // Fallback to static URLs only if API fails
+    } catch (fetchError) {
+      console.error('Sitemap: Fetch error:', fetchError);
     }
-
-    const animes = response.ok ? await response.json() : [];
 
     // 3. Generate XML
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -59,9 +62,8 @@ export default async function sitemapHandler(req: Request, res: Response) {
     xml += `
 </urlset>`;
 
-    // 4. Send Response with Headers
+    // 4. Send Response
     res.setHeader('Content-Type', 'text/xml');
-    // Cache for 24 hours (86400s), stale-while-revalidate for 12 hours (43200s)
     res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=43200');
     res.send(xml);
 

@@ -12,9 +12,11 @@ class RequestQueue {
   private queue: (() => void)[] = [];
   private activeCount = 0;
   private maxConcurrent: number;
+  private msDelay: number;
 
-  constructor(maxConcurrent: number) {
+  constructor(maxConcurrent: number, msDelay: number = 300) {
     this.maxConcurrent = maxConcurrent;
+    this.msDelay = msDelay;
   }
 
   async add<T>(fn: () => Promise<T>): Promise<T> {
@@ -28,7 +30,7 @@ class RequestQueue {
           reject(err);
         } finally {
           this.activeCount--;
-          this.next();
+          setTimeout(() => this.next(), this.msDelay);
         }
       };
 
@@ -48,7 +50,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(3);
+const requestQueue = new RequestQueue(2, 350);
 
 // Cache configuration (Client-side secondary cache)
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes client-side cache
