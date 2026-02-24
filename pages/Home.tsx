@@ -43,6 +43,38 @@ const Home: React.FC = () => {
   // Initial Data Load
   useEffect(() => {
     let isMounted = true;
+    
+    const loadLists = async () => {
+        // Sequential fetches for other sections to avoid 429
+        try {
+          const trending = await fetchAnimes({ order: 'popularity', limit: 12 });
+          if (isMounted) setTrendingAnimes(trending);
+          
+          const newAnimes = await fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 });
+          if (isMounted) setNewAnimes(newAnimes);
+          
+          const upcoming = await fetchAnimes({ order: 'popularity', status: 'anons', limit: 15 });
+          if (isMounted) setUpcomingAnimes(upcoming);
+          
+          const newsData = await fetchNews();
+          if (isMounted) setNews(newsData);
+          
+          const scheduleData = await fetchCalendar();
+          if (isMounted) setSchedule(scheduleData);
+          
+          const messagesData = await db.getGlobalMessages();
+          if (isMounted) setMessages(messagesData);
+          
+          // Fetch recent forum topics (excluding news)
+          const topics = await db.getForumTopics(undefined, undefined);
+          if (isMounted) {
+            setForumTopics(topics.filter(t => t.category !== 'news').slice(0, 5));
+          }
+        } catch (e) {
+          console.error("Error loading lists", e);
+        }
+    };
+
     // 1. Load Hero items immediately and unblock UI
     const loadHero = async () => {
         setIsHeroLoading(true);
@@ -84,38 +116,12 @@ const Home: React.FC = () => {
         } else {
             setIsHeroLoading(false);
         }
-    };
-
-    const loadLists = async () => {
-        // Parallel fetches for other sections
-        fetchAnimes({ order: 'popularity', limit: 12 }).then(data => {
-          if (isMounted) setTrendingAnimes(data);
-        });
-        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(data => {
-          if (isMounted) setNewAnimes(data);
-        });
-        fetchAnimes({ order: 'popularity', status: 'anons', limit: 15 }).then(data => {
-          if (isMounted) setUpcomingAnimes(data);
-        });
-        fetchNews().then(data => {
-          if (isMounted) setNews(data);
-        });
-        fetchCalendar().then(data => {
-          if (isMounted) setSchedule(data);
-        });
-        db.getGlobalMessages().then(data => {
-          if (isMounted) setMessages(data);
-        });
         
-        // Fetch recent forum topics (excluding news)
-        const topics = await db.getForumTopics(undefined, undefined);
-        if (isMounted) {
-          setForumTopics(topics.filter(t => t.category !== 'news').slice(0, 5));
-        }
+        // Start loading other lists sequentially AFTER hero is loaded
+        loadLists();
     };
 
     loadHero();
-    loadLists();
     return () => { isMounted = false; };
   }, []);
 

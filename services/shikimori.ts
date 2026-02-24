@@ -161,57 +161,45 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
   const url = `${BASE_API}${endpoint}`;
 
   const execute = async () => {
-    for (let i = 0; i < retries; i++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+    
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
       
-      try {
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        
-        const contentType = res.headers.get('content-type');
-        const isJson = contentType && contentType.includes('application/json');
+      const contentType = res.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
 
-        if (!res.ok) {
-            console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
-            
-            // Handle 429 or 5xx with retry
-            if (res.status === 429 || res.status >= 500) {
-              const waitTime = Math.pow(2, i) * 500;
-              await new Promise(resolve => setTimeout(resolve, waitTime));
-              continue;
-            }
-            throw new Error(`HTTP ${res.status}`);
-        }
-
-        if (!isJson) {
-           // If we get HTML (e.g. from SPA fallback or Cloudflare), it's a critical error
-           const text = await res.text();
-           console.error(`[API Error] Expected JSON but got ${contentType}:`, text.slice(0, 100));
-           throw new Error("API returned HTML instead of JSON. Check proxy configuration.");
-        }
-
-        const data = await res.json();
-        
-        if (data) {
-          requestCache.set(endpoint, { data, timestamp: Date.now() });
-          return data;
-        }
-      } catch (e: any) {
-        clearTimeout(timeoutId);
-        
-        if (e.name === 'AbortError') {
-             console.warn(`[Fetch Timeout] Request aborted after ${FETCH_TIMEOUT}ms: ${url}`);
-        } else {
-             console.error(`[Fetch Error] ${url}:`, e.message || e);
-        }
-        
-        if (i === retries - 1) {
-          // If all retries fail, return cached data if available (stale-while-revalidate fallback)
-          return cached ? cached.data : null;
-        }
-        await new Promise(resolve => setTimeout(resolve, 300));
+      if (!res.ok) {
+          console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
+          throw new Error(`HTTP ${res.status}`);
       }
+
+      if (!isJson) {
+         // If we get HTML (e.g. from SPA fallback or Cloudflare), it's a critical error
+         const text = await res.text();
+         console.error(`[API Error] Expected JSON but got ${contentType}:`, text.slice(0, 100));
+         throw new Error("API returned HTML instead of JSON. Check proxy configuration.");
+      }
+
+      const data = await res.json();
+      
+      if (data) {
+        requestCache.set(endpoint, { data, timestamp: Date.now() });
+        return data;
+      }
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      
+      if (e.name === 'AbortError') {
+           console.warn(`[Fetch Timeout] Request aborted after ${FETCH_TIMEOUT}ms: ${url}`);
+      } else {
+           console.error(`[Fetch Error] ${url}:`, e.message || e);
+      }
+      
+      // Return cached data if available (stale-while-revalidate fallback)
+      return cached ? cached.data : null;
     }
     return cached ? cached.data : null;
   };
