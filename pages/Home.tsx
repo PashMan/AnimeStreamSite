@@ -8,7 +8,7 @@ import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnim
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ForumTopic } from '../types';
-import { FALLBACK_IMAGE } from '../constants';
+import { FALLBACK_IMAGE, COLLECTIONS_DATA } from '../constants';
 
 const Home: React.FC = () => {
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -422,8 +422,8 @@ const Home: React.FC = () => {
           </section>
         )}
 
-        {/* Premium Upscale Request Section */}
-        {user?.isPremium && (
+        {/* Premium Upscale Request Section (Hidden) */}
+        {/* {user?.isPremium && (
           <section className="bg-gradient-to-br from-primary/20 to-accent/20 rounded-[3rem] border border-primary/20 p-10 shadow-2xl backdrop-blur-md relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-primary/20 transition-all duration-1000"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
@@ -459,7 +459,7 @@ const Home: React.FC = () => {
               )}
             </div>
           </section>
-        )}
+        )} */}
 
         {/* Collections Section */}
         <section className="mt-12">
@@ -473,23 +473,25 @@ const Home: React.FC = () => {
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { id: 'super-power', title: 'Аниме в жанре супер сила', count: 1017, image: trendingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-fuchsia-600/80 to-purple-900/90' },
-              { id: 'friendship', title: 'Аниме про дружбу', count: 984, image: newAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-blue-600/80 to-indigo-900/90' },
-              { id: 'coming-of-age', title: 'Аниме про взросление', count: 393, image: upcomingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-orange-600/80 to-red-900/90' },
-              { id: 'parody', title: 'Аниме пародии', count: 389, image: heroAnimes[1]?.image || FALLBACK_IMAGE, color: 'from-pink-600/80 to-rose-900/90' },
-            ].map(collection => (
+            {COLLECTIONS_DATA.slice(0, 4).map((collection, idx) => {
+              const images = [
+                trendingAnimes[0]?.image,
+                newAnimes[0]?.image,
+                upcomingAnimes[0]?.image,
+                heroAnimes[1]?.image
+              ];
+              return (
               <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
-                <img src={collection.image} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <img src={images[idx] || FALLBACK_IMAGE} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                 <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
                 <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
                   <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
-                    {collection.count}
+                    100+
                   </div>
                   <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg">{collection.title}</h3>
                 </div>
               </Link>
-            ))}
+            )})}
           </div>
         </section>
       </div>

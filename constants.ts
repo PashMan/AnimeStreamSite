@@ -13,6 +13,21 @@ export const CURRENT_USER: User = {
   watchedTime: "48ч 12м"
 };
 
+export const COLLECTIONS_DATA = [
+  { id: 'super-power', title: 'Аниме в жанре супер сила', defaultGenre: 'Супер сила', color: 'from-fuchsia-600/80 to-purple-900/90' },
+  { id: 'friendship', title: 'Аниме про дружбу', defaultGenre: 'Повседневность', color: 'from-blue-600/80 to-indigo-900/90' },
+  { id: 'coming-of-age', title: 'Аниме про взросление', defaultGenre: 'Драма', color: 'from-orange-600/80 to-red-900/90' },
+  { id: 'parody', title: 'Аниме пародии', defaultGenre: 'Пародия', color: 'from-pink-600/80 to-rose-900/90' },
+  { id: 'isekai', title: 'Лучшие исекаи', defaultGenre: 'Фэнтези', color: 'from-emerald-600/80 to-teal-900/90' },
+  { id: 'romance', title: 'Романтика', defaultGenre: 'Романтика', color: 'from-rose-500/80 to-pink-900/90' },
+  { id: 'cyberpunk', title: 'Киберпанк', defaultGenre: 'Киберпанк', color: 'from-cyan-600/80 to-blue-900/90' },
+  { id: 'sports', title: 'Спортивные аниме', defaultGenre: 'Спорт', color: 'from-amber-600/80 to-orange-900/90' },
+  { id: 'magic', title: 'Магия и волшебство', defaultGenre: 'Магия', color: 'from-violet-600/80 to-purple-900/90' },
+  { id: 'mecha', title: 'Меха и роботы', defaultGenre: 'Меха', color: 'from-slate-600/80 to-slate-900/90' },
+  { id: 'music', title: 'Музыкальные', defaultGenre: 'Музыка', color: 'from-yellow-600/80 to-orange-900/90' },
+  { id: 'horror', title: 'Ужасы и триллеры', defaultGenre: 'Ужасы', color: 'from-red-700/80 to-red-950/90' },
+];
+
 export const MOCK_ANIME: Anime[] = [
   {
     id: "1",

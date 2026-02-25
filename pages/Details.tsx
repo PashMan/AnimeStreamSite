@@ -47,6 +47,8 @@ const Details: React.FC = () => {
   const [wtInput, setWtInput] = useState('');
   const [wtUsers, setWtUsers] = useState<number>(0);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [friendsList, setFriendsList] = useState<any[]>([]);
   const channelRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const lastTimeRef = useRef<number>(0);
@@ -59,6 +61,29 @@ const Details: React.FC = () => {
   });
 
   const currentUser = user || anonymousUser.current;
+
+  const handleOpenInviteModal = async () => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
+    const profile = await db.getProfile(user.email);
+    if (profile && profile.friends) {
+      const friends = await db.getFriendsList(profile.friends);
+      setFriendsList(friends);
+    }
+    setIsInviteModalOpen(true);
+  };
+
+  const handleInviteFriend = async (friendEmail: string) => {
+    if (!user || !roomId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('wt', 'true');
+    url.searchParams.set('room', roomId);
+    const message = `Присоединяйся к совместному просмотру: ${url.toString()}`;
+    await db.sendPrivateMessage(user.email, friendEmail, message);
+    setIsInviteModalOpen(false);
+  };
 
   const copyInviteLink = () => {
     const url = new URL(window.location.href);
@@ -545,11 +570,11 @@ const Details: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-3">
                     {isWatchTogether && (
                       <button 
-                        onClick={copyInviteLink}
-                        className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl ${copySuccess ? 'bg-green-500 text-white' : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'}`}
+                        onClick={handleOpenInviteModal}
+                        className="px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl bg-white/10 text-white hover:bg-white/20 border border-white/10"
                       >
-                        {copySuccess ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
-                        {copySuccess ? 'ССЫЛКА СКОПИРОВАНА' : 'ПРИГЛАСИТЬ ДРУГА'}
+                        <Users className="w-4 h-4" />
+                        ПРИГЛАСИТЬ ДРУГА
                       </button>
                     )}
                     <button 
@@ -748,6 +773,46 @@ const Details: React.FC = () => {
            </div>
         </div>
       </div>
+
+      {/* Invite Modal */}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <h3 className="text-lg font-black text-white uppercase tracking-widest">Пригласить друга</h3>
+              <button onClick={() => setIsInviteModalOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {friendsList.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="text-sm font-bold uppercase tracking-widest">У вас пока нет друзей</p>
+                  <Link to="/social" className="text-primary hover:underline mt-2 inline-block text-xs">Найти друзей</Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {friendsList.map(friend => (
+                    <div key={friend.id} className="flex items-center justify-between bg-white/5 p-3 rounded-2xl hover:bg-white/10 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-xl object-cover" />
+                        <span className="font-bold text-white text-sm">{friend.name}</span>
+                      </div>
+                      <button 
+                        onClick={() => handleInviteFriend(friend.email)}
+                        className="px-4 py-2 bg-primary hover:bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-primary/20 active:scale-95"
+                      >
+                        Пригласить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

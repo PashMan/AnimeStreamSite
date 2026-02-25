@@ -54,9 +54,9 @@ const Social: React.FC = () => {
     setIsSearching(false);
   };
 
-  const handleAddFriend = async (targetId: string) => {
+  const handleAddFriend = async (targetEmail: string) => {
     if (!user) return;
-    const success = await db.addFriend(user.email, targetId);
+    const success = await db.addFriend(user.email, targetEmail);
     if (success) {
       // Refresh friends list or optimistic update
       // For now, just reload page or re-fetch
@@ -155,7 +155,7 @@ const Social: React.FC = () => {
                                             </Link>
                                         ) : (
                                             <button 
-                                                onClick={() => handleAddFriend(result.id!)}
+                                                onClick={() => handleAddFriend(result.email)}
                                                 className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
                                             >
                                                 <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>
@@ -184,7 +184,7 @@ const Social: React.FC = () => {
                                     </Link>
                                 ) : (
                                     <button 
-                                        onClick={() => handleAddFriend(result.id!)}
+                                        onClick={() => handleAddFriend(result.email)}
                                         className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
                                     >
                                         <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>

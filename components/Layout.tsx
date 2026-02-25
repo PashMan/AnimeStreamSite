@@ -176,9 +176,9 @@ const Layout: React.FC = () => {
             </nav>
 
             <div className="flex items-center gap-4">
-              <Link aria-label="Premium" to="/premium" title="Премиум" className="p-2.5 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-white rounded-xl transition-all relative group">
+              {/* <Link aria-label="Premium" to="/premium" title="Премиум" className="p-2.5 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-white rounded-xl transition-all relative group">
                 <Crown className="w-5 h-5 group-hover:scale-110 transition-transform" />
-              </Link>
+              </Link> */}
               {user && (
                 <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
                    <MessageSquareText className="w-5 h-5" />
