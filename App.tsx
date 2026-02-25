@@ -1,16 +1,16 @@
 
 import React, { useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from './services/db';
 import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
 import { Loader2 } from 'lucide-react';
 
 import Home from './pages/Home';
+import Catalog from './pages/Catalog';
+import Details from './pages/Details';
 
 // Lazy load pages
-const Catalog = lazy(() => import('./pages/Catalog'));
-const Details = lazy(() => import('./pages/Details'));
 const Profile = lazy(() => import('./pages/Profile'));
 const TextPage = lazy(() => import('./pages/TextPage'));
 const News = lazy(() => import('./pages/News'));
@@ -67,6 +67,7 @@ const App: React.FC = () => {
             <Route path="profile" element={<Profile />} />
             <Route path="messages" element={<Messages />} />
             <Route path="social" element={<Social />} />
+            <Route path="community" element={<Navigate to="/social" replace />} />
             <Route path="forum" element={<Forum />} />
             <Route path="forum/:topicId" element={<Forum />} />
             <Route path="premium" element={<Premium />} />
