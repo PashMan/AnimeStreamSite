@@ -546,6 +546,21 @@ class DatabaseService {
   }
 
   // Social & Friends
+  async getRecentUsers(limit: number = 5): Promise<User[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   async searchUsers(query: string): Promise<User[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
