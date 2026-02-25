@@ -11,6 +11,7 @@ import TextPage from './pages/TextPage';
 import News from './pages/News';
 import NewsDetails from './pages/NewsDetails';
 import Messages from './pages/Messages';
+import Community from './pages/Community';
 import Forum from './pages/Forum';
 import Premium from './pages/Premium';
 import ResetPassword from './pages/ResetPassword';
@@ -47,6 +48,7 @@ const App: React.FC = () => {
           <Route path="anime/:id" element={<Details />} />
           <Route path="profile" element={<Profile />} />
           <Route path="messages" element={<Messages />} />
+          <Route path="social" element={<Social />} />
           <Route path="forum" element={<Forum />} />
           <Route path="forum/:topicId" element={<Forum />} />
           <Route path="premium" element={<Premium />} />

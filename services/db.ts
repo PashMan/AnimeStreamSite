@@ -29,6 +29,61 @@ class DatabaseService {
     return available;
   }
 
+  // Social
+  async searchUsers(query: string): Promise<User[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .ilike('name', `%${query}%`)
+        .limit(20);
+      
+      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async addFriend(currentUserEmail: string, targetUserId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      // 1. Get current user profile to get current friends
+      const user = await this.getProfile(currentUserEmail);
+      if (!user) return false;
+
+      // 2. Add targetUserId to friends list if not exists
+      const friends = user.friends || [];
+      if (friends.includes(targetUserId)) return true; // Already friend
+
+      const newFriends = [...friends, targetUserId];
+
+      // 3. Update profile
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update({ friends: newFriends })
+        .eq('email', currentUserEmail);
+
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async getFriendsList(friendIds: string[]): Promise<User[]> {
+    if (!this.isSupabaseAvailable() || friendIds.length === 0) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .in('id', friendIds);
+      
+      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   // Auth
   async login(credentials: { email: string; password: string }): Promise<User | null> {
     if (!this.isSupabaseAvailable()) return null;
@@ -546,6 +601,91 @@ class DatabaseService {
     try {
       await supabaseClient.from('premium_requests').insert([{ user_id: userId, anime_name: animeName, type: 'upscale' }]);
     } catch (e) {}
+  }
+
+  // Social & Friends
+  async searchUsers(query: string): Promise<User[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .ilike('name', `%${query}%`)
+        .limit(10);
+      
+      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async addFriend(userEmail: string, friendEmail: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      // 1. Get current user's friends
+      const user = await this.getProfile(userEmail);
+      if (!user) return false;
+      
+      const currentFriends = user.friends || [];
+      if (currentFriends.includes(friendEmail)) return true; // Already friends
+      
+      const newFriends = [...currentFriends, friendEmail];
+      
+      // 2. Update user's profile
+      await this.updateProfile(userEmail, { friends: newFriends });
+      
+      // 3. Update friend's profile (mutual friendship)
+      const friend = await this.getProfile(friendEmail);
+      if (friend) {
+          const friendFriends = friend.friends || [];
+          if (!friendFriends.includes(userEmail)) {
+              await this.updateProfile(friendEmail, { friends: [...friendFriends, userEmail] });
+          }
+      }
+      
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async removeFriend(userEmail: string, friendEmail: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const user = await this.getProfile(userEmail);
+      if (!user) return false;
+      
+      const newFriends = (user.friends || []).filter(f => f !== friendEmail);
+      await this.updateProfile(userEmail, { friends: newFriends });
+      
+      // Remove from friend's list too
+      const friend = await this.getProfile(friendEmail);
+      if (friend) {
+          const friendFriends = (friend.friends || []).filter(f => f !== userEmail);
+          await this.updateProfile(friendEmail, { friends: friendFriends });
+      }
+      
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async getFriendsList(email: string): Promise<User[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const user = await this.getProfile(email);
+      if (!user || !user.friends || user.friends.length === 0) return [];
+      
+      const { data } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .in('email', user.friends);
+        
+      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
+    } catch (e) {
+      return [];
+    }
   }
 
   // Watch Rooms

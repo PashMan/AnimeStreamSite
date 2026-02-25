@@ -172,6 +172,7 @@ const Layout: React.FC = () => {
               <Link to="/catalog" className={`${isActive('/catalog') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Каталог</Link>
               <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Новости</Link>
               <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Форум</Link>
+              <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Сообщество</Link>
             </nav>
 
             <div className="flex items-center gap-4">
@@ -259,6 +260,10 @@ const Layout: React.FC = () => {
           
           <Link to="/forum" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/forum') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
             Форум
+          </Link>
+
+          <Link to="/community" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/community') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+            Сообщество
           </Link>
         </nav>
 
