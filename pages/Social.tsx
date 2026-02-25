@@ -15,9 +15,10 @@ const Social: React.FC = () => {
   const [isLoadingFriends, setIsLoadingFriends] = useState(true);
 
   useEffect(() => {
-    if (user && user.friends) {
+    if (user) {
       const loadFriends = async () => {
         setIsLoadingFriends(true);
+        // Ensure we pass an array, even if user.friends is undefined
         const data = await db.getFriendsList(user.friends || []);
         setFriends(data);
         setIsLoadingFriends(false);
