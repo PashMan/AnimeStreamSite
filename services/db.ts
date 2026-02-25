@@ -29,61 +29,6 @@ class DatabaseService {
     return available;
   }
 
-  // Social
-  async searchUsers(query: string): Promise<User[]> {
-    if (!this.isSupabaseAvailable()) return [];
-    try {
-      const { data } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .ilike('name', `%${query}%`)
-        .limit(20);
-      
-      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  async addFriend(currentUserEmail: string, targetUserId: string): Promise<boolean> {
-    if (!this.isSupabaseAvailable()) return false;
-    try {
-      // 1. Get current user profile to get current friends
-      const user = await this.getProfile(currentUserEmail);
-      if (!user) return false;
-
-      // 2. Add targetUserId to friends list if not exists
-      const friends = user.friends || [];
-      if (friends.includes(targetUserId)) return true; // Already friend
-
-      const newFriends = [...friends, targetUserId];
-
-      // 3. Update profile
-      const { error } = await supabaseClient
-        .from('profiles')
-        .update({ friends: newFriends })
-        .eq('email', currentUserEmail);
-
-      return !error;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  async getFriendsList(friendIds: string[]): Promise<User[]> {
-    if (!this.isSupabaseAvailable() || friendIds.length === 0) return [];
-    try {
-      const { data } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .in('id', friendIds);
-      
-      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
-    } catch (e) {
-      return [];
-    }
-  }
-
   // Auth
   async login(credentials: { email: string; password: string }): Promise<User | null> {
     if (!this.isSupabaseAvailable()) return null;

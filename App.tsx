@@ -6,12 +6,11 @@ import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
 import { Loader2 } from 'lucide-react';
 
-import Details from './pages/Details';
-
 import Home from './pages/Home';
-import Catalog from './pages/Catalog';
 
 // Lazy load pages
+const Catalog = lazy(() => import('./pages/Catalog'));
+const Details = lazy(() => import('./pages/Details'));
 const Profile = lazy(() => import('./pages/Profile'));
 const TextPage = lazy(() => import('./pages/TextPage'));
 const News = lazy(() => import('./pages/News'));
