@@ -86,6 +86,33 @@ const Home: React.FC = () => {
             
             // Start loading other lists in parallel AFTER hero is loaded
             loadLists();
+
+            // Sequentially enrich hero items with details (description, better cover)
+            // We do this one by one with a delay to avoid 429 Rate Limit
+            const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+            
+            for (const anime of data) {
+                if (!isMounted) break;
+                try {
+                    // Fetch details
+                    const details = await fetchAnimeDetails(anime.id);
+                    if (details && isMounted) {
+                        setHeroAnimes(prev => {
+                            const next = [...prev];
+                            const index = next.findIndex(a => a.id === anime.id);
+                            if (index !== -1) {
+                                // Merge details into existing item
+                                next[index] = { ...next[index], ...details };
+                            }
+                            return next;
+                        });
+                    }
+                    // Wait 1.5s between requests to stay under rate limits
+                    await delay(1500);
+                } catch (e) {
+                    console.warn(`Failed to enrich hero item ${anime.id}`, e);
+                }
+            }
         } else {
             setIsHeroLoading(false);
             loadLists();
@@ -182,7 +209,7 @@ const Home: React.FC = () => {
                 src={anime.cover || anime.image} 
                 alt={anime.title} 
                 referrerPolicy="no-referrer" 
-                loading={idx === 0 ? "eager" : "lazy"}
+                {...(idx === 0 ? { fetchpriority: "high" } : { loading: "lazy" })}
                 onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
               />
