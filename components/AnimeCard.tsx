@@ -21,6 +21,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
           alt={anime.title} 
           referrerPolicy="no-referrer"
           loading="lazy"
+          decoding="async"
           onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
           className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 will-change-transform" 
         />

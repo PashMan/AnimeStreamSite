@@ -11,22 +11,27 @@ const Social: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
+  const [recentUsers, setRecentUsers] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingFriends, setIsLoadingFriends] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      const loadFriends = async () => {
+    const loadData = async () => {
+      // Load recent users for everyone
+      const recent = await db.getRecentUsers(5);
+      setRecentUsers(recent.filter(u => u.email !== user?.email));
+
+      if (user) {
         setIsLoadingFriends(true);
         // Ensure we pass an array, even if user.friends is undefined
         const data = await db.getFriendsList(user.friends || []);
         setFriends(data);
         setIsLoadingFriends(false);
-      };
-      loadFriends();
-    } else {
+      } else {
         setIsLoadingFriends(false);
-    }
+      }
+    };
+    loadData();
   }, [user]);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -118,6 +123,40 @@ const Social: React.FC = () => {
                     {searchResults.length > 0 && (
                         <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Результаты поиска</div>
                     )}
+                    
+                    {/* Show Recent Users if no search results */}
+                    {searchResults.length === 0 && !searchQuery && (
+                        <div className="space-y-4">
+                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Недавние пользователи</div>
+                            {recentUsers.map(result => {
+                                const isFriend = friends.some(f => f.id === result.id);
+                                return (
+                                    <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
+                                            <div>
+                                                <div className="font-bold text-white">{result.name}</div>
+                                                <div className="text-xs text-slate-400">{result.bio || 'Нет описания'}</div>
+                                            </div>
+                                        </div>
+                                        {isFriend ? (
+                                            <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2">
+                                                <MessageSquare className="w-4 h-4" /> Написать
+                                            </Link>
+                                        ) : (
+                                            <button 
+                                                onClick={() => handleAddFriend(result.id!)}
+                                                className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
+                                            >
+                                                <UserPlus className="w-4 h-4" /> Добавить
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
                     {searchResults.map(result => {
                         const isFriend = friends.some(f => f.id === result.id);
                         return (

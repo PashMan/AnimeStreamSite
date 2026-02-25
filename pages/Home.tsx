@@ -211,6 +211,7 @@ const Home: React.FC = () => {
                 alt={anime.title} 
                 referrerPolicy="no-referrer" 
                 {...(idx === 0 ? { fetchpriority: "high" } : { loading: "lazy" })}
+                decoding="async"
                 onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
               />
@@ -526,7 +527,15 @@ const Home: React.FC = () => {
                 messages.map(msg => (
                   <div key={msg.id} className={`flex gap-4 animate-in slide-in-from-left-2 duration-300 ${msg.user.email === user?.email ? 'flex-row-reverse' : ''}`}>
                     <div className="relative">
-                        <img src={msg.user.avatar} loading="lazy" className={`w-10 h-10 rounded-xl object-cover ring-2 shadow-md ${msg.user.email === 'admin@example.com' ? 'ring-yellow-400' : 'ring-white/5'}`} alt="" />
+                        <img 
+                          src={msg.user.avatar} 
+                          loading="lazy" 
+                          decoding="async"
+                          width="40"
+                          height="40"
+                          className={`w-10 h-10 rounded-xl object-cover ring-2 shadow-md ${msg.user.email === 'admin@example.com' ? 'ring-yellow-400' : 'ring-white/5'}`} 
+                          alt="" 
+                        />
                         {/* Premium Badge on Avatar */}
                         {/* We need to know if the user is premium from the message object. Let's assume the backend/db provides this or we check a list */}
                     </div>
