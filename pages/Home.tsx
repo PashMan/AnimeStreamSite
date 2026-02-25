@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, Send } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, Send, MessageSquare } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
@@ -468,18 +468,18 @@ const Home: React.FC = () => {
               <Sparkles className="w-8 h-8 text-primary" />
               Подборки
             </h2>
-            <Link to="/catalog" className="text-sm font-bold text-slate-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
+            <Link to="/collections" className="text-sm font-bold text-slate-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
               Смотреть все <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { id: 1, title: 'Аниме в жанре супер сила', count: 1017, image: trendingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-fuchsia-600/80 to-purple-900/90' },
-              { id: 2, title: 'Аниме про дружбу', count: 984, image: newAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-blue-600/80 to-indigo-900/90' },
-              { id: 3, title: 'Аниме про взросление', count: 393, image: upcomingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-orange-600/80 to-red-900/90' },
-              { id: 4, title: 'Аниме пародии', count: 389, image: heroAnimes[1]?.image || FALLBACK_IMAGE, color: 'from-pink-600/80 to-rose-900/90' },
+              { id: 'super-power', title: 'Аниме в жанре супер сила', count: 1017, image: trendingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-fuchsia-600/80 to-purple-900/90' },
+              { id: 'friendship', title: 'Аниме про дружбу', count: 984, image: newAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-blue-600/80 to-indigo-900/90' },
+              { id: 'coming-of-age', title: 'Аниме про взросление', count: 393, image: upcomingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-orange-600/80 to-red-900/90' },
+              { id: 'parody', title: 'Аниме пародии', count: 389, image: heroAnimes[1]?.image || FALLBACK_IMAGE, color: 'from-pink-600/80 to-rose-900/90' },
             ].map(collection => (
-              <Link key={collection.id} to={`/catalog`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
+              <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
                 <img src={collection.image} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                 <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
                 <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">

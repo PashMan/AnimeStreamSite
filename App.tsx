@@ -8,6 +8,8 @@ import { Loader2 } from 'lucide-react';
 
 import Home from './pages/Home';
 import Catalog from './pages/Catalog';
+import Collections from './pages/Collections';
+import CollectionDetail from './pages/CollectionDetail';
 import Details from './pages/Details';
 
 // Lazy load pages
@@ -61,6 +63,8 @@ const App: React.FC = () => {
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="catalog" element={<Catalog />} />
+            <Route path="collections" element={<Collections />} />
+            <Route path="collections/:id" element={<CollectionDetail />} />
             <Route path="news" element={<News />} />
             <Route path="news/:id" element={<NewsDetails />} />
             <Route path="anime/:id" element={<Details />} />
