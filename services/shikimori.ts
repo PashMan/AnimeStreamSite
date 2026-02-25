@@ -327,12 +327,35 @@ export const getAnimeById = async (id: string | number) => {
   }
 };
 
+// Helper to search in cached lists
+const findInCachedLists = (id: string): Anime | null => {
+    try {
+        // Search in all local storage keys starting with CACHE_PREFIX
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(CACHE_PREFIX)) {
+                const item = getFromStorage(key.replace(CACHE_PREFIX, ''));
+                if (item && item.data && Array.isArray(item.data)) {
+                    const found = item.data.find((a: any) => a.id?.toString() === id);
+                    if (found) return found;
+                }
+            }
+        }
+    } catch (e) { }
+    return null;
+};
+
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
   try {
     const data = await getAnimeById(id);
     if (!data) {
-        const mock = MOCK_ANIME.find(a => a.id === id);
-        return mock || MOCK_ANIME[0];
+        // Try to find in cache before giving up
+        const cachedRaw = findInCachedLists(id);
+        if (cachedRaw) {
+            console.log(`[Anime Details] Found in cache fallback: ${id}`);
+            return mapAnime(cachedRaw);
+        }
+        return null;
     }
     
     let anime = await mapAnime(data);
@@ -357,6 +380,14 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
     return anime;
   } catch (e) {
     console.warn(`[Anime Details] Failed to load API. Error:`, e);
+    
+    // Try to find in cache as a last resort
+    const cachedRaw = findInCachedLists(id);
+    if (cachedRaw) {
+        console.log(`[Anime Details] Recovered from cache after error: ${id}`);
+        return mapAnime(cachedRaw);
+    }
+
     // Return null to indicate failure, let UI handle it
     return null;
   }

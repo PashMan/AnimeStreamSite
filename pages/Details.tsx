@@ -3,6 +3,7 @@ import { useSearchParams, useParams, Link, useNavigate } from 'react-router-dom'
 import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
+import { FALLBACK_IMAGE as PLACEHOLDER_IMAGE, MOCK_ANIME } from '../constants';
 import { db, supabase } from '../services/db';
 import { Anime, Comment } from '../types';
 import AnimeCard from '../components/AnimeCard';
@@ -250,12 +251,34 @@ const Details: React.FC = () => {
 
       try {
         // 1. Critical Path: Main Details
-        const data = await fetchAnimeDetails(id);
+        let data = await fetchAnimeDetails(id);
         
         if (!isMounted) return;
 
         if (!data) {
-          throw new Error("Не удалось загрузить данные об аниме");
+          // Fallback for bots/crawlers or critical failure: use mock data to render SOMETHING
+          // This prevents 404/Error pages for search engines
+          console.warn(`[Details] API failed for ID ${id}, using fallback mock data`);
+          const mock = MOCK_ANIME.find(a => a.id === id) || MOCK_ANIME[0];
+          // Create a minimal valid anime object from mock
+          data = {
+             ...mock,
+             id: id, // Ensure ID matches URL
+             title: mock.title || 'Аниме',
+             description: mock.description || 'Описание временно недоступно',
+             image: mock.image || PLACEHOLDER_IMAGE,
+             cover: mock.cover || PLACEHOLDER_IMAGE,
+             genres: mock.genres || [],
+             rating: mock.rating || 0,
+             year: mock.year || new Date().getFullYear(),
+             type: mock.type || 'TV Series',
+             status: mock.status || 'Released',
+             episodes: mock.episodes || 0,
+             episodesAired: mock.episodesAired || 0,
+             studio: mock.studio || 'Unknown',
+             slug: mock.slug || '',
+             originalName: mock.originalName || ''
+          };
         }
         
         setAnime(data);
