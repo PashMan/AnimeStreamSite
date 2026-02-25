@@ -668,23 +668,6 @@ class DatabaseService {
     }
   }
 
-  async getFriendsList(email: string): Promise<User[]> {
-    if (!this.isSupabaseAvailable()) return [];
-    try {
-      const user = await this.getProfile(email);
-      if (!user || !user.friends || user.friends.length === 0) return [];
-      
-      const { data } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .in('email', user.friends);
-        
-      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
-    } catch (e) {
-      return [];
-    }
-  }
-
   // Watch Rooms
   async createWatchRoom(roomId: string, animeId: string, hostName: string) {
     if (!this.isSupabaseAvailable()) return;

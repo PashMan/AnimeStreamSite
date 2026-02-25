@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(2, 350); // 2 concurrent, 350ms delay to avoid 429 Rate Limit
+const requestQueue = new RequestQueue(2, 400); // 2 concurrent, 400ms delay to avoid 429 Rate Limit
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
