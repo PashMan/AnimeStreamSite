@@ -34,6 +34,14 @@ const AuthEventHandler = () => {
 };
 
 const App: React.FC = () => {
+  useEffect(() => {
+    // Remove the initial loader once the React app mounts
+    const loader = document.querySelector('.loader-overlay');
+    if (loader) {
+      loader.remove();
+    }
+  }, []);
+
   return (
     <Router>
       <AuthEventHandler />
