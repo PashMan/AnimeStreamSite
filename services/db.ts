@@ -190,6 +190,7 @@ class DatabaseService {
       if (updates.avatarShape !== undefined) mapped.avatar_shape = updates.avatarShape;
       if (updates.cardOpacity !== undefined) mapped.card_opacity = updates.cardOpacity;
       if (updates.cardBlur !== undefined) mapped.card_blur = updates.cardBlur;
+      if (updates.friends !== undefined) mapped.friends = updates.friends;
 
       const { data, error } = await supabaseClient
         .from('profiles')
@@ -546,6 +547,7 @@ class DatabaseService {
   }
 
   // Social & Friends
+  // Fetches the most recently registered users
   async getRecentUsers(limit: number = 5): Promise<User[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
@@ -569,6 +571,20 @@ class DatabaseService {
         .select('*')
         .ilike('name', `%${query}%`)
         .limit(10);
+      
+      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async getFriendsList(friendIds: string[]): Promise<User[]> {
+    if (!this.isSupabaseAvailable() || !friendIds || friendIds.length === 0) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .in('id', friendIds);
       
       return data?.map((p: any) => this.mapProfileToUser(p)) || [];
     } catch (e) {

@@ -1,22 +1,17 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Loader2, MessageCircle, Send, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare, Reply } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, Send } from 'lucide-react';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
-import { Anime, ScheduleItem, NewsItem, ChatMessage, ForumTopic } from '../types';
+import { Anime, ScheduleItem, NewsItem, ForumTopic } from '../types';
 import { FALLBACK_IMAGE } from '../constants';
-import { RichTextarea } from '../components/RichTextarea';
-import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';
 
 const Home: React.FC = () => {
   const sliderRef = useRef<HTMLDivElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'trending' | 'new' | 'upcoming'>('trending');
@@ -31,9 +26,6 @@ const Home: React.FC = () => {
   
   const [isHeroLoading, setIsHeroLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
-  const [onlineCount, setOnlineCount] = useState(142);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatText, setChatText] = useState('');
   const [upscaleAnime, setUpscaleAnime] = useState('');
   const [isUpscaleSent, setIsUpscaleSent] = useState(false);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -61,9 +53,6 @@ const Home: React.FC = () => {
         });
         fetchCalendar().then(data => {
           if (isMounted) setSchedule(data);
-        });
-        db.getGlobalMessages().then(data => {
-          if (isMounted) setMessages(data);
         });
         
         // Fetch recent forum topics (excluding news)
@@ -131,33 +120,6 @@ const Home: React.FC = () => {
     }, 8000);
     return () => clearInterval(interval);
   }, [heroAnimes.length]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setOnlineCount(prev => prev + (Math.random() > 0.5 ? 1 : -1));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  const handleSendChat = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!user) { openAuthModal(); return; }
-    if (!chatText.trim()) return;
-    const msg = await db.sendGlobalMessage(user, chatText);
-    setMessages(prev => [...prev, msg].slice(-100));
-    setChatText('');
-  };
-
-  const handleReplyToChatUser = (username: string) => {
-      const mention = `**${username}**, `;
-      setChatText(prev => prev + mention);
-  };
 
   const handleUpscaleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,95 +461,36 @@ const Home: React.FC = () => {
           </section>
         )}
 
-        {/* Global Chat Section (z-0 to sit below everything) */}
-        <section className="bg-surface/30 rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl backdrop-blur-sm relative z-0">
-           <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/5">
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/10">
-                    <MessageCircle className="w-6 h-6" />
-                 </div>
-                 <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display">Общий чат</h3>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Прямой эфир с сообществом</p>
-                 </div>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-black/30 rounded-full border border-white/5">
-                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                 <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Онлайн: {onlineCount}</span>
-              </div>
-           </div>
-
-           <div ref={chatContainerRef} className="h-[450px] overflow-y-auto p-8 space-y-6 flex flex-col hide-scrollbar bg-dark/20">
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full opacity-20">
-                  <MessageCircle className="w-16 h-16 mb-4" />
-                  <p className="font-black uppercase tracking-widest text-xs">Сообщений пока нет</p>
-                </div>
-              ) : (
-                messages.map(msg => (
-                  <div key={msg.id} className={`flex gap-4 animate-in slide-in-from-left-2 duration-300 ${msg.user.email === user?.email ? 'flex-row-reverse' : ''}`}>
-                    <div className="relative">
-                        <img 
-                          src={msg.user.avatar} 
-                          loading="lazy" 
-                          decoding="async"
-                          width="40"
-                          height="40"
-                          className={`w-10 h-10 rounded-xl object-cover ring-2 shadow-md ${msg.user.email === 'admin@example.com' ? 'ring-yellow-400' : 'ring-white/5'}`} 
-                          alt="" 
-                        />
-                        {/* Premium Badge on Avatar */}
-                        {/* We need to know if the user is premium from the message object. Let's assume the backend/db provides this or we check a list */}
-                    </div>
-                    <div className={`max-w-[70%] ${msg.user.email === user?.email ? 'items-end' : ''}`}>
-                        <div className={`flex items-center gap-2 mb-1 ${msg.user.email === user?.email ? 'flex-row-reverse' : ''}`}>
-                          <span className={`text-[11px] font-black flex items-center gap-1 ${msg.user.email === 'admin@example.com' ? 'text-yellow-400' : 'text-white'}`}>
-                            {msg.user.name}
-                            {/* Simple check for demo: if name contains 'Premium' or specific email */}
-                            {msg.user.email.includes('premium') && <Crown className="w-3 h-3 fill-current text-yellow-400" />}
-                          </span>
-                          <span className="text-[9px] text-slate-500">{new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                        </div>
-                        <div className={`p-4 rounded-2xl text-sm font-medium shadow-sm transition-all break-words markdown-body group/msg relative ${msg.user.email === user?.email ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none border border-white/5 hover:bg-white/10'} ${msg.user.email.includes('premium') ? 'border-primary/30 ring-1 ring-primary/10' : ''}`}>
-                          <ReactMarkdown 
-                               rehypePlugins={[rehypeRaw]}
-                               remarkPlugins={[remarkGfm]}
-                               components={{
-                                   p: ({node, ...props}: any) => <p className="m-0" {...props} />,
-                                   u: ({node, ...props}: any) => <u {...props} />
-                               }}
-                          >
-                              {msg.text}
-                          </ReactMarkdown>
-                          
-                          <button 
-                            onClick={() => handleReplyToChatUser(msg.user.name)}
-                            className={`absolute -bottom-5 flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-all opacity-0 group-hover/msg:opacity-100 ${msg.user.email === user?.email ? 'right-0' : 'left-0'}`}
-                          >
-                             <Reply className="w-2.5 h-2.5" /> Ответить
-                          </button>
-                        </div>
-                    </div>
+        {/* Collections Section */}
+        <section className="mt-12">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter font-display flex items-center gap-3">
+              <Sparkles className="w-8 h-8 text-primary" />
+              Подборки
+            </h2>
+            <Link to="/catalog" className="text-sm font-bold text-slate-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
+              Смотреть все <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { id: 1, title: 'Аниме в жанре супер сила', count: 1017, image: trendingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-fuchsia-600/80 to-purple-900/90' },
+              { id: 2, title: 'Аниме про дружбу', count: 984, image: newAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-blue-600/80 to-indigo-900/90' },
+              { id: 3, title: 'Аниме про взросление', count: 393, image: upcomingAnimes[0]?.image || FALLBACK_IMAGE, color: 'from-orange-600/80 to-red-900/90' },
+              { id: 4, title: 'Аниме пародии', count: 389, image: heroAnimes[1]?.image || FALLBACK_IMAGE, color: 'from-pink-600/80 to-rose-900/90' },
+            ].map(collection => (
+              <Link key={collection.id} to={`/catalog`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
+                <img src={collection.image} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
+                <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
+                  <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
+                    {collection.count}
                   </div>
-                ))
-              )}
-           </div>
-
-           <form onSubmit={handleSendChat} className="p-6 bg-dark/40 border-t border-white/5 flex gap-4 items-end">
-              <div className="flex-1">
-                  <RichTextarea 
-                    value={chatText}
-                    onChange={e => setChatText(e.target.value)}
-                    placeholder={user ? "Введите ваше сообщение..." : "Авторизуйтесь, чтобы писать в чате"}
-                    disabled={!user}
-                    className="min-h-[60px] max-h-[120px]"
-                    onSubmit={() => handleSendChat()}
-                  />
-              </div>
-              <button aria-label="Send message" type="submit" disabled={!user || !chatText.trim()} className="w-14 h-14 bg-primary hover:bg-violet-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-xl shadow-primary/20 mb-[1px]">
-                 <Send className="w-6 h-6" />
-              </button>
-           </form>
+                  <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg">{collection.title}</h3>
+                </div>
+              </Link>
+            ))}
+          </div>
         </section>
       </div>
     </div>
