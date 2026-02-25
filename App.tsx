@@ -11,7 +11,7 @@ import TextPage from './pages/TextPage';
 import News from './pages/News';
 import NewsDetails from './pages/NewsDetails';
 import Messages from './pages/Messages';
-import Community from './pages/Community';
+import Social from './pages/Social';
 import Forum from './pages/Forum';
 import Premium from './pages/Premium';
 import ResetPassword from './pages/ResetPassword';
