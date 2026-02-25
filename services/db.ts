@@ -394,9 +394,6 @@ class DatabaseService {
         
       if (!data) return null;
       
-      // Increment views (fire and forget)
-      supabaseClient.rpc('increment_topic_views', { topic_id: id }).then(() => {});
-
       return {
         id: data.id,
         title: data.title,
