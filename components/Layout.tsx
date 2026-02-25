@@ -324,7 +324,11 @@ const Layout: React.FC = () => {
           </div>
           <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between gap-6 text-[10px] font-black uppercase tracking-widest text-slate-600">
             <p>© {new Date().getFullYear()} AnimeStream Project. Все права защищены.</p>
-            <div className="flex gap-8">
+            <div className="flex gap-8 items-center">
+              <a href="https://t.me/animestreamsite" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                Telegram
+              </a>
               <Link to="/terms" className="hover:text-white transition-colors">Правила</Link>
               <Link to="/privacy" className="hover:text-white transition-colors">Конфиденциальность</Link>
             </div>

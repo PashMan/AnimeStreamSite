@@ -222,7 +222,7 @@ const Home: React.FC = () => {
             <div className="max-w-3xl space-y-6 animate-in slide-in-from-bottom-10 duration-700">
               <span className="px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg">Выходит сейчас</span>
               <h1 className="text-4xl md:text-7xl font-display font-black text-white drop-shadow-2xl uppercase tracking-tighter leading-[0.9] line-clamp-2">{currentHero.title}</h1>
-              <p className="text-slate-200 text-lg line-clamp-3 font-medium max-w-2xl drop-shadow-md bg-black/20 backdrop-blur-sm p-4 rounded-2xl border border-white/5">
+              <p className="text-slate-200 text-lg line-clamp-3 font-medium max-w-2xl drop-shadow-md p-0 border-none">
                 {currentHero.description || "Описание загружается..."}
               </p>
               <div className="flex flex-wrap gap-4 items-center pt-4">
