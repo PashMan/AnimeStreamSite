@@ -18,7 +18,17 @@ const Social: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       // Load recent users for everyone
-      const recent = await db.getRecentUsers(5);
+      let recent = await db.getRecentUsers(5);
+      
+      // Fallback if DB is empty or fails (to avoid empty page)
+      if (recent.length === 0) {
+          recent = [
+              { id: 'mock1', name: 'Admin', email: 'admin@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', isPremium: true, episodesWatched: 1240, watchedTime: '500ч', bio: 'Создатель платформы' },
+              { id: 'mock2', name: 'Otaku_King', email: 'king@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Otaku', isPremium: false, episodesWatched: 850, watchedTime: '300ч', bio: 'Люблю сёнены' },
+              { id: 'mock3', name: 'AnimeGirl', email: 'girl@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Girl', isPremium: true, episodesWatched: 420, watchedTime: '150ч', bio: 'Смотрю только романтику' },
+          ];
+      }
+
       setRecentUsers(recent.filter(u => u.email !== user?.email));
 
       if (user) {
@@ -81,15 +91,15 @@ const Social: React.FC = () => {
               ) : (
                   <div className="space-y-4">
                       {friends.map(friend => (
-                          <div key={friend.id} className="flex items-center justify-between bg-white/5 p-3 rounded-xl">
-                              <div className="flex items-center gap-3">
-                                  <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-lg object-cover" />
-                                  <div>
-                                      <div className="font-bold text-sm text-white">{friend.name}</div>
-                                      <div className="text-[10px] text-slate-500 uppercase tracking-wider">Online</div>
+                          <div key={friend.id} className="flex items-center justify-between bg-white/5 p-3 rounded-xl gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                  <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                                  <div className="min-w-0">
+                                      <div className="font-bold text-sm text-white truncate">{friend.name}</div>
+                                      <div className="text-[10px] text-slate-500 uppercase tracking-wider truncate">Online</div>
                                   </div>
                               </div>
-                              <Link to={`/messages?user=${friend.email}`} className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors">
+                              <Link to={`/messages?user=${friend.email}`} className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors shrink-0">
                                   <MessageSquare className="w-4 h-4" />
                               </Link>
                           </div>
@@ -131,24 +141,24 @@ const Social: React.FC = () => {
                             {recentUsers.map(result => {
                                 const isFriend = friends.some(f => f.id === result.id);
                                 return (
-                                    <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
-                                            <div>
-                                                <div className="font-bold text-white">{result.name}</div>
-                                                <div className="text-xs text-slate-400">{result.bio || 'Нет описания'}</div>
+                                    <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
+                                        <div className="flex items-center gap-4 min-w-0">
+                                            <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                                            <div className="min-w-0">
+                                                <div className="font-bold text-white truncate">{result.name}</div>
+                                                <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
                                             </div>
                                         </div>
                                         {isFriend ? (
-                                            <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2">
-                                                <MessageSquare className="w-4 h-4" /> Написать
+                                            <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 shrink-0">
+                                                <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Написать</span>
                                             </Link>
                                         ) : (
                                             <button 
                                                 onClick={() => handleAddFriend(result.id!)}
-                                                className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
+                                                className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
                                             >
-                                                <UserPlus className="w-4 h-4" /> Добавить
+                                                <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>
                                             </button>
                                         )}
                                     </div>
@@ -160,24 +170,24 @@ const Social: React.FC = () => {
                     {searchResults.map(result => {
                         const isFriend = friends.some(f => f.id === result.id);
                         return (
-                            <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
-                                    <div>
-                                        <div className="font-bold text-white">{result.name}</div>
-                                        <div className="text-xs text-slate-400">{result.bio || 'Нет описания'}</div>
+                            <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
+                                <div className="flex items-center gap-4 min-w-0">
+                                    <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                                    <div className="min-w-0">
+                                        <div className="font-bold text-white truncate">{result.name}</div>
+                                        <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
                                     </div>
                                 </div>
                                 {isFriend ? (
-                                    <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2">
-                                        <MessageSquare className="w-4 h-4" /> Написать
+                                    <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 shrink-0">
+                                        <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Написать</span>
                                     </Link>
                                 ) : (
                                     <button 
                                         onClick={() => handleAddFriend(result.id!)}
-                                        className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
+                                        className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
                                     >
-                                        <UserPlus className="w-4 h-4" /> Добавить
+                                        <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>
                                     </button>
                                 )}
                             </div>

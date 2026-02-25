@@ -255,15 +255,28 @@ export const mapAnime = async (data: any): Promise<Anime> => {
   const russian = data.russian || data.name || 'Без названия';
   
   let image = PLACEHOLDER_IMAGE;
+  let image_preview = PLACEHOLDER_IMAGE;
   
   if (data.image) {
       if (typeof data.image === 'string') {
-           if (!data.image.includes('missing')) image = proxyImage(data.image);
+           if (!data.image.includes('missing')) {
+               image = proxyImage(data.image);
+               image_preview = image;
+           }
       } else {
+          // High Res
           const candidates = [data.image.original, data.image.preview, data.image.x96];
           for (const img of candidates) {
               if (img && !img.includes('missing') && !img.includes('none.png')) {
                   image = proxyImage(img);
+                  break;
+              }
+          }
+          // Low Res
+          const candidatesPreview = [data.image.preview, data.image.x96, data.image.original];
+          for (const img of candidatesPreview) {
+              if (img && !img.includes('missing') && !img.includes('none.png')) {
+                  image_preview = proxyImage(img);
                   break;
               }
           }
@@ -276,6 +289,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
     title: russian,
     originalName: data.name || '',
     image,
+    image_preview,
     cover: image,
     rating: data.score ? parseFloat(data.score) : 0,
     year: data.aired_on ? new Date(data.aired_on).getFullYear() : (data.released_on ? new Date(data.released_on).getFullYear() : 0),

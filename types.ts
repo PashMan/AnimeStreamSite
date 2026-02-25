@@ -5,6 +5,7 @@ export interface Anime {
   title: string;
   originalName: string;
   image: string;
+  image_preview?: string;
   cover?: string;
   rating: number;
   score?: number;

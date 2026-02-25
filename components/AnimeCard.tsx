@@ -17,7 +17,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
     <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group block relative w-full h-full">
       <div className="relative w-full aspect-[2/3] rounded-[2.5rem] overflow-hidden mb-5 bg-surface border border-white/5 group-hover:border-primary/50 transition-all shadow-xl group-hover:shadow-primary/20">
         <img 
-          src={anime.image} 
+          src={anime.image_preview || anime.image} 
           alt={anime.title} 
           referrerPolicy="no-referrer"
           loading="lazy"
