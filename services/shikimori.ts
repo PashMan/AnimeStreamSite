@@ -2,7 +2,8 @@
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 
-const BASE_API = '/api/shikimori';
+// const BASE_API = '/api/shikimori';
+const BASE_API = 'https://shikimori.one/api';
 const IMG_BASE_URL = 'https://shikimori.one';
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
