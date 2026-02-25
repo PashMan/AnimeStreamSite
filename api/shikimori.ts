@@ -18,20 +18,14 @@ export default async function handler(req: any, res: any) {
   const targetUrl = `https://shikimori.one/api${path}${search}`;
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout to prevent 10s+ hangs
-
     const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'AnimeStreamProject/1.0 (contact: admin@anime-stream.ru)',
         'Accept': 'application/json',
         'Referer': 'https://shikimori.one/'
-      },
-      signal: controller.signal
+      }
     });
     
-    clearTimeout(timeoutId);
-
     const data = await response.text();
     
     res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
@@ -53,9 +47,6 @@ export default async function handler(req: any, res: any) {
     return res.status(response.status).send(data);
   } catch (error: any) {
     console.error(`Proxy error for ${targetUrl}:`, error?.message);
-    if (error.name === 'AbortError') {
-       return res.status(504).json({ error: 'Gateway Timeout - Upstream took too long' });
-    }
     return res.status(500).json({ error: 'Proxy error', details: error?.message });
   }
 }

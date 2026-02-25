@@ -1,7 +1,7 @@
 
 import { Anime, Episode, ScheduleItem, User, NewsItem } from './types';
 
-export const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3ENo Image%3C/text%3E%3C/svg%3E";
+export const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='800' viewBox='0 0 1920 800'%3E%3Crect width='1920' height='800' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='48' fill='%2394a3b8'%3EИзображение недоступно%3C/text%3E%3C/svg%3E";
 
 // Fix: Add missing email property to match the User interface requirement
 export const CURRENT_USER: User = {
@@ -18,8 +18,8 @@ export const MOCK_ANIME: Anime[] = [
     id: "1",
     title: "Поднятие уровня в одиночку",
     originalName: "Solo Leveling",
-    image: "https://picsum.photos/seed/anime1/300/450",
-    cover: "https://picsum.photos/seed/anime1cover/1920/800",
+    image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3EAnime 1%3C/text%3E%3C/svg%3E",
+    cover: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='800' viewBox='0 0 1920 800'%3E%3Crect width='1920' height='800' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='48' fill='%2394a3b8'%3EAnime 1 Cover%3C/text%3E%3C/svg%3E",
     rating: 9.8,
     year: 2024,
     type: "TV Series",
@@ -33,8 +33,8 @@ export const MOCK_ANIME: Anime[] = [
     id: "2",
     title: "Провожающая в последний путь Фрирен",
     originalName: "Sousou no Frieren",
-    image: "https://picsum.photos/seed/anime2/300/450",
-    cover: "https://picsum.photos/seed/anime2cover/1920/800",
+    image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3EAnime 2%3C/text%3E%3C/svg%3E",
+    cover: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='800' viewBox='0 0 1920 800'%3E%3Crect width='1920' height='800' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='48' fill='%2394a3b8'%3EAnime 2 Cover%3C/text%3E%3C/svg%3E",
     rating: 9.6,
     year: 2023,
     type: "TV Series",
@@ -48,8 +48,8 @@ export const MOCK_ANIME: Anime[] = [
     id: "3",
     title: "Магическая битва",
     originalName: "Jujutsu Kaisen",
-    image: "https://picsum.photos/seed/anime3/300/450",
-    cover: "https://picsum.photos/seed/anime3cover/1920/800",
+    image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3EAnime 3%3C/text%3E%3C/svg%3E",
+    cover: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='800' viewBox='0 0 1920 800'%3E%3Crect width='1920' height='800' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='48' fill='%2394a3b8'%3EAnime 3 Cover%3C/text%3E%3C/svg%3E",
     rating: 9.5,
     year: 2023,
     type: "TV Series",
@@ -63,8 +63,8 @@ export const MOCK_ANIME: Anime[] = [
     id: "4",
     title: "Человек-бензопила",
     originalName: "Chainsaw Man",
-    image: "https://picsum.photos/seed/anime4/300/450",
-    cover: "https://picsum.photos/seed/anime4cover/1920/800",
+    image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3EAnime 4%3C/text%3E%3C/svg%3E",
+    cover: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='800' viewBox='0 0 1920 800'%3E%3Crect width='1920' height='800' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='48' fill='%2394a3b8'%3EAnime 4 Cover%3C/text%3E%3C/svg%3E",
     rating: 8.9,
     year: 2022,
     type: "TV Series",
@@ -78,8 +78,8 @@ export const MOCK_ANIME: Anime[] = [
     id: "5",
     title: "Атака титанов: Финал",
     originalName: "Shingeki no Kyojin: The Final Season",
-    image: "https://picsum.photos/seed/anime5/300/450",
-    cover: "https://picsum.photos/seed/anime5cover/1920/800",
+    image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3EAnime 5%3C/text%3E%3C/svg%3E",
+    cover: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='800' viewBox='0 0 1920 800'%3E%3Crect width='1920' height='800' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='48' fill='%2394a3b8'%3EAnime 5 Cover%3C/text%3E%3C/svg%3E",
     rating: 9.9,
     year: 2023,
     type: "TV Series",
@@ -93,8 +93,8 @@ export const MOCK_ANIME: Anime[] = [
     id: "6",
     title: "Семья шпиона",
     originalName: "Spy x Family",
-    image: "https://picsum.photos/seed/anime6/300/450",
-    cover: "https://picsum.photos/seed/anime6cover/1920/800",
+    image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%2394a3b8'%3EAnime 6%3C/text%3E%3C/svg%3E",
+    cover: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='800' viewBox='0 0 1920 800'%3E%3Crect width='1920' height='800' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='48' fill='%2394a3b8'%3EAnime 6 Cover%3C/text%3E%3C/svg%3E",
     rating: 8.8,
     year: 2022,
     type: "TV Series",
@@ -111,7 +111,7 @@ export const MOCK_EPISODES: Episode[] = Array.from({ length: 12 }, (_, i) => ({
   number: i + 1,
   title: `Эпизод ${i + 1}: Начало конца`,
   duration: "24:00",
-  thumbnail: `https://picsum.photos/seed/ep${i}/300/170`,
+  thumbnail: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='170' viewBox='0 0 300 170'%3E%3Crect width='300' height='170' fill='%231e293b'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%2394a3b8'%3EEpisode ${i + 1}%3C/text%3E%3C/svg%3E`,
   isFiller: i === 7 // Arbitrary filler
 }));
 

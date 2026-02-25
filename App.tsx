@@ -1,7 +1,6 @@
 
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-import { Analytics } from '@vercel/analytics/react';
 import { supabase } from './services/db';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -60,7 +59,6 @@ const App: React.FC = () => {
           <Route path="contact" element={<TextPage />} />
         </Route>
       </Routes>
-      <Analytics />
     </Router>
   );
 };

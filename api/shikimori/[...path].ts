@@ -29,13 +29,25 @@ export default async function handler(req: any, res: any) {
   const targetUrl = `https://shikimori.one/api/${path}${search}`;
 
   try {
+    // Set timeout to 6 seconds for proxy
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
     const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'AnimeStreamProject/1.0 (contact: admin@anime-stream.ru)',
         'Accept': 'application/json',
         'Referer': 'https://shikimori.one/'
       },
+      signal: controller.signal // <--- Add abort signal
     });
+
+    clearTimeout(timeoutId); // Clear timer if response comes faster
+
+    // If Shikimori blocks us (Rate limit), return error immediately
+    if (response.status === 429) {
+      return res.status(429).json({ error: 'Rate limited by Shikimori' });
+    }
 
     const data = await response.text();
     
