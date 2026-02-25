@@ -29,9 +29,9 @@ export default async function handler(req: any, res: any) {
   const targetUrl = `https://shikimori.one/api/${path}${search}`;
 
   try {
-    // Set timeout to 6 seconds for proxy
+    // Set timeout to 8 seconds for proxy
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const response = await fetch(targetUrl, {
       headers: {

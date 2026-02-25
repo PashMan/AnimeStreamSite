@@ -4,7 +4,7 @@ import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
-const FETCH_TIMEOUT = 6000; // 6 seconds timeout
+const FETCH_TIMEOUT = 8000; // 8 seconds timeout
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
 
 // Concurrency Limiter
@@ -281,8 +281,8 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
 
 export const getAnimeById = async (id: string | number) => {
   const controller = new AbortController();
-  // Reduce to 4 seconds
-  const timeoutId = setTimeout(() => controller.abort(), 4000); 
+  // Increase to 8 seconds
+  const timeoutId = setTimeout(() => controller.abort(), 8000); 
   
   try {
     const response = await fetch(`${BASE_API}/animes/${id}`, { signal: controller.signal });
@@ -324,9 +324,9 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
 
     return anime;
   } catch (e) {
-    console.warn(`[Anime Details] Failed to load API, using mock. Error:`, e);
-    // Immediately return mock data on AbortError (timeout)
-    return MOCK_ANIME.find(a => a.id === id) || MOCK_ANIME[0];
+    console.warn(`[Anime Details] Failed to load API. Error:`, e);
+    // Return null to indicate failure, let UI handle it
+    return null;
   }
 };
 

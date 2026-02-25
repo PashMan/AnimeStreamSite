@@ -353,8 +353,13 @@ const Details: React.FC = () => {
   };
 
   if (isMainLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>;
-  if (error) return <div className="min-h-screen flex items-center justify-center text-red-400 font-bold text-xl">{error}</div>;
-  if (!anime) return <div className="text-center py-20 text-white font-bold">Аниме не найдено</div>;
+  if (error || !anime) return (
+    <div className="min-h-screen flex flex-col items-center justify-center text-center p-4">
+        <h2 className="text-3xl font-black text-white mb-4">Не удалось загрузить аниме</h2>
+        <p className="text-slate-400 mb-8 max-w-md">Возможно, сервер Shikimori перегружен. Попробуйте обновить страницу через пару секунд.</p>
+        <button onClick={() => window.location.reload()} className="px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary/80 transition-colors">Обновить страницу</button>
+    </div>
+  );
 
   return (
     <div className="w-full relative overflow-x-hidden pb-20">
