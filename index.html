@@ -22,6 +22,9 @@
     <link rel="dns-prefetch" href="https://shikimori.one">
     <link rel="dns-prefetch" href="https://ulumbarwutnsodmzxpst.supabase.co">
     
+    <!-- Preload API for LCP Hero Image -->
+    <link rel="preload" href="https://shikimori.one/api/animes?limit=5&order=popularity&censored=false&status=ongoing" as="fetch" crossorigin="anonymous">
+
     <!-- Non-blocking font loading -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript>
@@ -44,6 +47,16 @@
 </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Unregister any old service workers that might be caching the old index.html
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+          }
+        });
+      }
+    </script>
     <div class="loader-overlay">
         <div class="brand-container">
             <div class="logo-box">
