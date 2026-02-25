@@ -45,14 +45,15 @@ const Home: React.FC = () => {
     let isMounted = true;
     
     const loadLists = async () => {
-        // Parallel fetches for other sections, now controlled by RequestQueue (limit: 2)
-        fetchAnimes({ order: 'popularity', limit: 12 }).then(data => {
+        // Parallel fetches for other sections, now controlled by RequestQueue (limit: 5)
+        // Reduced limits to speed up initial load
+        fetchAnimes({ order: 'popularity', limit: 8 }).then(data => {
           if (isMounted) setTrendingAnimes(data);
         });
-        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(data => {
+        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 8 }).then(data => {
           if (isMounted) setNewAnimes(data);
         });
-        fetchAnimes({ order: 'popularity', status: 'anons', limit: 15 }).then(data => {
+        fetchAnimes({ order: 'popularity', status: 'anons', limit: 8 }).then(data => {
           if (isMounted) setUpcomingAnimes(data);
         });
         fetchNews().then(data => {

@@ -6,6 +6,7 @@ const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
+const CACHE_PREFIX = 'as_cache_';
 
 // Concurrency Limiter
 class RequestQueue {
@@ -14,7 +15,7 @@ class RequestQueue {
   private maxConcurrent: number;
   private msDelay: number;
 
-  constructor(maxConcurrent: number, msDelay: number = 300) {
+  constructor(maxConcurrent: number, msDelay: number = 50) {
     this.maxConcurrent = maxConcurrent;
     this.msDelay = msDelay;
   }
@@ -54,15 +55,40 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(2, 0);
+const requestQueue = new RequestQueue(5, 50); // Increased concurrency to 5
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
 };
 
-// Cache configuration (Client-side secondary cache)
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes client-side cache
-const requestCache = new Map<string, { data: any; timestamp: number }>();
+// Cache configuration (Persistent LocalStorage)
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes cache
+
+const getFromStorage = (key: string) => {
+    try {
+        const item = localStorage.getItem(CACHE_PREFIX + key);
+        if (item) return JSON.parse(item);
+    } catch (e) { return null; }
+    return null;
+};
+
+const saveToStorage = (key: string, data: any) => {
+    try {
+        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
+            data,
+            timestamp: Date.now()
+        }));
+    } catch (e) {
+        // If quota exceeded, clear old cache
+        try {
+            localStorage.clear();
+            localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+        } catch(e2) {}
+    }
+};
 
 export const GENRE_MAP: Record<string, number> = {
   'Экшен': 1, 'Приключения': 2, 'Машины': 3, 'Комедия': 4, 'Безумие': 5,
@@ -151,64 +177,70 @@ const processNewsHtml = (html: string | undefined): string => {
 };
 
 const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQueue = false) => {
-  // 1. Check Client Cache
-  const cached = requestCache.get(endpoint);
-  if (cached && Date.now() - cached.timestamp < ttl) {
+  const cacheKey = endpoint;
+  const cached = getFromStorage(cacheKey);
+  const now = Date.now();
+
+  // 1. Return fresh cache immediately
+  if (cached && (now - cached.timestamp < ttl)) {
     return cached.data;
   }
 
-  // Use local proxy URL
-  const url = `${BASE_API}${endpoint}`;
-
-  const execute = async () => {
+  // 2. Define the network fetch task
+  const networkTask = async () => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-    
+
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const response = await fetch(`${BASE_API}${endpoint}`, {
+        headers: { 'Cache-Control': 'no-cache' },
+        signal: controller.signal
+      });
       clearTimeout(timeoutId);
-      
-      const contentType = res.headers.get('content-type');
+
+      const contentType = response.headers.get('content-type');
       const isJson = contentType && contentType.includes('application/json');
 
-      if (!res.ok) {
-          console.warn(`[Proxy Request] Failed: ${url} (${res.status})`);
-          throw new Error(`HTTP ${res.status}`);
+      if (!response.ok) {
+        if (response.status === 429) throw new Error('Rate limit exceeded');
+        throw new Error(`API Error: ${response.status}`);
       }
 
       if (!isJson) {
-         // If we get HTML (e.g. from SPA fallback or Cloudflare), it's a critical error
-         const text = await res.text();
+         const text = await response.text();
          console.error(`[API Error] Expected JSON but got ${contentType}:`, text.slice(0, 100));
          throw new Error("API returned HTML instead of JSON. Check proxy configuration.");
       }
 
-      const data = await res.json();
-      
-      if (data) {
-        requestCache.set(endpoint, { data, timestamp: Date.now() });
-        return data;
-      }
-    } catch (e: any) {
+      const data = await response.json();
+      saveToStorage(cacheKey, data);
+      return data;
+    } catch (error) {
       clearTimeout(timeoutId);
+      console.warn(`Fetch failed for ${endpoint}:`, error);
       
-      if (e.name === 'AbortError') {
-           console.warn(`[Fetch Timeout] Request aborted after ${FETCH_TIMEOUT}ms: ${url}`);
-      } else {
-           console.error(`[Fetch Error] ${url}:`, e.message || e);
+      // 3. Fallback to stale cache if available
+      if (cached) {
+          console.log(`Using stale cache for ${endpoint}`);
+          return cached.data;
       }
-      
-      // Return cached data if available (stale-while-revalidate fallback)
-      return cached ? cached.data : null;
+      throw error;
     }
-    return cached ? cached.data : null;
   };
 
+  // 4. Execute with queue or directly
   if (bypassQueue) {
-    return execute();
+    return networkTask().catch(err => {
+        // Final fallback to stale cache even if bypassQueue failed (double safety)
+        if (cached) return cached.data;
+        return null;
+    });
   }
-
-  return requestQueue.add(execute);
+  
+  return requestQueue.add(networkTask).catch(err => {
+      if (cached) return cached.data;
+      return null;
+  });
 };
 
 export const mapAnime = async (data: any): Promise<Anime> => {
