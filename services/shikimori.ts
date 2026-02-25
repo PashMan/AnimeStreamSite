@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(5, 50); // Increased concurrency to 5
+const requestQueue = new RequestQueue(2, 350); // 2 concurrent, 350ms delay to avoid 429 Rate Limit
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
@@ -464,7 +464,7 @@ export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
 
 export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
   try {
-    const data = await fetchApi(`/calendar`, 2, CACHE_TTL, true);
+    const data = await fetchApi(`/calendar`, 2, CACHE_TTL, false);
     if (!data || !Array.isArray(data)) return SCHEDULE;
 
     const daysMap: Record<string, any[]> = { 'Пн': [], 'Вт': [], 'Ср': [], 'Чт': [], 'Пт': [], 'Сб': [], 'Вс': [] };
@@ -493,7 +493,7 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
     // Cache news for 30 minutes to improve performance
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000, true);
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000, false);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
     const newsItems = data.map(topic => {
