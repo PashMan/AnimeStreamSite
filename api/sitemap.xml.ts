@@ -36,7 +36,8 @@ export default async function sitemapHandler(req: Request, res: Response) {
       '/news',
       '/forum',
       '/social',
-      '/premium'
+      '/premium',
+      '/favorites'
     ];
 
     let animes: any[] = [];

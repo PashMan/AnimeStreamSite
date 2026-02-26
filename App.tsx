@@ -12,16 +12,33 @@ import Collections from './pages/Collections';
 import CollectionDetail from './pages/CollectionDetail';
 import Details from './pages/Details';
 
+// Custom lazy load function that retries on chunk load error
+const lazyWithRetry = (componentImport: () => Promise<any>) =>
+  lazy(async () => {
+    try {
+      const component = await componentImport();
+      window.sessionStorage.removeItem('retry-lazy-refreshed');
+      return component;
+    } catch (error) {
+      const hasRefreshed = window.sessionStorage.getItem('retry-lazy-refreshed');
+      if (!hasRefreshed && error instanceof Error && error.message.includes('Failed to fetch dynamically imported module')) {
+        window.sessionStorage.setItem('retry-lazy-refreshed', 'true');
+        window.location.reload();
+      }
+      throw error;
+    }
+  });
+
 // Lazy load pages
-const Profile = lazy(() => import('./pages/Profile'));
-const TextPage = lazy(() => import('./pages/TextPage'));
-const News = lazy(() => import('./pages/News'));
-const NewsDetails = lazy(() => import('./pages/NewsDetails'));
-const Messages = lazy(() => import('./pages/Messages'));
-const Social = lazy(() => import('./pages/Social'));
-const Forum = lazy(() => import('./pages/Forum'));
-const Premium = lazy(() => import('./pages/Premium'));
-const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Profile = lazyWithRetry(() => import('./pages/Profile'));
+const TextPage = lazyWithRetry(() => import('./pages/TextPage'));
+const News = lazyWithRetry(() => import('./pages/News'));
+const NewsDetails = lazyWithRetry(() => import('./pages/NewsDetails'));
+const Messages = lazyWithRetry(() => import('./pages/Messages'));
+const Social = lazyWithRetry(() => import('./pages/Social'));
+const Forum = lazyWithRetry(() => import('./pages/Forum'));
+const Premium = lazyWithRetry(() => import('./pages/Premium'));
+const ResetPassword = lazyWithRetry(() => import('./pages/ResetPassword'));
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-dark">
@@ -69,6 +86,7 @@ const App: React.FC = () => {
             <Route path="news/:id" element={<NewsDetails />} />
             <Route path="anime/:id" element={<Details />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="favorites" element={<Navigate to="/profile" replace />} />
             <Route path="messages" element={<Messages />} />
             <Route path="social" element={<Social />} />
             <Route path="community" element={<Navigate to="/social" replace />} />
