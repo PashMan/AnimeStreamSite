@@ -182,6 +182,8 @@ const Layout: React.FC = () => {
               {user && (
                 <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
                    <MessageSquareText className="w-5 h-5" />
+                   {/* Unread indicator - logic would need to be connected to real state */}
+                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 </Link>
               )}
               {user ? (
