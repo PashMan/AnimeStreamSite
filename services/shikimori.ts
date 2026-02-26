@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(3, 200); // 3 concurrent, 200ms delay to balance speed and 429 Rate Limit
+const requestQueue = new RequestQueue(1, 600); // 1 concurrent, 600ms delay to strictly avoid 429 Rate Limit
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
@@ -189,7 +189,7 @@ const processNewsHtml = (html: string | undefined): string => {
   return processed;
 };
 
-const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQueue = false) => {
+const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQueue = false): Promise<any> => {
   const cacheKey = endpoint;
   const cached = getFromStorage(cacheKey);
   const now = Date.now();
@@ -200,13 +200,16 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
   }
 
   // 2. Define the network fetch task
-  const networkTask = async () => {
+  const networkTask = async (): Promise<any> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
     try {
       const response = await fetch(`${BASE_API}${endpoint}`, {
-        headers: { 'Cache-Control': 'no-cache' },
+        headers: { 
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'AnimeStream/1.0 (Client)'
+        },
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -228,8 +231,17 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
       const data = await response.json();
       saveToStorage(cacheKey, data);
       return data;
-    } catch (error) {
+    } catch (error: any) {
       clearTimeout(timeoutId);
+      
+      // Retry logic for 429 or network errors
+      if (retries > 0 && (error.message === 'Rate limit exceeded' || error.name === 'AbortError' || error.message.includes('fetch'))) {
+          const delay = (4 - retries) * 1500; // Backoff
+          await new Promise(r => setTimeout(r, delay));
+          // Recursive call with decremented retries, bypassing queue to prioritize retry
+          return fetchApi(endpoint, retries - 1, ttl, true);
+      }
+
       console.warn(`Fetch failed for ${endpoint}:`, error);
       
       // 3. Fallback to stale cache if available
@@ -243,14 +255,13 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
 
   // 4. Execute with queue or directly
   if (bypassQueue) {
-    return networkTask().catch(err => {
-        // Final fallback to stale cache even if bypassQueue failed (double safety)
+    return networkTask().catch((err: any) => {
         if (cached) return cached.data;
         return null;
     });
   }
   
-  return requestQueue.add(networkTask).catch(err => {
+  return requestQueue.add(networkTask).catch((err: any) => {
       if (cached) return cached.data;
       return null;
   });

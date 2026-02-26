@@ -32,9 +32,21 @@ export default async function sitemapHandler(req: Request, res: Response) {
         animes = await response.json();
       } else {
         console.error("Sitemap Fetch Error:", response.status, await response.text());
+        // Fallback: Use popular anime IDs if API fails
+        animes = [
+          { id: 52991 }, { id: 5114 }, { id: 40748 }, { id: 44511 }, { id: 11061 },
+          { id: 38000 }, { id: 31964 }, { id: 21 }, { id: 1535 }, { id: 30276 },
+          { id: 16498 }, { id: 20 }, { id: 19815 }, { id: 40028 }, { id: 32281 },
+          { id: 9253 }, { id: 5114 }, { id: 1575 }, { id: 21 }, { id: 31964 }
+        ];
       }
     } catch (fetchError) {
       console.error('Sitemap: Fetch error:', fetchError);
+      // Fallback on error
+      animes = [
+          { id: 52991 }, { id: 5114 }, { id: 40748 }, { id: 44511 }, { id: 11061 },
+          { id: 38000 }, { id: 31964 }, { id: 21 }, { id: 1535 }, { id: 30276 }
+      ];
     }
 
     // 3. Generate XML
