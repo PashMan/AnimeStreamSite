@@ -96,16 +96,25 @@ const Profile: React.FC = () => {
           db.getHistory(user.email)
         ]);
 
-        const [favData, watchedData, friendsData] = await Promise.all([
-          favIds.length > 0 ? fetchAnimes({ ids: favIds.join(','), limit: favIds.length }) : Promise.resolve([]),
-          watchedIds.length > 0 ? fetchAnimes({ ids: watchedIds.join(','), limit: watchedIds.length }) : Promise.resolve([]),
-          (user.friends && user.friends.length > 0) ? db.getFriendsList(user.friends) : Promise.resolve([])
-        ]);
-
-        setFavorites(favData.filter((a: Anime) => !!a));
-        setWatched(watchedData.filter((a: Anime) => !!a));
         setHistory(historyData);
-        setFriends(friendsData);
+        
+        // Load friends immediately
+        if (user.friends && user.friends.length > 0) {
+          db.getFriendsList(user.friends).then(setFriends).catch(console.error);
+        }
+
+        // Load anime data asynchronously to not block the UI
+        if (favIds.length > 0) {
+          fetchAnimes({ ids: favIds.join(','), limit: favIds.length })
+            .then(data => setFavorites(data.filter((a: Anime) => !!a)))
+            .catch(console.error);
+        }
+        
+        if (watchedIds.length > 0) {
+          fetchAnimes({ ids: watchedIds.join(','), limit: watchedIds.length })
+            .then(data => setWatched(data.filter((a: Anime) => !!a)))
+            .catch(console.error);
+        }
         
         // Sync state with user
         setEditName(user.name);

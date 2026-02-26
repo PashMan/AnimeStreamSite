@@ -19,26 +19,33 @@ const Social: React.FC = () => {
     const loadData = async () => {
       setIsLoadingFriends(true);
       try {
-        const [recentData, friendsData] = await Promise.all([
-          db.getRecentUsers(5),
-          user ? db.getFriendsList(user.friends || []) : Promise.resolve([])
-        ]);
+        // Load recent users immediately
+        db.getRecentUsers(5).then(recentData => {
+          let recent = recentData;
+          if (recent.length === 0) {
+              recent = [
+                  { id: 'mock1', name: 'Admin', email: 'admin@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', isPremium: true, episodesWatched: 1240, watchedTime: '500ч', bio: 'Создатель платформы' },
+                  { id: 'mock2', name: 'Otaku_King', email: 'king@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Otaku', isPremium: false, episodesWatched: 850, watchedTime: '300ч', bio: 'Люблю сёнены' },
+                  { id: 'mock3', name: 'AnimeGirl', email: 'girl@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Girl', isPremium: true, episodesWatched: 420, watchedTime: '150ч', bio: 'Смотрю только романтику' },
+              ];
+          }
+          setRecentUsers(recent.filter(u => u.email !== user?.email));
+        }).catch(console.error);
 
-        let recent = recentData;
-        // Fallback if DB is empty or fails (to avoid empty page)
-        if (recent.length === 0) {
-            recent = [
-                { id: 'mock1', name: 'Admin', email: 'admin@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', isPremium: true, episodesWatched: 1240, watchedTime: '500ч', bio: 'Создатель платформы' },
-                { id: 'mock2', name: 'Otaku_King', email: 'king@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Otaku', isPremium: false, episodesWatched: 850, watchedTime: '300ч', bio: 'Люблю сёнены' },
-                { id: 'mock3', name: 'AnimeGirl', email: 'girl@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Girl', isPremium: true, episodesWatched: 420, watchedTime: '150ч', bio: 'Смотрю только романтику' },
-            ];
+        // Load friends asynchronously
+        if (user && user.friends && user.friends.length > 0) {
+          db.getFriendsList(user.friends).then(friendsData => {
+            setFriends(friendsData);
+            setIsLoadingFriends(false);
+          }).catch(err => {
+            console.error(err);
+            setIsLoadingFriends(false);
+          });
+        } else {
+          setIsLoadingFriends(false);
         }
-
-        setRecentUsers(recent.filter(u => u.email !== user?.email));
-        setFriends(friendsData);
       } catch (e) {
         console.error('Failed to load social data', e);
-      } finally {
         setIsLoadingFriends(false);
       }
     };

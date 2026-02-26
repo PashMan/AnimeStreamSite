@@ -61,7 +61,9 @@ const Messages: React.FC = () => {
             setMessages(msgs);
             // Initial scroll to bottom
             setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+              if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+              }
             }, 100);
           }
         } catch (error) {
@@ -111,7 +113,9 @@ const Messages: React.FC = () => {
   const scrollToBottom = () => {
     // Small timeout to ensure DOM is updated
     setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
     }, 100);
   };
 
@@ -197,7 +201,8 @@ const Messages: React.FC = () => {
             </div>
 
             {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar flex flex-col">
+              <div className="flex-1"></div> {/* Spacer to push messages down if few */}
               {messages.map(msg => {
                 const isMe = msg.from === user.email;
                 const renderText = (text: string) => {
@@ -220,7 +225,7 @@ const Messages: React.FC = () => {
                   </div>
                 );
               })}
-              <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} className="h-1" />
             </div>
 
             {/* Input Area */}
