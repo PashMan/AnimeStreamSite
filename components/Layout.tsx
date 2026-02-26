@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { db } from '../services/db';
 import AuthModal from './AuthModal';
 import { fetchAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE } from '../constants';
@@ -36,7 +37,7 @@ export const Logo: React.FC<{ className?: string }> = ({ className }) => (
     <div className="w-10 h-10 bg-gradient-to-br from-[#8B5CF6] to-[#06B6D4] rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
     </div>
-    <div className="font-display text-[26px] font-black tracking-tight text-white leading-none hidden md:block">
+    <div className="font-display text-[26px] font-black tracking-normal text-white leading-none hidden md:block">
       Anime<span className="text-primary">Stream</span>
     </div>
   </div>
@@ -48,11 +49,25 @@ const Layout: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
   const { user, logout, openAuthModal } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
   const isActive = (path: string) => pathname === path;
+
+  useEffect(() => {
+    if (user?.email) {
+      const checkUnread = async () => {
+        const unread = await db.hasUnreadMessages(user.email);
+        setHasUnread(unread);
+      };
+      
+      checkUnread();
+      const interval = setInterval(checkUnread, 30000); // Check every 30s
+      return () => clearInterval(interval);
+    }
+  }, [user?.email]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -94,7 +109,7 @@ const Layout: React.FC = () => {
       
       <header className="fixed top-0 w-full z-50 bg-dark/80 backdrop-blur-2xl border-b border-white/5">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 gap-8">
+          <div className="flex items-center justify-between h-24 gap-8">
             <Link to="/" aria-label="AnimeStream Home" className="hover:opacity-90 transition-opacity">
               <Logo />
             </Link>
@@ -182,8 +197,9 @@ const Layout: React.FC = () => {
               {user && (
                 <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
                    <MessageSquareText className="w-5 h-5" />
-                   {/* Unread indicator - logic would need to be connected to real state */}
-                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                   {hasUnread && (
+                     <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                   )}
                 </Link>
               )}
               {user ? (

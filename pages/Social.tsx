@@ -34,7 +34,8 @@ const Social: React.FC = () => {
 
         // Load friends asynchronously
         if (user && user.friends && user.friends.length > 0) {
-          db.getFriendsList(user.friends).then(friendsData => {
+          // Limit initial load to 20 friends
+          db.getFriendsList(user.friends.slice(0, 20)).then(friendsData => {
             setFriends(friendsData);
             setIsLoadingFriends(false);
           }).catch(err => {

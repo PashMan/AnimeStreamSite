@@ -100,20 +100,34 @@ const Profile: React.FC = () => {
         
         // Load friends immediately
         if (user.friends && user.friends.length > 0) {
-          db.getFriendsList(user.friends).then(setFriends).catch(console.error);
+          // Use a smaller limit or fetch in background
+          db.getFriendsList(user.friends.slice(0, 20)).then(setFriends).catch(console.error);
         }
 
-        // Load anime data asynchronously to not block the UI
+        // Load anime data asynchronously in chunks to avoid large request failures
+        const loadInChunks = async (ids: string[], setter: (data: Anime[]) => void) => {
+          if (ids.length === 0) return;
+          const chunkSize = 20;
+          let allData: Anime[] = [];
+          
+          for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunk = ids.slice(i, i + chunkSize);
+            try {
+              const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length });
+              allData = [...allData, ...data.filter(a => !!a)];
+              setter([...allData]); // Update UI incrementally
+            } catch (e) {
+              console.error("Chunk load error", e);
+            }
+          }
+        };
+
         if (favIds.length > 0) {
-          fetchAnimes({ ids: favIds.join(','), limit: favIds.length })
-            .then(data => setFavorites(data.filter((a: Anime) => !!a)))
-            .catch(console.error);
+          loadInChunks(favIds, setFavorites);
         }
         
         if (watchedIds.length > 0) {
-          fetchAnimes({ ids: watchedIds.join(','), limit: watchedIds.length })
-            .then(data => setWatched(data.filter((a: Anime) => !!a)))
-            .catch(console.error);
+          loadInChunks(watchedIds, setWatched);
         }
         
         // Sync state with user

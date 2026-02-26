@@ -19,7 +19,6 @@ const Details: React.FC = () => {
   const { openAuthModal, user } = useAuth();
   const relatedRef = useRef<HTMLDivElement>(null);
   const similarRef = useRef<HTMLDivElement>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
   
   const [anime, setAnime] = useState<Anime | null>(null);
   const [related, setRelated] = useState<{ relation: string; anime: Anime }[]>([]);
@@ -40,8 +39,23 @@ const Details: React.FC = () => {
   const [isCommenting, setIsCommenting] = useState(false);
 
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  
+  // Share feature
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [friendsList, setFriendsList] = useState<any[]>([]);
+  const [isSharing, setIsSharing] = useState(false);
 
   const lastLoadedId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (user?.email && isShareModalOpen) {
+      db.getProfile(user.email).then(profile => {
+        if (profile?.friends && profile.friends.length > 0) {
+          db.getFriendsList(profile.friends).then(setFriendsList);
+        }
+      });
+    }
+  }, [user?.email, isShareModalOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -178,6 +192,21 @@ const Details: React.FC = () => {
     const newState = await db.toggleWatched(user.email, id!);
     setIsWatched(newState);
     setIsActionLoading(false);
+  };
+
+  const handleShareToFriend = async (friendEmail: string) => {
+    if (!user?.email || !anime) return;
+    setIsSharing(true);
+    try {
+      const animeUrl = window.location.href;
+      const message = `Привет! Посмотри это аниме: ${anime.title}\n${animeUrl}`;
+      await db.sendPrivateMessage(user.email, friendEmail, message);
+      alert('Ссылка отправлена другу!');
+    } catch (e) {
+      alert('Ошибка при отправке сообщения');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const handleAddComment = async (e: React.FormEvent) => {
@@ -322,6 +351,15 @@ const Details: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => {
+                    if (!user) { openAuthModal(); return; }
+                    setIsShareModalOpen(true);
+                  }}
+                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
+                >
+                  <Share2 className="w-4 h-4" /> ПОДЕЛИТЬСЯ С ДРУГОМ
+                </button>
+                <button 
+                  onClick={() => {
                     const url = window.location.href;
                     if (navigator.clipboard) {
                       navigator.clipboard.writeText(url);
@@ -330,7 +368,7 @@ const Details: React.FC = () => {
                   }}
                   className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
                 >
-                  <Share2 className="w-4 h-4" /> ПОДЕЛИТЬСЯ
+                  <Copy className="w-4 h-4" /> КОПИРОВАТЬ ССЫЛКУ
                 </button>
               </div>
 
@@ -526,6 +564,47 @@ const Details: React.FC = () => {
            </div>
         </div>
       </div>
+
+      {/* Share Modal */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <h3 className="text-lg font-black text-white uppercase tracking-widest">Поделиться с другом</h3>
+              <button onClick={() => setIsShareModalOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {friendsList.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <p className="text-sm font-bold uppercase tracking-widest">У вас пока нет друзей</p>
+                  <Link to="/community" className="text-primary hover:underline mt-2 inline-block text-xs">Найти друзей</Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {friendsList.map(friend => (
+                    <div key={friend.id} className="flex items-center justify-between bg-white/5 p-3 rounded-2xl hover:bg-white/10 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-xl object-cover" />
+                        <span className="font-bold text-white text-sm">{friend.name}</span>
+                      </div>
+                      <button 
+                        onClick={() => handleShareToFriend(friend.email)}
+                        disabled={isSharing}
+                        className="px-4 py-2 bg-primary hover:bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50"
+                      >
+                        Отправить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

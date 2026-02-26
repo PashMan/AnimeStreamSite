@@ -5,24 +5,15 @@ import AnimeCard from '../components/AnimeCard';
 import { fetchAnimes, GENRE_MAP } from '../services/shikimori';
 import { Anime } from '../types';
 import SEO from '../components/SEO';
-
-const COLLECTIONS_DATA: Record<string, { title: string; defaultGenre?: string; defaultOrder?: string }> = {
-  'super-power': { title: 'Аниме в жанре супер сила', defaultGenre: 'Супер сила' },
-  'friendship': { title: 'Аниме про дружбу' },
-  'coming-of-age': { title: 'Аниме про взросление' },
-  'parody': { title: 'Аниме пародии', defaultGenre: 'Пародия' },
-  'isekai': { title: 'Лучшие исекаи' },
-  'romance': { title: 'Романтика', defaultGenre: 'Романтика' },
-  'cyberpunk': { title: 'Киберпанк', defaultGenre: 'Киберпанк' },
-  'sports': { title: 'Спортивные аниме', defaultGenre: 'Спорт' },
-};
+import { COLLECTIONS_DATA } from '../constants';
 
 const CollectionDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const collection = id ? COLLECTIONS_DATA[id] : null;
+  const collection = id ? COLLECTIONS_DATA.find(c => c.id === id) : null;
 
   const [animeList, setAnimeList] = useState<Anime[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Filters state
   const [selectedType, setSelectedType] = useState('All');
@@ -39,25 +30,28 @@ const CollectionDetail: React.FC = () => {
 
   const handleSearch = async () => {
     setIsLoading(true);
+    setError(null);
     
     const params: any = { 
       limit: 20,
-      order: collection?.defaultOrder || 'popularity'
+      order: 'popularity'
     };
     
     if (selectedGenre !== 'All') params.genre = GENRE_MAP[selectedGenre];
     if (selectedStatus !== 'All') params.status = selectedStatus;
     if (selectedType !== 'All') params.kind = selectedType;
     
-    // Shikimori API doesn't perfectly support complex year/score ranges in simple endpoints,
-    // but we'll pass what we can or filter client-side if needed.
-    // For now, we'll just fetch based on genre/status/type.
-    
     try {
       const results = await fetchAnimes(params);
-      setAnimeList(results);
+      // If we got mock data but were expecting a specific genre, it's an error or empty
+      if (selectedGenre !== 'All' && results.length > 0 && results[0].id === "1") {
+         setAnimeList([]);
+      } else {
+         setAnimeList(results);
+      }
     } catch (error) {
       console.error("Failed to fetch collection", error);
+      setError("Не удалось загрузить подборку. Пожалуйста, попробуйте позже.");
     } finally {
       setIsLoading(false);
     }
@@ -209,6 +203,11 @@ const CollectionDetail: React.FC = () => {
         {/* Results Grid */}
         {isLoading ? (
           <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>
+        ) : error ? (
+          <div className="bg-surface/30 rounded-[2.5rem] p-20 text-center border border-white/5">
+            <h3 className="text-xl font-black text-red-500 uppercase mb-2">{error}</h3>
+            <button onClick={handleSearch} className="text-primary hover:underline font-bold">Попробовать снова</button>
+          </div>
         ) : animeList.length === 0 ? (
           <div className="bg-surface/30 rounded-[2.5rem] p-20 text-center border border-white/5">
             <h3 className="text-xl font-black text-white uppercase mb-2">Ничего не найдено</h3>

@@ -148,7 +148,7 @@ const Messages: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-dark pt-24 pb-20 flex flex-col md:flex-row h-[calc(100vh-80px)] max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-dark pt-24 pb-20 flex flex-col md:flex-row h-[calc(100vh-96px)] max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
       <SEO title="Сообщения - AnimeStream" />
       
       {/* Sidebar - Conversations List */}
