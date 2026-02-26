@@ -194,23 +194,25 @@ const Messages: React.FC = () => {
                    <span className="w-2 h-2 bg-green-500 rounded-full"></span> Онлайн
                 </div>
               </div>
-              <button 
-                onClick={handleCopyLink}
-                className="p-2 hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-white"
-                title="Скопировать ссылку на чат"
-              >
-                {isCopied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
-              </button>
             </div>
 
             {/* Messages List */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
               {messages.map(msg => {
                 const isMe = msg.from === user.email;
+                const renderText = (text: string) => {
+                  const urlRegex = /(https?:\/\/[^\s]+)/g;
+                  return text.split(urlRegex).map((part, i) => {
+                    if (part.match(urlRegex)) {
+                      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-white underline hover:text-white/80 break-all">{part}</a>;
+                    }
+                    return part;
+                  });
+                };
                 return (
                   <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-5 py-3 ${isMe ? 'bg-primary text-white rounded-tr-none' : 'bg-surface border border-white/10 text-slate-200 rounded-tl-none'}`}>
-                      <p className="text-sm leading-relaxed">{msg.text}</p>
+                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 ${isMe ? 'bg-primary text-white rounded-tr-none' : 'bg-surface border border-white/10 text-slate-200 rounded-tl-none'}`}>
+                      <p className="text-sm leading-relaxed break-words">{renderText(msg.text)}</p>
                       <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-white/70' : 'text-slate-500'}`}>
                         {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </div>

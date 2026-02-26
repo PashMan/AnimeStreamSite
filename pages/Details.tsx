@@ -188,56 +188,6 @@ const Details: React.FC = () => {
   }, [roomIdFromUrl]);
 
   useEffect(() => {
-    if (isWatchTogether && roomId && supabase) {
-      const channel = supabase.channel(`watch-${roomId}`, {
-        config: {
-          presence: {
-            key: currentUser.email,
-          },
-        },
-      });
-
-      channel
-        .on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState();
-          setWtUsers(Object.keys(state).length);
-        })
-        .on('broadcast', { event: 'chat' }, ({ payload }: { payload: any }) => {
-          setWtMessages(prev => [...prev, payload]);
-        })
-        .on('broadcast', { event: 'player_sync' }, ({ payload }: { payload: any }) => {
-          if (!iframeRef.current?.contentWindow) return;
-          isRemoteAction.current = true;
-          const win = iframeRef.current.contentWindow;
-          
-          if (payload.action === 'play') {
-            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
-            win.postMessage({ key: 'kodik_player_play' }, '*');
-          } else if (payload.action === 'pause') {
-            win.postMessage({ key: 'kodik_player_pause' }, '*');
-          } else if (payload.action === 'seek') {
-            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
-          }
-          
-          setTimeout(() => { isRemoteAction.current = false; }, 1000);
-        })
-        .subscribe(async (status: string) => {
-          if (status === 'SUBSCRIBED') {
-            await channel.track({
-              user: currentUser.name,
-              online_at: new Date().toISOString(),
-            });
-          }
-        });
-
-      channelRef.current = channel;
-      return () => {
-        channel.unsubscribe();
-      };
-    }
-  }, [isWatchTogether, roomId, currentUser.email]);
-
-  useEffect(() => {
     const handlePlayerMessage = (event: MessageEvent) => {
       if (!isWatchTogether || !channelRef.current || isRemoteAction.current) return;
       
@@ -245,7 +195,16 @@ const Details: React.FC = () => {
       if (typeof data !== 'object' || !data.key) return;
 
       if (data.key === 'kodik_player_time_update') {
-        lastTimeRef.current = data.value;
+        const currentTime = data.value;
+        // Detect manual seek: if time jumped more than 2 seconds
+        if (Math.abs(currentTime - lastTimeRef.current) > 2) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'player_sync',
+            payload: { action: 'seek', time: currentTime }
+          });
+        }
+        lastTimeRef.current = currentTime;
       } else if (data.key === 'kodik_player_play') {
         channelRef.current.send({
           type: 'broadcast',
@@ -264,6 +223,77 @@ const Details: React.FC = () => {
     window.addEventListener('message', handlePlayerMessage);
     return () => window.removeEventListener('message', handlePlayerMessage);
   }, [isWatchTogether]);
+
+  const requestSync = () => {
+    if (!channelRef.current) return;
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'request_sync',
+      payload: { from: currentUser.name }
+    });
+  };
+
+  useEffect(() => {
+    if (isWatchTogether && roomId && supabase) {
+      const channel = supabase.channel(`watch-${roomId}`, {
+        config: {
+          presence: {
+            key: currentUser.email,
+          },
+        },
+      });
+
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState();
+          setWtUsers(Object.keys(state).length);
+        })
+        .on('broadcast', { event: 'chat' }, ({ payload }: { payload: any }) => {
+          setWtMessages(prev => [...prev, payload]);
+        })
+        .on('broadcast', { event: 'request_sync' }, () => {
+          // If we are playing, broadcast our current state
+          if (channelRef.current) {
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'player_sync',
+              payload: { action: 'seek', time: lastTimeRef.current }
+            });
+          }
+        })
+        .on('broadcast', { event: 'player_sync' }, ({ payload }: { payload: any }) => {
+          if (!iframeRef.current?.contentWindow) return;
+          
+          isRemoteAction.current = true;
+          const win = iframeRef.current.contentWindow;
+          
+          if (payload.action === 'play') {
+            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
+            win.postMessage({ key: 'kodik_player_play' }, '*');
+          } else if (payload.action === 'pause') {
+            win.postMessage({ key: 'kodik_player_pause' }, '*');
+          } else if (payload.action === 'seek') {
+            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
+          }
+          
+          // Shorter lockout to remain responsive
+          setTimeout(() => { isRemoteAction.current = false; }, 500);
+        })
+        .subscribe(async (status: string) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({
+              user: currentUser.name,
+              online_at: new Date().toISOString(),
+            });
+          }
+        });
+
+      channelRef.current = channel;
+      return () => {
+        channel.unsubscribe();
+      };
+    }
+  }, [isWatchTogether, roomId, currentUser.email]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -618,13 +648,23 @@ const Details: React.FC = () => {
                   
                   <div className="flex flex-wrap items-center gap-3">
                     {isWatchTogether && (
-                      <button 
-                        onClick={handleOpenInviteModal}
-                        className="px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl bg-white/10 text-white hover:bg-white/20 border border-white/10"
-                      >
-                        <Users className="w-4 h-4" />
-                        ПРИГЛАСИТЬ ДРУГА
-                      </button>
+                      <>
+                        <button 
+                          onClick={requestSync}
+                          className="px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                          title="Синхронизировать плеер с другими участниками"
+                        >
+                          <Forward className="w-4 h-4" />
+                          СИНХРОНИЗИРОВАТЬ
+                        </button>
+                        <button 
+                          onClick={handleOpenInviteModal}
+                          className="px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-xl bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                        >
+                          <Users className="w-4 h-4" />
+                          ПРИГЛАСИТЬ ДРУГА
+                        </button>
+                      </>
                     )}
                     <button 
                       onClick={toggleWatchTogether}

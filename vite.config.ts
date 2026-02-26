@@ -56,9 +56,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'react-vendor': ['react', 'react-dom', 'react-router-dom', 'react-helmet-async'],
           'ui-vendor': ['lucide-react'],
-          'supabase': ['@supabase/supabase-js'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+          'markdown-vendor': ['react-markdown', 'rehype-raw', 'remark-gfm'],
         }
       }
     }

@@ -687,7 +687,7 @@ class DatabaseService {
   async createWatchRoom(roomId: string, animeId: string, hostName: string) {
     if (!this.isSupabaseAvailable()) return;
     try {
-      await supabaseClient.from('watch_rooms').insert([{ id: roomId, anime_id: animeId, host_name: hostName }]);
+      await supabaseClient.from('watch_rooms').upsert([{ id: roomId, anime_id: animeId, host_name: hostName }], { onConflict: 'id' });
     } catch (e) {
       console.error('Error creating room:', e);
     }
