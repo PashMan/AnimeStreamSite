@@ -97,19 +97,13 @@ const Profile: React.FC = () => {
         ]);
 
         if (favIds.length > 0) {
-          const data = await Promise.all(favIds.map(async (id: string) => {
-            const res = await fetchAnimes({ ids: id, limit: 1 });
-            return res[0];
-          }));
+          const data = await fetchAnimes({ ids: favIds.join(','), limit: favIds.length });
           setFavorites(data.filter((a: Anime) => !!a));
         } else setFavorites([]);
 
         if (watchedIds.length > 0) {
-            const data = await Promise.all(watchedIds.map(async (id: string) => {
-              const res = await fetchAnimes({ ids: id, limit: 1 });
-              return res[0];
-            }));
-            setWatched(data.filter((a: Anime) => !!a));
+          const data = await fetchAnimes({ ids: watchedIds.join(','), limit: watchedIds.length });
+          setWatched(data.filter((a: Anime) => !!a));
         } else setWatched([]);
 
         setHistory(historyData);

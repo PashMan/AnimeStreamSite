@@ -8,23 +8,30 @@ import { fetchAnimes, GENRE_MAP } from '../services/shikimori';
 const Collections: React.FC = () => {
   const [collectionsWithImages, setCollectionsWithImages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(6);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
     
     const loadImages = async () => {
       setIsLoading(true);
-      const updatedCollections = await Promise.all(COLLECTIONS_DATA.map(async (collection) => {
+      // Only process the first batch or all if they are already processed
+      const collectionsToProcess = COLLECTIONS_DATA.slice(0, visibleCount);
+      
+      const updatedCollections = await Promise.all(collectionsToProcess.map(async (collection) => {
         try {
           const params: any = { limit: 1, order: 'popularity' };
           if (collection.defaultGenre) {
             params.genre = GENRE_MAP[collection.defaultGenre];
           }
           const results = await fetchAnimes(params);
+          if (results.length === 0) return null; // Filter empty
+
           return {
             ...collection,
-            image: results.length > 0 ? results[0].image : FALLBACK_IMAGE,
-            count: results.length > 0 ? '100+' : '0'
+            image: results[0].image,
+            count: '100+'
           };
         } catch (e) {
           return { ...collection, image: FALLBACK_IMAGE, count: '100+' };
@@ -32,7 +39,9 @@ const Collections: React.FC = () => {
       }));
       
       if (isMounted) {
-        setCollectionsWithImages(updatedCollections);
+        const filtered = updatedCollections.filter(Boolean);
+        setCollectionsWithImages(filtered);
+        setHasMore(visibleCount < COLLECTIONS_DATA.length);
         setIsLoading(false);
       }
     };
@@ -42,7 +51,11 @@ const Collections: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [visibleCount]);
+
+  const loadMore = () => {
+    setVisibleCount(prev => prev + 6);
+  };
 
   return (
     <div className="min-h-screen bg-dark pt-24 pb-20 animate-in fade-in duration-700">
@@ -66,22 +79,33 @@ const Collections: React.FC = () => {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-20"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {collectionsWithImages.map(collection => (
-              <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-56 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
-                <img src={collection.image} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
-                <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
-                  <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
-                    {collection.count}
-                  </div>
-                  <h3 className="text-white font-bold text-xl leading-tight drop-shadow-lg">{collection.title}</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {collectionsWithImages.map(collection => (
+            <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-56 rounded-3xl overflow-hidden block shadow-xl border border-white/5 animate-in fade-in zoom-in duration-500">
+              <img src={collection.image} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+              <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
+              <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
+                <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
+                  {collection.count}
                 </div>
-              </Link>
-            ))}
+                <h3 className="text-white font-bold text-xl leading-tight drop-shadow-lg">{collection.title}</h3>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {isLoading && (
+          <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
+        )}
+
+        {!isLoading && hasMore && (
+          <div className="flex justify-center mt-12">
+            <button 
+              onClick={loadMore}
+              className="px-12 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
+            >
+              Загрузить еще
+            </button>
           </div>
         )}
       </div>

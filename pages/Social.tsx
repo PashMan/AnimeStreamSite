@@ -17,27 +17,28 @@ const Social: React.FC = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      // Load recent users for everyone
-      let recent = await db.getRecentUsers(5);
-      
-      // Fallback if DB is empty or fails (to avoid empty page)
-      if (recent.length === 0) {
-          recent = [
-              { id: 'mock1', name: 'Admin', email: 'admin@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', isPremium: true, episodesWatched: 1240, watchedTime: '500ч', bio: 'Создатель платформы' },
-              { id: 'mock2', name: 'Otaku_King', email: 'king@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Otaku', isPremium: false, episodesWatched: 850, watchedTime: '300ч', bio: 'Люблю сёнены' },
-              { id: 'mock3', name: 'AnimeGirl', email: 'girl@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Girl', isPremium: true, episodesWatched: 420, watchedTime: '150ч', bio: 'Смотрю только романтику' },
-          ];
-      }
+      setIsLoadingFriends(true);
+      try {
+        const [recentData, friendsData] = await Promise.all([
+          db.getRecentUsers(5),
+          user ? db.getFriendsList(user.friends || []) : Promise.resolve([])
+        ]);
 
-      setRecentUsers(recent.filter(u => u.email !== user?.email));
+        let recent = recentData;
+        // Fallback if DB is empty or fails (to avoid empty page)
+        if (recent.length === 0) {
+            recent = [
+                { id: 'mock1', name: 'Admin', email: 'admin@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', isPremium: true, episodesWatched: 1240, watchedTime: '500ч', bio: 'Создатель платформы' },
+                { id: 'mock2', name: 'Otaku_King', email: 'king@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Otaku', isPremium: false, episodesWatched: 850, watchedTime: '300ч', bio: 'Люблю сёнены' },
+                { id: 'mock3', name: 'AnimeGirl', email: 'girl@example.com', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Girl', isPremium: true, episodesWatched: 420, watchedTime: '150ч', bio: 'Смотрю только романтику' },
+            ];
+        }
 
-      if (user) {
-        setIsLoadingFriends(true);
-        // Ensure we pass an array, even if user.friends is undefined
-        const data = await db.getFriendsList(user.friends || []);
-        setFriends(data);
-        setIsLoadingFriends(false);
-      } else {
+        setRecentUsers(recent.filter(u => u.email !== user?.email));
+        setFriends(friendsData);
+      } catch (e) {
+        console.error('Failed to load social data', e);
+      } finally {
         setIsLoadingFriends(false);
       }
     };

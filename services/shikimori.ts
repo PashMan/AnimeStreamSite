@@ -318,6 +318,18 @@ export const mapAnime = async (data: any): Promise<Anime> => {
 export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue = false): Promise<Anime[]> => {
   try {
     const cleanParams: any = { limit: '20', order: 'popularity', censored: 'true' };
+    
+    // If censored is true, we also want to exclude R+ and Rx ratings to be safe
+    if (cleanParams.censored === 'true') {
+      cleanParams.rating = 'g,pg,pg_13,r'; // Exclude r_plus, rx
+      // Also exclude Ecchi genre (ID 9)
+      if (cleanParams.exclude_genres) {
+        cleanParams.exclude_genres += ',9';
+      } else {
+        cleanParams.exclude_genres = '9';
+      }
+    }
+
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') {
         cleanParams[k] = k === 'genre' && GENRE_MAP[v] ? GENRE_MAP[v] : v;

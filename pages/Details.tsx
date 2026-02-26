@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon } from 'lucide-react';
+import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon, Copy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE as PLACEHOLDER_IMAGE, MOCK_ANIME } from '../constants';
@@ -49,6 +49,15 @@ const Details: React.FC = () => {
   const [copySuccess, setCopySuccess] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [friendsList, setFriendsList] = useState<any[]>([]);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const roomLink = `${window.location.origin}/anime/${id}?room=${user?.email}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(roomLink);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
   const channelRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const lastTimeRef = useRef<number>(0);
@@ -606,7 +615,30 @@ const Details: React.FC = () => {
                         <span className="text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-2">
                           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> Чат комнаты
                         </span>
-                        <button aria-label="Close chat" onClick={() => setIsWatchTogether(false)} className="text-slate-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={handleCopyLink}
+                            className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white flex items-center gap-2"
+                            title="Скопировать ссылку"
+                          >
+                            {isCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                          <button aria-label="Close chat" onClick={() => setIsWatchTogether(false)} className="text-slate-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                      
+                      <div className="p-3 bg-black/40 border-b border-white/5">
+                        <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Ссылка на комнату:</p>
+                        <div className="flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-white/5">
+                          <input 
+                            readOnly 
+                            value={roomLink} 
+                            className="bg-transparent text-[10px] text-slate-300 flex-1 outline-none truncate"
+                          />
+                          <button onClick={handleCopyLink} className="text-primary hover:text-white transition-colors">
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar">

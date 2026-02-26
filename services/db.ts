@@ -755,16 +755,27 @@ class DatabaseService {
         else threadEmails.add(m.from_email);
       });
 
-      const results = await Promise.all(Array.from(threadEmails).map(async tEmail => {
-        const { data: u } = await supabaseClient.from('profiles').select('name, avatar').eq('email', tEmail).single();
+      const threadEmailsArray = Array.from(threadEmails);
+      if (threadEmailsArray.length === 0) return [];
+
+      // Fetch all profiles at once
+      const { data: profiles } = await supabaseClient
+        .from('profiles')
+        .select('email, name, avatar')
+        .in('email', threadEmailsArray);
+
+      const profileMap = new Map<string, any>(profiles?.map((p: any) => [p.email, p]) || []);
+
+      const results = threadEmailsArray.map(tEmail => {
+        const u = profileMap.get(tEmail);
         const lastMsg = messages.find((m: any) => (m.from_email === email && m.to_email === tEmail) || (m.from_email === tEmail && m.to_email === email));
         return {
           email: tEmail,
-          name: u?.name || 'Unknown',
-          avatar: u?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${tEmail}`,
+          name: (u as any)?.name || 'Unknown',
+          avatar: (u as any)?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${tEmail}`,
           lastText: lastMsg?.text || ''
         };
-      }));
+      });
 
       return results;
     } catch (e) {
