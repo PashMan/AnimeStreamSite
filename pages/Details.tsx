@@ -150,7 +150,8 @@ const Details: React.FC = () => {
 
   const toggleWatchTogether = async () => {
     if (!isWatchTogether) {
-      const newRoomId = user?.email || Math.random().toString(36).substring(2, 10);
+      // Generate a unique room ID to avoid conflicts and keep emails private
+      const newRoomId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       await db.createWatchRoom(newRoomId, id!, currentUser.name);
       
       const newUrl = new URL(window.location.href);
