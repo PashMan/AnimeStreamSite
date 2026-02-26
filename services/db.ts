@@ -89,11 +89,18 @@ class DatabaseService {
       return this.mapProfileToUser(data);
   }
 
+  private translateError(message: string): string {
+    if (message.includes('User already registered')) return 'Пользователь с таким email уже зарегистрирован';
+    if (message.includes('database error saving new user')) return 'Этот email уже занят или произошла ошибка базы данных';
+    if (message.includes('Invalid login credentials')) return 'Неверный email или пароль';
+    if (message.includes('Email not confirmed')) return 'Email не подтвержден';
+    return message;
+  }
+
   async register(data: { name: string; email: string; password: string }): Promise<{ user: User | null, message?: string }> {
-    if (!this.isSupabaseAvailable()) return { user: null, message: 'Database unavailable' };
+    if (!this.isSupabaseAvailable()) return { user: null, message: 'База данных недоступна' };
     try {
       // 1. Sign up with Supabase Auth
-      // The trigger 'on_auth_user_created' will handle profile creation
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
         email: data.email,
         password: data.password,
@@ -107,7 +114,7 @@ class DatabaseService {
 
       if (authError) {
         console.error('Supabase Auth Register Error:', authError.message);
-        return { user: null, message: authError.message };
+        return { user: null, message: this.translateError(authError.message) };
       }
 
       if (authData.user && !authData.session) {
@@ -578,13 +585,13 @@ class DatabaseService {
     }
   }
 
-  async getFriendsList(friendIds: string[]): Promise<User[]> {
-    if (!this.isSupabaseAvailable() || !friendIds || friendIds.length === 0) return [];
+  async getFriendsList(friendEmails: string[]): Promise<User[]> {
+    if (!this.isSupabaseAvailable() || !friendEmails || friendEmails.length === 0) return [];
     try {
       const { data } = await supabaseClient
         .from('profiles')
         .select('*')
-        .in('id', friendIds);
+        .in('email', friendEmails);
       
       return data?.map((p: any) => this.mapProfileToUser(p)) || [];
     } catch (e) {
