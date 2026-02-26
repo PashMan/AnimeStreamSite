@@ -4,13 +4,23 @@ import { Sparkles } from 'lucide-react';
 import SEO from '../components/SEO';
 import { COLLECTIONS_DATA } from '../constants';
 
+// List of collections known to be empty or problematic to hide from the main list
+const HIDDEN_COLLECTIONS = [
+  'isekai', 'magic', 'urban-fantasy', 'villainess', 
+  'cgdct', 'anthropomorphism'
+];
+
 const Collections: React.FC = () => {
   const [visibleCount, setVisibleCount] = useState(12);
-  const collectionsWithImages = COLLECTIONS_DATA.slice(0, visibleCount);
-  const hasMore = visibleCount < COLLECTIONS_DATA.length;
+  
+  // Filter out hidden collections
+  const validCollections = COLLECTIONS_DATA.filter(c => !HIDDEN_COLLECTIONS.includes(c.id));
+  
+  const collectionsWithImages = validCollections.slice(0, visibleCount);
+  const hasMore = visibleCount < validCollections.length;
 
   const loadMore = () => {
-    setVisibleCount(prev => Math.min(prev + 12, COLLECTIONS_DATA.length));
+    setVisibleCount(prev => Math.min(prev + 12, validCollections.length));
   };
 
   return (

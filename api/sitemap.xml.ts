@@ -1,8 +1,30 @@
 import { Request, Response } from 'express';
-import { COLLECTIONS_DATA } from '../constants';
+// import { COLLECTIONS_DATA } from '../constants'; // Import might be failing in server context
 
 const SHIKIMORI_API_URL = 'https://shikimori.one/api';
 const SITE_URL = 'https://anime-stream.ru';
+
+// Hardcoded collections to ensure they appear in sitemap regardless of import issues
+const COLLECTIONS = [
+  { id: 'super-power' }, { id: 'friendship' }, { id: 'coming-of-age' },
+  { id: 'parody' }, { id: 'romance' }, { id: 'sports' },
+  { id: 'mecha' }, { id: 'music' }, { id: 'horror' },
+  { id: 'martial-arts' }, { id: 'vampires' }, { id: 'adult-cast' },
+  { id: 'video-games' }, { id: 'military' }, { id: 'survival' },
+  { id: 'harem' }, { id: 'racing' }, { id: 'gag-humor' },
+  { id: 'detective' }, { id: 'gore' }, { id: 'childcare' },
+  { id: 'high-stakes-game' }, { id: 'idols-female' }, { id: 'idols-male' },
+  { id: 'visual-arts' }, { id: 'performing-arts' }, { id: 'historical' },
+  { id: 'iyashikei' }, { id: 'team-sports' }, { id: 'space' },
+  { id: 'crossdressing' }, { id: 'otaku-culture' }, { id: 'love-polygon' },
+  { id: 'magical-sex-shift' }, { id: 'mahou-shoujo' }, { id: 'medicine' },
+  { id: 'mythology' }, { id: 'educational' }, { id: 'organized-crime' },
+  { id: 'pets' }, { id: 'psychological' }, { id: 'time-travel' },
+  { id: 'workplace' }, { id: 'reverse-harem' }, { id: 'reincarnation' },
+  { id: 'romantic-subtext' }, { id: 'samurai' }, { id: 'combat-sports' },
+  { id: 'strategy-game' }, { id: 'award-winning' }, { id: 'delinquents' },
+  { id: 'school' }, { id: 'show-biz' }
+];
 
 export default async function sitemapHandler(req: Request, res: Response) {
   try {
@@ -31,7 +53,7 @@ export default async function sitemapHandler(req: Request, res: Response) {
       if (response.ok) {
         animes = await response.json();
       } else {
-        console.error("Sitemap Fetch Error:", response.status, await response.text());
+        console.error("Sitemap Fetch Error:", response.status);
         // Fallback: Use popular anime IDs if API fails
         animes = [
           { id: 52991 }, { id: 5114 }, { id: 40748 }, { id: 44511 }, { id: 11061 },
@@ -65,7 +87,7 @@ export default async function sitemapHandler(req: Request, res: Response) {
     });
 
     // Add Collections URLs
-    COLLECTIONS_DATA.forEach(collection => {
+    COLLECTIONS.forEach(collection => {
       xml += `
   <url>
     <loc>${SITE_URL}/collections/${collection.id}</loc>

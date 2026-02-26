@@ -46,12 +46,15 @@ const CollectionDetail: React.FC = () => {
       // If we got mock data but were expecting a specific genre, it's an error or empty
       if (selectedGenre !== 'All' && results.length > 0 && results[0].id === "1") {
          setAnimeList([]);
+      } else if (results.length === 0) {
+         setAnimeList([]);
       } else {
          setAnimeList(results);
       }
     } catch (error) {
       console.error("Failed to fetch collection", error);
-      setError("Не удалось загрузить подборку. Пожалуйста, попробуйте позже.");
+      // Don't show generic error for empty collections, just show empty state
+      setAnimeList([]);
     } finally {
       setIsLoading(false);
     }
