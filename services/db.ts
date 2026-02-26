@@ -603,10 +603,26 @@ class DatabaseService {
       const ids = friendIdentifiers.filter(Boolean);
       if (ids.length === 0) return [];
 
-      const { data } = await supabaseClient
+      // Separate UUIDs and emails to avoid Postgres type mismatch errors
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuids = ids.filter(id => uuidRegex.test(id));
+      const emails = ids.filter(id => id.includes('@'));
+
+      const orParts = [];
+      if (uuids.length > 0) orParts.push(`id.in.("${uuids.join('","')}")`);
+      if (emails.length > 0) orParts.push(`email.in.("${emails.join('","')}")`);
+
+      if (orParts.length === 0) return [];
+
+      const { data, error } = await supabaseClient
         .from('profiles')
         .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
-        .or(`email.in.("${ids.join('","')}"),id.in.("${ids.join('","')}")`);
+        .or(orParts.join(','));
+      
+      if (error) {
+        console.error('getFriendsList Supabase error:', error);
+        return [];
+      }
       
       return data?.map((p: any) => this.mapProfileToUser(p)) || [];
     } catch (e) {

@@ -9,15 +9,18 @@ export default async function sitemapHandler(req: Request, res: Response) {
     const staticUrls = [
       '/',
       '/catalog',
+      '/collections',
       '/news',
-      '/forum'
+      '/forum',
+      '/social',
+      '/premium'
     ];
 
     let animes: any[] = [];
 
     try {
-      // 2. Fetch Top Anime from Shikimori (Real-time)
-      const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
+      // 2. Fetch Top Anime from Shikimori by Rating (Real-time)
+      const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=ranked`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
           'Accept': 'application/json'

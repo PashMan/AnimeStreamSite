@@ -50,12 +50,25 @@ const Messages: React.FC = () => {
     const loadTarget = async () => {
       if (targetEmail && user) {
         setIsLoading(true);
-        const profile = await db.getProfile(targetEmail);
-        if (profile) {
+        try {
+          const [profile, msgs] = await Promise.all([
+            db.getProfile(targetEmail),
+            db.getPrivateMessages(user.email, targetEmail)
+          ]);
+          
+          if (profile) {
             setTargetUser(profile);
-            loadMessages(profile.email);
+            setMessages(msgs);
+            // Initial scroll to bottom
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+            }, 100);
+          }
+        } catch (error) {
+          console.error('Failed to load chat target', error);
+        } finally {
+          setIsLoading(false);
         }
-        setIsLoading(false);
       } else {
         setTargetUser(null);
       }

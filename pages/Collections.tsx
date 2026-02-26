@@ -23,16 +23,18 @@ const Collections: React.FC = () => {
     while (newItems.length < batchSize && currentIndex < COLLECTIONS_DATA.length) {
       const collection = COLLECTIONS_DATA[currentIndex];
       try {
-        const params: any = { limit: 1, order: 'popularity' };
+        const params: any = { limit: 2, order: 'popularity' };
         if (collection.defaultGenre) {
           params.genre = GENRE_MAP[collection.defaultGenre];
         }
         const results = await fetchAnimes(params);
         
         if (results.length > 0) {
+          // Use the second anime's image if available, otherwise the first
+          const displayImage = results.length > 1 ? results[1].image : results[0].image;
           newItems.push({
             ...collection,
-            image: results[0].image,
+            image: displayImage,
             count: '100+'
           });
         }
