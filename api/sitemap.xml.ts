@@ -1,8 +1,18 @@
 import { Request, Response } from 'express';
-// import { COLLECTIONS_DATA } from '../constants'; // Import might be failing in server context
 
 const SHIKIMORI_API_URL = 'https://shikimori.one/api';
 const SITE_URL = 'https://anime-stream.ru';
+
+// Helper for slug generation (same as in shikimori.ts)
+const slugify = (text: string): string => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')     // Replace spaces with -
+    .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+    .replace(/\-\-+/g, '-');  // Replace multiple - with single -
+};
 
 // Hardcoded collections to ensure they appear in sitemap regardless of import issues
 const COLLECTIONS = [
@@ -28,6 +38,8 @@ const COLLECTIONS = [
 
 export default async function sitemapHandler(req: Request, res: Response) {
   try {
+    const today = new Date().toISOString();
+
     // 1. Static URLs
     const staticUrls = [
       '/',
@@ -57,18 +69,19 @@ export default async function sitemapHandler(req: Request, res: Response) {
         console.error("Sitemap Fetch Error:", response.status);
         // Fallback: Use popular anime IDs if API fails
         animes = [
-          { id: 52991 }, { id: 5114 }, { id: 40748 }, { id: 44511 }, { id: 11061 },
-          { id: 38000 }, { id: 31964 }, { id: 21 }, { id: 1535 }, { id: 30276 },
-          { id: 16498 }, { id: 20 }, { id: 19815 }, { id: 40028 }, { id: 32281 },
-          { id: 9253 }, { id: 5114 }, { id: 1575 }, { id: 21 }, { id: 31964 }
+          { id: 52991, name: 'Sousou no Frieren', updated_at: today }, 
+          { id: 5114, name: 'Fullmetal Alchemist: Brotherhood', updated_at: today }, 
+          { id: 40748, name: 'Jujutsu Kaisen', updated_at: today },
+          { id: 44511, name: 'Chainsaw Man', updated_at: today },
+          { id: 11061, name: 'Hunter x Hunter', updated_at: today }
         ];
       }
     } catch (fetchError) {
       console.error('Sitemap: Fetch error:', fetchError);
       // Fallback on error
       animes = [
-          { id: 52991 }, { id: 5114 }, { id: 40748 }, { id: 44511 }, { id: 11061 },
-          { id: 38000 }, { id: 31964 }, { id: 21 }, { id: 1535 }, { id: 30276 }
+          { id: 52991, name: 'Sousou no Frieren', updated_at: today }, 
+          { id: 5114, name: 'Fullmetal Alchemist: Brotherhood', updated_at: today }
       ];
     }
 
@@ -82,6 +95,7 @@ export default async function sitemapHandler(req: Request, res: Response) {
       xml += `
   <url>
     <loc>${SITE_URL}${url === '/' ? '' : url}</loc>
+    <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
     <priority>${priority}</priority>
   </url>`;
@@ -92,17 +106,22 @@ export default async function sitemapHandler(req: Request, res: Response) {
       xml += `
   <url>
     <loc>${SITE_URL}/collections/${collection.id}</loc>
+    <lastmod>${today}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>`;
     });
 
-    // Add Anime URLs
+    // Add Anime URLs with Slugs
     if (Array.isArray(animes)) {
       animes.forEach((anime: any) => {
+        const slug = slugify(anime.name || anime.russian || 'anime');
+        const lastmod = anime.updated_at ? new Date(anime.updated_at).toISOString() : today;
+        
         xml += `
   <url>
-    <loc>${SITE_URL}/anime/${anime.id}</loc>
+    <loc>${SITE_URL}/anime/${anime.id}-${slug}</loc>
+    <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`;
