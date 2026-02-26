@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(1, 500); // 1 concurrent, 500ms delay to avoid 429 Rate Limit
+const requestQueue = new RequestQueue(3, 200); // 3 concurrent, 200ms delay to balance speed and 429 Rate Limit
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
@@ -317,18 +317,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
 
 export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue = false): Promise<Anime[]> => {
   try {
-    const cleanParams: any = { limit: '20', order: 'popularity', censored: 'true' };
-    
-    // If censored is true, we also want to exclude R+ and Rx ratings to be safe
-    if (cleanParams.censored === 'true') {
-      cleanParams.rating = 'g,pg,pg_13,r'; // Exclude r_plus, rx
-      // Also exclude Ecchi genre (ID 9)
-      if (cleanParams.exclude_genres) {
-        cleanParams.exclude_genres += ',9';
-      } else {
-        cleanParams.exclude_genres = '9';
-      }
-    }
+    const cleanParams: any = { limit: '20', order: 'popularity' };
 
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') {
@@ -339,14 +328,14 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
     
     const data = await fetchApi(`/animes?${query}`, 2, CACHE_TTL, bypassQueue);
     
-    if (!data) return MOCK_ANIME;
+    if (!data) return params.genre ? [] : MOCK_ANIME;
     if (Array.isArray(data)) {
         return Promise.all(data.map(mapAnime));
     }
-    return MOCK_ANIME;
+    return params.genre ? [] : MOCK_ANIME;
   } catch (e) {
     console.error("fetchAnimes error:", e);
-    return MOCK_ANIME;
+    return params.genre ? [] : MOCK_ANIME;
   }
 };
 

@@ -1,71 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import SEO from '../components/SEO';
-import { FALLBACK_IMAGE, COLLECTIONS_DATA } from '../constants';
-import { fetchAnimes, GENRE_MAP } from '../services/shikimori';
+import { COLLECTIONS_DATA } from '../constants';
 
 const Collections: React.FC = () => {
-  const [collectionsWithImages, setCollectionsWithImages] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastIndex, setLastIndex] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(12);
+  const collectionsWithImages = COLLECTIONS_DATA.slice(0, visibleCount);
+  const hasMore = visibleCount < COLLECTIONS_DATA.length;
 
-  const loadMore = async () => {
-    if (isLoading || !hasMore) return;
-    setIsLoading(true);
-
-    const batchSize = 6;
-    const newItems: any[] = [];
-    let currentIndex = lastIndex;
-
-    // Keep searching until we find batchSize valid items or reach the end
-    while (newItems.length < batchSize && currentIndex < COLLECTIONS_DATA.length) {
-      // Check if component is still mounted
-      if (!mountedRef.current) break;
-      
-      const collection = COLLECTIONS_DATA[currentIndex];
-      try {
-        const params: any = { limit: 2, order: 'popularity' };
-        if (collection.defaultGenre) {
-          params.genre = GENRE_MAP[collection.defaultGenre];
-        }
-        const results = await fetchAnimes(params);
-        
-        if (results.length > 0) {
-          // Use the second anime's image if available, otherwise the first
-          const displayImage = results.length > 1 ? results[1].image : results[0].image;
-          newItems.push({
-            ...collection,
-            image: displayImage,
-            count: '100+'
-          });
-        }
-        
-        // Add a delay to avoid hitting Shikimori rate limits (5 req/sec, 90 req/min)
-        await new Promise(resolve => setTimeout(resolve, 800));
-      } catch (e) {
-        console.error('Error loading collection:', collection.title, e);
-      }
-      currentIndex++;
-    }
-
-    if (mountedRef.current) {
-      setCollectionsWithImages(prev => [...prev, ...newItems]);
-      setLastIndex(currentIndex);
-      setHasMore(currentIndex < COLLECTIONS_DATA.length);
-      setIsLoading(false);
-    }
+  const loadMore = () => {
+    setVisibleCount(prev => Math.min(prev + 12, COLLECTIONS_DATA.length));
   };
-
-  const mountedRef = React.useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    loadMore();
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   return (
     <div className="min-h-screen bg-dark pt-24 pb-20 animate-in fade-in duration-700">
@@ -104,11 +50,7 @@ const Collections: React.FC = () => {
           ))}
         </div>
 
-        {isLoading && (
-          <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
-        )}
-
-        {!isLoading && hasMore && (
+        {hasMore && (
           <div className="flex justify-center mt-12">
             <button 
               onClick={loadMore}

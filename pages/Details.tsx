@@ -276,13 +276,13 @@ const Details: React.FC = () => {
           
           if (payload.action === 'play') {
             lastTimeRef.current = payload.time;
-            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
-            win.postMessage({ key: 'kodik_player_play' }, '*');
+            win.postMessage({ key: 'kodik_player_api', value: { api_name: 'seek', seconds: payload.time } }, '*');
+            win.postMessage({ key: 'kodik_player_api', value: { api_name: 'play' } }, '*');
           } else if (payload.action === 'pause') {
-            win.postMessage({ key: 'kodik_player_pause' }, '*');
+            win.postMessage({ key: 'kodik_player_api', value: { api_name: 'pause' } }, '*');
           } else if (payload.action === 'seek') {
             lastTimeRef.current = payload.time;
-            win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
+            win.postMessage({ key: 'kodik_player_api', value: { api_name: 'seek', seconds: payload.time } }, '*');
           }
           
           // Shorter lockout to remain responsive

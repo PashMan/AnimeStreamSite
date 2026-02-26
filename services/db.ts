@@ -614,23 +614,42 @@ class DatabaseService {
       const uuids = ids.filter(id => uuidRegex.test(id));
       const emails = ids.filter(id => id.includes('@'));
 
-      const orParts = [];
-      if (uuids.length > 0) orParts.push(`id.in.("${uuids.join('","')}")`);
-      if (emails.length > 0) orParts.push(`email.in.("${emails.join('","')}")`);
+      const promises = [];
 
-      if (orParts.length === 0) return [];
-
-      const { data, error } = await supabaseClient
-        .from('profiles')
-        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
-        .or(orParts.join(','));
-      
-      if (error) {
-        console.error('getFriendsList Supabase error:', error);
-        return [];
+      if (uuids.length > 0) {
+        promises.push(
+          supabaseClient
+            .from('profiles')
+            .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
+            .in('id', uuids)
+        );
       }
+
+      if (emails.length > 0) {
+        promises.push(
+          supabaseClient
+            .from('profiles')
+            .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
+            .in('email', emails)
+        );
+      }
+
+      if (promises.length === 0) return [];
+
+      const results = await Promise.all(promises);
       
-      return data?.map((p: any) => this.mapProfileToUser(p)) || [];
+      const allData = results.flatMap(res => {
+        if (res.error) {
+          console.error('getFriendsList Supabase error:', res.error);
+          return [];
+        }
+        return res.data || [];
+      });
+
+      // Remove duplicates just in case
+      const uniqueData = Array.from(new Map(allData.map(item => [item.id, item])).values());
+      
+      return uniqueData.map((p: any) => this.mapProfileToUser(p));
     } catch (e) {
       console.error('getFriendsList error:', e);
       return [];
