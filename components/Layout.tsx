@@ -315,6 +315,8 @@ const Layout: React.FC = () => {
               <ul className="space-y-4 text-[13px] font-bold">
                 <li><Link to="/catalog" className="hover:text-primary transition-colors">Весь каталог</Link></li>
                 <li><Link to="/news" className="hover:text-primary transition-colors">Последние новости</Link></li>
+                <li><Link to="/forum" className="hover:text-primary transition-colors">Форум</Link></li>
+                <li><Link to="/community" className="hover:text-primary transition-colors">Сообщество</Link></li>
                 <li><Link to="/profile" className="hover:text-primary transition-colors">Личный кабинет</Link></li>
               </ul>
             </div>

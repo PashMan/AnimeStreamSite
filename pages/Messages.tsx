@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Send, ArrowLeft, MessageSquare, Loader2 } from 'lucide-react';
+import { Send, ArrowLeft, MessageSquare, Loader2, Copy, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { PrivateMessage, User as UserType } from '../types';
@@ -16,6 +16,26 @@ const Messages: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [targetUser, setTargetUser] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/messages?user=${targetEmail}`;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(link).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      });
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = link;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load conversations list
@@ -63,8 +83,16 @@ const Messages: React.FC = () => {
   const loadMessages = async (email: string) => {
     if (!user) return;
     const msgs = await db.getPrivateMessages(user.email, email);
+    
+    // Only scroll if message count changed
+    const hadMessages = messages.length > 0;
+    const gotNewMessages = msgs.length > messages.length;
+    
     setMessages(msgs);
-    scrollToBottom();
+    
+    if (gotNewMessages || !hadMessages) {
+      scrollToBottom();
+    }
   };
 
   const scrollToBottom = () => {
@@ -147,12 +175,19 @@ const Messages: React.FC = () => {
                 <ArrowLeft className="w-5 h-5" />
               </Link>
               <img src={targetUser.avatar} alt={targetUser.name} className="w-10 h-10 rounded-full object-cover" />
-              <div>
+              <div className="flex-1">
                 <div className="font-bold text-white">{targetUser.name}</div>
                 <div className="text-xs text-slate-500 flex items-center gap-1">
                    <span className="w-2 h-2 bg-green-500 rounded-full"></span> Онлайн
                 </div>
               </div>
+              <button 
+                onClick={handleCopyLink}
+                className="p-2 hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-white"
+                title="Скопировать ссылку на чат"
+              >
+                {isCopied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+              </button>
             </div>
 
             {/* Messages List */}

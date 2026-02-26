@@ -51,12 +51,43 @@ const Details: React.FC = () => {
   const [friendsList, setFriendsList] = useState<any[]>([]);
   const [isCopied, setIsCopied] = useState(false);
 
-  const roomLink = `${window.location.origin}/anime/${id}?room=${user?.email}`;
+  const roomLink = `${window.location.origin}/anime/${id}?room=${roomId || user?.email || ''}`;
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(roomLink);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+    const text = roomLink;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      }).catch(() => {
+        // Fallback
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 2000);
+        } catch (err) {
+          console.error('Fallback copy failed', err);
+        }
+        document.body.removeChild(textArea);
+      });
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch (err) {
+        console.error('Fallback copy failed', err);
+      }
+      document.body.removeChild(textArea);
+    }
   };
   const channelRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -96,20 +127,32 @@ const Details: React.FC = () => {
 
   const copyInviteLink = () => {
     const url = new URL(window.location.href);
-    url.searchParams.set('wt', 'true');
     url.searchParams.set('room', roomId || id || '');
-    navigator.clipboard.writeText(url.toString());
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
+    const text = url.toString();
+    
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      });
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
   };
 
   const toggleWatchTogether = async () => {
     if (!isWatchTogether) {
-      const newRoomId = Math.random().toString(36).substring(2, 10);
+      const newRoomId = user?.email || Math.random().toString(36).substring(2, 10);
       await db.createWatchRoom(newRoomId, id!, currentUser.name);
       
       const newUrl = new URL(window.location.href);
-      newUrl.searchParams.set('wt', 'true');
       newUrl.searchParams.set('room', newRoomId);
       window.history.replaceState({}, '', newUrl.toString());
       
@@ -120,7 +163,6 @@ const Details: React.FC = () => {
       setIsWatchTogether(false);
       setRoomId(null);
       const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('wt');
       newUrl.searchParams.delete('room');
       window.history.replaceState({}, '', newUrl.toString());
     }
@@ -130,17 +172,15 @@ const Details: React.FC = () => {
   useEffect(() => {
     const checkRoom = async () => {
       if (roomIdFromUrl) {
+        // We'll be more lenient: if it's an email or we can find it, join.
+        // Even if it doesn't exist in DB yet, we try to connect to the channel.
+        setIsWatchTogether(true);
+        setRoomId(roomIdFromUrl);
+        
+        // Still check DB to see if it's a valid registered room
         const exists = await db.checkWatchRoom(roomIdFromUrl);
-        if (exists) {
-          setIsWatchTogether(true);
-          setRoomId(roomIdFromUrl);
-        } else {
-          console.warn('Room does not exist or expired');
-          // Clean up URL if room is invalid
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('wt');
-          newUrl.searchParams.delete('room');
-          window.history.replaceState({}, '', newUrl.toString());
+        if (!exists) {
+          console.log('Room not in DB, but joining channel anyway');
         }
       }
     };

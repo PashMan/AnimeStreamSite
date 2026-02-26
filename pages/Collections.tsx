@@ -7,55 +7,50 @@ import { fetchAnimes, GENRE_MAP } from '../services/shikimori';
 
 const Collections: React.FC = () => {
   const [collectionsWithImages, setCollectionsWithImages] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(6);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastIndex, setLastIndex] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadImages = async () => {
-      setIsLoading(true);
-      // Only process the first batch or all if they are already processed
-      const collectionsToProcess = COLLECTIONS_DATA.slice(0, visibleCount);
-      
-      const updatedCollections = await Promise.all(collectionsToProcess.map(async (collection) => {
-        try {
-          const params: any = { limit: 1, order: 'popularity' };
-          if (collection.defaultGenre) {
-            params.genre = GENRE_MAP[collection.defaultGenre];
-          }
-          const results = await fetchAnimes(params);
-          if (results.length === 0) return null; // Filter empty
+  const loadMore = async () => {
+    if (isLoading || !hasMore) return;
+    setIsLoading(true);
 
-          return {
+    const batchSize = 6;
+    const newItems: any[] = [];
+    let currentIndex = lastIndex;
+
+    // Keep searching until we find batchSize valid items or reach the end
+    while (newItems.length < batchSize && currentIndex < COLLECTIONS_DATA.length) {
+      const collection = COLLECTIONS_DATA[currentIndex];
+      try {
+        const params: any = { limit: 1, order: 'popularity' };
+        if (collection.defaultGenre) {
+          params.genre = GENRE_MAP[collection.defaultGenre];
+        }
+        const results = await fetchAnimes(params);
+        
+        if (results.length > 0) {
+          newItems.push({
             ...collection,
             image: results[0].image,
             count: '100+'
-          };
-        } catch (e) {
-          return { ...collection, image: FALLBACK_IMAGE, count: '100+' };
+          });
         }
-      }));
-      
-      if (isMounted) {
-        const filtered = updatedCollections.filter(Boolean);
-        setCollectionsWithImages(filtered);
-        setHasMore(visibleCount < COLLECTIONS_DATA.length);
-        setIsLoading(false);
+      } catch (e) {
+        console.error('Error loading collection:', collection.title, e);
       }
-    };
+      currentIndex++;
+    }
 
-    loadImages();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [visibleCount]);
-
-  const loadMore = () => {
-    setVisibleCount(prev => prev + 6);
+    setCollectionsWithImages(prev => [...prev, ...newItems]);
+    setLastIndex(currentIndex);
+    setHasMore(currentIndex < COLLECTIONS_DATA.length);
+    setIsLoading(false);
   };
+
+  useEffect(() => {
+    loadMore();
+  }, []);
 
   return (
     <div className="min-h-screen bg-dark pt-24 pb-20 animate-in fade-in duration-700">

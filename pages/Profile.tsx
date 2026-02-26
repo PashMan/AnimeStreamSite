@@ -107,8 +107,14 @@ const Profile: React.FC = () => {
         } else setWatched([]);
 
         setHistory(historyData);
-        // Mock friends for now or fetch from DB
-        setFriends(user.friends || []);
+        
+        // Fetch actual friend profiles
+        if (user.friends && user.friends.length > 0) {
+          const friendsData = await db.getFriendsList(user.friends);
+          setFriends(friendsData);
+        } else {
+          setFriends([]);
+        }
         
         // Sync state with user
         setEditName(user.name);
@@ -475,14 +481,14 @@ const Profile: React.FC = () => {
                        <Users className="text-primary" /> Список друзей
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      {friends.length > 0 ? friends.map((friend: string, idx: number) => (
+                      {friends.length > 0 ? friends.map((friend: any, idx: number) => (
                         <div key={idx} className="glass p-6 rounded-[2rem] border border-white/5 flex items-center gap-4 group hover:border-primary/30 transition-all">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${friend}`} loading="lazy" className="w-14 h-14 rounded-2xl object-cover" alt="" />
+                          <img src={friend.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover" alt="" />
                           <div className="flex-grow">
-                            <h4 className="text-white font-black uppercase tracking-tighter">{friend.split('@')[0]}</h4>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{friend}</p>
+                            <h4 className="text-white font-black uppercase tracking-tighter">{friend.name}</h4>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{friend.email}</p>
                           </div>
-                          <Link aria-label="Send message" to={`/messages?to=${friend}`} className="p-3 bg-white/5 hover:bg-primary text-slate-400 hover:text-white rounded-xl transition-all">
+                          <Link aria-label="Send message" to={`/messages?user=${friend.email}`} className="p-3 bg-white/5 hover:bg-primary text-slate-400 hover:text-white rounded-xl transition-all">
                             <Mail className="w-5 h-5" />
                           </Link>
                         </div>

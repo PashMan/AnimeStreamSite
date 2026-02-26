@@ -159,11 +159,22 @@ class DatabaseService {
   }
 
   private mapProfileToUser(p: any): User {
+    let name = p.name;
+    // If name looks like a UUID or is missing, use email prefix
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!name || uuidRegex.test(name)) {
+      if (p.email && p.email.includes('@')) {
+        name = p.email.split('@')[0];
+      } else {
+        name = 'Пользователь';
+      }
+    }
+
     return {
       id: p.id,
-      name: p.name,
+      name: name,
       email: p.email,
-      avatar: p.avatar,
+      avatar: p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.email || p.id}`,
       isPremium: p.is_premium,
       premiumUntil: p.premium_until,
       bio: p.bio,
@@ -560,7 +571,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time, created_at')
         .order('created_at', { ascending: false })
         .limit(limit);
       
@@ -575,7 +586,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
         .ilike('name', `%${query}%`)
         .limit(10);
       
@@ -585,16 +596,21 @@ class DatabaseService {
     }
   }
 
-  async getFriendsList(friendEmails: string[]): Promise<User[]> {
-    if (!this.isSupabaseAvailable() || !friendEmails || friendEmails.length === 0) return [];
+  async getFriendsList(friendIdentifiers: string[]): Promise<User[]> {
+    if (!this.isSupabaseAvailable() || !friendIdentifiers || friendIdentifiers.length === 0) return [];
     try {
+      // Filter out any empty strings
+      const ids = friendIdentifiers.filter(Boolean);
+      if (ids.length === 0) return [];
+
       const { data } = await supabaseClient
         .from('profiles')
-        .select('*')
-        .in('email', friendEmails);
+        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
+        .or(`email.in.("${ids.join('","')}"),id.in.("${ids.join('","')}")`);
       
       return data?.map((p: any) => this.mapProfileToUser(p)) || [];
     } catch (e) {
+      console.error('getFriendsList error:', e);
       return [];
     }
   }
