@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE as PLACEHOLDER_IMAGE, MOCK_ANIME } from '../constants';
 import { db, supabase } from '../services/db';
-import { Anime, Comment } from '../types';
+import { Anime, Comment, User } from '../types';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 
@@ -42,20 +42,21 @@ const Details: React.FC = () => {
   
   // Share feature
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [friendsList, setFriendsList] = useState<any[]>([]);
+  const [friendsList, setFriendsList] = useState<User[]>([]);
   const [isSharing, setIsSharing] = useState(false);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
 
   const lastLoadedId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (user?.email && isShareModalOpen) {
-      db.getProfile(user.email).then(profile => {
-        if (profile?.friends && profile.friends.length > 0) {
-          db.getFriendsList(profile.friends).then(setFriendsList);
-        }
-      });
+    if (isShareModalOpen && user?.friends && user.friends.length > 0) {
+      setIsLoadingFriends(true);
+      db.getFriendsList(user.friends)
+        .then(setFriendsList)
+        .catch(console.error)
+        .finally(() => setIsLoadingFriends(false));
     }
-  }, [user?.email, isShareModalOpen]);
+  }, [isShareModalOpen, user?.friends]);
 
   useEffect(() => {
     let isMounted = true;
@@ -576,7 +577,9 @@ const Details: React.FC = () => {
               </button>
             </div>
             <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              {friendsList.length === 0 ? (
+              {isLoadingFriends ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
+              ) : friendsList.length === 0 ? (
                 <div className="text-center py-8 text-slate-500">
                   <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
                   <p className="text-sm font-bold uppercase tracking-widest">У вас пока нет друзей</p>

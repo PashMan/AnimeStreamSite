@@ -20,7 +20,6 @@ export const COLLECTIONS_DATA = [
   { id: 'parody', title: 'Аниме пародии', defaultGenre: 'Пародия', color: 'from-pink-600/80 to-rose-900/90', image: 'https://picsum.photos/seed/parody/800/600', count: '100+' },
   { id: 'isekai', title: 'Лучшие исекаи', defaultGenre: 'Исэкай', color: 'from-emerald-600/80 to-teal-900/90', image: 'https://picsum.photos/seed/isekai/800/600', count: '100+' },
   { id: 'romance', title: 'Романтика', defaultGenre: 'Романтика', color: 'from-rose-500/80 to-pink-900/90', image: 'https://picsum.photos/seed/romance/800/600', count: '100+' },
-  { id: 'cyberpunk', title: 'Киберпанк', defaultGenre: 'Киберпанк', color: 'from-cyan-600/80 to-blue-900/90', image: 'https://picsum.photos/seed/cyberpunk/800/600', count: '100+' },
   { id: 'sports', title: 'Спортивные аниме', defaultGenre: 'Спорт', color: 'from-amber-600/80 to-orange-900/90', image: 'https://picsum.photos/seed/sports/800/600', count: '100+' },
   { id: 'magic', title: 'Магия и волшебство', defaultGenre: 'Магия', color: 'from-violet-600/80 to-purple-900/90', image: 'https://picsum.photos/seed/magic/800/600', count: '100+' },
   { id: 'mecha', title: 'Меха и роботы', defaultGenre: 'Меха', color: 'from-slate-600/80 to-slate-900/90', image: 'https://picsum.photos/seed/mecha/800/600', count: '100+' },

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { COLLECTIONS_DATA } from '../constants';
 
 const SHIKIMORI_API_URL = 'https://shikimori.one/api';
 const SITE_URL = 'https://anime-stream.ru';
@@ -19,8 +20,8 @@ export default async function sitemapHandler(req: Request, res: Response) {
     let animes: any[] = [];
 
     try {
-      // 2. Fetch Top Anime from Shikimori by Rating (Real-time)
-      const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=ranked`, {
+      // 2. Fetch Top 50 Anime from Shikimori by Popularity
+      const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
           'Accept': 'application/json'
@@ -51,6 +52,16 @@ export default async function sitemapHandler(req: Request, res: Response) {
   </url>`;
     });
 
+    // Add Collections URLs
+    COLLECTIONS_DATA.forEach(collection => {
+      xml += `
+  <url>
+    <loc>${SITE_URL}/collections/${collection.id}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`;
+    });
+
     // Add Anime URLs
     if (Array.isArray(animes)) {
       animes.forEach((anime: any) => {
@@ -58,7 +69,7 @@ export default async function sitemapHandler(req: Request, res: Response) {
   <url>
     <loc>${SITE_URL}/anime/${anime.id}</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>`;
       });
     }
