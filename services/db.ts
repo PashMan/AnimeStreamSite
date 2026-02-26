@@ -100,6 +100,12 @@ class DatabaseService {
   async register(data: { name: string; email: string; password: string }): Promise<{ user: User | null, message?: string }> {
     if (!this.isSupabaseAvailable()) return { user: null, message: 'База данных недоступна' };
     try {
+      // Check if email already exists in profiles
+      const existingProfile = await this.getProfile(data.email);
+      if (existingProfile) {
+        return { user: null, message: 'Пользователь с таким email уже зарегистрирован' };
+      }
+
       // 1. Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
         email: data.email,

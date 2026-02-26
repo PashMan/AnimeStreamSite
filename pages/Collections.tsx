@@ -21,6 +21,9 @@ const Collections: React.FC = () => {
 
     // Keep searching until we find batchSize valid items or reach the end
     while (newItems.length < batchSize && currentIndex < COLLECTIONS_DATA.length) {
+      // Check if component is still mounted
+      if (!mountedRef.current) break;
+      
       const collection = COLLECTIONS_DATA[currentIndex];
       try {
         const params: any = { limit: 2, order: 'popularity' };
@@ -38,20 +41,30 @@ const Collections: React.FC = () => {
             count: '100+'
           });
         }
+        
+        // Add a delay to avoid hitting Shikimori rate limits (5 req/sec, 90 req/min)
+        await new Promise(resolve => setTimeout(resolve, 800));
       } catch (e) {
         console.error('Error loading collection:', collection.title, e);
       }
       currentIndex++;
     }
 
-    setCollectionsWithImages(prev => [...prev, ...newItems]);
-    setLastIndex(currentIndex);
-    setHasMore(currentIndex < COLLECTIONS_DATA.length);
-    setIsLoading(false);
+    if (mountedRef.current) {
+      setCollectionsWithImages(prev => [...prev, ...newItems]);
+      setLastIndex(currentIndex);
+      setHasMore(currentIndex < COLLECTIONS_DATA.length);
+      setIsLoading(false);
+    }
   };
 
+  const mountedRef = React.useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadMore();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   return (

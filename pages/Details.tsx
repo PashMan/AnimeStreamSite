@@ -92,6 +92,7 @@ const Details: React.FC = () => {
   const channelRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const lastTimeRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
   const isRemoteAction = useRef<boolean>(false);
 
   const anonymousUser = useRef({
@@ -206,12 +207,14 @@ const Details: React.FC = () => {
         }
         lastTimeRef.current = currentTime;
       } else if (data.key === 'kodik_player_play') {
+        isPlayingRef.current = true;
         channelRef.current.send({
           type: 'broadcast',
           event: 'player_sync',
           payload: { action: 'play', time: lastTimeRef.current }
         });
       } else if (data.key === 'kodik_player_pause') {
+        isPlayingRef.current = false;
         channelRef.current.send({
           type: 'broadcast',
           event: 'player_sync',
@@ -252,12 +255,15 @@ const Details: React.FC = () => {
           setWtMessages(prev => [...prev, payload]);
         })
         .on('broadcast', { event: 'request_sync' }, () => {
-          // If we are playing, broadcast our current state
+          // If we receive a sync request, broadcast our current state
           if (channelRef.current) {
             channelRef.current.send({
               type: 'broadcast',
               event: 'player_sync',
-              payload: { action: 'seek', time: lastTimeRef.current }
+              payload: { 
+                action: isPlayingRef.current ? 'play' : 'seek', 
+                time: lastTimeRef.current 
+              }
             });
           }
         })
@@ -268,16 +274,18 @@ const Details: React.FC = () => {
           const win = iframeRef.current.contentWindow;
           
           if (payload.action === 'play') {
+            lastTimeRef.current = payload.time;
             win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
             win.postMessage({ key: 'kodik_player_play' }, '*');
           } else if (payload.action === 'pause') {
             win.postMessage({ key: 'kodik_player_pause' }, '*');
           } else if (payload.action === 'seek') {
+            lastTimeRef.current = payload.time;
             win.postMessage({ key: 'kodik_player_seek', value: payload.time }, '*');
           }
           
           // Shorter lockout to remain responsive
-          setTimeout(() => { isRemoteAction.current = false; }, 500);
+          setTimeout(() => { isRemoteAction.current = false; }, 1000);
         })
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
