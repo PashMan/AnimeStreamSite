@@ -70,6 +70,7 @@ export interface ForumTopic {
 export interface ForumPost {
   id: string;
   topicId: string;
+  parentId?: string; // For nested replies
   content: string;
   author: {
     name: string;

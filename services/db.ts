@@ -431,6 +431,7 @@ class DatabaseService {
       return data?.map((d: any) => ({
         id: d.id,
         topicId: d.topic_id,
+        parentId: d.parent_id,
         content: d.content,
         author: {
             name: d.profiles?.name || 'Unknown',
@@ -444,13 +445,14 @@ class DatabaseService {
     }
   }
 
-  async createForumPost(post: { topicId: string, content: string, author: string }): Promise<ForumPost | null> {
+  async createForumPost(post: { topicId: string, content: string, author: string, parentId?: string }): Promise<ForumPost | null> {
     if (!this.isSupabaseAvailable()) return null;
     try {
       const { data, error } = await supabaseClient.from('forum_posts').insert([{
         topic_id: post.topicId,
         content: post.content,
-        author_email: post.author
+        author_email: post.author,
+        parent_id: post.parentId
       }]).select('*, profiles!author_email(name, avatar, email)').single();
       
       if (error || !data) return null;
@@ -461,6 +463,7 @@ class DatabaseService {
       return {
         id: data.id,
         topicId: data.topic_id,
+        parentId: data.parent_id,
         content: data.content,
         author: {
             name: data.profiles?.name || 'Unknown',
@@ -746,8 +749,17 @@ class DatabaseService {
         .from('private_messages')
         .select('*')
         .or(`and(from_email.eq.${user1},to_email.eq.${user2}),and(from_email.eq.${user2},to_email.eq.${user1})`)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(100); // Limit to last 100 messages for performance
       
+      if (data && data.length > 0) {
+          // Mark as read if user1 is the recipient
+          const unreadIds = data.filter((m: any) => m.to_email === user1 && !m.is_read).map((m: any) => m.id);
+          if (unreadIds.length > 0) {
+              supabaseClient.from('private_messages').update({ is_read: true }).in('id', unreadIds).then(() => {});
+          }
+      }
+
       return data?.map((d: any) => ({
         id: d.id,
         from: d.from_email,
@@ -787,11 +799,13 @@ class DatabaseService {
   async getConversations(email: string): Promise<{email: string, name: string, avatar: string, lastText: string}[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
+      // Fetch only the last 100 messages to identify recent conversations
       const { data: messages } = await supabaseClient
         .from('private_messages')
         .select('*')
         .or(`from_email.eq.${email},to_email.eq.${email}`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (!messages) return [];
 

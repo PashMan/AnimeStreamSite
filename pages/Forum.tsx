@@ -37,6 +37,7 @@ const Forum: React.FC = () => {
   const [currentTopic, setCurrentTopic] = useState<ForumTopic | null>(null);
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [replyContent, setReplyContent] = useState('');
+  const [replyingTo, setReplyingTo] = useState<ForumPost | null>(null);
   
   // Create State
   const [isCreating, setIsCreating] = useState(false);
@@ -136,15 +137,21 @@ const Forum: React.FC = () => {
     try {
       const targetTopicId = currentTopic.id;
       
+      // YouTube style: all replies group under the top-level comment
+      // If we are replying to a reply, use its parentId as our parentId
+      const parentId = replyingTo ? (replyingTo.parentId || replyingTo.id) : undefined;
+      
       const post = await db.createForumPost({
         topicId: targetTopicId,
         content: replyContent,
-        author: user.email
+        author: user.email,
+        parentId: parentId
       });
       
       if (post) {
         setPosts([...posts, post]);
         setReplyContent('');
+        setReplyingTo(null);
         // Update reply count locally
         setCurrentTopic(prev => prev ? ({...prev, repliesCount: prev.repliesCount + 1}) : null);
       }
@@ -155,9 +162,10 @@ const Forum: React.FC = () => {
     }
   };
 
-  const handleReplyToUser = (username: string) => {
-      const mention = `**${username}**, `;
-      setReplyContent(prev => prev + mention);
+  const handleReplyToUser = (post: ForumPost) => {
+      setReplyingTo(post);
+      const mention = `**${post.author.name}**, `;
+      setReplyContent(mention);
       // Focus textarea
       const textarea = document.querySelector('textarea[name="replyContent"]') as HTMLTextAreaElement;
       if (textarea) {
@@ -264,42 +272,95 @@ const Forum: React.FC = () => {
                <MessageCircle className="w-5 h-5 text-primary" /> Ответы ({posts.length})
              </h3>
              
-             {posts.map(post => (
-               <div key={post.id} className="bg-surface/20 border border-white/5 rounded-[2rem] p-6 md:p-8">
-                 <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
-                    <img src={post.author.avatar} loading="lazy" className="w-10 h-10 rounded-xl object-cover shadow-md" alt="" />
-                    <div>
-                       <div className="font-bold text-white text-xs">{post.author.name}</div>
-                       <div className="text-[9px] text-slate-500 uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</div>
+             <div className="space-y-6">
+                {posts.filter(p => !p.parentId).map(post => {
+                  // Find all replies that belong to this thread
+                  // In YouTube style, all replies to a root post are grouped together
+                  // We find direct replies and replies to those replies if they share the same root parentId
+                  // With our new logic, all replies in a thread will have the root post's ID as parentId
+                  const threadReplies = posts.filter(r => r.parentId === post.id);
+                  
+                  return (
+                    <div key={post.id} className="space-y-4">
+                      <div className="bg-surface/20 border border-white/5 rounded-[2rem] p-6 md:p-8 group">
+                        <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
+                           <img src={post.author.avatar} loading="lazy" className="w-10 h-10 rounded-xl object-cover shadow-md" alt="" />
+                           <div>
+                              <div className="font-bold text-white text-xs">{post.author.name}</div>
+                              <div className="text-[9px] text-slate-500 uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</div>
+                           </div>
+                        </div>
+                        
+                        <div className="min-w-0">
+                           <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words markdown-body">
+                              <ReactMarkdown
+                                rehypePlugins={[rehypeRaw]}
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                    u: ({node, ...props}: any) => <u {...props} />
+                                }}
+                              >
+                                  {post.content}
+                              </ReactMarkdown>
+                           </div>
+                           <button 
+                             onClick={() => handleReplyToUser(post)}
+                             className="mt-4 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                           >
+                               <Reply className="w-3 h-3" /> Ответить
+                           </button>
+                        </div>
+                      </div>
+
+                      {/* Nested Replies */}
+                      {threadReplies.length > 0 && (
+                        <div className="ml-8 md:ml-16 space-y-4 border-l-2 border-white/5 pl-4 md:pl-8">
+                          {threadReplies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(reply => (
+                            <div key={reply.id} className="bg-surface/10 border border-white/5 rounded-[1.5rem] p-4 md:p-6 group">
+                              <div className="flex items-center gap-3 mb-3 border-b border-white/5 pb-3">
+                                <img src={reply.author.avatar} loading="lazy" className="w-8 h-8 rounded-lg object-cover shadow-md" alt="" />
+                                <div>
+                                  <div className="font-bold text-white text-[10px]">{reply.author.name}</div>
+                                  <div className="text-[8px] text-slate-500 uppercase tracking-widest">{new Date(reply.createdAt).toLocaleDateString()}</div>
+                                </div>
+                              </div>
+                              <div className="text-slate-400 text-xs leading-relaxed whitespace-pre-wrap break-words markdown-body">
+                                <ReactMarkdown
+                                  rehypePlugins={[rehypeRaw]}
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                      u: ({node, ...props}: any) => <u {...props} />
+                                  }}
+                                >
+                                    {reply.content}
+                                </ReactMarkdown>
+                              </div>
+                              <button 
+                                onClick={() => handleReplyToUser(reply)}
+                                className="mt-3 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                              >
+                                  <Reply className="w-3 h-3" /> Ответить
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                 </div>
-                 
-                 <div className="min-w-0">
-                    <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words markdown-body">
-                       <ReactMarkdown
-                         rehypePlugins={[rehypeRaw]}
-                         remarkPlugins={[remarkGfm]}
-                         components={{
-                             u: ({node, ...props}: any) => <u {...props} />
-                         }}
-                       >
-                           {post.content}
-                       </ReactMarkdown>
-                    </div>
-                    <button 
-                      onClick={() => handleReplyToUser(post.author.name)}
-                      className="mt-4 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                        <Reply className="w-3 h-3" /> Ответить
-                    </button>
-                 </div>
-               </div>
-             ))}
+                  );
+                })}
+             </div>
           </div>
 
           {/* Reply Form */}
           <div className="bg-surface/30 border border-white/5 rounded-[2.5rem] p-8 mt-12">
-             <h3 className="text-lg font-black text-white uppercase tracking-widest mb-6">Ваш ответ</h3>
+             <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-black text-white uppercase tracking-widest">
+                  {replyingTo ? `Ответ для ${replyingTo.author.name}` : 'Ваш ответ'}
+                </h3>
+                {replyingTo && (
+                  <button onClick={() => setReplyingTo(null)} className="text-[10px] font-black uppercase text-red-400 hover:text-red-300 transition-colors">Отмена</button>
+                )}
+             </div>
              {user ? (
                <form onSubmit={handleReply} className="space-y-4">
                  <div className="flex gap-4">

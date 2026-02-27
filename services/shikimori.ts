@@ -128,6 +128,9 @@ const proxyImage = (url: string | undefined | null) => {
   if (!url) return PLACEHOLDER_IMAGE;
   let cleanUrl = url.trim();
   
+  // Force HTTPS
+  cleanUrl = cleanUrl.replace('http://', 'https://');
+
   // Check for known Shikimori 404/missing images
   if (cleanUrl.includes('missing_original') || cleanUrl.includes('none.png') || cleanUrl.includes('missing')) {
       // Return a local placeholder or a better generic image

@@ -16,6 +16,8 @@ const Social: React.FC = () => {
   const [isLoadingFriends, setIsLoadingFriends] = useState(true);
 
   useEffect(() => {
+    if (!user?.email) return;
+
     const loadData = async () => {
       setIsLoadingFriends(true);
       try {
@@ -33,7 +35,7 @@ const Social: React.FC = () => {
         }).catch(console.error);
 
         // Load friends asynchronously
-        if (user && user.friends && user.friends.length > 0) {
+        if (user.friends && user.friends.length > 0) {
           // Limit initial load to 20 friends
           db.getFriendsList(user.friends.slice(0, 20)).then(friendsData => {
             setFriends(friendsData);
@@ -51,7 +53,7 @@ const Social: React.FC = () => {
       }
     };
     loadData();
-  }, [user]);
+  }, [user?.email]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();

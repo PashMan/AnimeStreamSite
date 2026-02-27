@@ -40,15 +40,15 @@ const Messages: React.FC = () => {
 
   // Load conversations list
   useEffect(() => {
-    if (user) {
+    if (user?.email) {
       loadConversations();
     }
-  }, [user]);
+  }, [user?.email]);
 
   // Load target user if selected
   useEffect(() => {
     const loadTarget = async () => {
-      if (targetEmail && user) {
+      if (targetEmail && user?.email) {
         setIsLoading(true);
         try {
           const [profile, msgs] = await Promise.all([
@@ -76,18 +76,18 @@ const Messages: React.FC = () => {
       }
     };
     loadTarget();
-  }, [targetEmail, user]);
+  }, [targetEmail, user?.email]);
 
   // Poll for new messages every 3 seconds if chat is open
   useEffect(() => {
-    if (!targetUser || !user) return;
+    if (!targetUser || !user?.email) return;
 
     const interval = setInterval(() => {
       loadMessages(targetUser.email);
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [targetUser, user]);
+  }, [targetUser, user?.email]);
 
   const loadConversations = async () => {
     if (!user) return;

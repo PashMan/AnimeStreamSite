@@ -17,6 +17,7 @@ const Profile: React.FC = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'history' | 'friends' | 'settings' | 'design'>('favs');
   
   const [isEditing, setIsEditing] = useState(false);
@@ -88,6 +89,7 @@ const Profile: React.FC = () => {
     if (!user?.email) return;
 
     const loadUserData = async () => {
+      if (isLoading) return; // Prevent double loading
       setIsLoading(true);
       try {
         const [favIds, watchedIds, historyData] = await Promise.all([
@@ -107,13 +109,13 @@ const Profile: React.FC = () => {
         // Load anime data asynchronously in chunks to avoid large request failures
         const loadInChunks = async (ids: string[], setter: (data: Anime[]) => void) => {
           if (ids.length === 0) return;
-          const chunkSize = 20;
+          const chunkSize = 50; // Increased chunk size for performance
           let allData: Anime[] = [];
           
           for (let i = 0; i < ids.length; i += chunkSize) {
             const chunk = ids.slice(i, i + chunkSize);
             try {
-              const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length });
+              const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true); // Bypass queue for profile load
               allData = [...allData, ...data.filter(a => !!a)];
               setter([...allData]); // Update UI incrementally
             } catch (e) {
@@ -150,22 +152,34 @@ const Profile: React.FC = () => {
     };
 
     loadUserData();
-  }, [user]);
+  }, [user?.email]); // Only reload if user email changes, not on every profile update
 
   const handleSaveProfile = async () => {
-    const success = await updateProfile({
-      name: editName,
-      bio: editBio,
-      avatar: editAvatar,
-      profileBg: editBg,
-      profileBanner: editBanner,
-      profileLayout: editLayout,
-      themeColor: editTheme,
-      avatarShape: editAvatarShape,
-      cardOpacity: editCardOpacity,
-      cardBlur: editCardBlur
-    });
-    if (success) setIsEditing(false);
+    setIsActionLoading(true);
+    try {
+      const success = await updateProfile({
+        name: editName,
+        bio: editBio,
+        avatar: editAvatar,
+        profileBg: editBg,
+        profileBanner: editBanner,
+        profileLayout: editLayout,
+        themeColor: editTheme,
+        avatarShape: editAvatarShape,
+        cardOpacity: editCardOpacity,
+        cardBlur: editCardBlur
+      });
+      if (success) {
+        setIsEditing(false);
+      } else {
+        alert('Не удалось сохранить изменения. Попробуйте позже.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Произошла ошибка при сохранении.');
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   if (!user) {
@@ -287,10 +301,11 @@ const Profile: React.FC = () => {
                       <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Настройки профиля</h3>
                       <button 
                         onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
-                        className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg"
+                        disabled={isActionLoading}
+                        className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg disabled:opacity-50"
                         style={{ backgroundColor: user.themeColor || '#8b5cf6', boxShadow: `0 10px 15px -3px ${user.themeColor}40` }}
                       >
-                        {isEditing ? <><Save className="w-4 h-4" /> Сохранить</> : <><Edit2 className="w-4 h-4" /> Редактировать</>}
+                        {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isEditing ? <><Save className="w-4 h-4" /> Сохранить</> : <><Edit2 className="w-4 h-4" /> Редактировать</>}
                       </button>
                     </div>
                     

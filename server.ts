@@ -11,6 +11,16 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
+// Force HTTPS in production
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(`https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
+
 // API Routes
 app.get('/api/sitemap.xml', sitemapHandler);
 app.get('/sitemap.xml', sitemapHandler);

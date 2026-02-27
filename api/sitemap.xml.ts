@@ -53,36 +53,28 @@ export default async function sitemapHandler(req: Request, res: Response) {
     ];
 
     let animes: any[] = [];
+    let news: any[] = [];
 
     try {
-      // 2. Fetch Top 50 Anime from Shikimori by Popularity
-      const response = await fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
-          'Accept': 'application/json'
-        }
-      });
+      const [animeRes, newsRes] = await Promise.all([
+        fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
+            'Accept': 'application/json'
+          }
+        }),
+        fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=20`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
+            'Accept': 'application/json'
+          }
+        })
+      ]);
 
-      if (response.ok) {
-        animes = await response.json();
-      } else {
-        console.error("Sitemap Fetch Error:", response.status);
-        // Fallback: Use popular anime IDs if API fails
-        animes = [
-          { id: 52991, name: 'Sousou no Frieren', updated_at: today }, 
-          { id: 5114, name: 'Fullmetal Alchemist: Brotherhood', updated_at: today }, 
-          { id: 40748, name: 'Jujutsu Kaisen', updated_at: today },
-          { id: 44511, name: 'Chainsaw Man', updated_at: today },
-          { id: 11061, name: 'Hunter x Hunter', updated_at: today }
-        ];
-      }
-    } catch (fetchError) {
-      console.error('Sitemap: Fetch error:', fetchError);
-      // Fallback on error
-      animes = [
-          { id: 52991, name: 'Sousou no Frieren', updated_at: today }, 
-          { id: 5114, name: 'Fullmetal Alchemist: Brotherhood', updated_at: today }
-      ];
+      if (animeRes.ok) animes = await animeRes.json();
+      if (newsRes.ok) news = await newsRes.json();
+    } catch (e) {
+      console.error('Sitemap fetch error:', e);
     }
 
     // 3. Generate XML
@@ -100,6 +92,20 @@ export default async function sitemapHandler(req: Request, res: Response) {
     <priority>${priority}</priority>
   </url>`;
     });
+
+    // Add News URLs
+    if (Array.isArray(news)) {
+      news.forEach((item: any) => {
+        const lastmod = item.created_at ? new Date(item.created_at).toISOString() : today;
+        xml += `
+  <url>
+    <loc>${SITE_URL}/news/${item.id}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>`;
+      });
+    }
 
     // Add Collections URLs
     COLLECTIONS.forEach(collection => {
