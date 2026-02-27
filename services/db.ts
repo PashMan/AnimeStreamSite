@@ -379,7 +379,7 @@ class DatabaseService {
         .from('forum_topics')
         .select('*, profiles(name, avatar, email)')
         .eq('id', id)
-        .single();
+        .maybeSingle();
         
       if (!data) return null;
       
@@ -795,8 +795,9 @@ class DatabaseService {
       const { data } = await supabaseClient
         .from('private_messages')
         .select('*')
-        .or(`and(from_email.eq.${user1},to_email.eq.${user2}),and(from_email.eq.${user2},to_email.eq.${user1})`)
-        .order('created_at', { ascending: true })
+        .in('from_email', [user1, user2])
+        .in('to_email', [user1, user2])
+        .order('created_at', { ascending: false })
         .limit(100); // Limit to last 100 messages for performance
       
       if (data && data.length > 0) {
@@ -807,7 +808,7 @@ class DatabaseService {
           }
       }
 
-      return data?.map((d: any) => ({
+      return data?.reverse().map((d: any) => ({
         id: d.id,
         from: d.from_email,
         to: d.to_email,
@@ -846,18 +847,21 @@ class DatabaseService {
   async getConversations(email: string): Promise<{email: string, name: string, avatar: string, lastText: string}[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
-      // Fetch only the last 100 messages to identify recent conversations
-      const { data: messages } = await supabaseClient
-        .from('private_messages')
-        .select('*')
-        .or(`from_email.eq.${email},to_email.eq.${email}`)
-        .order('created_at', { ascending: false })
-        .limit(100);
+      // Fetch only the last 50 messages from each direction to identify recent conversations
+      const [fromMsgs, toMsgs] = await Promise.all([
+        supabaseClient.from('private_messages').select('*').eq('from_email', email).order('created_at', { ascending: false }).limit(50),
+        supabaseClient.from('private_messages').select('*').eq('to_email', email).order('created_at', { ascending: false }).limit(50)
+      ]);
 
-      if (!messages) return [];
+      const allMessages = [...(fromMsgs.data || []), ...(toMsgs.data || [])];
+      
+      if (allMessages.length === 0) return [];
+
+      // Sort by created_at descending
+      allMessages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       const threadEmails = new Set<string>();
-      messages.forEach((m: any) => {
+      allMessages.forEach((m: any) => {
         if (m.from_email === email) threadEmails.add(m.to_email);
         else threadEmails.add(m.from_email);
       });
@@ -875,7 +879,7 @@ class DatabaseService {
 
       const results = threadEmailsArray.map(tEmail => {
         const u = profileMap.get(tEmail);
-        const lastMsg = messages.find((m: any) => (m.from_email === email && m.to_email === tEmail) || (m.from_email === tEmail && m.to_email === email));
+        const lastMsg = allMessages.find((m: any) => (m.from_email === email && m.to_email === tEmail) || (m.from_email === tEmail && m.to_email === email));
         return {
           email: tEmail,
           name: (u as any)?.name || 'Unknown',

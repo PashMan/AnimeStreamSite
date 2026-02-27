@@ -241,7 +241,7 @@ const Messages: React.FC = () => {
                       </button>
                     )}
                     <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 ${isMe ? 'bg-primary text-white rounded-tr-none' : 'bg-surface border border-white/10 text-slate-200 rounded-tl-none'}`}>
-                      <div className="text-sm leading-relaxed break-words markdown-body">
+                      <div className={`text-sm leading-relaxed break-words markdown-body ${isMe ? 'markdown-body-me' : 'markdown-body-other'}`}>
                         <ReactMarkdown
                           rehypePlugins={[rehypeRaw]}
                           remarkPlugins={[remarkGfm]}
