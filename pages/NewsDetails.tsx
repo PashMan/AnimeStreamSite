@@ -7,6 +7,10 @@ import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { NewsItem, Comment } from '../types';
 import SEO from '../components/SEO';
+import { RichTextarea } from '../components/RichTextarea';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 const NewsDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -215,8 +219,16 @@ const NewsDetails: React.FC = () => {
             {user ? (
                 <form onSubmit={handleAddComment} className="flex flex-col gap-6">
                     <div className="flex gap-4 items-start">
-                        <img src={user.avatar} className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white/5" alt="" />
-                        <textarea value={userComment} onChange={(e) => setUserComment(e.target.value)} placeholder="Что вы думаете об этой новости?" className="flex-1 bg-dark/60 border border-white/5 rounded-2xl p-5 text-sm text-white focus:border-primary outline-none min-h-[120px] resize-none transition-all shadow-inner" />
+                        <img src={user.avatar} className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white/5 hidden md:block" alt="" />
+                        <div className="flex-1">
+                            <RichTextarea 
+                                value={userComment} 
+                                onChange={(e) => setUserComment(e.target.value)} 
+                                placeholder="Что вы думаете об этой новости?" 
+                                className="min-h-[120px]" 
+                                onSubmit={() => handleAddComment({ preventDefault: () => {} } as React.FormEvent)}
+                            />
+                        </div>
                     </div>
                     <button type="submit" disabled={isCommenting || !userComment.trim()} className="self-end px-12 py-4 bg-primary text-white font-black text-[10px] uppercase rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 tracking-widest">Опубликовать</button>
                 </form>
@@ -231,7 +243,25 @@ const NewsDetails: React.FC = () => {
                     <img src={comment.user.avatar} className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
                     <div className="flex-1">
                         <div className="flex items-center gap-4 mb-2"><span className="font-black text-white text-base">{comment.user.name}</span><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span></div>
-                        <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-colors shadow-sm">{comment.text}</div>
+                        <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-colors shadow-sm markdown-body">
+                            <ReactMarkdown
+                                rehypePlugins={[rehypeRaw]}
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                    u: ({node, ...props}: any) => <u {...props} />,
+                                    img: ({node, ...props}: any) => (
+                                        <img 
+                                            {...props} 
+                                            className="max-w-full rounded-2xl my-4 shadow-lg border border-white/10 object-contain max-h-[500px]" 
+                                            loading="lazy" 
+                                            alt={props.alt || "Изображение"} 
+                                        />
+                                    )
+                                }}
+                            >
+                                {comment.text}
+                            </ReactMarkdown>
+                        </div>
                     </div>
                 </div>
             ))}

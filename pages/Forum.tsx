@@ -256,7 +256,15 @@ const Forum: React.FC = () => {
                          rehypePlugins={[rehypeRaw]}
                          remarkPlugins={[remarkGfm]}
                          components={{
-                             u: ({node, ...props}: any) => <u {...props} />
+                             u: ({node, ...props}: any) => <u {...props} />,
+                             img: ({node, ...props}: any) => (
+                                 <img 
+                                     {...props} 
+                                     className="max-w-full rounded-2xl my-4 shadow-lg border border-white/10 object-contain max-h-[500px]" 
+                                     loading="lazy" 
+                                     alt={props.alt || "Изображение"} 
+                                 />
+                             )
                          }}
                        >
                            {currentTopic.content}
@@ -297,7 +305,15 @@ const Forum: React.FC = () => {
                                 rehypePlugins={[rehypeRaw]}
                                 remarkPlugins={[remarkGfm]}
                                 components={{
-                                    u: ({node, ...props}: any) => <u {...props} />
+                                    u: ({node, ...props}: any) => <u {...props} />,
+                                    img: ({node, ...props}: any) => (
+                                        <img 
+                                            {...props} 
+                                            className="max-w-full rounded-2xl my-4 shadow-lg border border-white/10 object-contain max-h-[500px]" 
+                                            loading="lazy" 
+                                            alt={props.alt || "Изображение"} 
+                                        />
+                                    )
                                 }}
                               >
                                   {post.content}
@@ -329,7 +345,15 @@ const Forum: React.FC = () => {
                                   rehypePlugins={[rehypeRaw]}
                                   remarkPlugins={[remarkGfm]}
                                   components={{
-                                      u: ({node, ...props}: any) => <u {...props} />
+                                      u: ({node, ...props}: any) => <u {...props} />,
+                                      img: ({node, ...props}: any) => (
+                                          <img 
+                                              {...props} 
+                                              className="max-w-full rounded-2xl my-4 shadow-lg border border-white/10 object-contain max-h-[500px]" 
+                                              loading="lazy" 
+                                              alt={props.alt || "Изображение"} 
+                                          />
+                                      )
                                   }}
                                 >
                                     {reply.content}
