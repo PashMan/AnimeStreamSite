@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Calendar, ArrowLeft, Loader2, MessageSquare, PlayCircle } from 'lucide-react';
-import { fetchNewsDetails } from '../services/shikimori';
+import { fetchNewsDetails, fetchAnimeVideos } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { NewsItem, Comment } from '../types';
@@ -36,6 +36,20 @@ const NewsDetails: React.FC = () => {
             date: new Date(p.createdAt).toLocaleDateString('ru-RU')
         }));
         setComments(mappedComments);
+
+        // Fetch video asynchronously after news is loaded
+        if (data && !data.video && data.linkedId) {
+            fetchAnimeVideos(data.linkedId.toString()).then(videos => {
+                const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+                const trailer = videos.find(v => v.url && (v.url.includes('youtube.com') || v.url.includes('youtu.be')));
+                if (trailer) {
+                    const vMatch = trailer.url.match(ytRegex);
+                    if (vMatch) {
+                        setNewsItem(prev => prev ? { ...prev, video: vMatch[1] } : prev);
+                    }
+                }
+            }).catch(console.error);
+        }
       } catch (err) {
         console.error(err);
       } finally {

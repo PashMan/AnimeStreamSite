@@ -566,22 +566,6 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
 
     let videoId = ytMatch ? ytMatch[1] : undefined;
 
-    if (!videoId && (topic.linked?.type === 'Anime' || topic.linked_type === 'Anime')) {
-        const animeId = topic.linked?.id || topic.linked_id;
-        if (animeId) {
-            try {
-                const videos = await fetchApi(`/animes/${animeId}/videos`, 2, 60 * 60 * 1000);
-                if (Array.isArray(videos)) {
-                    const trailer = videos.find((v: any) => v.url && (v.url.includes('youtube.com') || v.url.includes('youtu.be')));
-                    if (trailer) {
-                        const vMatch = trailer.url.match(ytRegex);
-                        if (vMatch) videoId = vMatch[1];
-                    }
-                }
-            } catch (e) {}
-        }
-    }
-
     return {
       id: topic.id.toString(),
       title: topic.topic_title,
@@ -590,7 +574,7 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
       category: 'Новости',
       image: imgMatch ? imgMatch[1] : undefined,
       video: videoId,
-      linkedId: topic.linked_id,
+      linkedId: topic.linked?.id || topic.linked_id,
       html_body: processNewsHtml(html) // Apply HTML processing
     };
   } catch (e) {
