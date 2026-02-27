@@ -169,7 +169,7 @@ const Home: React.FC = () => {
         <section className="relative h-[85vh] w-full overflow-hidden group">
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
-              {/* Use image as fallback while cover loads in background */}
+              {/* Use cover for high quality landscape image */}
               <img 
                 src={anime.cover || anime.image} 
                 alt={anime.title} 

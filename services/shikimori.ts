@@ -309,6 +309,13 @@ export const mapAnime = async (data: any): Promise<Anime> => {
       }
   }
 
+  // Try to construct a high-res cover URL if we have an ID and it's from Shikimori
+  let cover = image;
+  if (data.id && image.includes('shikimori')) {
+      // Shikimori original images are often at /system/animes/original/{id}.jpg
+      cover = `${IMG_BASE_URL}/system/animes/original/${data.id}.jpg`;
+  }
+
   return {
     id: data.id?.toString() || '',
     slug: slugify(data.name || data.russian || ''),
@@ -316,7 +323,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
     originalName: data.name || '',
     image,
     image_preview,
-    cover: image,
+    cover: cover,
     rating: data.score ? parseFloat(data.score) : 0,
     year: data.aired_on ? new Date(data.aired_on).getFullYear() : (data.released_on ? new Date(data.released_on).getFullYear() : 0),
     type: data.kind === 'movie' ? 'Movie' : (data.kind === 'ova' ? 'OVA' : (data.kind === 'ona' ? 'ONA' : 'TV Series')),
@@ -402,21 +409,23 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
     
     let anime = await mapAnime(data);
 
-    // Fallback: If image is missing, try to fetch screenshots to find a cover
-    if (anime.image === PLACEHOLDER_IMAGE) {
-        try {
-            // Secondary request: use queue
-            const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
-            if (Array.isArray(screenshots) && screenshots.length > 0) {
-                 const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
-                 if (validScreen) {
-                     anime.image = proxyImage(validScreen.original);
-                     anime.cover = anime.image;
+    // Fetch screenshots to find a better cover (landscape) for hero banners
+    try {
+        const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
+        if (Array.isArray(screenshots) && screenshots.length > 0) {
+             const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
+             if (validScreen) {
+                 // If we found a valid screenshot, use it as the cover since it's landscape and high quality
+                 anime.cover = proxyImage(validScreen.original);
+                 
+                 // If the main image was missing, also use this as the main image
+                 if (anime.image === PLACEHOLDER_IMAGE) {
+                     anime.image = anime.cover;
                  }
-            }
-        } catch (e) {
-            console.warn('Failed to fetch fallback screenshots', e);
+             }
         }
+    } catch (e) {
+        console.warn('Failed to fetch fallback screenshots', e);
     }
 
     return anime;
