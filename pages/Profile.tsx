@@ -299,14 +299,40 @@ const Profile: React.FC = () => {
                  <section className="p-10 rounded-[2.5rem] border shadow-2xl animate-in fade-in duration-500" style={cardStyle}>
                     <div className="flex items-center justify-between mb-10">
                       <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Настройки профиля</h3>
-                      <button 
-                        onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
-                        disabled={isActionLoading}
-                        className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg disabled:opacity-50"
-                        style={{ backgroundColor: user.themeColor || '#8b5cf6', boxShadow: `0 10px 15px -3px ${user.themeColor}40` }}
-                      >
-                        {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isEditing ? <><Save className="w-4 h-4" /> Сохранить</> : <><Edit2 className="w-4 h-4" /> Редактировать</>}
-                      </button>
+                      <div className="flex items-center gap-4">
+                        {isEditing ? (
+                          <>
+                            <button 
+                              onClick={() => {
+                                setIsEditing(false);
+                                setEditName(user.name);
+                                setEditBio(user.bio || '');
+                                setEditAvatar(user.avatar);
+                              }}
+                              className="px-6 py-3 bg-white/5 text-slate-400 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-white/10 hover:text-white transition-colors"
+                            >
+                              Отмена
+                            </button>
+                            <button 
+                              onClick={handleSaveProfile}
+                              disabled={isActionLoading}
+                              className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                              style={{ backgroundColor: user.themeColor || '#8b5cf6', boxShadow: `0 10px 15px -3px ${user.themeColor}40` }}
+                            >
+                              {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                              Сохранить
+                            </button>
+                          </>
+                        ) : (
+                          <button 
+                            onClick={() => setIsEditing(true)}
+                            className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:opacity-90 transition-opacity"
+                            style={{ backgroundColor: user.themeColor || '#8b5cf6', boxShadow: `0 10px 15px -3px ${user.themeColor}40` }}
+                          >
+                            <Edit2 className="w-4 h-4" /> Редактировать
+                          </button>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="grid gap-8 max-w-2xl">

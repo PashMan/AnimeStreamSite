@@ -240,9 +240,11 @@ const Forum: React.FC = () => {
           {/* Original Post */}
           <div className="bg-surface/30 border border-white/5 rounded-[2rem] p-8 md:p-10 relative overflow-hidden">
              <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-6">
-                <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} loading="lazy" className="w-12 h-12 rounded-xl object-cover shadow-md ring-2 ring-white/5" alt="" />
+                <Link to={`/user/${currentTopic.author.id || currentTopic.author.email}`} className="shrink-0">
+                   <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} loading="lazy" className="w-12 h-12 rounded-xl object-cover shadow-md ring-2 ring-white/5" alt="" />
+                </Link>
                 <div>
-                   <div className="font-black text-white text-base">{currentTopic.author.name}</div>
+                   <Link to={`/user/${currentTopic.author.id || currentTopic.author.email}`} className="font-black text-white text-base hover:text-primary transition-colors">{currentTopic.author.name}</Link>
                    <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Автор темы</div>
                 </div>
              </div>
@@ -292,9 +294,11 @@ const Forum: React.FC = () => {
                     <div key={post.id} className="space-y-4">
                       <div className="bg-surface/20 border border-white/5 rounded-[2rem] p-6 md:p-8 group">
                         <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
-                           <img src={post.author.avatar} loading="lazy" className="w-10 h-10 rounded-xl object-cover shadow-md" alt="" />
+                           <Link to={`/user/${post.author.id || post.author.email}`} className="shrink-0">
+                               <img src={post.author.avatar} loading="lazy" className="w-10 h-10 rounded-xl object-cover shadow-md" alt="" />
+                           </Link>
                            <div>
-                              <div className="font-bold text-white text-xs">{post.author.name}</div>
+                              <Link to={`/user/${post.author.id || post.author.email}`} className="font-bold text-white text-xs hover:text-primary transition-colors">{post.author.name}</Link>
                               <div className="text-[9px] text-slate-500 uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</div>
                            </div>
                         </div>
@@ -334,9 +338,11 @@ const Forum: React.FC = () => {
                           {threadReplies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(reply => (
                             <div key={reply.id} className="bg-surface/10 border border-white/5 rounded-[1.5rem] p-4 md:p-6 group">
                               <div className="flex items-center gap-3 mb-3 border-b border-white/5 pb-3">
-                                <img src={reply.author.avatar} loading="lazy" className="w-8 h-8 rounded-lg object-cover shadow-md" alt="" />
+                                <Link to={`/user/${reply.author.id || reply.author.email}`} className="shrink-0">
+                                    <img src={reply.author.avatar} loading="lazy" className="w-8 h-8 rounded-lg object-cover shadow-md" alt="" />
+                                </Link>
                                 <div>
-                                  <div className="font-bold text-white text-[10px]">{reply.author.name}</div>
+                                  <Link to={`/user/${reply.author.id || reply.author.email}`} className="font-bold text-white text-[10px] hover:text-primary transition-colors">{reply.author.name}</Link>
                                   <div className="text-[8px] text-slate-500 uppercase tracking-widest">{new Date(reply.createdAt).toLocaleDateString()}</div>
                                 </div>
                               </div>

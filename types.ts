@@ -56,6 +56,7 @@ export interface ForumTopic {
   title: string;
   content: string;
   author: {
+    id?: string;
     name: string;
     avatar: string;
     email: string;
@@ -73,6 +74,7 @@ export interface ForumPost {
   parentId?: string; // For nested replies
   content: string;
   author: {
+    id?: string;
     name: string;
     avatar: string;
     email: string;

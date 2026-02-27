@@ -15,7 +15,7 @@ const Messages: React.FC = () => {
   const [searchParams] = useSearchParams();
   const targetEmail = searchParams.get('user');
   
-  const [conversations, setConversations] = useState<{email: string, name: string, avatar: string, lastText: string}[]>([]);
+  const [conversations, setConversations] = useState<{id?: string, email: string, name: string, avatar: string, lastText: string}[]>([]);
   const [messages, setMessages] = useState<PrivateMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [targetUser, setTargetUser] = useState<UserType | null>(null);
@@ -195,10 +195,26 @@ const Messages: React.FC = () => {
                 to={`/messages?user=${conv.email}`}
                 className={`p-4 flex items-center gap-3 hover:bg-white/5 transition-colors border-b border-white/5 ${targetEmail === conv.email ? 'bg-white/5 border-l-2 border-l-primary' : ''}`}
               >
-                <img src={conv.avatar} alt={conv.name} className="w-12 h-12 rounded-xl object-cover" />
+                <div onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = `/user/${conv.id || conv.email}`;
+                }} className="relative cursor-pointer hover:opacity-80 transition-opacity">
+                    <img src={conv.avatar} alt={conv.name} className="w-12 h-12 rounded-xl object-cover" />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-white text-sm truncate">{conv.name}</div>
-                  <div className="text-xs text-slate-400 truncate">{conv.lastText}</div>
+                  <div className="text-xs text-slate-400 truncate">
+                      {conv.lastText
+                        .replace(/(\*\*|__)(.*?)\1/g, '$2')
+                        .replace(/(\*|_)(.*?)\1/g, '$2')
+                        .replace(/~~(.*?)~~/g, '$1')
+                        .replace(/`([^`]+)`/g, '$1')
+                        .replace(/^> (.*$)/gm, '$1')
+                        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+                        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '[Image]')
+                      }
+                  </div>
                 </div>
               </Link>
             ))

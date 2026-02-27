@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(1, 250); // 1 concurrent, 250ms delay (4 req/s - optimal balance)
+const requestQueue = new RequestQueue(3, 100); // 3 concurrent, 100ms delay (30 req/s burst)
 
 export const clearRequestQueue = () => {
   requestQueue.clear();

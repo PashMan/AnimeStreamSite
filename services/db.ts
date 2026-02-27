@@ -89,6 +89,17 @@ class DatabaseService {
       return this.mapProfileToUser(data);
   }
 
+  async getProfileById(id: string): Promise<User | null> {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error || !data) return null;
+      return this.mapProfileToUser(data);
+  }
+
   private translateError(message: string): string {
     if (message.includes('User already registered')) return 'Пользователь с таким email уже зарегистрирован';
     if (message.includes('database error saving new user')) return 'Этот email уже занят или произошла ошибка базы данных';
@@ -345,7 +356,7 @@ class DatabaseService {
     try {
       let q = supabaseClient
         .from('forum_topics')
-        .select('*, profiles(name, avatar, email)')
+        .select('*, profiles(id, name, avatar, email)')
         .order('created_at', { ascending: false })
         .limit(50); // Added limit to prevent massive data loading
       
@@ -358,6 +369,7 @@ class DatabaseService {
         title: d.title,
         content: d.content,
         author: {
+            id: d.profiles?.id,
             name: d.profiles?.name || 'Unknown',
             avatar: d.profiles?.avatar || '',
             email: d.profiles?.email || d.author_email
@@ -444,7 +456,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('forum_posts')
-        .select('*, profiles(name, avatar, email)')
+        .select('*, profiles(id, name, avatar, email)')
         .eq('topic_id', topicId)
         .order('created_at', { ascending: true });
         
@@ -454,6 +466,7 @@ class DatabaseService {
         parentId: d.parent_id,
         content: d.content,
         author: {
+            id: d.profiles?.id,
             name: d.profiles?.name || 'Unknown',
             avatar: d.profiles?.avatar || '',
             email: d.profiles?.email || d.author_email
@@ -848,7 +861,7 @@ class DatabaseService {
     }
   }
 
-  async getConversations(email: string): Promise<{email: string, name: string, avatar: string, lastText: string}[]> {
+  async getConversations(email: string): Promise<{id: string, email: string, name: string, avatar: string, lastText: string}[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
       // Fetch only the last 100 messages to identify recent conversations
@@ -873,7 +886,7 @@ class DatabaseService {
       // Fetch all profiles at once
       const { data: profiles } = await supabaseClient
         .from('profiles')
-        .select('email, name, avatar')
+        .select('id, email, name, avatar')
         .in('email', threadEmailsArray);
 
       const profileMap = new Map<string, any>(profiles?.map((p: any) => [p.email, p]) || []);
@@ -881,11 +894,23 @@ class DatabaseService {
       const results = threadEmailsArray.map(tEmail => {
         const u = profileMap.get(tEmail);
         const lastMsg = messages.find((m: any) => (m.from_email === email && m.to_email === tEmail) || (m.from_email === tEmail && m.to_email === email));
+        
+        let cleanText = lastMsg?.text || '';
+        // Strip markdown
+        cleanText = cleanText.replace(/(\*\*|__)(.*?)\1/g, '$2'); // Bold
+        cleanText = cleanText.replace(/(\*|_)(.*?)\1/g, '$2'); // Italic
+        cleanText = cleanText.replace(/~~(.*?)~~/g, '$1'); // Strikethrough
+        cleanText = cleanText.replace(/`([^`]+)`/g, '$1'); // Code
+        cleanText = cleanText.replace(/^> (.*$)/gm, '$1'); // Blockquote
+        cleanText = cleanText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1'); // Link
+        cleanText = cleanText.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '[Image]'); // Image
+
         return {
+          id: (u as any)?.id || '',
           email: tEmail,
           name: (u as any)?.name || 'Unknown',
           avatar: (u as any)?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${tEmail}`,
-          lastText: lastMsg?.text || ''
+          lastText: cleanText
         };
       });
 

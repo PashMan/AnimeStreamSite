@@ -37,6 +37,7 @@ const NewsDetails = lazyWithRetry(() => import('./pages/NewsDetails'));
 const Messages = lazyWithRetry(() => import('./pages/Messages'));
 const Social = lazyWithRetry(() => import('./pages/Social'));
 const Forum = lazyWithRetry(() => import('./pages/Forum'));
+const UserProfile = lazyWithRetry(() => import('./pages/UserProfile'));
 const Premium = lazyWithRetry(() => import('./pages/Premium'));
 const ResetPassword = lazyWithRetry(() => import('./pages/ResetPassword'));
 
@@ -86,6 +87,7 @@ const App: React.FC = () => {
             <Route path="news/:id" element={<NewsDetails />} />
             <Route path="anime/:id" element={<Details />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="user/:id" element={<UserProfile />} />
             <Route path="favorites" element={<Navigate to="/profile" replace />} />
             <Route path="messages" element={<Messages />} />
             <Route path="social" element={<Social />} />
