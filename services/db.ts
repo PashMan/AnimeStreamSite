@@ -224,24 +224,22 @@ class DatabaseService {
         .single();
       
       if (error) {
-        // If 400, it might be due to missing columns. Try a basic update.
-        if (error.code === 'PGRST204' || error.message?.includes('column') || error.status === 400) {
-          const basicMapped: any = {};
-          if (updates.name) basicMapped.name = updates.name;
-          if (updates.avatar) basicMapped.avatar = updates.avatar;
-          if (updates.bio !== undefined) basicMapped.bio = updates.bio;
+        console.error('Profile update error:', error);
+        // Fallback to minimal update if columns are missing
+        const basicMapped: any = {};
+        if (updates.name) basicMapped.name = updates.name;
+        if (updates.avatar) basicMapped.avatar = updates.avatar;
+        if (updates.bio !== undefined) basicMapped.bio = updates.bio;
+
+        const { data: basicData, error: basicError } = await supabaseClient
+          .from('profiles')
+          .update(basicMapped)
+          .eq('email', email)
+          .select()
+          .single();
           
-          const { data: basicData, error: basicError } = await supabaseClient
-            .from('profiles')
-            .update(basicMapped)
-            .eq('email', email)
-            .select()
-            .single();
-            
-          if (basicError || !basicData) return null;
-          return this.mapProfileToUser(basicData);
-        }
-        return null;
+        if (basicError || !basicData) return null;
+        return this.mapProfileToUser(basicData);
       }
       
       if (!data) return null;
@@ -469,17 +467,28 @@ class DatabaseService {
   async createForumPost(post: { topicId: string, content: string, author: string, parentId?: string }): Promise<ForumPost | null> {
     if (!this.isSupabaseAvailable()) return null;
     try {
+      // First, insert the post without the join to avoid 400 errors if relationship is missing
       const { data, error } = await supabaseClient.from('forum_posts').insert([{
         topic_id: post.topicId,
         content: post.content,
         author_email: post.author,
         parent_id: post.parentId
-      }]).select('*, profiles(name, avatar, email)').single();
+      }]).select().single();
       
-      if (error || !data) return null;
+      if (error || !data) {
+        console.error('Forum post insert error:', error);
+        return null;
+      }
       
-      // Increment replies count
+      // Increment replies count asynchronously
       supabaseClient.rpc('increment_topic_replies', { topic_id: post.topicId }).then(() => {});
+
+      // Fetch profile separately to be safe
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('name, avatar, email')
+        .eq('email', post.author)
+        .single();
 
       return {
         id: data.id,
@@ -487,9 +496,9 @@ class DatabaseService {
         parentId: data.parent_id,
         content: data.content,
         author: {
-            name: data.profiles?.name || 'Unknown',
-            avatar: data.profiles?.avatar || '',
-            email: data.profiles?.email || data.author_email
+            name: profile?.name || 'Unknown',
+            avatar: profile?.avatar || '',
+            email: profile?.email || data.author_email
         },
         createdAt: data.created_at
       };

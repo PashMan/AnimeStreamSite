@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(2, 250); // 2 concurrent, 250ms delay (Shikimori allows 5 req/s)
+const requestQueue = new RequestQueue(5, 50); // 5 concurrent, 50ms delay (Shikimori max allowed)
 
 export const clearRequestQueue = () => {
   requestQueue.clear();

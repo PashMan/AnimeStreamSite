@@ -73,7 +73,7 @@ export default async function sitemapHandler(req: Request, res: Response) {
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
       const [animeRes, newsRes] = await Promise.all([
-        fetch(`${SHIKIMORI_API_URL}/animes?limit=30&order=popularity`, {
+        fetch(`${SHIKIMORI_API_URL}/animes?limit=20&order=popularity`, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
             'Accept': 'application/json'
