@@ -82,8 +82,15 @@ const Messages: React.FC = () => {
   useEffect(() => {
     if (!targetUser || !user?.email) return;
 
-    const interval = setInterval(() => {
-      loadMessages(targetUser.email);
+    let isPolling = false;
+    const interval = setInterval(async () => {
+      if (isPolling) return;
+      isPolling = true;
+      try {
+        await loadMessages(targetUser.email);
+      } finally {
+        isPolling = false;
+      }
     }, 3000);
 
     return () => clearInterval(interval);
