@@ -100,6 +100,17 @@ class DatabaseService {
       return this.mapProfileToUser(data);
   }
 
+  async getProfileByName(name: string): Promise<User | null> {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .ilike('name', name)
+        .single();
+      
+      if (error || !data) return null;
+      return this.mapProfileToUser(data);
+  }
+
   private translateError(message: string): string {
     if (message.includes('User already registered')) return 'Пользователь с таким email уже зарегистрирован';
     if (message.includes('database error saving new user')) return 'Этот email уже занят или произошла ошибка базы данных';
@@ -861,7 +872,7 @@ class DatabaseService {
     }
   }
 
-  async getConversations(email: string): Promise<{id: string, email: string, name: string, avatar: string, lastText: string}[]> {
+  async getConversations(email: string): Promise<{id: string, email: string, name: string, avatar: string, lastText: string, hasUnread: boolean}[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
       // Fetch only the last 100 messages to identify recent conversations
@@ -894,6 +905,7 @@ class DatabaseService {
       const results = threadEmailsArray.map(tEmail => {
         const u = profileMap.get(tEmail);
         const lastMsg = messages.find((m: any) => (m.from_email === email && m.to_email === tEmail) || (m.from_email === tEmail && m.to_email === email));
+        const hasUnread = messages.some((m: any) => m.from_email === tEmail && m.to_email === email && !m.is_read);
         
         let cleanText = lastMsg?.text || '';
         // Strip markdown
@@ -910,7 +922,8 @@ class DatabaseService {
           email: tEmail,
           name: (u as any)?.name || 'Unknown',
           avatar: (u as any)?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${tEmail}`,
-          lastText: cleanText
+          lastText: cleanText,
+          hasUnread
         };
       });
 

@@ -198,7 +198,7 @@ const Layout: React.FC = () => {
                 <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
                    <MessageSquareText className="w-5 h-5" />
                    {hasUnread && (
-                     <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                     <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
                    )}
                 </Link>
               )}
@@ -332,7 +332,7 @@ const Layout: React.FC = () => {
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8 font-display">Навигация</h4>
               <ul className="space-y-4 text-[13px] font-bold">
                 <li><Link to="/catalog" className="hover:text-primary transition-colors">Весь каталог</Link></li>
-                <li><Link to="/news" className="hover:text-primary transition-colors">Последние новости</Link></li>
+                <li><Link to="/news" className="hover:text-primary transition-colors">Новости</Link></li>
                 <li><Link to="/forum" className="hover:text-primary transition-colors">Форум</Link></li>
                 <li><Link to="/community" className="hover:text-primary transition-colors">Сообщество</Link></li>
                 <li><Link to="/profile" className="hover:text-primary transition-colors">Личный кабинет</Link></li>

@@ -104,11 +104,11 @@ const Social: React.FC = () => {
                       {friends.map(friend => (
                           <div key={friend.id} className="flex items-center justify-between bg-white/5 p-3 rounded-xl gap-3">
                               <div className="flex items-center gap-3 min-w-0">
-                                  <Link to={`/user/${friend.id || friend.email}`} className="shrink-0">
+                                  <Link to={`/user/${friend.name || friend.id || friend.email}`} className="shrink-0">
                                       <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-lg object-cover" />
                                   </Link>
                                   <div className="min-w-0">
-                                      <Link to={`/user/${friend.id || friend.email}`} className="font-bold text-sm text-white truncate hover:text-primary transition-colors">{friend.name}</Link>
+                                      <Link to={`/user/${friend.name || friend.id || friend.email}`} className="font-bold text-sm text-white truncate hover:text-primary transition-colors">{friend.name}</Link>
                                       <div className="text-[10px] text-slate-500 uppercase tracking-wider truncate">Online</div>
                                   </div>
                               </div>
@@ -156,11 +156,11 @@ const Social: React.FC = () => {
                                 return (
                                     <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
                                         <div className="flex items-center gap-4 min-w-0">
-                                            <Link to={`/user/${result.id || result.email}`} className="shrink-0">
+                                            <Link to={`/user/${result.name || result.id || result.email}`} className="shrink-0">
                                                 <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
                                             </Link>
                                             <div className="min-w-0">
-                                                <Link to={`/user/${result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
+                                                <Link to={`/user/${result.name || result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
                                                 <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
                                             </div>
                                         </div>
@@ -187,11 +187,11 @@ const Social: React.FC = () => {
                         return (
                             <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
                                 <div className="flex items-center gap-4 min-w-0">
-                                    <Link to={`/user/${result.id || result.email}`} className="shrink-0">
+                                    <Link to={`/user/${result.name || result.id || result.email}`} className="shrink-0">
                                         <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
                                     </Link>
                                     <div className="min-w-0">
-                                        <Link to={`/user/${result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
+                                        <Link to={`/user/${result.name || result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
                                         <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
                                     </div>
                                 </div>

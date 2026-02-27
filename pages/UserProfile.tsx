@@ -1,19 +1,24 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
+import { useAuth } from '../context/AuthContext';
 import { User, Anime } from '../types';
 import { fetchAnimes } from '../services/shikimori';
-import { Loader2, Heart, Clock, History, User as UserIcon, ArrowLeft } from 'lucide-react';
+import { Loader2, Heart, History, ArrowLeft, UserPlus, MessageSquare, Check } from 'lucide-react';
 import SEO from '../components/SEO';
 
 const UserProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<User | null>(null);
   const [favorites, setFavorites] = useState<Anime[]>([]);
   const [watched, setWatched] = useState<Anime[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'favs' | 'watched'>('favs');
+  const [isFriend, setIsFriend] = useState(false);
+  const [isAddingFriend, setIsAddingFriend] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -30,37 +35,76 @@ const UserProfile: React.FC = () => {
         } else if (id.includes('@')) {
             user = await db.getProfile(id);
         } else {
-            // Try ID anyway if it's not email
-            user = await db.getProfileById(id);
+            // Try fetching by name first, then fallback to ID
+            user = await db.getProfileByName(id);
+            if (!user) {
+                user = await db.getProfileById(id);
+            }
         }
 
         if (user) {
           setProfile(user);
+          setIsLoading(false); // Stop loading immediately after profile is found
           
-          // Load lists
+          // Check friendship status
+          if (currentUser && currentUser.friends && (currentUser.friends.includes(user.email) || currentUser.friends.includes(user.id || ''))) {
+              setIsFriend(true);
+          }
+          
+          // Load lists asynchronously
           const [favIds, watchedIds] = await Promise.all([
             db.getFavorites(user.email),
             db.getWatched(user.email)
           ]);
 
+          // Helper for chunk loading
+          const loadInChunks = async (ids: string[], setter: (data: Anime[]) => void) => {
+              if (ids.length === 0) return;
+              const chunkSize = 20; // Smaller chunks for faster initial render
+              let allData: Anime[] = [];
+              
+              for (let i = 0; i < ids.length; i += chunkSize) {
+                const chunk = ids.slice(i, i + chunkSize);
+                try {
+                  const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true);
+                  allData = [...allData, ...data.filter(a => !!a)];
+                  setter([...allData]);
+                } catch (e) {
+                  console.error("Chunk load error", e);
+                }
+              }
+          };
+
           if (favIds.length > 0) {
-             const data = await fetchAnimes({ ids: favIds.join(','), limit: favIds.length }, true);
-             setFavorites(data);
+             loadInChunks(favIds, setFavorites);
           }
 
           if (watchedIds.length > 0) {
-             const data = await fetchAnimes({ ids: watchedIds.join(','), limit: watchedIds.length }, true);
-             setWatched(data);
+             loadInChunks(watchedIds, setWatched);
           }
+        } else {
+            setIsLoading(false);
         }
       } catch (e) {
         console.error('Failed to load user profile', e);
-      } finally {
         setIsLoading(false);
       }
     };
     loadProfile();
-  }, [id]);
+  }, [id, currentUser]);
+
+  const handleAddFriend = async () => {
+      if (!currentUser || !profile) return;
+      setIsAddingFriend(true);
+      try {
+          const success = await db.addFriend(currentUser.email, profile.email);
+          if (success) setIsFriend(true);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setIsAddingFriend(false);
+      }
+  };
 
   if (isLoading) {
     return (
@@ -78,6 +122,8 @@ const UserProfile: React.FC = () => {
       </div>
     );
   }
+
+  const isOwnProfile = currentUser?.email === profile.email;
 
   return (
     <div className="min-h-screen pb-20">
@@ -112,16 +158,32 @@ const UserProfile: React.FC = () => {
                     <p className="text-slate-400 text-sm leading-relaxed text-center md:text-left">{profile.bio}</p>
                 )}
                 
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                    <div className="text-center p-3 bg-white/5 rounded-2xl">
-                        <div className="text-xl font-black text-white">{profile.episodesWatched}</div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-widest">Эпизодов</div>
+                {!isOwnProfile && (
+                    <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
+                        {isFriend ? (
+                            <button disabled className="w-full py-3 bg-green-500/20 text-green-500 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 cursor-default">
+                                <Check className="w-4 h-4" /> В друзьях
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={handleAddFriend}
+                                disabled={isAddingFriend || !currentUser}
+                                className="w-full py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-violet-600 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                            >
+                                {isAddingFriend ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                                Добавить в друзья
+                            </button>
+                        )}
+                        
+                        <Link 
+                            to={`/messages?user=${profile.email}`}
+                            className="w-full py-3 bg-white/5 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <MessageSquare className="w-4 h-4" />
+                            Написать сообщение
+                        </Link>
                     </div>
-                    <div className="text-center p-3 bg-white/5 rounded-2xl">
-                        <div className="text-xl font-black text-white">{profile.watchedTime}</div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-widest">Часов</div>
-                    </div>
-                </div>
+                )}
              </div>
           </div>
 

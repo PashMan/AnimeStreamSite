@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft, MessageSquare, Loader2, Copy, Check, Reply } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
@@ -12,10 +12,11 @@ import remarkGfm from 'remark-gfm';
 
 const Messages: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const targetEmail = searchParams.get('user');
   
-  const [conversations, setConversations] = useState<{id?: string, email: string, name: string, avatar: string, lastText: string}[]>([]);
+  const [conversations, setConversations] = useState<{id?: string, email: string, name: string, avatar: string, lastText: string, hasUnread?: boolean}[]>([]);
   const [messages, setMessages] = useState<PrivateMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [targetUser, setTargetUser] = useState<UserType | null>(null);
@@ -41,6 +42,15 @@ const Messages: React.FC = () => {
     }
   };
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Mark conversation as read locally when selected
+  useEffect(() => {
+    if (targetEmail) {
+      setConversations(prev => prev.map(c => 
+        c.email === targetEmail ? { ...c, hasUnread: false } : c
+      ));
+    }
+  }, [targetEmail]);
 
   // Load conversations list
   useEffect(() => {
@@ -198,12 +208,15 @@ const Messages: React.FC = () => {
                 <div onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    window.location.href = `/user/${conv.id || conv.email}`;
+                    navigate(`/user/${conv.name || conv.id || conv.email}`);
                 }} className="relative cursor-pointer hover:opacity-80 transition-opacity">
                     <img src={conv.avatar} alt={conv.name} className="w-12 h-12 rounded-xl object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-white text-sm truncate">{conv.name}</div>
+                  <div className="flex justify-between items-center">
+                    <div className="font-bold text-white text-sm truncate">{conv.name}</div>
+                    {conv.hasUnread && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>}
+                  </div>
                   <div className="text-xs text-slate-400 truncate">
                       {conv.lastText
                         .replace(/(\*\*|__)(.*?)\1/g, '$2')
@@ -231,13 +244,15 @@ const Messages: React.FC = () => {
               <Link to="/messages" className="md:hidden p-2 hover:bg-white/5 rounded-full text-white">
                 <ArrowLeft className="w-5 h-5" />
               </Link>
-              <img src={targetUser.avatar} alt={targetUser.name} className="w-10 h-10 rounded-full object-cover" />
-              <div className="flex-1">
-                <div className="font-bold text-white">{targetUser.name}</div>
-                <div className="text-xs text-slate-500 flex items-center gap-1">
-                   <span className="w-2 h-2 bg-green-500 rounded-full"></span> Онлайн
-                </div>
-              </div>
+              <Link to={`/user/${targetUser.name || targetUser.id || targetUser.email}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+                  <img src={targetUser.avatar} alt={targetUser.name} className="w-10 h-10 rounded-full object-cover" />
+                  <div>
+                    <div className="font-bold text-white">{targetUser.name}</div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1">
+                       <span className="w-2 h-2 bg-green-500 rounded-full"></span> Онлайн
+                    </div>
+                  </div>
+              </Link>
             </div>
 
             {/* Messages List */}

@@ -309,15 +309,15 @@ const Profile: React.FC = () => {
                                 setEditBio(user.bio || '');
                                 setEditAvatar(user.avatar);
                               }}
-                              className="px-6 py-3 bg-white/5 text-slate-400 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-white/10 hover:text-white transition-colors"
+                              className="px-6 py-3 bg-white/10 text-slate-300 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-white/20 hover:text-white transition-colors"
                             >
                               Отмена
                             </button>
                             <button 
                               onClick={handleSaveProfile}
                               disabled={isActionLoading}
-                              className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: user.themeColor || '#8b5cf6', boxShadow: `0 10px 15px -3px ${user.themeColor}40` }}
+                              className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                              style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 10px 15px -3px ${user.themeColor}40` : undefined }}
                             >
                               {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                               Сохранить
@@ -326,8 +326,8 @@ const Profile: React.FC = () => {
                         ) : (
                           <button 
                             onClick={() => setIsEditing(true)}
-                            className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:opacity-90 transition-opacity"
-                            style={{ backgroundColor: user.themeColor || '#8b5cf6', boxShadow: `0 10px 15px -3px ${user.themeColor}40` }}
+                            className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:opacity-90 transition-opacity"
+                            style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 10px 15px -3px ${user.themeColor}40` : undefined }}
                           >
                             <Edit2 className="w-4 h-4" /> Редактировать
                           </button>
@@ -543,8 +543,8 @@ const Profile: React.FC = () => {
                             <h4 className="text-white font-black uppercase tracking-tighter">{friend.name}</h4>
                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{friend.email}</p>
                           </div>
-                          <Link aria-label="Send message" to={`/messages?user=${friend.email}`} className="p-3 bg-white/5 hover:bg-primary text-slate-400 hover:text-white rounded-xl transition-all">
-                            <Mail className="w-5 h-5" />
+                          <Link aria-label="Send message" to={`/user/${friend.id || friend.email}`} className="p-3 bg-white/5 hover:bg-primary text-slate-400 hover:text-white rounded-xl transition-all">
+                            <UserIcon className="w-5 h-5" />
                           </Link>
                         </div>
                       )) : (

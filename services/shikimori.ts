@@ -552,8 +552,8 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
         image: imgMatch ? imgMatch[1] : undefined,
         video: videoId,
         linkedId: topic.linked_id,
-        // Optimization: Skip heavy HTML processing for the list view
-        html_body: html 
+        // Optimization: Skip heavy HTML processing for the list view and don't return full HTML
+        html_body: undefined 
       };
     });
     
