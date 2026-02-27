@@ -290,8 +290,8 @@ export const mapAnime = async (data: any): Promise<Anime> => {
                image_preview = image;
            }
       } else {
-          // High Res
-          const candidates = [data.image.original, data.image.preview, data.image.x96];
+          // High Res - prioritize original
+          const candidates = [data.image.original, data.image.x96, data.image.preview];
           for (const img of candidates) {
               if (img && !img.includes('missing') && !img.includes('none.png')) {
                   image = proxyImage(img);
@@ -556,6 +556,7 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
 
 export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => {
   try {
+    // Bypass queue for single item fetch to make it instant
     const topic = await fetchApi(`/topics/${id}`, 2, 30 * 60 * 1000, true);
     if (!topic) return MOCK_NEWS.find(n => n.id === id) || MOCK_NEWS[0];
 
@@ -566,11 +567,13 @@ export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => 
 
     let videoId = ytMatch ? ytMatch[1] : undefined;
 
+    // Skip secondary video fetch if we already have a video or if it's too slow
+    // We will only do this if we really need it, and we'll bypass the queue
     if (!videoId && (topic.linked?.type === 'Anime' || topic.linked_type === 'Anime')) {
         const animeId = topic.linked?.id || topic.linked_id;
         if (animeId) {
             try {
-                const videos = await fetchApi(`/animes/${animeId}/videos`, 2, 60 * 60 * 1000);
+                const videos = await fetchApi(`/animes/${animeId}/videos`, 2, 60 * 60 * 1000, true);
                 if (Array.isArray(videos)) {
                     const trailer = videos.find((v: any) => v.url && (v.url.includes('youtube.com') || v.url.includes('youtu.be')));
                     if (trailer) {
