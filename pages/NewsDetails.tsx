@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, ArrowLeft, Loader2, MessageSquare, PlayCircle } from 'lucide-react';
+import { Calendar, ArrowLeft, Loader2, MessageSquare, PlayCircle, Reply } from 'lucide-react';
 import { fetchNewsDetails, fetchAnimeVideos } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
@@ -107,6 +107,22 @@ const NewsDetails: React.FC = () => {
         console.error(e);
     } finally {
       setIsCommenting(false);
+    }
+  };
+
+  const handleReplyToComment = (comment: Comment) => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
+    const quote = `> **${comment.user.name}** писал(а):\n> ${comment.text.split('\n').join('\n> ')}\n\n`;
+    setUserComment((prev) => prev ? `${prev}\n${quote}` : quote);
+    
+    // Scroll to textarea
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      textarea.focus();
     }
   };
 
@@ -262,6 +278,12 @@ const NewsDetails: React.FC = () => {
                                 {comment.text}
                             </ReactMarkdown>
                         </div>
+                        <button 
+                            onClick={() => handleReplyToComment(comment)}
+                            className="mt-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                            <Reply className="w-3 h-3" /> Ответить
+                        </button>
                     </div>
                 </div>
             ))}

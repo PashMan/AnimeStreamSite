@@ -40,8 +40,10 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({ value, onChange, onS
         newCursorPos = start + 3 + selection.length + 4;
         if (!selection) newCursorPos -= 4;
     } else if (tag === 'q') {
-        newText = `${before}> ${selection}${after}`;
-        newCursorPos = start + 2 + selection.length;
+        const quoteText = selection || 'Цитата';
+        newText = `${before}\n> ${quoteText}\n${after}`;
+        newCursorPos = start + 3 + quoteText.length + 1;
+        if (!selection) newCursorPos -= (quoteText.length + 1);
     }
 
     // Trigger change manually since we modified the value programmatically

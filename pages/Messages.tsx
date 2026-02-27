@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Send, ArrowLeft, MessageSquare, Loader2, Copy, Check } from 'lucide-react';
+import { Send, ArrowLeft, MessageSquare, Loader2, Copy, Check, Reply } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { PrivateMessage, User as UserType } from '../types';
 import SEO from '../components/SEO';
+import { RichTextarea } from '../components/RichTextarea';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 const Messages: React.FC = () => {
   const { user } = useAuth();
@@ -143,6 +147,19 @@ const Messages: React.FC = () => {
     }
   };
 
+  const handleReplyToMessage = (msg: PrivateMessage) => {
+    const senderName = msg.from === user?.email ? user.name : targetUser?.name || 'Пользователь';
+    const quote = `> **${senderName}** писал(а):\n> ${msg.text.split('\n').join('\n> ')}\n\n`;
+    setNewMessage((prev) => prev ? `${prev}\n${quote}` : quote);
+    
+    // Scroll to textarea
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      textarea.focus();
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white pt-20">
@@ -212,23 +229,52 @@ const Messages: React.FC = () => {
               <div className="flex-1"></div> {/* Spacer to push messages down if few */}
               {messages.map(msg => {
                 const isMe = msg.from === user.email;
-                const renderText = (text: string) => {
-                  const urlRegex = /(https?:\/\/[^\s]+)/g;
-                  return text.split(urlRegex).map((part, i) => {
-                    if (part.match(urlRegex)) {
-                      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-white underline hover:text-white/80 break-all">{part}</a>;
-                    }
-                    return part;
-                  });
-                };
                 return (
-                  <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                    {!isMe && (
+                      <button 
+                        onClick={() => handleReplyToMessage(msg)}
+                        className="mr-2 self-center opacity-0 group-hover:opacity-100 text-slate-500 hover:text-primary transition-colors p-1"
+                        title="Ответить"
+                      >
+                        <Reply className="w-4 h-4" />
+                      </button>
+                    )}
                     <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 ${isMe ? 'bg-primary text-white rounded-tr-none' : 'bg-surface border border-white/10 text-slate-200 rounded-tl-none'}`}>
-                      <p className="text-sm leading-relaxed break-words">{renderText(msg.text)}</p>
+                      <div className="text-sm leading-relaxed break-words markdown-body">
+                        <ReactMarkdown
+                          rehypePlugins={[rehypeRaw]}
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                              u: ({node, ...props}: any) => <u {...props} />,
+                              img: ({node, ...props}: any) => (
+                                  <img 
+                                      {...props} 
+                                      className="max-w-full rounded-xl my-2 shadow-lg border border-white/10 object-contain max-h-[300px]" 
+                                      loading="lazy" 
+                                      alt={props.alt || "Изображение"} 
+                                  />
+                              ),
+                              p: ({node, ...props}: any) => <p className="mb-2 last:mb-0" {...props} />,
+                              a: ({node, ...props}: any) => <a className="underline hover:text-white/80 break-all" target="_blank" rel="noopener noreferrer" {...props} />
+                          }}
+                        >
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
                       <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-white/70' : 'text-slate-500'}`}>
                         {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </div>
                     </div>
+                    {isMe && (
+                      <button 
+                        onClick={() => handleReplyToMessage(msg)}
+                        className="ml-2 self-center opacity-0 group-hover:opacity-100 text-slate-500 hover:text-primary transition-colors p-1"
+                        title="Ответить"
+                      >
+                        <Reply className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -236,18 +282,20 @@ const Messages: React.FC = () => {
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} className="p-4 bg-surface border-t border-white/5 flex gap-4">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Напишите сообщение..."
-                className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50 transition-colors"
-              />
+            <form onSubmit={handleSendMessage} className="p-4 bg-surface border-t border-white/5 flex gap-4 items-end">
+              <div className="flex-1">
+                <RichTextarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Напишите сообщение..."
+                  className="min-h-[80px]"
+                  onSubmit={() => handleSendMessage({ preventDefault: () => {} } as React.FormEvent)}
+                />
+              </div>
               <button 
                 type="submit" 
                 disabled={!newMessage.trim()}
-                className="bg-primary hover:bg-primary/90 text-white p-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-primary hover:bg-primary/90 text-white p-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-[2px]"
               >
                 <Send className="w-5 h-5" />
               </button>
