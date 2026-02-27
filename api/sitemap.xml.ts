@@ -36,7 +36,20 @@ const COLLECTIONS = [
   { id: 'school' }, { id: 'show-biz' }
 ];
 
+// Simple in-memory cache for sitemap
+let sitemapCache: { xml: string, timestamp: number } | null = null;
+const SITEMAP_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+
 export default async function sitemapHandler(req: Request, res: Response) {
+  const now = Date.now();
+  
+  // Return cached sitemap if available and not expired
+  if (sitemapCache && (now - sitemapCache.timestamp < SITEMAP_CACHE_TTL)) {
+    res.setHeader('Content-Type', 'text/xml');
+    res.setHeader('Cache-Control', 'public, s-maxage=86400');
+    return res.send(sitemapCache.xml);
+  }
+
   try {
     const today = new Date().toISOString();
 
@@ -56,20 +69,26 @@ export default async function sitemapHandler(req: Request, res: Response) {
     let news: any[] = [];
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
       const [animeRes, newsRes] = await Promise.all([
-        fetch(`${SHIKIMORI_API_URL}/animes?limit=50&order=popularity`, {
+        fetch(`${SHIKIMORI_API_URL}/animes?limit=30&order=popularity`, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
             'Accept': 'application/json'
-          }
+          },
+          signal: controller.signal
         }),
-        fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=20`, {
+        fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=15`, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
             'Accept': 'application/json'
-          }
+          },
+          signal: controller.signal
         })
       ]);
+      clearTimeout(timeoutId);
 
       if (animeRes.ok) animes = await animeRes.json();
       if (newsRes.ok) news = await newsRes.json();
@@ -137,7 +156,10 @@ export default async function sitemapHandler(req: Request, res: Response) {
     xml += `
 </urlset>`;
 
-    // 4. Send Response
+    // 4. Update Cache
+    sitemapCache = { xml, timestamp: Date.now() };
+
+    // 5. Send Response
     res.setHeader('Content-Type', 'text/xml');
     res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=43200');
     res.send(xml);

@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(1, 600); // 1 concurrent, 600ms delay to strictly avoid 429 Rate Limit
+const requestQueue = new RequestQueue(2, 250); // 2 concurrent, 250ms delay (Shikimori allows 5 req/s)
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
@@ -543,7 +543,8 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
         image: imgMatch ? imgMatch[1] : undefined,
         video: videoId,
         linkedId: topic.linked_id,
-        html_body: processNewsHtml(html) // Apply HTML processing
+        // Optimization: Skip heavy HTML processing for the list view
+        html_body: html 
       };
     });
     

@@ -223,7 +223,28 @@ class DatabaseService {
         .select()
         .single();
       
-      if (error || !data) return null;
+      if (error) {
+        // If 400, it might be due to missing columns. Try a basic update.
+        if (error.code === 'PGRST204' || error.message?.includes('column') || error.status === 400) {
+          const basicMapped: any = {};
+          if (updates.name) basicMapped.name = updates.name;
+          if (updates.avatar) basicMapped.avatar = updates.avatar;
+          if (updates.bio !== undefined) basicMapped.bio = updates.bio;
+          
+          const { data: basicData, error: basicError } = await supabaseClient
+            .from('profiles')
+            .update(basicMapped)
+            .eq('email', email)
+            .select()
+            .single();
+            
+          if (basicError || !basicData) return null;
+          return this.mapProfileToUser(basicData);
+        }
+        return null;
+      }
+      
+      if (!data) return null;
       return this.mapProfileToUser(data);
     } catch (e) {
       return null;
@@ -326,7 +347,7 @@ class DatabaseService {
     try {
       let q = supabaseClient
         .from('forum_topics')
-        .select('*, profiles!author_email(name, avatar, email)')
+        .select('*, profiles(name, avatar, email)')
         .order('created_at', { ascending: false });
       
       if (animeId) q = q.eq('anime_id', animeId);
@@ -358,7 +379,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('forum_topics')
-        .select('*, profiles!author_email(name, avatar, email)')
+        .select('*, profiles(name, avatar, email)')
         .eq('id', id)
         .single();
         
@@ -396,7 +417,7 @@ class DatabaseService {
       };
       if (topic.id) payload.id = topic.id;
 
-      const { data, error } = await supabaseClient.from('forum_topics').insert([payload]).select('*, profiles!author_email(name, avatar, email)').single();
+      const { data, error } = await supabaseClient.from('forum_topics').insert([payload]).select('*, profiles(name, avatar, email)').single();
       
       if (error || !data) return null;
       return {
@@ -424,7 +445,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('forum_posts')
-        .select('*, profiles!author_email(name, avatar, email)')
+        .select('*, profiles(name, avatar, email)')
         .eq('topic_id', topicId)
         .order('created_at', { ascending: true });
         
@@ -453,7 +474,7 @@ class DatabaseService {
         content: post.content,
         author_email: post.author,
         parent_id: post.parentId
-      }]).select('*, profiles!author_email(name, avatar, email)').single();
+      }]).select('*, profiles(name, avatar, email)').single();
       
       if (error || !data) return null;
       
