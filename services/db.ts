@@ -216,8 +216,21 @@ class DatabaseService {
       themeColor: p.theme_color,
       avatarShape: p.avatar_shape as any,
       cardOpacity: p.card_opacity,
-      cardBlur: p.card_blur
+      cardBlur: p.card_blur,
+      lastSeen: p.last_seen
     };
+  }
+
+  async updateLastSeen(email: string) {
+    if (!this.isSupabaseAvailable()) return;
+    try {
+      await supabaseClient
+        .from('profiles')
+        .update({ last_seen: new Date().toISOString() })
+        .eq('email', email);
+    } catch (e) {
+      // Ignore errors for background updates
+    }
   }
 
   async updateProfile(email: string, updates: Partial<User>): Promise<User | null> {

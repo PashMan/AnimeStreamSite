@@ -129,6 +129,9 @@ const Messages: React.FC = () => {
     if (gotNewMessages || !hadMessages) {
       scrollToBottom();
     }
+
+    // Notify layout to update unread count
+    window.dispatchEvent(new Event('messages-read'));
   };
 
   const scrollToBottom = () => {
@@ -249,7 +252,8 @@ const Messages: React.FC = () => {
                   <div>
                     <div className="font-bold text-white">{targetUser.name}</div>
                     <div className="text-xs text-slate-500 flex items-center gap-1">
-                       <span className="w-2 h-2 bg-green-500 rounded-full"></span> Онлайн
+                       <span className={`w-2 h-2 rounded-full ${targetUser.lastSeen && (new Date().getTime() - new Date(targetUser.lastSeen).getTime() < 5 * 60 * 1000) ? 'bg-green-500' : 'bg-slate-500'}`}></span> 
+                       {targetUser.lastSeen && (new Date().getTime() - new Date(targetUser.lastSeen).getTime() < 5 * 60 * 1000) ? 'Онлайн' : 'Оффлайн'}
                     </div>
                   </div>
               </Link>

@@ -12,6 +12,8 @@ import SEO from '../components/SEO';
 
 const Profile: React.FC = () => {
   const { user, openAuthModal, updateProfile } = useAuth();
+  const [allFavIds, setAllFavIds] = useState<string[]>([]);
+  const [allWatchedIds, setAllWatchedIds] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Anime[]>([]);
   const [watched, setWatched] = useState<Anime[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -98,38 +100,13 @@ const Profile: React.FC = () => {
           db.getHistory(user.email)
         ]);
 
+        setAllFavIds(favIds);
+        setAllWatchedIds(watchedIds);
         setHistory(historyData);
         
         // Load friends immediately
         if (user.friends && user.friends.length > 0) {
-          // Use a smaller limit or fetch in background
           db.getFriendsList(user.friends.slice(0, 20)).then(setFriends).catch(console.error);
-        }
-
-        // Load anime data asynchronously in chunks to avoid large request failures
-        const loadInChunks = async (ids: string[], setter: (data: Anime[]) => void) => {
-          if (ids.length === 0) return;
-          const chunkSize = 50; // Increased chunk size for performance
-          let allData: Anime[] = [];
-          
-          for (let i = 0; i < ids.length; i += chunkSize) {
-            const chunk = ids.slice(i, i + chunkSize);
-            try {
-              const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true); // Bypass queue for immediate profile load
-              allData = [...allData, ...data.filter(a => !!a)];
-              setter([...allData]); // Update UI incrementally
-            } catch (e) {
-              console.error("Chunk load error", e);
-            }
-          }
-        };
-
-        if (favIds.length > 0) {
-          loadInChunks(favIds, setFavorites);
-        }
-        
-        if (watchedIds.length > 0) {
-          loadInChunks(watchedIds, setWatched);
         }
         
         // Sync state with user
@@ -152,7 +129,31 @@ const Profile: React.FC = () => {
     };
 
     loadUserData();
-  }, [user?.email]); // Only reload if user email changes, not on every profile update
+  }, [user?.email]);
+
+  // Lazy load tab content
+  useEffect(() => {
+    const loadTabContent = async () => {
+      if (activeTab === 'favs' && favorites.length === 0 && allFavIds.length > 0) {
+         const idsToLoad = allFavIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setFavorites(data);
+         } catch (e) {
+            console.error("Error loading favorites", e);
+         }
+      } else if (activeTab === 'watched' && watched.length === 0 && allWatchedIds.length > 0) {
+         const idsToLoad = allWatchedIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setWatched(data);
+         } catch (e) {
+            console.error("Error loading watched", e);
+         }
+      }
+    };
+    loadTabContent();
+  }, [activeTab, allFavIds, allWatchedIds]);
 
   const handleSaveProfile = async () => {
     setIsActionLoading(true);

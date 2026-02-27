@@ -49,6 +49,7 @@ export interface User {
   avatarShape?: 'round' | 'rounded' | 'square';
   cardOpacity?: number; // 0-100
   cardBlur?: number; // 0-20
+  lastSeen?: string; // ISO date string
 }
 
 export interface ForumTopic {

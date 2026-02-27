@@ -63,9 +63,25 @@ const Layout: React.FC = () => {
         setHasUnread(unread);
       };
       
+      const updatePresence = async () => {
+        await db.updateLastSeen(user.email);
+      };
+
       checkUnread();
-      const interval = setInterval(checkUnread, 30000); // Check every 30s
-      return () => clearInterval(interval);
+      updatePresence();
+
+      const interval = setInterval(() => {
+        checkUnread();
+        updatePresence();
+      }, 10000); // Check every 10s
+      
+      const handleMessageRead = () => checkUnread();
+      window.addEventListener('messages-read', handleMessageRead);
+
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('messages-read', handleMessageRead);
+      };
     }
   }, [user?.email]);
 

@@ -13,6 +13,8 @@ const UserProfile: React.FC = () => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<User | null>(null);
+  const [allFavIds, setAllFavIds] = useState<string[]>([]);
+  const [allWatchedIds, setAllWatchedIds] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Anime[]>([]);
   const [watched, setWatched] = useState<Anime[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,31 +59,9 @@ const UserProfile: React.FC = () => {
             db.getWatched(user.email)
           ]);
 
-          // Helper for chunk loading
-          const loadInChunks = async (ids: string[], setter: (data: Anime[]) => void) => {
-              if (ids.length === 0) return;
-              const chunkSize = 20; // Smaller chunks for faster initial render
-              let allData: Anime[] = [];
-              
-              for (let i = 0; i < ids.length; i += chunkSize) {
-                const chunk = ids.slice(i, i + chunkSize);
-                try {
-                  const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true);
-                  allData = [...allData, ...data.filter(a => !!a)];
-                  setter([...allData]);
-                } catch (e) {
-                  console.error("Chunk load error", e);
-                }
-              }
-          };
+          setAllFavIds(favIds);
+          setAllWatchedIds(watchedIds);
 
-          if (favIds.length > 0) {
-             loadInChunks(favIds, setFavorites);
-          }
-
-          if (watchedIds.length > 0) {
-             loadInChunks(watchedIds, setWatched);
-          }
         } else {
             setIsLoading(false);
         }
@@ -92,6 +72,30 @@ const UserProfile: React.FC = () => {
     };
     loadProfile();
   }, [id, currentUser]);
+
+  // Lazy load tab content
+  useEffect(() => {
+    const loadTabContent = async () => {
+      if (activeTab === 'favs' && favorites.length === 0 && allFavIds.length > 0) {
+         const idsToLoad = allFavIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setFavorites(data);
+         } catch (e) {
+            console.error("Error loading favorites", e);
+         }
+      } else if (activeTab === 'watched' && watched.length === 0 && allWatchedIds.length > 0) {
+         const idsToLoad = allWatchedIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setWatched(data);
+         } catch (e) {
+            console.error("Error loading watched", e);
+         }
+      }
+    };
+    loadTabContent();
+  }, [activeTab, allFavIds, allWatchedIds]);
 
   const handleAddFriend = async () => {
       if (!currentUser || !profile) return;
