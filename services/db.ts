@@ -467,13 +467,30 @@ class DatabaseService {
   async createForumPost(post: { topicId: string, content: string, author: string, parentId?: string }): Promise<ForumPost | null> {
     if (!this.isSupabaseAvailable()) return null;
     try {
-      // First, insert the post without the join to avoid 400 errors if relationship is missing
-      const { data, error } = await supabaseClient.from('forum_posts').insert([{
+      const payload: any = {
         topic_id: post.topicId,
         content: post.content,
-        author_email: post.author,
-        parent_id: post.parentId
-      }]).select().single();
+        author_email: post.author
+      };
+      
+      // Only add parent_id if it's provided
+      if (post.parentId) {
+        payload.parent_id = post.parentId;
+      }
+
+      // First, insert the post
+      let { data, error } = await supabaseClient.from('forum_posts').insert([payload]).select().single();
+      
+      if (error) {
+        // If error is about missing parent_id column, try without it
+        if (error.message?.includes('parent_id') || error.code === 'PGRST204') {
+          console.warn('parent_id column missing, falling back to top-level post');
+          delete payload.parent_id;
+          const retry = await supabaseClient.from('forum_posts').insert([payload]).select().single();
+          data = retry.data;
+          error = retry.error;
+        }
+      }
       
       if (error || !data) {
         console.error('Forum post insert error:', error);

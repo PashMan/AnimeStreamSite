@@ -37,25 +37,27 @@ const Home: React.FC = () => {
     let isMounted = true;
     
     const loadLists = async () => {
-        // Parallel fetches for other sections, now controlled by RequestQueue (limit: 5)
-        // Reduced limits to speed up initial load
+        // Parallel fetches, now handled efficiently by the RequestQueue
         fetchAnimes({ order: 'popularity', limit: 8 }).then(data => {
           if (isMounted) setTrendingAnimes(data);
         });
+        
         fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 8 }).then(data => {
           if (isMounted) setNewAnimes(data);
         });
+        
         fetchAnimes({ order: 'popularity', status: 'anons', limit: 8 }).then(data => {
           if (isMounted) setUpcomingAnimes(data);
         });
+        
         fetchNews().then(data => {
           if (isMounted) setNews(data);
         });
+        
         fetchCalendar().then(data => {
           if (isMounted) setSchedule(data);
         });
         
-        // Fetch recent forum topics (excluding news)
         db.getForumTopics(undefined, undefined).then(topics => {
           if (isMounted) {
             setForumTopics(topics.filter(t => t.category !== 'news').slice(0, 5));
