@@ -115,7 +115,7 @@ const Profile: React.FC = () => {
           for (let i = 0; i < ids.length; i += chunkSize) {
             const chunk = ids.slice(i, i + chunkSize);
             try {
-              const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true); // Bypass queue for profile load
+              const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true); // Bypass queue for immediate profile load
               allData = [...allData, ...data.filter(a => !!a)];
               setter([...allData]); // Update UI incrementally
             } catch (e) {

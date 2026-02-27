@@ -94,11 +94,8 @@ const contentMap: Record<string, { title: string; icon: any; content: string }> 
       Email: support@animestream.fake
       Время работы: Пн-Пт, 10:00 - 19:00 (МСК)
 
-      Сотрудничество и реклама:
-      Email: business@animestream.fake
-
       Социальные сети:
-      Присоединяйтесь к нашему Discord-серверу для быстрого общения с администрацией и сообществом.
+      Присоединяйтесь к нашему Telegram-каналу для быстрого общения с администрацией и сообществом: @animestreamsite
     `
   }
 };
