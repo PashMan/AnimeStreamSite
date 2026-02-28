@@ -45,12 +45,19 @@ const Messages: React.FC = () => {
 
   // Mark conversation as read locally when selected
   useEffect(() => {
-    if (targetEmail) {
+    if (targetEmail && user?.email) {
+      // Optimistic update
       setConversations(prev => prev.map(c => 
         c.email === targetEmail ? { ...c, hasUnread: false } : c
       ));
+      
+      // Explicit server update
+      db.markMessagesAsRead(user.email, targetEmail).then(() => {
+          // Notify layout after server update
+          window.dispatchEvent(new Event('messages-read'));
+      });
     }
-  }, [targetEmail]);
+  }, [targetEmail, user?.email]);
 
   // Load conversations list
   useEffect(() => {
@@ -65,6 +72,8 @@ const Messages: React.FC = () => {
       if (targetEmail && user?.email) {
         setIsLoading(true);
         try {
+          // Parallel fetch: Profile + Messages
+          // Note: getPrivateMessages also marks as read, but we did it explicitly above too for safety
           const [profile, msgs] = await Promise.all([
             db.getProfile(targetEmail),
             db.getPrivateMessages(user.email, targetEmail)

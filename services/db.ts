@@ -81,7 +81,7 @@ class DatabaseService {
   async getProfile(email: string): Promise<User | null> {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, name, email, avatar, bio, is_premium, premium_until, watched_time, episodes_watched, friends, watched_anime_ids, profile_bg, profile_banner, profile_layout, theme_color, avatar_shape, card_opacity, card_blur, last_seen')
         .eq('email', email)
         .single();
       
@@ -92,7 +92,7 @@ class DatabaseService {
   async getProfileById(id: string): Promise<User | null> {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, name, email, avatar, bio, is_premium, premium_until, watched_time, episodes_watched, friends, watched_anime_ids, profile_bg, profile_banner, profile_layout, theme_color, avatar_shape, card_opacity, card_blur, last_seen')
         .eq('id', id)
         .single();
       
@@ -103,7 +103,7 @@ class DatabaseService {
   async getProfileByName(name: string): Promise<User | null> {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, name, email, avatar, bio, is_premium, premium_until, watched_time, episodes_watched, friends, watched_anime_ids, profile_bg, profile_banner, profile_layout, theme_color, avatar_shape, card_opacity, card_blur, last_seen')
         .ilike('name', name)
         .single();
       
@@ -842,6 +842,20 @@ class DatabaseService {
     }
   }
 
+  async markMessagesAsRead(userEmail: string, senderEmail: string): Promise<void> {
+    if (!this.isSupabaseAvailable()) return;
+    try {
+      await supabaseClient
+        .from('private_messages')
+        .update({ is_read: true })
+        .eq('to_email', userEmail)
+        .eq('from_email', senderEmail)
+        .eq('is_read', false);
+    } catch (e) {
+      console.error('Error marking messages as read:', e);
+    }
+  }
+
   async getPrivateMessages(user1: string, user2: string): Promise<PrivateMessage[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
@@ -905,9 +919,10 @@ class DatabaseService {
     if (!this.isSupabaseAvailable()) return [];
     try {
       // Fetch only the last 100 messages to identify recent conversations
+      // Select only necessary columns
       const { data: messages } = await supabaseClient
         .from('private_messages')
-        .select('*')
+        .select('id, from_email, to_email, text, created_at, is_read')
         .or(`from_email.eq.${email},to_email.eq.${email}`)
         .order('created_at', { ascending: false })
         .limit(100);
