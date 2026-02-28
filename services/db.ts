@@ -81,7 +81,7 @@ class DatabaseService {
   async getProfile(email: string): Promise<User | null> {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('id, name, email, avatar, bio, is_premium, premium_until, watched_time, episodes_watched, friends, watched_anime_ids, profile_bg, profile_banner, profile_layout, theme_color, avatar_shape, card_opacity, card_blur, last_seen')
+        .select('*')
         .eq('email', email)
         .single();
       
@@ -92,7 +92,7 @@ class DatabaseService {
   async getProfileById(id: string): Promise<User | null> {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('id, name, email, avatar, bio, is_premium, premium_until, watched_time, episodes_watched, friends, watched_anime_ids, profile_bg, profile_banner, profile_layout, theme_color, avatar_shape, card_opacity, card_blur, last_seen')
+        .select('*')
         .eq('id', id)
         .single();
       
@@ -103,7 +103,7 @@ class DatabaseService {
   async getProfileByName(name: string): Promise<User | null> {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('id, name, email, avatar, bio, is_premium, premium_until, watched_time, episodes_watched, friends, watched_anime_ids, profile_bg, profile_banner, profile_layout, theme_color, avatar_shape, card_opacity, card_blur, last_seen')
+        .select('*')
         .ilike('name', name)
         .single();
       
@@ -264,30 +264,38 @@ class DatabaseService {
       if (updates.cardBlur !== undefined) mapped.card_blur = updates.cardBlur;
       if (updates.friends !== undefined) mapped.friends = updates.friends;
 
-      const { data, error } = await supabaseClient
+      // Try full update first
+      let result = await supabaseClient
         .from('profiles')
         .update(mapped)
         .eq('email', email)
         .select()
         .single();
       
-      if (error) {
-        console.error('Profile update error:', error);
-        // Fallback to minimal update if columns are missing
+      // If error (likely missing column), try fallback to basic fields
+      if (result.error) {
+        console.warn('Full profile update failed, trying fallback:', result.error.message);
+        
         const basicMapped: any = {};
         if (updates.name) basicMapped.name = updates.name;
         if (updates.avatar) basicMapped.avatar = updates.avatar;
         if (updates.bio !== undefined) basicMapped.bio = updates.bio;
+        if (updates.friends !== undefined) basicMapped.friends = updates.friends;
+        if (updates.watchedAnimeIds) basicMapped.watched_anime_ids = updates.watchedAnimeIds;
 
-        const { data: basicData, error: basicError } = await supabaseClient
+        result = await supabaseClient
           .from('profiles')
           .update(basicMapped)
           .eq('email', email)
           .select()
           .single();
-          
-        if (basicError || !basicData) return null;
-        return this.mapProfileToUser(basicData);
+      }
+      
+      const { data, error } = result;
+      
+      if (error) {
+        console.error('Profile update error:', error);
+        return null;
       }
       
       if (!data) return null;
@@ -919,10 +927,9 @@ class DatabaseService {
     if (!this.isSupabaseAvailable()) return [];
     try {
       // Fetch only the last 100 messages to identify recent conversations
-      // Select only necessary columns
       const { data: messages } = await supabaseClient
         .from('private_messages')
-        .select('id, from_email, to_email, text, created_at, is_read')
+        .select('*')
         .or(`from_email.eq.${email},to_email.eq.${email}`)
         .order('created_at', { ascending: false })
         .limit(100);
