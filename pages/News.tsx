@@ -75,7 +75,7 @@ const News: React.FC = () => {
                      </h2>
 
                      <p className="text-slate-400 text-sm leading-relaxed mb-6 line-clamp-2 font-medium border-l-2 border-white/10 pl-4">
-                         {item.summary}
+                         {item.summary?.replace(/<[^>]*>/g, '')}
                      </p>
 
                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-white mt-auto w-fit transition-all">

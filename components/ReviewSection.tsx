@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Star, User, Send, ChevronDown, ChevronUp, MessageSquare, ShieldCheck } from 'lucide-react';
+import { Star, User, Send, ChevronDown, ChevronUp, MessageSquare, ShieldCheck, Eye, Edit3 } from 'lucide-react';
 import { Review, User as UserType } from '../types';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
+import Markdown from 'react-markdown';
 
 interface ReviewSectionProps {
   animeId: string;
@@ -15,6 +16,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
   const { user, openAuthModal } = useAuth();
   const [isWriting, setIsWriting] = useState(false);
   const [content, setContent] = useState('');
+  const [isPreview, setIsPreview] = useState(false);
   const [ratings, setRatings] = useState({ plot: 5, sound: 5, visuals: 5, overall: 5 });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedReviews, setExpandedReviews] = useState<Set<string>>(new Set());
@@ -104,12 +106,39 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
               </div>
               
               <div className="relative">
-                <textarea 
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Поделитесь своим развернутым мнением об этом аниме... (минимум 50 символов)"
-                  className="w-full h-48 bg-black/40 border border-white/5 rounded-2xl p-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50 transition-colors resize-none text-sm leading-relaxed"
-                />
+                <div className="flex items-center gap-2 mb-2">
+                  <button 
+                    type="button"
+                    onClick={() => setIsPreview(false)}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${!isPreview ? 'bg-primary text-white' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                  >
+                    <Edit3 className="w-3 h-3 inline-block mr-1" /> Редактор
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setIsPreview(true)}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${isPreview ? 'bg-primary text-white' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                  >
+                    <Eye className="w-3 h-3 inline-block mr-1" /> Предпросмотр
+                  </button>
+                </div>
+
+                {isPreview ? (
+                  <div className="w-full h-48 bg-black/40 border border-white/5 rounded-2xl p-4 overflow-y-auto prose prose-invert prose-sm max-w-none">
+                    {content ? (
+                      <Markdown>{content}</Markdown>
+                    ) : (
+                      <p className="text-slate-600 italic">Ничего не написано...</p>
+                    )}
+                  </div>
+                ) : (
+                  <textarea 
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Поделитесь своим развернутым мнением об этом аниме... Поддерживается Markdown (минимум 50 символов)"
+                    className="w-full h-48 bg-black/40 border border-white/5 rounded-2xl p-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50 transition-colors resize-none text-sm leading-relaxed"
+                  />
+                )}
                 <div className="absolute bottom-4 right-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                   {content.length} символов
                 </div>
@@ -185,9 +214,9 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
 
                   <div className="flex-1">
                     <div className="prose prose-invert max-w-none">
-                      <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                        {displayContent}
-                      </p>
+                      <div className="text-slate-300 text-sm leading-relaxed">
+                        <Markdown>{displayContent}</Markdown>
+                      </div>
                     </div>
                     {shouldShowExpand && (
                       <button 

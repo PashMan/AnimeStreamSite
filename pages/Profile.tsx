@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2, Camera, Upload, Palette, Layout, Image as ImageIcon, LayoutTemplate } from 'lucide-react';
+import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2, Camera, Upload, Palette, Layout, Image as ImageIcon, LayoutTemplate, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { fetchAnimes } from '../services/shikimori';
@@ -14,13 +14,17 @@ const Profile: React.FC = () => {
   const { user, openAuthModal, updateProfile } = useAuth();
   const [allFavIds, setAllFavIds] = useState<string[]>([]);
   const [allWatchedIds, setAllWatchedIds] = useState<string[]>([]);
+  const [allWatchingIds, setAllWatchingIds] = useState<string[]>([]);
+  const [allDroppedIds, setAllDroppedIds] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Anime[]>([]);
   const [watched, setWatched] = useState<Anime[]>([]);
+  const [watching, setWatching] = useState<Anime[]>([]);
+  const [dropped, setDropped] = useState<Anime[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'history' | 'friends' | 'settings' | 'design'>('favs');
+  const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'watching' | 'dropped' | 'history' | 'friends' | 'settings' | 'design'>('favs');
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
@@ -102,6 +106,8 @@ const Profile: React.FC = () => {
 
         setAllFavIds(favIds);
         setAllWatchedIds(watchedIds);
+        setAllWatchingIds(user.watchingAnimeIds || []);
+        setAllDroppedIds(user.droppedAnimeIds || []);
         setHistory(historyData);
         
         // Load friends immediately
@@ -150,10 +156,26 @@ const Profile: React.FC = () => {
          } catch (e) {
             console.error("Error loading watched", e);
          }
+      } else if (activeTab === 'watching' && watching.length === 0 && allWatchingIds.length > 0) {
+         const idsToLoad = allWatchingIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setWatching(data);
+         } catch (e) {
+            console.error("Error loading watching", e);
+         }
+      } else if (activeTab === 'dropped' && dropped.length === 0 && allDroppedIds.length > 0) {
+         const idsToLoad = allDroppedIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setDropped(data);
+         } catch (e) {
+            console.error("Error loading dropped", e);
+         }
       }
     };
     loadTabContent();
-  }, [activeTab, allFavIds, allWatchedIds]);
+  }, [activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds]);
 
   const handleSaveProfile = async () => {
     setIsActionLoading(true);
@@ -277,6 +299,14 @@ const Profile: React.FC = () => {
                   <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watched' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><CheckCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Просмотрено</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{watched.length}</span>
+                  </button>
+                  <button onClick={() => setActiveTab('watching')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watching' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watching' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                    <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Смотрю</span></div>
+                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchingIds.length}</span>
+                  </button>
+                  <button onClick={() => setActiveTab('dropped')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'dropped' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'dropped' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                    <div className="flex items-center gap-3"><X className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Брошено</span></div>
+                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allDroppedIds.length}</span>
                   </button>
                   <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'history' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'history' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <History className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">История</span>
@@ -563,11 +593,11 @@ const Profile: React.FC = () => {
                ) : (
                  <section className="animate-in fade-in duration-500">
                     <h3 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter mb-8">
-                       {activeTab === 'favs' ? <Heart className="text-primary" /> : activeTab === 'watched' ? <CheckCircle className="text-primary" /> : <History className="text-primary" />} 
-                       {activeTab === 'favs' ? 'Избранное' : activeTab === 'watched' ? 'Просмотрено' : 'История просмотров'}
+                       {activeTab === 'favs' ? <Heart className="text-primary" /> : activeTab === 'watched' ? <CheckCircle className="text-primary" /> : activeTab === 'watching' ? <PlayCircle className="text-primary" /> : activeTab === 'dropped' ? <X className="text-primary" /> : <History className="text-primary" />} 
+                       {activeTab === 'favs' ? 'Избранное' : activeTab === 'watched' ? 'Просмотрено' : activeTab === 'watching' ? 'Смотрю' : activeTab === 'dropped' ? 'Брошено' : 'История просмотров'}
                     </h3>
                     
-                    {(activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : []).length > 0 || (activeTab === 'history' && history.length > 0) ? (
+                    {(activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : activeTab === 'dropped' ? dropped : []).length > 0 || (activeTab === 'history' && history.length > 0) ? (
                         <div className={activeTab === 'history' ? "grid gap-4" : "grid grid-cols-2 sm:grid-cols-4 gap-6"}>
                             {activeTab === 'history' ? history.map((item: any, idx: number) => (
                                 <Link to={`/watch/${item.animeId}?ep=${item.episode}`} key={idx} className="glass p-4 rounded-3xl flex items-center gap-6 group border border-transparent hover:border-white/10 transition-all">
@@ -583,7 +613,7 @@ const Profile: React.FC = () => {
                                     <div className="flex-grow"><h4 className="text-lg font-black text-white truncate uppercase tracking-tighter">{item.title}</h4><p className="text-xs text-slate-400 font-bold mt-1 uppercase">Серия {item.episode}</p></div>
                                     <PlayCircle className="w-10 h-10 text-primary opacity-0 group-hover:opacity-100 transition-all" />
                                 </Link>
-                            )) : (activeTab === 'favs' ? favorites : watched).map((anime: Anime) => (
+                            )) : (activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : dropped).map((anime: Anime) => (
                                 <Link to={`/anime/${anime.id}`} key={anime.id} className="group relative rounded-3xl overflow-hidden glass border border-transparent hover:border-primary transition-all">
                                    <div className="aspect-[2/3] relative">
                                       <img 

@@ -287,6 +287,8 @@ class DatabaseService {
         if (updates.friends !== undefined) basicMapped.friends = updates.friends;
         if (updates.watchedAnimeIds) basicMapped.watched_anime_ids = updates.watchedAnimeIds;
 
+        // Only include columns that exist in the schema cache or try one by one if needed
+        // For now, just try a very basic update if the first one failed
         result = await supabaseClient
           .from('profiles')
           .update(basicMapped)
@@ -1050,7 +1052,12 @@ class DatabaseService {
         .eq('anime_id', animeId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116' || error.message?.includes('not found')) {
+          return [];
+        }
+        throw error;
+      }
 
       return (reviews || []).map((r: any) => ({
         id: r.id,
@@ -1092,7 +1099,10 @@ class DatabaseService {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error adding review:', error);
+        return null;
+      }
 
       return {
         id: data.id,
