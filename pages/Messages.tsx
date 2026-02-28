@@ -227,7 +227,6 @@ const Messages: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center">
                     <div className="font-bold text-white text-sm truncate">{conv.name}</div>
-                    {conv.hasUnread && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>}
                   </div>
                   <div className="text-xs text-slate-400 truncate">
                       {conv.lastText

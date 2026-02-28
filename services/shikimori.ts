@@ -56,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(2, 500); // 2 concurrent, 500ms delay (2 req/s)
+const requestQueue = new RequestQueue(2, 1000); // 2 concurrent, 1000ms delay (1 req/s)
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
@@ -375,7 +375,8 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
     });
     const query = new URLSearchParams(cleanParams).toString();
     
-    const data = await fetchApi(`/animes?${query}`, 2, CACHE_TTL, bypassQueue);
+    // Increased retries to 3
+    const data = await fetchApi(`/animes?${query}`, 3, CACHE_TTL, bypassQueue);
     
     if (!data) return params.genre ? [] : MOCK_ANIME;
     if (Array.isArray(data)) {
