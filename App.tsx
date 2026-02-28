@@ -1,44 +1,29 @@
 
-import React, { useEffect, Suspense, lazy } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from './services/db';
 import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
 import { Loader2 } from 'lucide-react';
 
-// Custom lazy load function that retries on chunk load error
-const lazyWithRetry = (componentImport: () => Promise<any>) =>
-  lazy(async () => {
-    try {
-      const component = await componentImport();
-      window.sessionStorage.removeItem('retry-lazy-refreshed');
-      return component;
-    } catch (error) {
-      const hasRefreshed = window.sessionStorage.getItem('retry-lazy-refreshed');
-      if (!hasRefreshed && error instanceof Error && error.message.includes('Failed to fetch dynamically imported module')) {
-        window.sessionStorage.setItem('retry-lazy-refreshed', 'true');
-        window.location.reload();
-      }
-      throw error;
-    }
-  });
+// Eager load critical pages
+import Home from './pages/Home';
+import Catalog from './pages/Catalog';
+import Collections from './pages/Collections';
+import CollectionDetail from './pages/CollectionDetail';
+import Details from './pages/Details';
+import TextPage from './pages/TextPage';
+import NewsDetails from './pages/NewsDetails';
+import Forum from './pages/Forum';
+import UserProfile from './pages/UserProfile';
+import Premium from './pages/Premium';
+import ResetPassword from './pages/ResetPassword';
 
-// Lazy load pages
-const Home = lazyWithRetry(() => import('./pages/Home'));
-const Catalog = lazyWithRetry(() => import('./pages/Catalog'));
-const Collections = lazyWithRetry(() => import('./pages/Collections'));
-const CollectionDetail = lazyWithRetry(() => import('./pages/CollectionDetail'));
-const Details = lazyWithRetry(() => import('./pages/Details'));
-const Profile = lazyWithRetry(() => import('./pages/Profile'));
-const TextPage = lazyWithRetry(() => import('./pages/TextPage'));
-const News = lazyWithRetry(() => import('./pages/News'));
-const NewsDetails = lazyWithRetry(() => import('./pages/NewsDetails'));
-const Messages = lazyWithRetry(() => import('./pages/Messages'));
-const Social = lazyWithRetry(() => import('./pages/Social'));
-const Forum = lazyWithRetry(() => import('./pages/Forum'));
-const UserProfile = lazyWithRetry(() => import('./pages/UserProfile'));
-const Premium = lazyWithRetry(() => import('./pages/Premium'));
-const ResetPassword = lazyWithRetry(() => import('./pages/ResetPassword'));
+// Lazy load non-critical pages as requested
+const Profile = React.lazy(() => import('./pages/Profile'));
+const Messages = React.lazy(() => import('./pages/Messages'));
+const Social = React.lazy(() => import('./pages/Social'));
+const News = React.lazy(() => import('./pages/News'));
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-dark">

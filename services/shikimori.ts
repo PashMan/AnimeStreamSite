@@ -5,7 +5,6 @@ import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 // const BASE_API = '/api/shikimori';
 const BASE_API = 'https://shikimori.one/api';
 const IMG_BASE_URL = 'https://shikimori.one';
-const FETCH_TIMEOUT = 8000; // 8 seconds timeout
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
 const CACHE_PREFIX = 'as_cache_';
 
@@ -64,6 +63,7 @@ export const clearRequestQueue = () => {
 
 // Cache configuration (Persistent LocalStorage)
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours cache
+const FETCH_TIMEOUT = 15000; // 15 seconds timeout
 
 const getFromStorage = (key: string) => {
     try {
@@ -116,18 +116,20 @@ export const GENRE_MAP: Record<string, number> = {
   'Космос': 29, 'Спорт': 30, 'Супер сила': 31, 'Вампиры': 32, 'Гарем': 35,
   'Повседневность': 36, 'Сверхъестественное': 37, 'Военное': 38, 'Полиция': 39,
   'Психологическое': 40, 'Триллер': 41, 'Сейнен': 42, 'Джосей': 43,
-  'Исэкай': 62, 'Работа': 543, 'Медицина': 544, 'Идолы': 539, 'Видеоигры': 538,
-  'Выживание': 540,  'Реинкарнация': 542, 'Злодейка': 671, 'Городское фэнтези': 672,
-  'CGDCT': 673, 'Антропоморфизм': 674, 'Взрослые персонажи': 675, 'Гонки': 3,
-  'Гэг-юмор': 5, 'Жестокость': 537, 'Забота о детях': 545, 'Игра с высокими ставками': 546,
-  'Идолы (Жен.)': 547, 'Идолы (Муж.)': 548, 'Изобразительное искусство': 549,
-  'Исполнительское искусство': 550, 'Иясикэй': 551, 'Командный спорт': 552,
-  'Кроссдрессинг': 553, 'Культура отаку': 554, 'Любовный многоугольник': 555,
-  'Магическая смена пола': 556, 'Махо-сёдзё': 557, 'Мифология': 558,
-  'Образовательное': 559, 'Организованная преступность': 560, 'Питомцы': 561,
-  'Путешествие во времени': 562, 'Реверс-гарем': 563, 'Романтический подтекст': 564,
-  'Спортивные единоборства': 565, 'Стратегические игры': 566,
-  'Удостоено наград': 567, 'Хулиганы': 568, 'Шоу-бизнес': 569, 'Детектив': 7
+  'Исэкай': 62, 'Работа': 541, 'Медицина': 8, 'Идолы': 19, 'Видеоигры': 11,
+  'Выживание': 41,  'Реинкарнация': 10, 'Злодейка': 10, 'Городское фэнтези': 10,
+  'CGDCT': 36, 'Антропоморфизм': 10, 'Взрослые персонажи': 42, 'Гонки': 3,
+  'Гэг-юмор': 4, 'Жестокость': 14, 'Забота о детях': 36, 'Игра с высокими ставками': 11,
+  'Идолы (Жен.)': 19, 'Идолы (Муж.)': 19, 'Изобразительное искусство': 36,
+  'Исполнительское искусство': 19, 'Иясикэй': 36, 'Командный спорт': 30,
+  'Кроссдрессинг': 4, 'Культура отаку': 4, 'Любовный многоугольник': 22,
+  'Магическая смена пола': 74, 'Махо-сёдзё': 16, 'Мифология': 10,
+  'Образовательное': 36, 'Организованная преступность': 39, 'Питомцы': 36,
+  'Путешествие во времени': 24, 'Реверс-гарем': 35, 'Романтический подтекст': 22,
+  'Спортивные единоборства': 17, 'Стратегические игры': 11,
+  'Удостоено наград': 8, 'Хулиганы': 23, 'Шоу-бизнес': 8, 'Детектив': 7,
+  'Сёдзе': 25, 'Сёнен': 27, 'Сэйнэн': 42, 'Дзёсей': 43, 'Сёдзе-ай': 26, 'Сёнен-ай': 28,
+  'Яой': 33, 'Юри': 34, 'Смена пола': 74, 'Эротика': 539, 'Гурман': 543
 };
 
 const slugify = (text: string): string => {
@@ -226,8 +228,7 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
     try {
       const response = await fetch(`${BASE_API}${endpoint}`, {
         headers: { 
-          'Cache-Control': 'no-cache',
-          'User-Agent': 'AnimeStream/1.0 (Client)'
+          'Cache-Control': 'no-cache'
         },
         signal: controller.signal
       });
@@ -366,13 +367,20 @@ export const mapAnime = async (data: any): Promise<Anime> => {
 
 export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue = false): Promise<Anime[]> => {
   try {
-    const cleanParams: any = { limit: '20', order: 'popularity' };
+    const cleanParams: any = { limit: '20' };
+    if (!params.order) cleanParams.order = 'popularity';
 
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') {
         cleanParams[k] = k === 'genre' && GENRE_MAP[v] ? GENRE_MAP[v] : v;
       }
     });
+    
+    // If we specifically want to remove order, we can pass order: 'none'
+    if (cleanParams.order === 'none') {
+        delete cleanParams.order;
+    }
+
     const query = new URLSearchParams(cleanParams).toString();
     
     // Increased retries to 3

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Loader2, ChevronLeft, SlidersHorizontal } from 'lucide-react';
+import Slider from 'rc-slider';
+import 'rc-slider/assets/index.css';
 import AnimeCard from '../components/AnimeCard';
 import { fetchAnimes, GENRE_MAP } from '../services/shikimori';
 import { Anime } from '../types';
@@ -19,7 +21,7 @@ const CollectionDetail: React.FC = () => {
   const [selectedType, setSelectedType] = useState('All');
   const [selectedGenre, setSelectedGenre] = useState(collection?.defaultGenre || 'All');
   const [selectedStatus, setSelectedStatus] = useState('All');
-  const [yearRange, setYearRange] = useState([2005, 2025]);
+  const [yearRange, setYearRange] = useState([1990, new Date().getFullYear()]);
   const [scoreRange, setScoreRange] = useState([0, 10]);
 
   useEffect(() => {
@@ -41,6 +43,14 @@ const CollectionDetail: React.FC = () => {
     if (selectedStatus !== 'All') baseParams.status = selectedStatus;
     if (selectedType !== 'All') baseParams.kind = selectedType;
     
+    // Add season and score filters
+    if (yearRange[0] !== 1990 || yearRange[1] !== new Date().getFullYear()) {
+      baseParams.season = `${yearRange[0]}_${yearRange[1]}`;
+    }
+    if (scoreRange[0] > 0) {
+      baseParams.score = scoreRange[0];
+    }
+    
     try {
       // First attempt: Popularity
       let results = await fetchAnimes(baseParams);
@@ -55,7 +65,7 @@ const CollectionDetail: React.FC = () => {
       // If still empty, try without order (default)
       if (results.length === 0 && selectedGenre !== 'All') {
           console.log('Retrying with default order...');
-          const { order, ...retryParams } = baseParams;
+          const retryParams = { ...baseParams, order: 'none' };
           results = await fetchAnimes(retryParams);
       }
 
@@ -77,7 +87,7 @@ const CollectionDetail: React.FC = () => {
     setSelectedType('All');
     setSelectedGenre(collection?.defaultGenre || 'All');
     setSelectedStatus('All');
-    setYearRange([2005, 2025]);
+    setYearRange([1990, new Date().getFullYear()]);
     setScoreRange([0, 10]);
     // We don't auto-search on clear, user must click search
   };
@@ -170,29 +180,66 @@ const CollectionDetail: React.FC = () => {
             {/* Right Column: Sliders & Buttons */}
             <div className="space-y-8 flex flex-col justify-between">
               
-              {/* Year Slider (Visual Only for now) */}
+              {/* Year Slider */}
               <div>
-                <div className="flex justify-between mb-2">
-                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">год 2005</span>
-                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">год 2025</span>
+                <div className="flex justify-between mb-4">
+                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">год {yearRange[0]}</span>
+                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">год {yearRange[1]}</span>
                 </div>
-                <div className="h-2 bg-dark rounded-full relative">
-                  <div className="absolute inset-y-0 left-0 right-0 bg-primary rounded-full"></div>
-                  <div className="absolute top-1/2 -translate-y-1/2 left-0 w-4 h-4 bg-white border-2 border-primary rounded-full shadow-lg"></div>
-                  <div className="absolute top-1/2 -translate-y-1/2 right-0 w-4 h-4 bg-white border-2 border-primary rounded-full shadow-lg"></div>
+                <div className="px-2">
+                  <Slider
+                    range
+                    min={1990}
+                    max={new Date().getFullYear()}
+                    value={yearRange}
+                    onChange={(val) => setYearRange(val as number[])}
+                    styles={{
+                      track: { backgroundColor: '#F27D26', height: 8 },
+                      rail: { backgroundColor: '#1e293b', height: 8 },
+                      handle: {
+                        borderColor: '#F27D26',
+                        height: 20,
+                        width: 20,
+                        marginLeft: -10,
+                        marginTop: -6,
+                        backgroundColor: '#fff',
+                        opacity: 1,
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
-              {/* Score Slider (Visual Only for now) */}
+              {/* Score Slider */}
               <div>
-                <div className="flex justify-between mb-2">
-                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">ШИКИ 0</span>
-                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">ШИКИ 10</span>
+                <div className="flex justify-between mb-4">
+                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">ШИКИ {scoreRange[0]}</span>
+                  <span className="bg-primary/20 text-primary px-3 py-1 rounded-lg text-xs font-black">ШИКИ {scoreRange[1]}</span>
                 </div>
-                <div className="h-2 bg-dark rounded-full relative">
-                  <div className="absolute inset-y-0 left-0 right-0 bg-primary rounded-full"></div>
-                  <div className="absolute top-1/2 -translate-y-1/2 left-0 w-4 h-4 bg-white border-2 border-primary rounded-full shadow-lg"></div>
-                  <div className="absolute top-1/2 -translate-y-1/2 right-0 w-4 h-4 bg-white border-2 border-primary rounded-full shadow-lg"></div>
+                <div className="px-2">
+                  <Slider
+                    range
+                    min={0}
+                    max={10}
+                    step={1}
+                    value={scoreRange}
+                    onChange={(val) => setScoreRange(val as number[])}
+                    styles={{
+                      track: { backgroundColor: '#F27D26', height: 8 },
+                      rail: { backgroundColor: '#1e293b', height: 8 },
+                      handle: {
+                        borderColor: '#F27D26',
+                        height: 20,
+                        width: 20,
+                        marginLeft: -10,
+                        marginTop: -6,
+                        backgroundColor: '#fff',
+                        opacity: 1,
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
