@@ -57,8 +57,12 @@ class RequestQueue {
 
 const requestQueue = new RequestQueue(3, 200); // 3 concurrent, 200ms delay (15 req/s max)
 
+let globalAbortController = new AbortController();
+
 export const clearRequestQueue = () => {
   requestQueue.clear();
+  globalAbortController.abort();
+  globalAbortController = new AbortController();
 };
 
 // Cache configuration (Persistent LocalStorage)
@@ -224,6 +228,12 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
   const networkTask = async (): Promise<any> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+    
+    // Listen to global abort to cancel this specific request
+    const abortHandler = () => controller.abort();
+    if (!bypassQueue) {
+        globalAbortController.signal.addEventListener('abort', abortHandler);
+    }
 
     try {
       const response = await fetch(`${BASE_API}${endpoint}`, {
@@ -233,13 +243,16 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
         signal: controller.signal
       });
       clearTimeout(timeoutId);
+      if (!bypassQueue) {
+          globalAbortController.signal.removeEventListener('abort', abortHandler);
+      }
 
       const contentType = response.headers.get('content-type');
       const isJson = contentType && contentType.includes('application/json');
 
       if (!response.ok) {
-        if (response.status === 404) {
-            return []; // Return empty array instead of throwing error for 404
+        if (response.status === 404 || response.status === 422) {
+            return []; // Return empty array instead of throwing error for 404 or 422
         }
         if (response.status === 429) {
              // If rate limited, wait longer
@@ -263,6 +276,10 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
       
       // Retry logic for 429 or network errors
       if (retries > 0 && (error.message.includes('Rate limit exceeded') || error.name === 'AbortError' || error.message.includes('fetch'))) {
+          // If aborted by global abort, don't retry
+          if (error.name === 'AbortError' && globalAbortController.signal.aborted) {
+              throw error;
+          }
           let delay = (4 - retries) * 2000; // Backoff: 2s, 4s
           
           if (error.message.includes('Rate limit exceeded')) {
@@ -285,6 +302,10 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
           return cached.data;
       }
       throw error;
+    } finally {
+      if (!bypassQueue) {
+          globalAbortController.signal.removeEventListener('abort', abortHandler);
+      }
     }
   };
 
@@ -571,7 +592,7 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
     // Cache news for 30 minutes to improve performance
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000, false);
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000, true);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
     const newsItems = data.map(topic => {
