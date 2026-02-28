@@ -57,14 +57,12 @@ const CollectionDetail: React.FC = () => {
       
       // If empty and we have a genre filter, try 'ranked' order
       if (results.length === 0 && selectedGenre !== 'All') {
-          console.log('Retrying with ranked order...');
           const retryParams = { ...baseParams, order: 'ranked' };
           results = await fetchAnimes(retryParams);
       }
 
       // If still empty, try without order (default)
       if (results.length === 0 && selectedGenre !== 'All') {
-          console.log('Retrying with default order...');
           const retryParams = { ...baseParams, order: 'none' };
           results = await fetchAnimes(retryParams);
       }
@@ -76,7 +74,6 @@ const CollectionDetail: React.FC = () => {
          setAnimeList(results);
       }
     } catch (error) {
-      console.error("Failed to fetch collection", error);
       setAnimeList([]);
     } finally {
       setIsLoading(false);

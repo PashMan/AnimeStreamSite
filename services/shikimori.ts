@@ -55,7 +55,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(2, 1000); // 2 concurrent, 1000ms delay (1 req/s)
+const requestQueue = new RequestQueue(3, 200); // 3 concurrent, 200ms delay (15 req/s max)
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
@@ -238,6 +238,9 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
       const isJson = contentType && contentType.includes('application/json');
 
       if (!response.ok) {
+        if (response.status === 404) {
+            return []; // Return empty array instead of throwing error for 404
+        }
         if (response.status === 429) {
              // If rate limited, wait longer
              const retryAfter = parseInt(response.headers.get('Retry-After') || '5');
@@ -386,14 +389,16 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
     // Increased retries to 3
     const data = await fetchApi(`/animes?${query}`, 3, CACHE_TTL, bypassQueue);
     
-    if (!data) return params.genre ? [] : MOCK_ANIME;
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+        return [];
+    }
     if (Array.isArray(data)) {
         return Promise.all(data.map(mapAnime));
     }
-    return params.genre ? [] : MOCK_ANIME;
+    return [];
   } catch (e) {
-    console.error("fetchAnimes error:", e);
-    return params.genre ? [] : MOCK_ANIME;
+    // Suppress console error for empty results
+    return [];
   }
 };
 
