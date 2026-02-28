@@ -56,14 +56,14 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(3, 100); // 3 concurrent, 100ms delay (30 req/s burst)
+const requestQueue = new RequestQueue(2, 500); // 2 concurrent, 500ms delay (2 req/s)
 
 export const clearRequestQueue = () => {
   requestQueue.clear();
 };
 
 // Cache configuration (Persistent LocalStorage)
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes cache
+const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours cache
 
 const getFromStorage = (key: string) => {
     try {
@@ -82,12 +82,28 @@ const saveToStorage = (key: string, data: any) => {
     } catch (e) {
         // If quota exceeded, clear old cache
         try {
-            localStorage.clear();
+            // Clear items older than 1 hour
+            const now = Date.now();
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith(CACHE_PREFIX)) {
+                    try {
+                        const item = JSON.parse(localStorage.getItem(k) || '{}');
+                        if (now - (item.timestamp || 0) > 60 * 60 * 1000) {
+                            localStorage.removeItem(k);
+                        }
+                    } catch (e) {}
+                }
+            }
+            
             localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
                 data,
                 timestamp: Date.now()
             }));
-        } catch(e2) {}
+        } catch(e2) {
+             // If still full, clear all
+             try { localStorage.clear(); } catch (e3) {}
+        }
     }
 };
 
@@ -221,7 +237,11 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
       const isJson = contentType && contentType.includes('application/json');
 
       if (!response.ok) {
-        if (response.status === 429) throw new Error('Rate limit exceeded');
+        if (response.status === 429) {
+             // If rate limited, wait longer
+             const retryAfter = parseInt(response.headers.get('Retry-After') || '5');
+             throw new Error(`Rate limit exceeded:${retryAfter}`);
+        }
         throw new Error(`API Error: ${response.status}`);
       }
 
@@ -238,8 +258,16 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
       clearTimeout(timeoutId);
       
       // Retry logic for 429 or network errors
-      if (retries > 0 && (error.message === 'Rate limit exceeded' || error.name === 'AbortError' || error.message.includes('fetch'))) {
-          const delay = (4 - retries) * 1500; // Backoff
+      if (retries > 0 && (error.message.includes('Rate limit exceeded') || error.name === 'AbortError' || error.message.includes('fetch'))) {
+          let delay = (4 - retries) * 2000; // Backoff: 2s, 4s
+          
+          if (error.message.includes('Rate limit exceeded')) {
+              const parts = error.message.split(':');
+              if (parts[1]) delay = (parseInt(parts[1]) + 1) * 1000;
+              else delay = 5000; // Default 5s for 429
+          }
+
+          console.warn(`Retrying ${endpoint} in ${delay}ms... (${retries} left)`);
           await new Promise(r => setTimeout(r, delay));
           // Recursive call with decremented retries, bypassing queue to prioritize retry
           return fetchApi(endpoint, retries - 1, ttl, true);

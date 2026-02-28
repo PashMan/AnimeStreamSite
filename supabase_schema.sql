@@ -27,6 +27,9 @@ ALTER TABLE forum_topics ADD COLUMN IF NOT EXISTS anime_id TEXT;
 -- Ensure forum_posts has parent_id for nested replies
 ALTER TABLE forum_posts ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES forum_posts(id);
 
+-- Drop existing function to allow parameter name changes
+DROP FUNCTION IF EXISTS increment_topic_replies(uuid);
+
 -- Function to increment topic replies count
 CREATE OR REPLACE FUNCTION increment_topic_replies(topic_id UUID)
 RETURNS VOID AS $$
