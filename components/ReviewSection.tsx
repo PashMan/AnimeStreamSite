@@ -124,7 +124,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
                 </div>
 
                 {isPreview ? (
-                  <div className="w-full h-48 bg-black/40 border border-white/5 rounded-2xl p-4 overflow-y-auto prose prose-invert prose-sm max-w-none">
+                  <div className="w-full h-48 bg-black/40 border border-white/5 rounded-2xl p-4 overflow-y-auto markdown-body prose-sm max-w-none break-words whitespace-pre-wrap">
                     {content ? (
                       <Markdown>{content}</Markdown>
                     ) : (
@@ -212,9 +212,9 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
                     </div>
                   </div>
 
-                  <div className="flex-1">
-                    <div className="prose prose-invert max-w-none">
-                      <div className="text-slate-300 text-sm leading-relaxed">
+                  <div className="flex-1 min-w-0">
+                    <div className="markdown-body max-w-none">
+                      <div className="text-slate-300 text-sm leading-relaxed break-words whitespace-pre-wrap">
                         <Markdown>{displayContent}</Markdown>
                       </div>
                     </div>

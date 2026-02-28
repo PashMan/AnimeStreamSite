@@ -221,7 +221,7 @@ const NewsDetails: React.FC = () => {
              </div>
            )}
 
-           <div className="prose prose-invert prose-lg max-w-none text-slate-300 leading-relaxed font-medium text-lg news-content" dangerouslySetInnerHTML={{ __html: newsItem.html_body || newsItem.summary }} />
+           <div className="prose prose-invert prose-lg max-w-none text-slate-300 leading-relaxed font-medium text-lg news-content break-words whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: newsItem.html_body || newsItem.summary }} />
         </div>
       </article>
 

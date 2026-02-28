@@ -118,6 +118,11 @@ html, body {
 }
 
 /* Global Markdown Styles */
+.markdown-body {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
 .markdown-body p { margin-bottom: 1em; }
 .markdown-body p:last-child { margin-bottom: 0; }
 .markdown-body strong { font-weight: 900; color: white; }
