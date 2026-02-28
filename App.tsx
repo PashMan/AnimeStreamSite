@@ -6,12 +6,6 @@ import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
 import { Loader2 } from 'lucide-react';
 
-import Home from './pages/Home';
-import Catalog from './pages/Catalog';
-import Collections from './pages/Collections';
-import CollectionDetail from './pages/CollectionDetail';
-import Details from './pages/Details';
-
 // Custom lazy load function that retries on chunk load error
 const lazyWithRetry = (componentImport: () => Promise<any>) =>
   lazy(async () => {
@@ -30,6 +24,11 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
   });
 
 // Lazy load pages
+const Home = lazyWithRetry(() => import('./pages/Home'));
+const Catalog = lazyWithRetry(() => import('./pages/Catalog'));
+const Collections = lazyWithRetry(() => import('./pages/Collections'));
+const CollectionDetail = lazyWithRetry(() => import('./pages/CollectionDetail'));
+const Details = lazyWithRetry(() => import('./pages/Details'));
 const Profile = lazyWithRetry(() => import('./pages/Profile'));
 const TextPage = lazyWithRetry(() => import('./pages/TextPage'));
 const News = lazyWithRetry(() => import('./pages/News'));

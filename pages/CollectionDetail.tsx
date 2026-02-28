@@ -32,28 +32,41 @@ const CollectionDetail: React.FC = () => {
     setIsLoading(true);
     setError(null);
     
-    const params: any = { 
+    const baseParams: any = { 
       limit: 20,
       order: 'popularity'
     };
     
-    if (selectedGenre !== 'All') params.genre = GENRE_MAP[selectedGenre];
-    if (selectedStatus !== 'All') params.status = selectedStatus;
-    if (selectedType !== 'All') params.kind = selectedType;
+    if (selectedGenre !== 'All') baseParams.genre = GENRE_MAP[selectedGenre];
+    if (selectedStatus !== 'All') baseParams.status = selectedStatus;
+    if (selectedType !== 'All') baseParams.kind = selectedType;
     
     try {
-      const results = await fetchAnimes(params);
+      // First attempt: Popularity
+      let results = await fetchAnimes(baseParams);
+      
+      // If empty and we have a genre filter, try 'ranked' order
+      if (results.length === 0 && selectedGenre !== 'All') {
+          console.log('Retrying with ranked order...');
+          const retryParams = { ...baseParams, order: 'ranked' };
+          results = await fetchAnimes(retryParams);
+      }
+
+      // If still empty, try without order (default)
+      if (results.length === 0 && selectedGenre !== 'All') {
+          console.log('Retrying with default order...');
+          const { order, ...retryParams } = baseParams;
+          results = await fetchAnimes(retryParams);
+      }
+
       // If we got mock data but were expecting a specific genre, it's an error or empty
       if (selectedGenre !== 'All' && results.length > 0 && results[0].id === "1") {
-         setAnimeList([]);
-      } else if (results.length === 0) {
          setAnimeList([]);
       } else {
          setAnimeList(results);
       }
     } catch (error) {
       console.error("Failed to fetch collection", error);
-      // Don't show generic error for empty collections, just show empty state
       setAnimeList([]);
     } finally {
       setIsLoading(false);
