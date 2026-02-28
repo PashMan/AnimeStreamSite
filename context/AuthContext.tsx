@@ -147,10 +147,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateProfile = async (updates: Partial<User>) => {
     if (!user?.email) return false;
-    const updatedUser = await db.updateProfile(user.email, updates);
-    if (updatedUser) {
-      setUser(updatedUser);
-      return true;
+    try {
+        const updatedUser = await db.updateProfile(user.email, updates);
+        if (updatedUser) {
+          setUser(updatedUser);
+          return true;
+        }
+    } catch (e) {
+        throw e;
     }
     return false;
   };

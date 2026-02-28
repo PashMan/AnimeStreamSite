@@ -175,9 +175,13 @@ const Profile: React.FC = () => {
       } else {
         alert('Не удалось сохранить изменения. Попробуйте позже.');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Произошла ошибка при сохранении.');
+      if (e.message === 'Username already taken') {
+          alert('Это имя пользователя уже занято. Пожалуйста, выберите другое.');
+      } else {
+          alert('Произошла ошибка при сохранении.');
+      }
     } finally {
       setIsActionLoading(false);
     }

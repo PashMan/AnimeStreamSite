@@ -237,7 +237,20 @@ class DatabaseService {
     if (!this.isSupabaseAvailable()) return null;
     try {
       const mapped: any = {};
-      if (updates.name) mapped.name = updates.name;
+      if (updates.name) {
+        // Check uniqueness
+        const { data: existing } = await supabaseClient
+          .from('profiles')
+          .select('id')
+          .eq('name', updates.name)
+          .neq('email', email) // Exclude self
+          .single();
+        
+        if (existing) {
+          throw new Error('Username already taken');
+        }
+        mapped.name = updates.name;
+      }
       if (updates.avatar) mapped.avatar = updates.avatar;
       if (updates.bio !== undefined) mapped.bio = updates.bio;
       if (updates.isPremium !== undefined) mapped.is_premium = updates.isPremium;
@@ -280,6 +293,9 @@ class DatabaseService {
       if (!data) return null;
       return this.mapProfileToUser(data);
     } catch (e) {
+      if (e instanceof Error && e.message === 'Username already taken') {
+          throw e;
+      }
       return null;
     }
   }
@@ -380,9 +396,9 @@ class DatabaseService {
     try {
       let q = supabaseClient
         .from('forum_topics')
-        .select('*, profiles(id, name, avatar, email)')
+        .select('id, title, content, created_at, category, anime_id, views, replies_count, author_email, profiles(id, name, avatar, email)')
         .order('created_at', { ascending: false })
-        .limit(50); // Added limit to prevent massive data loading
+        .limit(20); // Reduced limit for performance
       
       if (animeId) q = q.eq('anime_id', animeId);
       if (category) q = q.eq('category', category);
@@ -391,7 +407,7 @@ class DatabaseService {
       return data?.map((d: any) => ({
         id: d.id,
         title: d.title,
-        content: d.content,
+        content: d.content.length > 200 ? d.content.substring(0, 200) + '...' : d.content, // Truncate content for list view
         author: {
             id: d.profiles?.id,
             name: d.profiles?.name || 'Unknown',
@@ -843,7 +859,7 @@ class DatabaseService {
           // Mark as read if user1 is the recipient
           const unreadIds = data.filter((m: any) => m.to_email === user1 && !m.is_read).map((m: any) => m.id);
           if (unreadIds.length > 0) {
-              supabaseClient.from('private_messages').update({ is_read: true }).in('id', unreadIds).then(() => {});
+              await supabaseClient.from('private_messages').update({ is_read: true }).in('id', unreadIds);
           }
 
           return data.map((d: any) => ({
