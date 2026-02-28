@@ -8,18 +8,18 @@ import { Loader2 } from 'lucide-react';
 
 // Eager load critical pages
 import Home from './pages/Home';
-import Catalog from './pages/Catalog';
-import Collections from './pages/Collections';
-import CollectionDetail from './pages/CollectionDetail';
-import Details from './pages/Details';
-import TextPage from './pages/TextPage';
-import NewsDetails from './pages/NewsDetails';
-import Forum from './pages/Forum';
-import UserProfile from './pages/UserProfile';
-import Premium from './pages/Premium';
-import ResetPassword from './pages/ResetPassword';
 
 // Lazy load non-critical pages as requested
+const Catalog = React.lazy(() => import('./pages/Catalog'));
+const Collections = React.lazy(() => import('./pages/Collections'));
+const CollectionDetail = React.lazy(() => import('./pages/CollectionDetail'));
+const Details = React.lazy(() => import('./pages/Details'));
+const TextPage = React.lazy(() => import('./pages/TextPage'));
+const NewsDetails = React.lazy(() => import('./pages/NewsDetails'));
+const Forum = React.lazy(() => import('./pages/Forum'));
+const UserProfile = React.lazy(() => import('./pages/UserProfile'));
+const Premium = React.lazy(() => import('./pages/Premium'));
+const ResetPassword = React.lazy(() => import('./pages/ResetPassword'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 const Messages = React.lazy(() => import('./pages/Messages'));
 const Social = React.lazy(() => import('./pages/Social'));

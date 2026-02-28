@@ -42,6 +42,8 @@ export interface User {
   episodesWatched: number;
   friends?: string[]; // array of user emails or IDs
   watchedAnimeIds?: string[];
+  watchingAnimeIds?: string[];
+  droppedAnimeIds?: string[];
   profileBg?: string;
   profileBanner?: string;
   profileLayout?: 'standard' | 'reversed' | 'centered';
@@ -129,4 +131,22 @@ export interface NewsItem {
 export interface ScheduleItem {
   day: string;
   animes: { id: string; time: string; title: string }[];
+}
+
+export interface Review {
+  id: string;
+  animeId: string;
+  user: {
+    name: string;
+    avatar: string;
+    email: string;
+  };
+  content: string;
+  ratings: {
+    plot: number;
+    sound: number;
+    visuals: number;
+    overall: number;
+  };
+  createdAt: string;
 }

@@ -5,7 +5,7 @@ import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { User, Anime } from '../types';
 import { fetchAnimes } from '../services/shikimori';
-import { Loader2, Heart, History, ArrowLeft, UserPlus, MessageSquare, Check } from 'lucide-react';
+import { Loader2, Heart, History, ArrowLeft, UserPlus, MessageSquare, Check, Film, X } from 'lucide-react';
 import SEO from '../components/SEO';
 
 const UserProfile: React.FC = () => {
@@ -15,10 +15,14 @@ const UserProfile: React.FC = () => {
   const [profile, setProfile] = useState<User | null>(null);
   const [allFavIds, setAllFavIds] = useState<string[]>([]);
   const [allWatchedIds, setAllWatchedIds] = useState<string[]>([]);
+  const [allWatchingIds, setAllWatchingIds] = useState<string[]>([]);
+  const [allDroppedIds, setAllDroppedIds] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Anime[]>([]);
   const [watched, setWatched] = useState<Anime[]>([]);
+  const [watching, setWatching] = useState<Anime[]>([]);
+  const [dropped, setDropped] = useState<Anime[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'favs' | 'watched'>('favs');
+  const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'watching' | 'dropped'>('favs');
   const [isFriend, setIsFriend] = useState(false);
   const [isAddingFriend, setIsAddingFriend] = useState(false);
 
@@ -61,6 +65,8 @@ const UserProfile: React.FC = () => {
 
           setAllFavIds(favIds);
           setAllWatchedIds(watchedIds);
+          setAllWatchingIds(user.watchingAnimeIds || []);
+          setAllDroppedIds(user.droppedAnimeIds || []);
 
         } else {
             setIsLoading(false);
@@ -92,10 +98,26 @@ const UserProfile: React.FC = () => {
          } catch (e) {
             console.error("Error loading watched", e);
          }
+      } else if (activeTab === 'watching' && watching.length === 0 && allWatchingIds.length > 0) {
+         const idsToLoad = allWatchingIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setWatching(data);
+         } catch (e) {
+            console.error("Error loading watching", e);
+         }
+      } else if (activeTab === 'dropped' && dropped.length === 0 && allDroppedIds.length > 0) {
+         const idsToLoad = allDroppedIds.slice(0, 20);
+         try {
+            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
+            setDropped(data);
+         } catch (e) {
+            console.error("Error loading dropped", e);
+         }
       }
     };
     loadTabContent();
-  }, [activeTab, allFavIds, allWatchedIds]);
+  }, [activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds]);
 
   const handleAddFriend = async () => {
       if (!currentUser || !profile) return;
@@ -205,7 +227,19 @@ const UserProfile: React.FC = () => {
                   onClick={() => setActiveTab('watched')}
                   className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'watched' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
                 >
-                    <History className="w-4 h-4" /> Просмотрено <span className="opacity-50 ml-1">{watched.length}</span>
+                    <History className="w-4 h-4" /> Просмотрено <span className="opacity-50 ml-1">{allWatchedIds.length}</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('watching')}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'watching' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
+                >
+                    <Film className="w-4 h-4" /> Смотрю <span className="opacity-50 ml-1">{allWatchingIds.length}</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('dropped')}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'dropped' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
+                >
+                    <X className="w-4 h-4" /> Брошено <span className="opacity-50 ml-1">{allDroppedIds.length}</span>
                 </button>
              </div>
 
@@ -227,9 +261,28 @@ const UserProfile: React.FC = () => {
                         </div>
                     </Link>
                 ))}
+                {activeTab === 'watching' && watching.map(anime => (
+                    <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
+                        <img src={anime.image} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                            <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
+                        </div>
+                    </Link>
+                ))}
+                {activeTab === 'dropped' && dropped.map(anime => (
+                    <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
+                        <img src={anime.image} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                            <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
+                        </div>
+                    </Link>
+                ))}
              </div>
              
-             {((activeTab === 'favs' && favorites.length === 0) || (activeTab === 'watched' && watched.length === 0)) && (
+             {((activeTab === 'favs' && favorites.length === 0 && allFavIds.length === 0) || 
+               (activeTab === 'watched' && watched.length === 0 && allWatchedIds.length === 0) ||
+               (activeTab === 'watching' && watching.length === 0 && allWatchingIds.length === 0) ||
+               (activeTab === 'dropped' && dropped.length === 0 && allDroppedIds.length === 0)) && (
                  <div className="text-center py-20 text-slate-500 text-sm uppercase tracking-widest font-bold">
                      Список пуст
                  </div>

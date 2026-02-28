@@ -5,9 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE as PLACEHOLDER_IMAGE, MOCK_ANIME } from '../constants';
 import { db, supabase } from '../services/db';
-import { Anime, Comment, User } from '../types';
+import { Anime, Comment, User, Review } from '../types';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
+import ReviewSection from '../components/ReviewSection';
 
 const Details: React.FC = () => {
   const { id: paramId } = useParams<{ id: string }>();
@@ -23,6 +24,7 @@ const Details: React.FC = () => {
   const [anime, setAnime] = useState<Anime | null>(null);
   const [related, setRelated] = useState<{ relation: string; anime: Anime }[]>([]);
   const [similar, setSimilar] = useState<Anime[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [userComment, setUserComment] = useState('');
   
@@ -30,6 +32,7 @@ const Details: React.FC = () => {
   const [isMainLoading, setIsMainLoading] = useState(true);
   const [isRelatedLoading, setIsRelatedLoading] = useState(true);
   const [isSimilarLoading, setIsSimilarLoading] = useState(true);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(true);
   const [isCommentsLoading, setIsCommentsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +61,20 @@ const Details: React.FC = () => {
     }
   }, [isShareModalOpen, user?.friends]);
 
+  const [animeStatus, setAnimeStatus] = useState<'watched' | 'watching' | 'dropped' | 'planned' | 'none'>('none');
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setIsStatusDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     const loadDetails = async () => {
@@ -66,12 +83,27 @@ const Details: React.FC = () => {
       // If we already loaded this anime, only update user-specific data if user changed
       if (lastLoadedId.current === id) {
         if (user?.email) {
-          db.getFavorites(user.email).then(favs => {
-            if (isMounted) setIsFavorite(favs.includes(id));
+          db.getProfile(user.email).then(profile => {
+            if (isMounted && profile) {
+              let status: 'watched' | 'watching' | 'dropped' | 'planned' | 'none' = 'none';
+              if (profile.watchedAnimeIds?.includes(id)) status = 'watched';
+              else if (profile.watchingAnimeIds?.includes(id)) status = 'watching';
+              else if (profile.droppedAnimeIds?.includes(id)) status = 'dropped';
+              
+              if (status === 'none') {
+                 db.getFavorites(user.email).then(favs => {
+                    if (isMounted) {
+                       if (favs.includes(id)) setAnimeStatus('planned');
+                       else setAnimeStatus('none');
+                    }
+                 });
+              } else {
+                 setAnimeStatus(status);
+              }
+            }
           });
-          db.getWatched(user.email).then(watched => {
-            if (isMounted) setIsWatched(watched.includes(id));
-          });
+        } else {
+          setAnimeStatus('none');
         }
         return;
       }
@@ -83,10 +115,12 @@ const Details: React.FC = () => {
       setError(null);
       setIsRelatedLoading(true);
       setIsSimilarLoading(true);
+      setIsReviewsLoading(true);
       setIsCommentsLoading(true);
       setAnime(null);
       setRelated([]);
       setSimilar([]);
+      setReviews([]);
       setComments([]);
       setIsDescriptionExpanded(false);
 
@@ -149,6 +183,12 @@ const Details: React.FC = () => {
         }).catch(err => console.error("Similar fetch error", err))
           .finally(() => { if (isMounted) setIsSimilarLoading(false); });
 
+        // Fetch Reviews
+        db.getAnimeReviews(id).then(animeReviews => {
+          if (isMounted) setReviews(animeReviews);
+        }).catch(err => console.error("Reviews fetch error", err))
+          .finally(() => { if (isMounted) setIsReviewsLoading(false); });
+
         // Fetch Comments
         db.getUserComments(id).then(userComments => {
           if (isMounted) setComments(userComments);
@@ -159,11 +199,19 @@ const Details: React.FC = () => {
         if (user?.email) {
           Promise.all([
             db.getFavorites(user.email),
-            db.getWatched(user.email)
-          ]).then(([favs, watched]) => {
-            if (isMounted) {
+            db.getProfile(user.email)
+          ]).then(([favs, profile]) => {
+            if (isMounted && profile) {
               setIsFavorite(favs.includes(id));
-              setIsWatched(watched.includes(id));
+              setIsWatched(profile.watchedAnimeIds?.includes(id) || false);
+              
+              let status: 'watched' | 'watching' | 'dropped' | 'planned' | 'none' = 'none';
+              if (profile.watchedAnimeIds?.includes(id)) status = 'watched';
+              else if (profile.watchingAnimeIds?.includes(id)) status = 'watching';
+              else if (profile.droppedAnimeIds?.includes(id)) status = 'dropped';
+              else if (favs.includes(id)) status = 'planned';
+              
+              setAnimeStatus(status);
             }
           }).catch(err => console.error("User data fetch error", err));
         }
@@ -222,6 +270,19 @@ const Details: React.FC = () => {
     } finally {
       setIsCommenting(false);
     }
+  };
+
+  const handleStatusChange = async (status: 'watched' | 'watching' | 'dropped' | 'planned' | 'none') => {
+    if (!user?.email) { openAuthModal(); return; }
+    setIsActionLoading(true);
+    const success = await db.setAnimeStatus(user.email, id!, status);
+    if (success) {
+      setAnimeStatus(status);
+      setIsFavorite(status === 'planned');
+      setIsWatched(status === 'watched');
+    }
+    setIsActionLoading(false);
+    setIsStatusDropdownOpen(false);
   };
 
   const scrollSlider = (ref: React.RefObject<HTMLDivElement>, direction: 'left' | 'right') => {
@@ -329,21 +390,49 @@ const Details: React.FC = () => {
                 <img src={anime.image} alt={anime.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
               </div>
               
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 relative" ref={statusDropdownRef}>
                 <button 
-                  onClick={handleFavorite} 
+                  onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
                   disabled={isActionLoading} 
-                  className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${isFavorite ? 'text-pink-500 bg-pink-500/10 border-pink-500/20 shadow-lg shadow-pink-500/10' : 'text-white hover:bg-white/10'}`}
+                  className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${animeStatus !== 'none' ? 'text-primary bg-primary/10 border-primary/20 shadow-lg shadow-primary/10' : 'text-white hover:bg-white/10'}`}
                 >
-                  <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} /> {isFavorite ? 'В ИЗБРАННОМ' : 'В ИЗБРАННОЕ'}
+                  {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                    <>
+                      {animeStatus === 'watched' && <CheckCircle className="w-4 h-4" />}
+                      {animeStatus === 'watching' && <Film className="w-4 h-4" />}
+                      {animeStatus === 'dropped' && <X className="w-4 h-4" />}
+                      {animeStatus === 'planned' && <Heart className="w-4 h-4 fill-current" />}
+                      {animeStatus === 'none' && <Star className="w-4 h-4" />}
+                      
+                      {animeStatus === 'watched' && 'ПРОСМОТРЕНО'}
+                      {animeStatus === 'watching' && 'СМОТРЮ'}
+                      {animeStatus === 'dropped' && 'БРОШЕНО'}
+                      {animeStatus === 'planned' && 'В ПЛАНАХ'}
+                      {animeStatus === 'none' && 'ВЫБРАТЬ СТАТУС'}
+                    </>
+                  )}
                 </button>
-                <button 
-                  onClick={handleWatched} 
-                  disabled={isActionLoading} 
-                  className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${isWatched ? 'text-green-500 bg-green-500/10 border-green-500/20 shadow-lg shadow-green-500/10' : 'text-white hover:bg-white/10'}`}
-                >
-                  <CheckCircle className={`w-4 h-4 ${isWatched ? 'fill-current' : ''}`} /> {isWatched ? 'ПРОСМОТРЕНО' : 'ОТМЕТИТЬ ПРОСМОТРЕННЫМ'}
-                </button>
+
+                {isStatusDropdownOpen && (
+                  <div className="absolute top-full left-0 w-full mt-2 bg-dark/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => handleStatusChange('watched')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                      <CheckCircle className="w-4 h-4 text-green-500" /> Просмотрено
+                    </button>
+                    <button onClick={() => handleStatusChange('watching')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                      <Film className="w-4 h-4 text-blue-500" /> Смотрю
+                    </button>
+                    <button onClick={() => handleStatusChange('planned')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                      <Heart className="w-4 h-4 text-pink-500" /> В планах
+                    </button>
+                    <button onClick={() => handleStatusChange('dropped')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                      <X className="w-4 h-4 text-red-500" /> Брошено
+                    </button>
+                    <button onClick={() => handleStatusChange('none')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-white/5 flex items-center gap-3 transition-colors border-t border-white/5">
+                      Удалить из списка
+                    </button>
+                  </div>
+                )}
+
                 <button 
                   onClick={() => navigate(`/forum?animeId=${id}`)}
                   className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
@@ -516,6 +605,12 @@ const Details: React.FC = () => {
                   </div>
                 </section>
               )}
+
+              <ReviewSection 
+                animeId={id!} 
+                reviews={reviews} 
+                onReviewAdded={(newReview) => setReviews([newReview, ...reviews])} 
+              />
 
               <section className="pt-10 border-t border-white/5">
                 <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({isCommentsLoading ? '...' : comments.length})</h3>

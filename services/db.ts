@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Anime, User, Comment, ChatMessage, PrivateMessage, ForumTopic, ForumPost } from '../types';
+import { Anime, User, Comment, ChatMessage, PrivateMessage, ForumTopic, ForumPost, Review } from '../types';
 
 // Use environment variables or fallback to the key you provided
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://ulumbarwutnsodmzxpst.supabase.co';
@@ -210,6 +210,8 @@ class DatabaseService {
       episodesWatched: p.episodes_watched,
       friends: p.friends || [],
       watchedAnimeIds: p.watched_anime_ids || [],
+      watchingAnimeIds: p.watching_anime_ids || [],
+      droppedAnimeIds: p.dropped_anime_ids || [],
       profileBg: p.profile_bg,
       profileBanner: p.profile_banner,
       profileLayout: p.profile_layout as any,
@@ -255,6 +257,8 @@ class DatabaseService {
       if (updates.bio !== undefined) mapped.bio = updates.bio;
       if (updates.isPremium !== undefined) mapped.is_premium = updates.isPremium;
       if (updates.watchedAnimeIds) mapped.watched_anime_ids = updates.watchedAnimeIds;
+      if (updates.watchingAnimeIds) mapped.watching_anime_ids = updates.watchingAnimeIds;
+      if (updates.droppedAnimeIds) mapped.dropped_anime_ids = updates.droppedAnimeIds;
       if (updates.profileBg !== undefined) mapped.profile_bg = updates.profileBg;
       if (updates.profileBanner !== undefined) mapped.profile_banner = updates.profileBanner;
       if (updates.profileLayout !== undefined) mapped.profile_layout = updates.profileLayout;
@@ -396,6 +400,51 @@ class DatabaseService {
 
     const updated = await this.updateProfile(email, { watchedAnimeIds: newWatched });
     return updated ? !exists : exists;
+  }
+
+  async setAnimeStatus(email: string, animeId: string, status: 'watched' | 'watching' | 'dropped' | 'planned' | 'none'): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    
+    try {
+      // Get current profile
+      const profile = await this.getProfile(email);
+      if (!profile) return false;
+      
+      let watched = [...(profile.watchedAnimeIds || [])];
+      let watching = [...(profile.watchingAnimeIds || [])];
+      let dropped = [...(profile.droppedAnimeIds || [])];
+      
+      // Remove from all first
+      watched = watched.filter(id => id !== animeId);
+      watching = watching.filter(id => id !== animeId);
+      dropped = dropped.filter(id => id !== animeId);
+      
+      // Also handle favorites (planned)
+      const favs = await this.getFavorites(email);
+      const isFav = favs.includes(animeId);
+      
+      if (status === 'planned' && !isFav) {
+        await supabaseClient.from('favorites').insert([{ user_email: email, anime_id: animeId }]);
+      } else if (status !== 'planned' && isFav) {
+        await supabaseClient.from('favorites').delete().eq('user_email', email).eq('anime_id', animeId);
+      }
+      
+      // Add to selected
+      if (status === 'watched') watched.push(animeId);
+      if (status === 'watching') watching.push(animeId);
+      if (status === 'dropped') dropped.push(animeId);
+      
+      await this.updateProfile(email, {
+        watchedAnimeIds: watched,
+        watchingAnimeIds: watching,
+        droppedAnimeIds: dropped
+      });
+      
+      return true;
+    } catch (e) {
+      console.error('Error setting anime status:', e);
+      return false;
+    }
   }
 
   // Forum
@@ -981,6 +1030,90 @@ class DatabaseService {
       return results;
     } catch (e) {
       return [];
+    }
+  }
+
+  // Reviews
+  async getAnimeReviews(animeId: string): Promise<Review[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data: reviews, error } = await supabaseClient
+        .from('reviews')
+        .select(`
+          *,
+          profiles:user_email (
+            name,
+            avatar,
+            email
+          )
+        `)
+        .eq('anime_id', animeId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return (reviews || []).map((r: any) => ({
+        id: r.id,
+        animeId: r.anime_id,
+        user: {
+          name: r.profiles?.name || 'Unknown',
+          avatar: r.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${r.user_email}`,
+          email: r.user_email
+        },
+        content: r.content,
+        ratings: {
+          plot: r.rating_plot,
+          sound: r.rating_sound,
+          visuals: r.rating_visuals,
+          overall: r.rating_overall
+        },
+        createdAt: r.created_at
+      }));
+    } catch (e) {
+      console.error('Error fetching reviews:', e);
+      return [];
+    }
+  }
+
+  async addReview(animeId: string, user: User, content: string, ratings: { plot: number; sound: number; visuals: number; overall: number }): Promise<Review | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data, error } = await supabaseClient
+        .from('reviews')
+        .insert([{
+          anime_id: animeId,
+          user_email: user.email,
+          content: content,
+          rating_plot: ratings.plot,
+          rating_sound: ratings.sound,
+          rating_visuals: ratings.visuals,
+          rating_overall: ratings.overall
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        id: data.id,
+        animeId: data.anime_id,
+        user: {
+          name: user.name,
+          avatar: user.avatar,
+          email: user.email
+        },
+        content: data.content,
+        ratings: {
+          plot: data.rating_plot,
+          sound: data.rating_sound,
+          visuals: data.rating_visuals,
+          overall: data.rating_overall
+        },
+        createdAt: data.created_at
+      };
+    } catch (e) {
+      console.error('Error adding review:', e);
+      return null;
     }
   }
 }
