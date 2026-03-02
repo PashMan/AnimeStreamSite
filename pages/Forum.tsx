@@ -248,7 +248,7 @@ const Forum: React.FC = () => {
           <div className="bg-surface/30 border border-white/5 rounded-[2rem] p-8 md:p-10 relative overflow-hidden">
              <div className="flex items-center gap-4 mb-8 border-b border-white/5 pb-6">
                 <Link to={`/user/${currentTopic.author.id || currentTopic.author.email}`} className="shrink-0">
-                   <img src={currentTopic.author.avatar || '/api/image/assets/fallback/user/avatar/x96.png'} loading="lazy" className="w-12 h-12 rounded-xl object-cover shadow-md ring-2 ring-white/5" alt="" />
+                   <img src={currentTopic.author.avatar || 'https://shikimori.one/assets/fallback/user/avatar/x96.png'} loading="lazy" className="w-12 h-12 rounded-xl object-cover shadow-md ring-2 ring-white/5" alt="" />
                 </Link>
                 <div>
                    <Link to={`/user/${currentTopic.author.id || currentTopic.author.email}`} className="font-black text-white text-base hover:text-primary transition-colors">{currentTopic.author.name}</Link>

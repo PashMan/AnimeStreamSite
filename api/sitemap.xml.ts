@@ -76,7 +76,6 @@ export default async function sitemapHandler(req: Request, res: Response) {
         fetch(`${SHIKIMORI_API_URL}/animes?limit=20&order=popularity`, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
-            'Referer': 'https://shikimori.one/',
             'Accept': 'application/json'
           },
           signal: controller.signal
@@ -84,7 +83,6 @@ export default async function sitemapHandler(req: Request, res: Response) {
         fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=15`, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
-            'Referer': 'https://shikimori.one/',
             'Accept': 'application/json'
           },
           signal: controller.signal

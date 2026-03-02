@@ -18,16 +18,6 @@ export default defineConfig({
           'Referer': 'https://shikimori.one/'
         }
       },
-      '/api/image': {
-        target: 'https://shikimori.one',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api\/image/, ''),
-        headers: {
-          'User-Agent': 'AnimeStream/1.0',
-          'Referer': 'https://shikimori.one/'
-        }
-      },
       '/kodik-proxy': {
         target: 'https://kodikapi.com',
         changeOrigin: true,
@@ -44,16 +34,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api\/shikimori/, ''),
-        headers: {
-          'User-Agent': 'AnimeStream/1.0',
-          'Referer': 'https://shikimori.one/'
-        }
-      },
-      '/api/image': {
-        target: 'https://shikimori.one',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api\/image/, ''),
         headers: {
           'User-Agent': 'AnimeStream/1.0',
           'Referer': 'https://shikimori.one/'
