@@ -138,21 +138,6 @@ const Home: React.FC = () => {
     }
   };
 
-  if (isHeroLoading && heroAnimes.length === 0) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-dark">
-      <div className="flex flex-col items-center animate-in fade-in duration-500">
-        <div className="w-16 h-16 bg-gradient-to-br from-[#8B5CF6] to-[#06B6D4] rounded-2xl flex items-center justify-center text-white shadow-2xl mb-8 animate-pulse">
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
-        </div>
-        <div className="flex gap-2">
-          <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-accent rounded-full animate-bounce [animation-delay:0.2s]"></div>
-          <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="space-y-24 pb-20 animate-in fade-in duration-700">
       <SEO 
@@ -160,7 +145,19 @@ const Home: React.FC = () => {
         description="Смотрите аниме онлайн бесплатно в хорошем качестве. Новинки сезона, популярные тайтлы, удобный плеер и активное сообщество."
       />
       {/* Hero Section */}
-      {currentHero ? (
+      {isHeroLoading && heroAnimes.length === 0 ? (
+        <section className="relative h-[85vh] w-full overflow-hidden bg-surface/50 animate-pulse">
+          <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent z-10" />
+          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-24 z-20">
+            <div className="max-w-3xl space-y-6 w-full">
+              <div className="w-24 h-6 bg-white/10 rounded-lg"></div>
+              <div className="w-3/4 h-16 md:h-24 bg-white/10 rounded-2xl"></div>
+              <div className="w-full h-20 bg-white/10 rounded-xl"></div>
+              <div className="w-40 h-14 bg-white/10 rounded-2xl mt-4"></div>
+            </div>
+          </div>
+        </section>
+      ) : currentHero ? (
         <section className="relative h-[85vh] w-full overflow-hidden group">
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>

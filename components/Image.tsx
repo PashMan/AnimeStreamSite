@@ -66,6 +66,7 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
       referrerPolicy="no-referrer"
       // @ts-ignore
       fetchpriority={priority ? "high" : "auto"}
+      decoding={priority ? "sync" : "async"}
       {...props}
     />
   );
