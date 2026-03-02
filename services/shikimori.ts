@@ -643,10 +643,14 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
       // Optimization: Do NOT fetch linked anime videos for the list view to avoid N+1 requests and 429 errors.
       // We only fetch videos in the details view.
 
+      const rawBody = topic.body || '';
+      const cleanBody = rawBody.replace(/<[^>]*>?/gm, '').replace(/\[.*?\]/g, '').trim();
+      const summary = cleanBody.slice(0, 150) + (cleanBody.length > 150 ? '...' : '');
+
       return {
         id: topic.id.toString(),
         title: topic.topic_title || 'Без названия',
-        summary: (topic.body || '').slice(0, 150).replace(/\[.*?\]/g, '') + '...',
+        summary: summary,
         date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
         category: 'Новости',
         image: imgMatch ? imgMatch[1] : undefined,

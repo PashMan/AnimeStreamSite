@@ -408,7 +408,7 @@ const Home: React.FC = () => {
                             <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{item.date}</div>
                          </div>
                          <h4 className="text-base font-black text-white leading-tight uppercase tracking-tight group-hover:text-primary transition-colors mb-3">{item.title}</h4>
-                         <p className="text-slate-400 text-xs line-clamp-3 leading-relaxed">{item.summary.replace(/<[^>]*>?/gm, '')}</p>
+                         <p className="text-slate-400 text-xs line-clamp-3 leading-relaxed">{item.summary?.replace(/<[^>]*>?/gm, '').replace(/\[.*?\]/g, '')}</p>
                          <div className="mt-auto pt-4 flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
                             Читать далее <ChevronRight className="w-3 h-3" />
                          </div>
