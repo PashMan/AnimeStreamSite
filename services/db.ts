@@ -1201,6 +1201,28 @@ class DatabaseService {
     }
   }
 
+  async deleteForumTopic(topicId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient.from('forum_topics').delete().eq('id', topicId);
+      return !error;
+    } catch (e) {
+      console.error('Error deleting forum topic:', e);
+      return false;
+    }
+  }
+
+  async deleteForumPost(postId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient.from('forum_posts').delete().eq('id', postId);
+      return !error;
+    } catch (e) {
+      console.error('Error deleting forum post:', e);
+      return false;
+    }
+  }
+
   async deleteTopic(topicId: string): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {
@@ -1212,16 +1234,19 @@ class DatabaseService {
     }
   }
 
-  async updateUserStatus(email: string, updates: { isBanned?: boolean; isMuted?: boolean; role?: 'user' | 'admin' | 'moderator' }): Promise<boolean> {
+  async updateUserStatus(email: string, updates: { isBanned?: boolean; bannedUntil?: string; isMuted?: boolean; mutedUntil?: string; role?: 'user' | 'admin' | 'moderator' }): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {
+      const dbUpdates: any = {};
+      if (updates.isBanned !== undefined) dbUpdates.is_banned = updates.isBanned;
+      if (updates.bannedUntil !== undefined) dbUpdates.banned_until = updates.bannedUntil;
+      if (updates.isMuted !== undefined) dbUpdates.is_muted = updates.isMuted;
+      if (updates.mutedUntil !== undefined) dbUpdates.muted_until = updates.mutedUntil;
+      if (updates.role !== undefined) dbUpdates.role = updates.role;
+
       const { error } = await supabaseClient
         .from('profiles')
-        .update({
-          is_banned: updates.isBanned,
-          is_muted: updates.isMuted,
-          role: updates.role
-        })
+        .update(dbUpdates)
         .eq('email', email);
       return !error;
     } catch (e) {

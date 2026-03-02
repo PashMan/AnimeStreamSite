@@ -55,7 +55,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(3, 300); // 3 concurrent, 300ms delay
+const requestQueue = new RequestQueue(10, 50); // 10 concurrent, 50ms delay
 
 let globalAbortController = new AbortController();
 

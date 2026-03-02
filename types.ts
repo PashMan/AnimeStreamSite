@@ -54,7 +54,9 @@ export interface User {
   lastSeen?: string; // ISO date string
   role?: 'user' | 'admin' | 'moderator';
   isBanned?: boolean;
+  bannedUntil?: string;
   isMuted?: boolean;
+  mutedUntil?: string;
 }
 
 export interface Report {

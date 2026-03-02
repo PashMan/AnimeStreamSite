@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useParams, useNavigate } from 'react-router-dom';
-import { MessageSquare, Plus, User, Clock, ChevronRight, ArrowLeft, Loader2, MessageCircle, Eye, Hash, Send, Reply } from 'lucide-react';
+import { MessageSquare, Plus, User, Clock, ChevronRight, ArrowLeft, Loader2, MessageCircle, Eye, Hash, Send, Reply, AlertTriangle, Trash2 } from 'lucide-react';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { ForumTopic, ForumPost, Anime } from '../types';
@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import SEO from '../components/SEO';
+import { ReportModal } from '../components/ReportModal';
 
 const CATEGORIES = [
   { id: 'general', name: 'Общее', description: 'Общие обсуждения на любые темы' },
@@ -47,6 +48,10 @@ const Forum: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
+
+  // Report State
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{type: 'topic' | 'post', id: string} | null>(null);
 
   // Load Topic List
   useEffect(() => {
@@ -273,6 +278,30 @@ const Forum: React.FC = () => {
                        </ReactMarkdown>
                     </div>
                 )}
+                <div className="mt-6 flex items-center gap-4 border-t border-white/5 pt-4">
+                  <button
+                    onClick={() => {
+                      setReportTarget({ type: 'topic', id: currentTopic.id });
+                      setIsReportModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
+                  >
+                    <AlertTriangle className="w-3 h-3" /> Пожаловаться
+                  </button>
+                  {user && (user.role === 'admin' || user.role === 'moderator') && (
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Удалить тему?')) {
+                          await db.deleteForumTopic(currentTopic.id);
+                          navigate('/forum');
+                        }
+                      }}
+                      className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" /> Удалить
+                    </button>
+                  )}
+                </div>
              </div>
           </div>
 
@@ -323,12 +352,36 @@ const Forum: React.FC = () => {
                                   {post.content}
                               </ReactMarkdown>
                            </div>
-                           <button 
-                             onClick={() => handleReplyToUser(post)}
-                             className="mt-4 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-                           >
-                               <Reply className="w-3 h-3" /> Ответить
-                           </button>
+                           <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button 
+                               onClick={() => handleReplyToUser(post)}
+                               className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors"
+                             >
+                                 <Reply className="w-3 h-3" /> Ответить
+                             </button>
+                             <button
+                               onClick={() => {
+                                 setReportTarget({ type: 'post', id: post.id });
+                                 setIsReportModalOpen(true);
+                               }}
+                               className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
+                             >
+                               <AlertTriangle className="w-3 h-3" /> Пожаловаться
+                             </button>
+                             {user && (user.role === 'admin' || user.role === 'moderator') && (
+                               <button
+                                 onClick={async () => {
+                                   if (window.confirm('Удалить комментарий?')) {
+                                     await db.deleteForumPost(post.id);
+                                     setPosts(posts.filter(p => p.id !== post.id));
+                                   }
+                                 }}
+                                 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
+                               >
+                                 <Trash2 className="w-3 h-3" /> Удалить
+                               </button>
+                             )}
+                           </div>
                         </div>
                       </div>
 
@@ -365,12 +418,36 @@ const Forum: React.FC = () => {
                                     {reply.content}
                                 </ReactMarkdown>
                               </div>
-                              <button 
-                                onClick={() => handleReplyToUser(reply)}
-                                className="mt-3 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-                              >
-                                  <Reply className="w-3 h-3" /> Ответить
-                              </button>
+                              <div className="mt-3 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={() => handleReplyToUser(reply)}
+                                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-colors"
+                                >
+                                    <Reply className="w-3 h-3" /> Ответить
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setReportTarget({ type: 'post', id: reply.id });
+                                    setIsReportModalOpen(true);
+                                  }}
+                                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
+                                >
+                                  <AlertTriangle className="w-3 h-3" />
+                                </button>
+                                {user && (user.role === 'admin' || user.role === 'moderator') && (
+                                  <button
+                                    onClick={async () => {
+                                      if (window.confirm('Удалить комментарий?')) {
+                                        await db.deleteForumPost(reply.id);
+                                        setPosts(posts.filter(p => p.id !== reply.id));
+                                      }
+                                    }}
+                                    className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -421,6 +498,18 @@ const Forum: React.FC = () => {
              )}
           </div>
         </div>
+
+        {isReportModalOpen && reportTarget && (
+          <ReportModal
+            isOpen={isReportModalOpen}
+            targetId={reportTarget.id}
+            targetType={reportTarget.type}
+            onClose={() => {
+              setIsReportModalOpen(false);
+              setReportTarget(null);
+            }}
+          />
+        )}
       </div>
     );
   }

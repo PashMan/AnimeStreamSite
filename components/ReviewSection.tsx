@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, User, Send, ChevronDown, ChevronUp, MessageSquare, ShieldCheck, Eye, Edit3 } from 'lucide-react';
+import { Star, User, Send, ChevronDown, ChevronUp, MessageSquare, ShieldCheck, Eye, Edit3, AlertTriangle } from 'lucide-react';
 import { Review, User as UserType } from '../types';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
@@ -10,9 +10,11 @@ interface ReviewSectionProps {
   animeId: string;
   reviews: Review[];
   onReviewAdded: (review: Review) => void;
+  onReport?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
-const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onReviewAdded }) => {
+const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onReviewAdded, onReport, onDelete }) => {
   const { user, openAuthModal } = useAuth();
   const [isWriting, setIsWriting] = useState(false);
   const [content, setContent] = useState('');
@@ -181,7 +183,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
               <motion.div 
                 layout
                 key={review.id}
-                className="p-6 glass rounded-[2rem] border border-white/5 hover:border-white/10 transition-colors"
+                className="p-6 glass rounded-[2rem] border border-white/5 hover:border-white/10 transition-colors group"
               >
                 <div className="flex flex-col md:flex-row gap-6">
                   <div className="flex flex-col items-center gap-3 min-w-[120px]">
@@ -226,6 +228,24 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
                         {isExpanded ? <><ChevronUp className="w-3 h-3" /> Свернуть</> : <><ChevronDown className="w-3 h-3" /> Читать далее</>}
                       </button>
                     )}
+                    <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {onReport && (
+                        <button 
+                          onClick={() => onReport(review.id)}
+                          className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1"
+                        >
+                          <AlertTriangle className="w-3 h-3" /> Пожаловаться
+                        </button>
+                      )}
+                      {onDelete && (user?.role === 'admin' || user?.role === 'moderator') && (
+                        <button 
+                          onClick={() => onDelete(review.id)}
+                          className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest flex items-center gap-1"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </motion.div>

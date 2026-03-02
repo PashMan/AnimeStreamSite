@@ -73,15 +73,26 @@ const AdminPanel: React.FC = () => {
   };
 
   const handleUpdateUser = async (email: string, action: 'ban' | 'mute') => {
-    // In a real app, we'd need the user's email or ID from the report
-    // This is a simplified example
     const emailToUpdate = prompt(`Введите email пользователя для ${action === 'ban' ? 'бана' : 'мута'}:`, email);
     if (!emailToUpdate) return;
 
-    const updates = action === 'ban' ? { isBanned: true } : { isMuted: true };
+    const daysStr = prompt(`На сколько дней ${action === 'ban' ? 'забанить' : 'замутить'}? (Оставьте пустым для навсегда)`, "7");
+    let untilDate: string | undefined = undefined;
+    
+    if (daysStr && !isNaN(parseInt(daysStr))) {
+        const days = parseInt(daysStr);
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        untilDate = date.toISOString();
+    }
+
+    const updates: any = action === 'ban' 
+        ? { isBanned: true, bannedUntil: untilDate } 
+        : { isMuted: true, mutedUntil: untilDate };
+        
     const success = await db.updateUserStatus(emailToUpdate, updates);
     if (success) {
-      alert(`Пользователь ${emailToUpdate} успешно ${action === 'ban' ? 'забанен' : 'замучен'}`);
+      alert(`Пользователь ${emailToUpdate} успешно ${action === 'ban' ? 'забанен' : 'замучен'}${untilDate ? ` до ${new Date(untilDate).toLocaleDateString()}` : ' навсегда'}`);
     } else {
       alert('Ошибка при обновлении статуса пользователя');
     }

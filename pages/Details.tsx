@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useParams, Link, useNavigate } from 'react-router-dom';
-import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon, Copy, Share2 } from 'lucide-react';
+import { Star, Heart, Loader2, ChevronLeft, ChevronRight, Film, CheckCircle, Forward, MessageSquare, Users, Send, X, Link as LinkIcon, Check, Home as HomeIcon, Copy, Share2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchAnimeDetails, fetchRelatedAnimes, fetchSimilarAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE as PLACEHOLDER_IMAGE, MOCK_ANIME } from '../constants';
@@ -10,6 +10,7 @@ import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 import ReviewSection from '../components/ReviewSection';
+import { ReportModal } from '../components/ReportModal';
 
 const Details: React.FC = () => {
   const { id: paramId } = useParams<{ id: string }>();
@@ -49,6 +50,8 @@ const Details: React.FC = () => {
   const [friendsList, setFriendsList] = useState<User[]>([]);
   const [isSharing, setIsSharing] = useState(false);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{type: 'comment' | 'review', id: string} | null>(null);
 
   const lastLoadedId = useRef<string | null>(null);
 
@@ -551,7 +554,7 @@ const Details: React.FC = () => {
                       return (
                         <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
                           <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden relative">
-                            <Image src={item.anime.image} animeId={item.anime.id} animeTitle={item.anime.originalName || item.anime.title} loading="lazy" className="w-full h-full object-cover" alt="" />
+                            <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
                             {isPriority && <div className="absolute inset-0 bg-primary/20"></div>}
                           </div>
                           <div className="flex flex-col min-w-0 flex-1">
@@ -608,6 +611,16 @@ const Details: React.FC = () => {
                 animeId={id!} 
                 reviews={reviews} 
                 onReviewAdded={(newReview) => setReviews([newReview, ...reviews])} 
+                onReport={(reviewId) => {
+                  setReportTarget({ type: 'review', id: reviewId });
+                  setIsReportModalOpen(true);
+                }}
+                onDelete={async (reviewId) => {
+                  if (window.confirm('Удалить рецензию?')) {
+                    await db.deleteReview(reviewId);
+                    setReviews(reviews.filter(r => r.id !== reviewId));
+                  }
+                }}
               />
 
               <section className="pt-10 border-t border-white/5">
@@ -648,7 +661,33 @@ const Details: React.FC = () => {
                                  <span className="font-black text-white text-base">{comment.user.name}</span>
                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
                               </div>
-                              <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">{comment.text}</div>
+                              <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">
+                                {comment.text}
+                                <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button 
+                                    onClick={() => {
+                                      setReportTarget({ type: 'comment', id: comment.id });
+                                      setIsReportModalOpen(true);
+                                    }}
+                                    className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1"
+                                  >
+                                    <AlertTriangle className="w-3 h-3" /> Пожаловаться
+                                  </button>
+                                  {(user?.role === 'admin' || user?.role === 'moderator') && (
+                                    <button 
+                                      onClick={async () => {
+                                        if (window.confirm('Удалить комментарий?')) {
+                                          await db.deleteComment(comment.id);
+                                          setComments(comments.filter(c => c.id !== comment.id));
+                                        }
+                                      }}
+                                      className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest flex items-center gap-1"
+                                    >
+                                      Удалить
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
                            </div>
                         </div>
                      ))
@@ -700,6 +739,18 @@ const Details: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {reportTarget && (
+        <ReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => {
+            setIsReportModalOpen(false);
+            setReportTarget(null);
+          }}
+          targetType={reportTarget.type}
+          targetId={reportTarget.id}
+        />
       )}
     </div>
   );
