@@ -1,7 +1,6 @@
 
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
-import { fetchKodikImage } from './kodik';
 
 // const BASE_API = '/api/shikimori';
 const BASE_API = 'https://shikimori.one/api';
@@ -333,7 +332,6 @@ export const mapAnime = async (data: any): Promise<Anime> => {
   }
   
   const russian = data.russian || data.name || 'Без названия';
-  const originalName = data.name || '';
   
   let image = PLACEHOLDER_IMAGE;
   let image_preview = PLACEHOLDER_IMAGE;
@@ -375,7 +373,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
     id: data.id?.toString() || '',
     slug: slugify(data.name || data.russian || ''),
     title: russian,
-    originalName: originalName,
+    originalName: data.name || '',
     image,
     image_preview,
     cover: cover,
