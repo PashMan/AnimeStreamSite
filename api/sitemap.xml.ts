@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 
 const SHIKIMORI_API_URL = 'https://shikimori.one/api';
+const SITE_URL = 'https://anime-stream.ru';
 
 // Helper for slug generation (same as in shikimori.ts)
 const slugify = (text: string): string => {
@@ -50,9 +51,6 @@ export default async function sitemapHandler(req: Request, res: Response) {
   }
 
   try {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const SITE_URL = `${protocol}://${host}`;
     const today = new Date().toISOString();
 
     // 1. Static URLs
@@ -74,19 +72,19 @@ export default async function sitemapHandler(req: Request, res: Response) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
-      const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Referer': 'https://shikimori.one/',
-        'Accept': 'application/json'
-      };
-
       const [animeRes, newsRes] = await Promise.all([
         fetch(`${SHIKIMORI_API_URL}/animes?limit=20&order=popularity`, {
-          headers: headers,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
+            'Accept': 'application/json'
+          },
           signal: controller.signal
         }),
         fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=15`, {
-          headers: headers,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AnimeStreamProject/1.0',
+            'Accept': 'application/json'
+          },
           signal: controller.signal
         })
       ]);
