@@ -175,6 +175,7 @@ const Home: React.FC = () => {
                 src={anime.cover || anime.image} 
                 alt={anime.title} 
                 animeId={anime.id}
+                animeTitle={anime.originalName || anime.title}
                 priority={idx === 0}
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
               />

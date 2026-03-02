@@ -19,7 +19,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
           src={anime.image} 
           alt={anime.title} 
           animeId={anime.id}
-          animeTitle={anime.title}
+          animeTitle={anime.originalName || anime.title}
           className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 will-change-transform" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-70" />

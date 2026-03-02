@@ -356,7 +356,7 @@ const Details: React.FC = () => {
         }}
       />
       <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0">
-        <Image src={anime.cover || anime.image} alt="" animeId={anime.id} priority className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" />
+        <Image src={anime.cover || anime.image} alt="" animeId={anime.id} animeTitle={anime.originalName || anime.title} priority className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105" />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/60 to-transparent" />
       </div>
 
@@ -388,7 +388,7 @@ const Details: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12">
            <div className="flex flex-col gap-4">
               <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block">
-                <Image src={anime.image} alt={anime.title} animeId={anime.id} className="w-full h-full object-cover" />
+                <Image src={anime.image} alt={anime.title} animeId={anime.id} animeTitle={anime.originalName || anime.title} className="w-full h-full object-cover" />
               </div>
               
               <div className="grid grid-cols-1 gap-3 relative" ref={statusDropdownRef}>

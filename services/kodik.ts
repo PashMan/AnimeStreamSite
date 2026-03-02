@@ -77,8 +77,10 @@ export const fetchKodikAnimeInfo = async (shikimoriId: string, title?: string): 
                 return (current.last_episode > prev.last_episode) ? current : prev;
             });
 
+            const image = bestResult.material_data?.poster_url ? bestResult.material_data.poster_url.replace('http://', 'https://') : (bestResult.screenshots && bestResult.screenshots.length > 0 ? bestResult.screenshots[0].replace('http://', 'https://') : undefined);
+
             return {
-                image: bestResult.material_data?.poster_url,
+                image: image,
                 episodesAired: bestResult.last_episode,
                 episodesTotal: bestResult.episodes_count
             };
