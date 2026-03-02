@@ -39,15 +39,15 @@ const Home: React.FC = () => {
     
     const loadLists = async () => {
         // Parallel fetches, now handled efficiently by the RequestQueue
-        fetchAnimes({ order: 'popularity', limit: 8 }).then(data => {
+        fetchAnimes({ order: 'popularity', limit: 20 }).then(data => {
           if (isMounted) setTrendingAnimes(data);
         });
         
-        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 8 }).then(data => {
+        fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(data => {
           if (isMounted) setNewAnimes(data);
         });
         
-        fetchAnimes({ order: 'popularity', status: 'anons', limit: 8 }).then(data => {
+        fetchAnimes({ order: 'popularity', status: 'anons', limit: 20 }).then(data => {
           if (isMounted) setUpcomingAnimes(data);
         });
         
@@ -219,7 +219,14 @@ const Home: React.FC = () => {
                   </button>
                 ))}
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center">
+               <Link 
+                 to={activeTab === 'trending' ? '/catalog?order=popularity' : activeTab === 'new' ? '/catalog?order=ranked&status=ongoing' : '/catalog?order=popularity&status=anons'}
+                 className="px-6 py-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
+               >
+                 Смотреть все
+               </Link>
+               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
                <button aria-label="Scroll left" onClick={() => scrollSlider('left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
                <button aria-label="Scroll right" onClick={() => scrollSlider('right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
             </div>
@@ -484,7 +491,7 @@ const Home: React.FC = () => {
               ];
               return (
               <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
-                <Image src={images[idx] || FALLBACK_IMAGE} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <img src={images[idx] || FALLBACK_IMAGE} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                 <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
                 <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
                   <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
