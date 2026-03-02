@@ -62,9 +62,15 @@ export const fetchKodikData = async (shikimoriId: string, title?: string): Promi
   }
 }
 
-export const fetchKodikAnimeInfo = async (shikimoriId: string): Promise<{ image?: string, episodesAired?: number, episodesTotal?: number } | null> => {
+export const fetchKodikAnimeInfo = async (shikimoriId: string, title?: string): Promise<{ image?: string, episodesAired?: number, episodesTotal?: number } | null> => {
     try {
-        const data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&shikimori_id=${shikimoriId}&with_material_data=true&with_episodes=true`);
+        let data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&shikimori_id=${shikimoriId}&with_material_data=true&with_episodes=true`);
+        
+        if ((!data || !data.results || data.results.length === 0) && title) {
+             const cleanTitle = title.split('/')[0].trim();
+             data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_material_data=true&with_episodes=true`);
+        }
+
         if (data && data.results && data.results.length > 0) {
             // Find the result with the most episodes
             const bestResult = data.results.reduce((prev: any, current: any) => {
@@ -83,7 +89,7 @@ export const fetchKodikAnimeInfo = async (shikimoriId: string): Promise<{ image?
     }
 };
 
-export const fetchKodikImage = async (shikimoriId: string): Promise<string | null> => {
-    const info = await fetchKodikAnimeInfo(shikimoriId);
+export const fetchKodikImage = async (shikimoriId: string, title?: string): Promise<string | null> => {
+    const info = await fetchKodikAnimeInfo(shikimoriId, title);
     return info?.image || null;
 };

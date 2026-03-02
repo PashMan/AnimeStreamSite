@@ -16,9 +16,10 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
     <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group block relative w-full h-full">
       <div className="relative w-full aspect-[2/3] rounded-[2.5rem] overflow-hidden mb-5 bg-surface border border-white/5 group-hover:border-primary/50 transition-all shadow-xl group-hover:shadow-primary/20">
         <Image 
-          src={anime.image_preview || anime.image} 
+          src={anime.image} 
           alt={anime.title} 
           animeId={anime.id}
+          animeTitle={anime.title}
           className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 will-change-transform" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-70" />

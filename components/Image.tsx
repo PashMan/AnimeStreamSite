@@ -7,9 +7,10 @@ interface ImageProps extends ImgHTMLAttributes<HTMLImageElement> {
   fallbackClassName?: string;
   priority?: boolean;
   animeId?: string;
+  animeTitle?: string;
 }
 
-export const Image = ({ src, alt, className, fallbackClassName, priority, animeId, ...props }: ImageProps) => {
+export const Image = ({ src, alt, className, fallbackClassName, priority, animeId, animeTitle, ...props }: ImageProps) => {
   const [imageSrc, setImageSrc] = useState<string | undefined>(src);
   const [hasTriedKodik, setHasTriedKodik] = useState(false);
   const [error, setError] = useState(false);
@@ -23,14 +24,14 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
   useEffect(() => {
     if ((error || imageSrc === FALLBACK_IMAGE) && animeId && !hasTriedKodik) {
       setHasTriedKodik(true);
-      fetchKodikImage(animeId).then(kodikImage => {
+      fetchKodikImage(animeId, animeTitle).then(kodikImage => {
         if (kodikImage) {
             setImageSrc(kodikImage);
             setError(false);
         }
       }).catch(() => {});
     }
-  }, [error, imageSrc, animeId, hasTriedKodik]);
+  }, [error, imageSrc, animeId, animeTitle, hasTriedKodik]);
 
   if (error && (!animeId || hasTriedKodik)) {
     return (
