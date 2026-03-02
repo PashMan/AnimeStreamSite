@@ -12,10 +12,9 @@ import { Anime, ScheduleItem, NewsItem, ForumTopic } from '../types';
 import { FALLBACK_IMAGE, COLLECTIONS_DATA } from '../constants';
 
 const Home: React.FC = () => {
-  const sliderRef = useRef<HTMLDivElement>(null);
+  const ongoingRef = useRef<HTMLDivElement>(null);
+  const trendingRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
-  
-  const [activeTab, setActiveTab] = useState<'trending' | 'new' | 'upcoming'>('trending');
   
   const [heroAnimes, setHeroAnimes] = useState<Anime[]>([]);
   const [trendingAnimes, setTrendingAnimes] = useState<Anime[]>([]);
@@ -135,12 +134,11 @@ const Home: React.FC = () => {
   };
 
   const currentHero = heroAnimes[heroIndex];
-  const currentList = activeTab === 'new' ? newAnimes : activeTab === 'upcoming' ? upcomingAnimes : trendingAnimes;
 
-  const scrollSlider = (direction: 'left' | 'right') => {
-    if (sliderRef.current) {
+  const scrollContainer = (ref: React.RefObject<HTMLDivElement>, direction: 'left' | 'right') => {
+    if (ref.current) {
       const scrollAmount = 600;
-      sliderRef.current.scrollBy({ left: direction === 'right' ? scrollAmount : -scrollAmount, behavior: 'smooth' });
+      ref.current.scrollBy({ left: direction === 'right' ? scrollAmount : -scrollAmount, behavior: 'smooth' });
     }
   };
 
@@ -210,37 +208,83 @@ const Home: React.FC = () => {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-28">
+        {/* Ongoing Section */}
         <section>
           <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
-            <div className="flex gap-2 p-1 bg-white/5 rounded-2xl border border-white/5 w-fit">
-                {['trending', 'new', 'upcoming'].map((t) => (
-                  <button key={t} onClick={() => setActiveTab(t as any)} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}>
-                    {t === 'trending' ? 'Тренды' : t === 'new' ? 'Новинки' : 'Анонсы'}
-                  </button>
-                ))}
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary shadow-lg shadow-primary/10">
+                    <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Онгоинги</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Выходят прямо сейчас</p>
+                </div>
             </div>
             <div className="flex gap-3 items-center">
                <Link 
-                 to={activeTab === 'trending' ? '/catalog?order=popularity' : activeTab === 'new' ? '/catalog?order=ranked&status=ongoing' : '/catalog?order=popularity&status=anons'}
+                 to="/catalog?order=ranked&status=ongoing"
                  className="px-6 py-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
                >
                  Смотреть все
                </Link>
                <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
-               <button aria-label="Scroll left" onClick={() => scrollSlider('left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
-               <button aria-label="Scroll right" onClick={() => scrollSlider('right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+               <button aria-label="Scroll left" onClick={() => scrollContainer(ongoingRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
+               <button aria-label="Scroll right" onClick={() => scrollContainer(ongoingRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
             </div>
           </div>
           
-          <div ref={sliderRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
-             {currentList.length > 0 ? (
-                currentList.map((anime, idx) => (
-                  <div key={`${anime.id}-${activeTab}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
-                    <AnimeCard anime={anime} rank={activeTab === 'trending' ? idx + 1 : undefined} />
+          <div ref={ongoingRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
+             {newAnimes.length > 0 ? (
+                newAnimes.map((anime, idx) => (
+                  <div key={`ongoing-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
+                    <AnimeCard anime={anime} />
                   </div>
                 ))
              ) : (
-                // Skeleton loading state
+                Array.from({length: 4}).map((_, i) => (
+                    <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
+                        <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
+                        <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-white/5 rounded w-1/2"></div>
+                    </div>
+                ))
+             )}
+          </div>
+        </section>
+
+        {/* Trending Section */}
+        <section>
+          <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-accent/20 rounded-xl flex items-center justify-center text-accent shadow-lg shadow-accent/10">
+                    <Crown className="w-5 h-5" />
+                </div>
+                <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">В тренде</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Популярное сейчас</p>
+                </div>
+            </div>
+            <div className="flex gap-3 items-center">
+               <Link 
+                 to="/catalog?order=popularity"
+                 className="px-6 py-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
+               >
+                 Смотреть все
+               </Link>
+               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
+               <button aria-label="Scroll left" onClick={() => scrollContainer(trendingRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
+               <button aria-label="Scroll right" onClick={() => scrollContainer(trendingRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+            </div>
+          </div>
+          
+          <div ref={trendingRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
+             {trendingAnimes.length > 0 ? (
+                trendingAnimes.map((anime, idx) => (
+                  <div key={`trend-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
+                    <AnimeCard anime={anime} rank={idx + 1} />
+                  </div>
+                ))
+             ) : (
                 Array.from({length: 4}).map((_, i) => (
                     <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
                         <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
