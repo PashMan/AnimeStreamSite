@@ -72,14 +72,17 @@ const Home: React.FC = () => {
             setIsHeroLoading(false);
             
             // Start loading other lists in parallel AFTER hero is loaded
-            loadLists();
+            // Delay slightly to give LCP image network priority
+            setTimeout(() => {
+                if (isMounted) loadLists();
+            }, 300);
 
             // Sequentially enrich hero items with details (description, better cover)
             // We do this one by one with a delay to avoid 429 Rate Limit
             const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
             
-            // Only enrich the first 2 items to save bandwidth/time
-            for (const anime of data.slice(0, 2)) {
+            // Enrich ALL items to ensure quality (descriptions, high-res covers)
+            for (const anime of data) {
                 if (!isMounted) break;
                 try {
                     // Fetch details
@@ -95,7 +98,7 @@ const Home: React.FC = () => {
                             return next;
                         });
                     }
-                    // Wait 100ms between requests
+                    // Wait 100ms between requests to be nice to the API
                     await delay(100);
                 } catch (e) {
                     console.warn(`Failed to enrich hero item ${anime.id}`, e);
