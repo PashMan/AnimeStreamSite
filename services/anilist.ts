@@ -149,8 +149,8 @@ const processQueue = async () => {
             resolve(null);
         }
 
-        // Strict delay between requests (800ms = ~75 req/min)
-        await new Promise(r => setTimeout(r, 800));
+        // Strict delay between requests (500ms = ~120 req/min)
+        await new Promise(r => setTimeout(r, 500));
     }
 
     isProcessing = false;

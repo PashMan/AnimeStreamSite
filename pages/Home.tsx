@@ -19,7 +19,6 @@ const Home: React.FC = () => {
   const [heroAnimes, setHeroAnimes] = useState<Anime[]>([]);
   const [trendingAnimes, setTrendingAnimes] = useState<Anime[]>([]);
   const [newAnimes, setNewAnimes] = useState<Anime[]>([]);
-  const [upcomingAnimes, setUpcomingAnimes] = useState<Anime[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [forumTopics, setForumTopics] = useState<ForumTopic[]>([]);
@@ -44,10 +43,6 @@ const Home: React.FC = () => {
         
         fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(data => {
           if (isMounted) setNewAnimes(data);
-        });
-        
-        fetchAnimes({ order: 'popularity', status: 'anons', limit: 20 }).then(data => {
-          if (isMounted) setUpcomingAnimes(data);
         });
         
         fetchNews().then(data => {
@@ -83,7 +78,8 @@ const Home: React.FC = () => {
             // We do this one by one with a delay to avoid 429 Rate Limit
             const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
             
-            for (const anime of data) {
+            // Only enrich the first 2 items to save bandwidth/time
+            for (const anime of data.slice(0, 2)) {
                 if (!isMounted) break;
                 try {
                     // Fetch details
@@ -99,8 +95,8 @@ const Home: React.FC = () => {
                             return next;
                         });
                     }
-                    // Wait 1.5s between requests to stay under rate limits
-                    await delay(1500);
+                    // Wait 1s between requests
+                    await delay(1000);
                 } catch (e) {
                     console.warn(`Failed to enrich hero item ${anime.id}`, e);
                 }
@@ -530,7 +526,7 @@ const Home: React.FC = () => {
               const images = [
                 trendingAnimes[0]?.image,
                 newAnimes[0]?.image,
-                upcomingAnimes[0]?.image,
+                heroAnimes[2]?.image,
                 heroAnimes[1]?.image
               ];
               return (
