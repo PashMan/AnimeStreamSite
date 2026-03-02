@@ -24,6 +24,7 @@ const Profile = React.lazy(() => import('./pages/Profile'));
 const Messages = React.lazy(() => import('./pages/Messages'));
 const Social = React.lazy(() => import('./pages/Social'));
 const News = React.lazy(() => import('./pages/News'));
+const AdminPanel = React.lazy(() => import('./pages/AdminPanel'));
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-dark">
@@ -79,6 +80,7 @@ const App: React.FC = () => {
             <Route path="forum" element={<Forum />} />
             <Route path="forum/:topicId" element={<Forum />} />
             <Route path="premium" element={<Premium />} />
+            <Route path="admin" element={<AdminPanel />} />
             
             {/* Footer Pages */}
             <Route path="privacy" element={<TextPage />} />

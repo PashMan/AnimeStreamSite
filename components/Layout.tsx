@@ -193,6 +193,9 @@ const Layout: React.FC = () => {
               <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Новости</Link>
               <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Форум</Link>
               <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Сообщество</Link>
+              {user?.role === 'admin' && (
+                <Link to="/admin" className={`${isActive('/admin') ? 'text-primary' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
+              )}
             </nav>
 
             <div className="flex items-center gap-4">
@@ -285,6 +288,12 @@ const Layout: React.FC = () => {
           <Link to="/community" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/community') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
             Сообщество
           </Link>
+          
+          {user?.role === 'admin' && (
+            <Link to="/admin" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/admin') ? 'bg-red-500 text-white' : 'text-red-400 hover:bg-white/5'}`}>
+              Админ-панель
+            </Link>
+          )}
         </nav>
 
         <div className="p-6 border-t border-white/5 bg-black/20">

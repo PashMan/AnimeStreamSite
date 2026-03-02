@@ -52,6 +52,19 @@ export interface User {
   cardOpacity?: number; // 0-100
   cardBlur?: number; // 0-20
   lastSeen?: string; // ISO date string
+  role?: 'user' | 'admin' | 'moderator';
+  isBanned?: boolean;
+  isMuted?: boolean;
+}
+
+export interface Report {
+  id: string;
+  reporterId: string;
+  targetType: 'user' | 'topic' | 'post' | 'comment' | 'review';
+  targetId: string;
+  reason: string;
+  createdAt: string;
+  status: 'pending' | 'resolved' | 'dismissed';
 }
 
 export interface ForumTopic {

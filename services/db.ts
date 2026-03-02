@@ -219,7 +219,10 @@ class DatabaseService {
       avatarShape: p.avatar_shape as any,
       cardOpacity: p.card_opacity,
       cardBlur: p.card_blur,
-      lastSeen: p.last_seen
+      lastSeen: p.last_seen,
+      role: p.role || 'user',
+      isBanned: p.is_banned || false,
+      isMuted: p.is_muted || false
     };
   }
 
@@ -1124,6 +1127,106 @@ class DatabaseService {
     } catch (e) {
       console.error('Error adding review:', e);
       return null;
+    }
+  }
+
+  // Admin & Moderation
+  async submitReport(reporterId: string, targetType: 'user' | 'topic' | 'post' | 'comment' | 'review', targetId: string, reason: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('reports')
+        .insert([{
+          reporter_id: reporterId,
+          target_type: targetType,
+          target_id: targetId,
+          reason: reason,
+          status: 'pending'
+        }]);
+      return !error;
+    } catch (e) {
+      console.error('Error submitting report:', e);
+      return false;
+    }
+  }
+
+  async getReports(): Promise<any[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data, error } = await supabaseClient
+        .from('reports')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Error fetching reports:', e);
+      return [];
+    }
+  }
+
+  async updateReportStatus(reportId: string, status: 'resolved' | 'dismissed'): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('reports')
+        .update({ status })
+        .eq('id', reportId);
+      return !error;
+    } catch (e) {
+      console.error('Error updating report status:', e);
+      return false;
+    }
+  }
+
+  async deleteComment(commentId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient.from('comments').delete().eq('id', commentId);
+      return !error;
+    } catch (e) {
+      console.error('Error deleting comment:', e);
+      return false;
+    }
+  }
+
+  async deleteReview(reviewId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient.from('reviews').delete().eq('id', reviewId);
+      return !error;
+    } catch (e) {
+      console.error('Error deleting review:', e);
+      return false;
+    }
+  }
+
+  async deleteTopic(topicId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient.from('forum_topics').delete().eq('id', topicId);
+      return !error;
+    } catch (e) {
+      console.error('Error deleting topic:', e);
+      return false;
+    }
+  }
+
+  async updateUserStatus(email: string, updates: { isBanned?: boolean; isMuted?: boolean; role?: 'user' | 'admin' | 'moderator' }): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update({
+          is_banned: updates.isBanned,
+          is_muted: updates.isMuted,
+          role: updates.role
+        })
+        .eq('email', email);
+      return !error;
+    } catch (e) {
+      console.error('Error updating user status:', e);
+      return false;
     }
   }
 }
