@@ -390,102 +390,8 @@ const Details: React.FC = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 items-start">
-           <div className="flex flex-col gap-4 lg:sticky lg:top-32">
-              <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block">
-                <Image src={anime.image} alt={anime.title} animeId={anime.id} animeTitle={anime.originalName || anime.title} className="w-full h-full object-cover" />
-              </div>
-              
-              <div className="grid grid-cols-1 gap-3 relative" ref={statusDropdownRef}>
-                <button 
-                  onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                  disabled={isActionLoading} 
-                  className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${animeStatus !== 'none' ? 'text-primary bg-primary/10 border-primary/20 shadow-lg shadow-primary/10' : 'text-white hover:bg-white/10'}`}
-                >
-                  {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                    <>
-                      {animeStatus === 'watched' && <CheckCircle className="w-4 h-4" />}
-                      {animeStatus === 'watching' && <Film className="w-4 h-4" />}
-                      {animeStatus === 'dropped' && <X className="w-4 h-4" />}
-                      {animeStatus === 'planned' && <Heart className="w-4 h-4 fill-current" />}
-                      {animeStatus === 'none' && <Star className="w-4 h-4" />}
-                      
-                      {animeStatus === 'watched' && 'ПРОСМОТРЕНО'}
-                      {animeStatus === 'watching' && 'СМОТРЮ'}
-                      {animeStatus === 'dropped' && 'БРОШЕНО'}
-                      {animeStatus === 'planned' && 'В ПЛАНАХ'}
-                      {animeStatus === 'none' && 'ВЫБРАТЬ СТАТУС'}
-                    </>
-                  )}
-                </button>
-
-                {isStatusDropdownOpen && (
-                  <div className="absolute top-full left-0 w-full mt-2 bg-dark/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                    <button onClick={() => handleStatusChange('watched')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
-                      <CheckCircle className="w-4 h-4 text-green-500" /> Просмотрено
-                    </button>
-                    <button onClick={() => handleStatusChange('watching')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
-                      <Film className="w-4 h-4 text-blue-500" /> Смотрю
-                    </button>
-                    <button onClick={() => handleStatusChange('planned')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
-                      <Heart className="w-4 h-4 text-pink-500" /> В планах
-                    </button>
-                    <button onClick={() => handleStatusChange('dropped')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
-                      <X className="w-4 h-4 text-red-500" /> Брошено
-                    </button>
-                    <button onClick={() => handleStatusChange('none')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-white/5 flex items-center gap-3 transition-colors border-t border-white/5">
-                      Удалить из списка
-                    </button>
-                  </div>
-                )}
-
-                <button 
-                  onClick={() => navigate(`/forum?animeId=${id}`)}
-                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
-                >
-                  <MessageSquare className="w-4 h-4" /> ОБСУДИТЬ НА ФОРУМЕ
-                </button>
-                <button 
-                  onClick={() => {
-                    if (!user) { openAuthModal(); return; }
-                    setIsShareModalOpen(true);
-                  }}
-                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
-                >
-                  <Share2 className="w-4 h-4" /> ПОДЕЛИТЬСЯ С ДРУГОМ
-                </button>
-                <button 
-                  onClick={() => {
-                    const url = window.location.href;
-                    if (navigator.clipboard) {
-                      navigator.clipboard.writeText(url);
-                      alert('Ссылка скопирована в буфер обмена!');
-                    }
-                  }}
-                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
-                >
-                  <Copy className="w-4 h-4" /> КОПИРОВАТЬ ССЫЛКУ
-                </button>
-              </div>
-
-              <div className="bg-surface/50 p-6 rounded-[2rem] border border-white/5 space-y-4 backdrop-blur-md shadow-xl">
-                 <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Информация</h3>
-                 <div className="space-y-3 text-sm font-medium">
-                    <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Тип</span><span className="font-bold text-white">{anime.type}</span></div>
-                    <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Эпизоды</span><span className="font-bold text-white">{anime.episodesAired} / {anime.episodes}</span></div>
-                    <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Студия</span><span className="font-bold text-white">{anime.studio}</span></div>
-                    <div className="pt-2">
-                       <span className="text-slate-400 block mb-2">Жанры</span>
-                       <div className="flex flex-wrap gap-2">
-                          {anime.genres.map(g => (
-                            <Link to={`/catalog?genre=${g}`} key={g} className="text-[10px] font-bold bg-white/5 px-2 py-1 rounded text-slate-300 hover:text-primary transition-colors">{g}</Link>
-                          ))}
-                       </div>
-                    </div>
-                 </div>
-              </div>
-           </div>
-
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_350px] gap-12 items-start">
+           {/* Main Column: Description, Player, Reviews, Comments */}
            <div className="space-y-16">
               <section className="bg-surface/30 p-8 md:p-10 rounded-[2.5rem] border border-white/5 shadow-xl backdrop-blur-sm">
                  <h3 className="text-[10px] font-black text-slate-500 mb-6 uppercase tracking-widest flex items-center gap-2">
@@ -529,188 +435,257 @@ const Details: React.FC = () => {
                    </div>
                  </div>
                </section>
-            </div>
-         </div>
 
-         {/* Centered content after player */}
-         <div className="max-w-4xl mx-auto mt-16 space-y-16">
-              {isRelatedLoading ? (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
-                  </div>
-                  <div className="flex flex-col gap-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/5 animate-pulse">
-                        <div className="w-16 h-24 bg-white/10 rounded-xl shrink-0"></div>
-                        <div className="flex-1 py-2 space-y-2">
-                           <div className="h-3 w-20 bg-white/10 rounded"></div>
-                           <div className="h-4 w-3/4 bg-white/10 rounded"></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : related.length > 0 && (
-                <section>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8">Порядок просмотра</h3>
-                  <div className="flex flex-col gap-3">
-                    {related.map((item, idx) => {
-                      const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
-                      return (
-                        <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
-                          <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden relative">
-                            <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
-                            {isPriority && <div className="absolute inset-0 bg-primary/20"></div>}
+               <ReviewSection 
+                 animeId={id!} 
+                 reviews={reviews} 
+                 onReviewAdded={(newReview) => setReviews([newReview, ...reviews])} 
+                 onReport={(reviewId) => {
+                   setReportTarget({ 
+                     type: 'review', 
+                     id: reviewId, 
+                     content: reviews.find(r => r.id === reviewId)?.content,
+                     link: window.location.pathname
+                   });
+                   setIsReportModalOpen(true);
+                 }}
+                 onDelete={async (reviewId) => {
+                   if (window.confirm('Удалить рецензию?')) {
+                     await db.deleteReview(reviewId);
+                     setReviews(reviews.filter(r => r.id !== reviewId));
+                   }
+                 }}
+               />
+
+               <section className="pt-10 border-t border-white/5">
+                 <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({isCommentsLoading ? '...' : comments.length})</h3>
+                 <div className="bg-surface/30 rounded-[2.5rem] p-8 border border-white/5 mb-12 shadow-2xl backdrop-blur-sm">
+                    {user ? (
+                       <form onSubmit={handleAddComment} className="flex flex-col gap-6">
+                          <div className="flex gap-5 items-start">
+                             <img src={user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
+                             <textarea value={userComment} onChange={(e) => setUserComment(e.target.value)} placeholder="Напишите ваш отзыв..." className="flex-1 bg-dark/60 border border-white/10 rounded-3xl p-6 text-sm text-white focus:border-primary outline-none min-h-[140px] resize-none transition-all shadow-inner" />
                           </div>
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <div className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${isPriority ? 'text-primary' : 'text-slate-500'}`}>
-                              {item.relation}
-                              {isPriority && <Forward className="w-3 h-3" />}
+                          <button type="submit" disabled={isCommenting || !userComment.trim()} className="self-end px-12 py-4 bg-primary text-white font-black text-[10px] uppercase rounded-2xl shadow-xl shadow-primary/20 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all tracking-widest">
+                             {isCommenting ? 'ОТПРАВКА...' : 'ОПУБЛИКОВАТЬ'}
+                          </button>
+                       </form>
+                    ) : (
+                       <div className="text-center py-10"><button onClick={openAuthModal} className="px-12 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-white text-[10px] uppercase hover:bg-white/10 transition-all tracking-widest">АВТОРИЗАЦИЯ</button></div>
+                    )}
+                 </div>
+
+                 <div className="space-y-8">
+                    {isCommentsLoading ? (
+                      [...Array(3)].map((_, i) => (
+                         <div key={i} className="flex gap-6">
+                            <div className="w-14 h-14 bg-white/5 rounded-2xl shrink-0 animate-pulse"></div>
+                            <div className="flex-1">
+                               <div className="h-4 w-32 bg-white/5 rounded mb-3 animate-pulse"></div>
+                               <div className="h-24 w-full bg-white/5 rounded-[2rem] animate-pulse"></div>
                             </div>
-                            <h4 className={`text-sm font-bold text-white truncate group-hover:text-primary transition-colors`}>{item.anime.title}</h4>
-                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{item.anime.year} • {item.anime.type}</div>
-                          </div>
-                          <ChevronRight className={`w-4 h-4 ${isPriority ? 'text-primary' : 'text-slate-600'} group-hover:translate-x-1 transition-transform`} />
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              {isSimilarLoading ? (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
-                  </div>
-                  <div className="flex gap-6 overflow-hidden">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="w-[200px] md:w-[240px] shrink-0">
-                        <div className="aspect-[2/3] bg-white/5 rounded-3xl mb-3 animate-pulse"></div>
-                        <div className="h-4 w-3/4 bg-white/5 rounded mb-2 animate-pulse"></div>
-                        <div className="h-3 w-1/2 bg-white/5 rounded animate-pulse"></div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : similar.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Похожее</h3>
-                    <div className="flex gap-2">
-                      <button aria-label="Scroll left" onClick={() => scrollSlider(similarRef, 'left')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
-                      <button aria-label="Scroll right" onClick={() => scrollSlider(similarRef, 'right')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
-                    </div>
-                  </div>
-                  <div ref={similarRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
-                    {similar.map((sim, idx) => (
-                      <div key={idx} className="w-[200px] md:w-[240px] shrink-0 snap-start">
-                        <AnimeCard anime={sim} />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              <ReviewSection 
-                animeId={id!} 
-                reviews={reviews} 
-                onReviewAdded={(newReview) => setReviews([newReview, ...reviews])} 
-                onReport={(reviewId) => {
-                  setReportTarget({ 
-                    type: 'review', 
-                    id: reviewId, 
-                    content: reviews.find(r => r.id === reviewId)?.content,
-                    link: window.location.pathname
-                  });
-                  setIsReportModalOpen(true);
-                }}
-                onDelete={async (reviewId) => {
-                  if (window.confirm('Удалить рецензию?')) {
-                    await db.deleteReview(reviewId);
-                    setReviews(reviews.filter(r => r.id !== reviewId));
-                  }
-                }}
-              />
-
-              <section className="pt-10 border-t border-white/5">
-                <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({isCommentsLoading ? '...' : comments.length})</h3>
-                <div className="bg-surface/30 rounded-[2.5rem] p-8 border border-white/5 mb-12 shadow-2xl backdrop-blur-sm">
-                   {user ? (
-                      <form onSubmit={handleAddComment} className="flex flex-col gap-6">
-                         <div className="flex gap-5 items-start">
-                            <img src={user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
-                            <textarea value={userComment} onChange={(e) => setUserComment(e.target.value)} placeholder="Напишите ваш отзыв..." className="flex-1 bg-dark/60 border border-white/10 rounded-3xl p-6 text-sm text-white focus:border-primary outline-none min-h-[140px] resize-none transition-all shadow-inner" />
                          </div>
-                         <button type="submit" disabled={isCommenting || !userComment.trim()} className="self-end px-12 py-4 bg-primary text-white font-black text-[10px] uppercase rounded-2xl shadow-xl shadow-primary/20 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all tracking-widest">
-                            {isCommenting ? 'ОТПРАВКА...' : 'ОПУБЛИКОВАТЬ'}
-                         </button>
-                      </form>
-                   ) : (
-                      <div className="text-center py-10"><button onClick={openAuthModal} className="px-12 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-white text-[10px] uppercase hover:bg-white/10 transition-all tracking-widest">АВТОРИЗАЦИЯ</button></div>
-                   )}
-                </div>
-
-                <div className="space-y-8">
-                   {isCommentsLoading ? (
-                     [...Array(3)].map((_, i) => (
-                        <div key={i} className="flex gap-6">
-                           <div className="w-14 h-14 bg-white/5 rounded-2xl shrink-0 animate-pulse"></div>
-                           <div className="flex-1">
-                              <div className="h-4 w-32 bg-white/5 rounded mb-3 animate-pulse"></div>
-                              <div className="h-24 w-full bg-white/5 rounded-[2rem] animate-pulse"></div>
-                           </div>
-                        </div>
-                     ))
-                   ) : (
-                     comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-6 group">
-                           <img src={comment.user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
-                           <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-3 mb-3">
-                                 <span className="font-black text-white text-base">{comment.user.name}</span>
-                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
-                              </div>
-                              <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">
-                                {comment.text}
-                                <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button 
-                                    onClick={() => {
-                                      setReportTarget({ 
-                                        type: 'comment', 
-                                        id: comment.id,
-                                        content: comment.text,
-                                        link: window.location.pathname
-                                      });
-                                      setIsReportModalOpen(true);
-                                    }}
-                                    className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1"
-                                  >
-                                    <AlertTriangle className="w-3 h-3" /> Пожаловаться
-                                  </button>
-                                  {(user?.role === 'admin' || user?.role === 'moderator') && (
-                                    <button 
-                                      onClick={async () => {
-                                        if (window.confirm('Удалить комментарий?')) {
-                                          await db.deleteComment(comment.id);
-                                          setComments(comments.filter(c => c.id !== comment.id));
-                                        }
-                                      }}
-                                      className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest flex items-center gap-1"
-                                    >
-                                      Удалить
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                           </div>
-                        </div>
-                     ))
-                   )}
-                </div>
-             </section>
+                      ))
+                    ) : (
+                      comments.map((comment) => (
+                         <div key={comment.id} className="flex gap-6 group">
+                            <img src={comment.user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
+                            <div className="flex-1 min-w-0">
+                               <div className="flex items-center gap-3 mb-3">
+                                  <span className="font-black text-white text-base">{comment.user.name}</span>
+                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
+                               </div>
+                               <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">
+                                 {comment.text}
+                                 <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                   <button 
+                                     onClick={() => {
+                                       setReportTarget({ 
+                                         type: 'comment', 
+                                         id: comment.id,
+                                         content: comment.text,
+                                         link: window.location.pathname
+                                       });
+                                       setIsReportModalOpen(true);
+                                     }}
+                                     className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1"
+                                   >
+                                     <AlertTriangle className="w-3 h-3" /> Пожаловаться
+                                   </button>
+                                   {(user?.role === 'admin' || user?.role === 'moderator') && (
+                                     <button 
+                                       onClick={async () => {
+                                         if (window.confirm('Удалить комментарий?')) {
+                                           await db.deleteComment(comment.id);
+                                           setComments(comments.filter(c => c.id !== comment.id));
+                                         }
+                                       }}
+                                       className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest flex items-center gap-1"
+                                     >
+                                       Удалить
+                                     </button>
+                                   )}
+                                 </div>
+                               </div>
+                            </div>
+                         </div>
+                      ))
+                    )}
+                 </div>
+              </section>
            </div>
+
+           {/* Sidebar Column: Image, Buttons, Info, Related, Similar */}
+           <div className="flex flex-col gap-8">
+              <div className="flex flex-col gap-4 lg:sticky lg:top-32">
+                 <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block">
+                   <Image src={anime.image} alt={anime.title} animeId={anime.id} animeTitle={anime.originalName || anime.title} className="w-full h-full object-cover" />
+                 </div>
+                 
+                 <div className="grid grid-cols-1 gap-3 relative" ref={statusDropdownRef}>
+                   <button 
+                     onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                     disabled={isActionLoading} 
+                     className={`w-full py-4 glass font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${animeStatus !== 'none' ? 'text-primary bg-primary/10 border-primary/20 shadow-lg shadow-primary/10' : 'text-white hover:bg-white/10'}`}
+                   >
+                     {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                       <>
+                         {animeStatus === 'watched' && <CheckCircle className="w-4 h-4" />}
+                         {animeStatus === 'watching' && <Film className="w-4 h-4" />}
+                         {animeStatus === 'dropped' && <X className="w-4 h-4" />}
+                         {animeStatus === 'planned' && <Heart className="w-4 h-4 fill-current" />}
+                         {animeStatus === 'none' && <Star className="w-4 h-4" />}
+                         
+                         {animeStatus === 'watched' && 'ПРОСМОТРЕНО'}
+                         {animeStatus === 'watching' && 'СМОТРЮ'}
+                         {animeStatus === 'dropped' && 'БРОШЕНО'}
+                         {animeStatus === 'planned' && 'В ПЛАНАХ'}
+                         {animeStatus === 'none' && 'ВЫБРАТЬ СТАТУС'}
+                       </>
+                     )}
+                   </button>
+
+                   {isStatusDropdownOpen && (
+                     <div className="absolute top-full left-0 w-full mt-2 bg-dark/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden z-50 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                       <button onClick={() => handleStatusChange('watched')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                         <CheckCircle className="w-4 h-4 text-green-500" /> Просмотрено
+                       </button>
+                       <button onClick={() => handleStatusChange('watching')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                         <Film className="w-4 h-4 text-blue-500" /> Смотрю
+                       </button>
+                       <button onClick={() => handleStatusChange('planned')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                         <Heart className="w-4 h-4 text-pink-500" /> В планах
+                       </button>
+                       <button onClick={() => handleStatusChange('dropped')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                         <X className="w-4 h-4 text-red-500" /> Брошено
+                       </button>
+                       <button onClick={() => handleStatusChange('none')} className="w-full px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-white/5 flex items-center gap-3 transition-colors border-t border-white/5">
+                         Удалить из списка
+                       </button>
+                     </div>
+                   )}
+
+                   <button 
+                     onClick={() => navigate(`/forum?animeId=${id}`)}
+                     className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
+                   >
+                     <MessageSquare className="w-4 h-4" /> ОБСУДИТЬ НА ФОРУМЕ
+                   </button>
+                   <button 
+                     onClick={() => {
+                       if (!user) { openAuthModal(); return; }
+                       setIsShareModalOpen(true);
+                     }}
+                     className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 font-black text-[10px] tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-white"
+                   >
+                     <Share2 className="w-4 h-4" /> ПОДЕЛИТЬСЯ С ДРУГОМ
+                   </button>
+                 </div>
+
+                 <div className="bg-surface/50 p-6 rounded-[2rem] border border-white/5 space-y-4 backdrop-blur-md shadow-xl">
+                    <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Информация</h3>
+                    <div className="space-y-3 text-sm font-medium">
+                       <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Тип</span><span className="font-bold text-white">{anime.type}</span></div>
+                       <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Эпизоды</span><span className="font-bold text-white">{anime.episodesAired} / {anime.episodes}</span></div>
+                       <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Студия</span><span className="font-bold text-white">{anime.studio}</span></div>
+                       <div className="pt-2">
+                          <span className="text-slate-400 block mb-2">Жанры</span>
+                          <div className="flex flex-wrap gap-2">
+                             {anime.genres.map(g => (
+                               <Link to={`/catalog?genre=${g}`} key={g} className="text-[10px] font-bold bg-white/5 px-2 py-1 rounded text-slate-300 hover:text-primary transition-colors">{g}</Link>
+                             ))}
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Related & Similar in Sidebar */}
+              <div className="space-y-12">
+                 {isRelatedLoading ? (
+                   <section>
+                     <div className="h-6 w-32 bg-white/10 rounded mb-6 animate-pulse"></div>
+                     <div className="space-y-3">
+                       {[...Array(3)].map((_, i) => (
+                         <div key={i} className="h-20 bg-white/5 rounded-2xl animate-pulse"></div>
+                       ))}
+                     </div>
+                   </section>
+                 ) : related.length > 0 && (
+                   <section>
+                     <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-6">Порядок просмотра</h3>
+                     <div className="flex flex-col gap-3">
+                       {related.map((item, idx) => {
+                         const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
+                         return (
+                           <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-3 p-2.5 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
+                             <div className="w-10 h-14 shrink-0 rounded-lg overflow-hidden relative">
+                               <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
+                             </div>
+                             <div className="flex flex-col min-w-0 flex-1">
+                               <div className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${isPriority ? 'text-primary' : 'text-slate-500'}`}>
+                                 {item.relation}
+                               </div>
+                               <h4 className="text-xs font-bold text-white truncate group-hover:text-primary transition-colors">{item.anime.title}</h4>
+                             </div>
+                             <ChevronRight className="w-3 h-3 text-slate-600 group-hover:translate-x-1 transition-transform" />
+                           </Link>
+                         );
+                       })}
+                     </div>
+                   </section>
+                 )}
+
+                 {isSimilarLoading ? (
+                   <section>
+                     <div className="h-6 w-32 bg-white/10 rounded mb-6 animate-pulse"></div>
+                     <div className="grid grid-cols-2 gap-4">
+                       {[...Array(2)].map((_, i) => (
+                         <div key={i} className="aspect-[2/3] bg-white/5 rounded-2xl animate-pulse"></div>
+                       ))}
+                     </div>
+                   </section>
+                 ) : similar.length > 0 && (
+                   <section>
+                     <div className="flex items-center justify-between mb-6">
+                       <h3 className="text-lg font-black text-white uppercase tracking-tighter">Похожее</h3>
+                       <div className="flex gap-1">
+                         <button aria-label="Scroll left" onClick={() => scrollSlider(similarRef, 'left')} className="p-1.5 bg-white/5 hover:bg-accent rounded-lg transition-all active:scale-90"><ChevronLeft className="w-4 h-4" /></button>
+                         <button aria-label="Scroll right" onClick={() => scrollSlider(similarRef, 'right')} className="p-1.5 bg-white/5 hover:bg-accent rounded-lg transition-all active:scale-90"><ChevronRight className="w-4 h-4" /></button>
+                       </div>
+                     </div>
+                     <div ref={similarRef} className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 snap-x">
+                       {similar.map((sim, idx) => (
+                         <div key={idx} className="w-[140px] shrink-0 snap-start">
+                           <AnimeCard anime={sim} />
+                         </div>
+                       ))}
+                     </div>
+                   </section>
+                 )}
+              </div>
+           </div>
+        </div>
       </div>
 
       {/* Share Modal */}

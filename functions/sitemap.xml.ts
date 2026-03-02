@@ -62,6 +62,7 @@ export const onRequest: PagesFunction = async (context) => {
         fetch(`${SHIKIMORI_API_URL}/animes?limit=20&order=popularity`, {
           headers: {
             'User-Agent': 'AnimeStream/1.0',
+            'Referer': 'https://shikimori.one/',
             'Accept': 'application/json'
           },
           signal: controller.signal
@@ -69,6 +70,7 @@ export const onRequest: PagesFunction = async (context) => {
         fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=15`, {
           headers: {
             'User-Agent': 'AnimeStream/1.0',
+            'Referer': 'https://shikimori.one/',
             'Accept': 'application/json'
           },
           signal: controller.signal
