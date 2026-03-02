@@ -11,10 +11,12 @@ export interface KodikAnime {
   translation: KodikTranslation;
   episodes_count: number;
   last_episode: number;
+  screenshots?: string[];
 }
 
 const KODIK_TOKEN = "b3b563060d02ee000ca18740b7842ca0";
-const BASE_URL = "https://kodikapi.com";
+// Use the proxy to avoid mixed content and CORS issues
+const BASE_URL = "/kodik-proxy"; 
 
 const fetchApi = async (url: string) => {
   try {
@@ -29,11 +31,12 @@ const fetchApi = async (url: string) => {
 
 export const fetchKodikData = async (shikimoriId: string, title?: string): Promise<KodikAnime[]> => {
   try {
-     let data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&shikimori_id=${shikimoriId}&with_episodes=true`);
+     // Use the proxy path
+     let data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&shikimori_id=${shikimoriId}&with_episodes=true&with_material_data=true`);
 
      if ((!data || !data.results?.length) && title) {
         const cleanTitle = title.split('/')[0].trim();
-        data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_episodes=true`);
+        data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_episodes=true&with_material_data=true`);
      }
      
      if (!data?.results) return [];
@@ -47,13 +50,40 @@ export const fetchKodikData = async (shikimoriId: string, title?: string): Promi
                 link: item.link.replace("http://", "https://"),
                 translation: item.translation,
                 episodes_count: item.episodes_count,
-                last_episode: item.last_episode
+                last_episode: item.last_episode,
+                screenshots: item.screenshots || []
             });
         }
      });
 
-     return Array.from(uniqueTranslations.values());
+     return Array.from(uniqueTranslations.values()).sort((a: any, b: any) => b.last_episode - a.last_episode);
   } catch (e) {
      return [];
   }
 }
+
+export const fetchKodikAnimeInfo = async (shikimoriId: string): Promise<{ image?: string, episodesAired?: number, episodesTotal?: number } | null> => {
+    try {
+        const data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&shikimori_id=${shikimoriId}&with_material_data=true&with_episodes=true`);
+        if (data && data.results && data.results.length > 0) {
+            // Find the result with the most episodes
+            const bestResult = data.results.reduce((prev: any, current: any) => {
+                return (current.last_episode > prev.last_episode) ? current : prev;
+            });
+
+            return {
+                image: bestResult.material_data?.poster_url,
+                episodesAired: bestResult.last_episode,
+                episodesTotal: bestResult.episodes_count
+            };
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+};
+
+export const fetchKodikImage = async (shikimoriId: string): Promise<string | null> => {
+    const info = await fetchKodikAnimeInfo(shikimoriId);
+    return info?.image || null;
+};

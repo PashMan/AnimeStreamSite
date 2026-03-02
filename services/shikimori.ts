@@ -1,6 +1,7 @@
 
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
+import { fetchKodikImage } from './kodik';
 
 // const BASE_API = '/api/shikimori';
 const BASE_API = 'https://shikimori.one/api';
@@ -55,7 +56,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(3, 200); // 3 concurrent, 200ms delay (15 req/s max)
+const requestQueue = new RequestQueue(2, 500); // 2 concurrent, 500ms delay to avoid 429
 
 let globalAbortController = new AbortController();
 

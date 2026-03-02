@@ -529,43 +529,40 @@ const Details: React.FC = () => {
                   <div className="flex items-center justify-between mb-8">
                     <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
                   </div>
-                  <div className="flex gap-6 overflow-hidden">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="w-[180px] shrink-0">
-                        <div className="aspect-[2/3] bg-white/5 rounded-3xl mb-3 animate-pulse"></div>
-                        <div className="h-3 w-20 bg-white/5 rounded mb-2 animate-pulse"></div>
-                        <div className="h-4 w-full bg-white/5 rounded animate-pulse"></div>
+                  <div className="flex flex-col gap-4">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/5 animate-pulse">
+                        <div className="w-16 h-24 bg-white/10 rounded-xl shrink-0"></div>
+                        <div className="flex-1 py-2 space-y-2">
+                           <div className="h-3 w-20 bg-white/10 rounded"></div>
+                           <div className="h-4 w-3/4 bg-white/10 rounded"></div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </section>
               ) : related.length > 0 && (
                 <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Связанное</h3>
-                    <div className="flex gap-2">
-                      <button aria-label="Scroll left" onClick={() => scrollSlider(relatedRef, 'left')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
-                      <button aria-label="Scroll right" onClick={() => scrollSlider(relatedRef, 'right')} className="p-2.5 bg-white/5 hover:bg-primary rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
-                    </div>
-                  </div>
-                  <div ref={relatedRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8">Порядок просмотра</h3>
+                  <div className="flex flex-col gap-3">
                     {related.map((item, idx) => {
                       const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
                       return (
-                        <div key={idx} className="w-[180px] shrink-0 snap-start">
-                          <Link to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className="block group relative">
-                            <div className={`aspect-[2/3] rounded-3xl overflow-hidden mb-3 border transition-all duration-500 shadow-xl ${isPriority ? 'border-primary shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'border-white/5 group-hover:border-primary/30'}`}>
-                              <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                              {isPriority && (
-                                <div className="absolute top-3 right-3 bg-primary text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-xl flex items-center gap-1 z-10 animate-pulse">
-                                  <Forward className="w-2 h-2" /> NEXT ARC
-                                </div>
-                              )}
+                        <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
+                          <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden relative">
+                            <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
+                            {isPriority && <div className="absolute inset-0 bg-primary/20"></div>}
+                          </div>
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <div className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${isPriority ? 'text-primary' : 'text-slate-500'}`}>
+                              {item.relation}
+                              {isPriority && <Forward className="w-3 h-3" />}
                             </div>
-                            <p className={`text-[10px] font-black uppercase mb-1 tracking-widest ${isPriority ? 'text-primary' : 'text-slate-500'}`}>{item.relation}</p>
-                            <h4 className={`text-sm font-bold text-white line-clamp-2 group-hover:text-primary transition-colors tracking-tight uppercase`}>{item.anime.title}</h4>
-                          </Link>
-                        </div>
+                            <h4 className={`text-sm font-bold text-white truncate group-hover:text-primary transition-colors`}>{item.anime.title}</h4>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{item.anime.year} • {item.anime.type}</div>
+                          </div>
+                          <ChevronRight className={`w-4 h-4 ${isPriority ? 'text-primary' : 'text-slate-600'} group-hover:translate-x-1 transition-transform`} />
+                        </Link>
                       );
                     })}
                   </div>
