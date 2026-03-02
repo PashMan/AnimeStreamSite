@@ -2,11 +2,13 @@
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 
-// const BASE_API = '/api/shikimori';
-const BASE_API = 'https://shikimori.one/api';
+const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
 const CACHE_PREFIX = 'as_cache_';
+
+// Debug: Log the base API URL being used
+console.log('[Shikimori Service] Initialized with BASE_API:', BASE_API);
 
 // Concurrency Limiter
 class RequestQueue {
@@ -155,15 +157,20 @@ const proxyImage = (url: string | undefined | null) => {
 
   // Check for known Shikimori 404/missing images
   if (cleanUrl.includes('missing_original') || cleanUrl.includes('none.png') || cleanUrl.includes('missing')) {
-      // Return a local placeholder or a better generic image
       return PLACEHOLDER_IMAGE; 
+  }
+
+  // Convert absolute Shikimori URLs to relative proxy URLs
+  if (cleanUrl.includes('shikimori.one')) {
+    const path = cleanUrl.split('shikimori.one')[1];
+    return `/api/image${path}`;
   }
 
   // Handle relative paths from Shikimori
   if (cleanUrl.startsWith('/')) {
-    cleanUrl = `${IMG_BASE_URL}${cleanUrl}`;
+    return `/api/image${cleanUrl}`;
   } else if (!cleanUrl.startsWith('http')) {
-    cleanUrl = `${IMG_BASE_URL}/${cleanUrl}`;
+    return `/api/image/${cleanUrl}`;
   }
   
   return cleanUrl;
@@ -236,7 +243,9 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
     }
 
     try {
-      const response = await fetch(`${BASE_API}${endpoint}`, {
+      const fetchUrl = `${BASE_API}${endpoint}`;
+      console.log(`[Shikimori Service] Fetching: ${fetchUrl}`);
+      const response = await fetch(fetchUrl, {
         headers: { 
           'Cache-Control': 'no-cache'
         },
