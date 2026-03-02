@@ -15,8 +15,10 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
   const [fallbackLevel, setFallbackLevel] = useState(0); // 0: Initial, 1: Anilist, 2: Failed
 
   useEffect(() => {
-      setImageSrc(src);
-      setFallbackLevel(0);
+      if (src !== imageSrc) {
+          setImageSrc(src);
+          setFallbackLevel(0);
+      }
   }, [src]);
 
   // If src is missing initially, start fallback chain immediately

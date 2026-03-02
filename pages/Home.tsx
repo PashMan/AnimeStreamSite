@@ -5,7 +5,7 @@ import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Cl
 import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
-import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
+import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails, getInitialHeroAnimes } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ForumTopic } from '../types';
@@ -16,14 +16,14 @@ const Home: React.FC = () => {
   const trendingRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
   
-  const [heroAnimes, setHeroAnimes] = useState<Anime[]>([]);
+  const [heroAnimes, setHeroAnimes] = useState<Anime[]>(() => getInitialHeroAnimes() || []);
   const [trendingAnimes, setTrendingAnimes] = useState<Anime[]>([]);
   const [newAnimes, setNewAnimes] = useState<Anime[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [forumTopics, setForumTopics] = useState<ForumTopic[]>([]);
   
-  const [isHeroLoading, setIsHeroLoading] = useState(true);
+  const [isHeroLoading, setIsHeroLoading] = useState(() => !getInitialHeroAnimes());
   const [heroIndex, setHeroIndex] = useState(0);
   const [upscaleAnime, setUpscaleAnime] = useState('');
   const [isUpscaleSent, setIsUpscaleSent] = useState(false);
@@ -62,7 +62,7 @@ const Home: React.FC = () => {
 
     // 1. Load Hero items immediately and unblock UI
     const loadHero = async () => {
-        setIsHeroLoading(true);
+        if (heroAnimes.length === 0) setIsHeroLoading(true);
         // Bypass queue for Hero to load immediately
         const data = await fetchAnimes({ order: 'popularity', status: 'ongoing', limit: 5 }, true);
         if (!isMounted) return;
@@ -95,8 +95,8 @@ const Home: React.FC = () => {
                             return next;
                         });
                     }
-                    // Wait 1s between requests
-                    await delay(1000);
+                    // Wait 100ms between requests
+                    await delay(100);
                 } catch (e) {
                     console.warn(`Failed to enrich hero item ${anime.id}`, e);
                 }
@@ -139,7 +139,7 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="space-y-24 pb-20 animate-in fade-in duration-700">
+    <div className="space-y-24 pb-20">
       <SEO 
         title="Главная" 
         description="Смотрите аниме онлайн бесплатно в хорошем качестве. Новинки сезона, популярные тайтлы, удобный плеер и активное сообщество."

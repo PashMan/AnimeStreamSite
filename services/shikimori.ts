@@ -55,7 +55,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(4, 250); // 4 concurrent, 250ms delay
+const requestQueue = new RequestQueue(6, 50); // 6 concurrent, 50ms delay
 
 let globalAbortController = new AbortController();
 
@@ -387,6 +387,43 @@ export const mapAnime = async (data: any): Promise<Anime> => {
     description: (data.description || 'Описание отсутствует').replace(/\[.*?\]/g, '').trim(),
     studio: data.studios?.[0]?.name || 'Неизвестно'
   };
+};
+
+export const getInitialHeroAnimes = (): Anime[] | null => {
+    try {
+        const query = 'limit=5&order=popularity&status=ongoing';
+        const cacheKey = `/animes?${query}`;
+        const cached = getFromStorage(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+             if (Array.isArray(cached.data)) {
+                 // We need to map the raw data to Anime objects synchronously
+                 // Since mapAnime is async (it checks for high-res cover), we do a best-effort sync map here
+                 // or just return the raw data and let the component handle it?
+                 // Actually mapAnime is async because of `proxyImage`? No, `proxyImage` is sync.
+                 // mapAnime is async?
+                 // Let's check mapAnime.
+                 return cached.data.map((item: any) => ({
+                    id: item.id?.toString() || '',
+                    slug: slugify(item.name || item.russian || ''),
+                    title: item.russian || item.name || 'Без названия',
+                    originalName: item.name || '',
+                    image: item.image ? (typeof item.image === 'string' ? proxyImage(item.image) : proxyImage(item.image.original)) : PLACEHOLDER_IMAGE,
+                    image_preview: item.image ? (typeof item.image === 'string' ? proxyImage(item.image) : proxyImage(item.image.preview)) : PLACEHOLDER_IMAGE,
+                    cover: item.image ? (typeof item.image === 'string' ? proxyImage(item.image) : proxyImage(item.image.original)) : PLACEHOLDER_IMAGE,
+                    rating: item.score ? parseFloat(item.score) : 0,
+                    year: item.aired_on ? new Date(item.aired_on).getFullYear() : 0,
+                    type: item.kind === 'movie' ? 'Movie' : 'TV Series',
+                    genres: item.genres ? item.genres.map((g: any) => g.russian || g.name) : [],
+                    episodes: item.episodes || 0,
+                    episodesAired: item.episodes_aired || 0,
+                    status: item.status === 'ongoing' ? 'Ongoing' : 'Completed',
+                    description: (item.description || '').replace(/\[.*?\]/g, '').trim(),
+                    studio: item.studios?.[0]?.name || ''
+                 }));
+             }
+        }
+    } catch (e) { return null; }
+    return null;
 };
 
 export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue = false): Promise<Anime[]> => {
