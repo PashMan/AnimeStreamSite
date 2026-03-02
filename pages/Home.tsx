@@ -2,6 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, Send, MessageSquare } from 'lucide-react';
+import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
@@ -170,13 +171,11 @@ const Home: React.FC = () => {
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               {/* Use cover for high quality landscape image */}
-              <img 
+              <Image 
                 src={anime.cover || anime.image} 
                 alt={anime.title} 
-                referrerPolicy="no-referrer" 
-                {...(idx === 0 ? { fetchpriority: "high" } : { loading: "lazy" })}
-                decoding="async"
-                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                animeId={anime.id}
+                priority={idx === 0}
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />

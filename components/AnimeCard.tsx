@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Star, PlayCircle } from 'lucide-react';
 import { Anime } from '../types';
-import { FALLBACK_IMAGE } from '../constants';
-import { fetchKodikImage } from '../services/kodik';
+import { Image } from './Image';
 
 interface AnimeCardProps {
   anime: Anime;
@@ -11,46 +10,15 @@ interface AnimeCardProps {
 }
 
 const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
-  const [imageSrc, setImageSrc] = useState(anime.image_preview || anime.image);
-  const [hasTriedKodik, setHasTriedKodik] = useState(false);
-
   const episodeCount = `${anime.episodesAired || 0} / ${anime.episodes || '?'}`;
-
-  useEffect(() => {
-    if (imageSrc === FALLBACK_IMAGE && !hasTriedKodik) {
-      setHasTriedKodik(true);
-      fetchKodikImage(anime.id).then(kodikImage => {
-        if (kodikImage) setImageSrc(kodikImage);
-      }).catch(() => {});
-    }
-  }, [imageSrc, anime.id, hasTriedKodik]);
-
-  const handleImageError = async (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    if (!hasTriedKodik) {
-      setHasTriedKodik(true);
-      try {
-        const kodikImage = await fetchKodikImage(anime.id);
-        if (kodikImage) {
-          setImageSrc(kodikImage);
-          return;
-        }
-      } catch (err) {
-        // ignore
-      }
-    }
-    e.currentTarget.src = FALLBACK_IMAGE;
-  };
 
   return (
     <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group block relative w-full h-full">
       <div className="relative w-full aspect-[2/3] rounded-[2.5rem] overflow-hidden mb-5 bg-surface border border-white/5 group-hover:border-primary/50 transition-all shadow-xl group-hover:shadow-primary/20">
-        <img 
-          src={imageSrc} 
+        <Image 
+          src={anime.image_preview || anime.image} 
           alt={anime.title} 
-          referrerPolicy="no-referrer"
-          loading="lazy"
-          decoding="async"
-          onError={handleImageError}
+          animeId={anime.id}
           className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 will-change-transform" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-70" />
