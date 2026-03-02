@@ -36,16 +36,6 @@ app.use('/api/shikimori', createProxyMiddleware({
   }
 } as any));
 
-app.use('/api/image', createProxyMiddleware({
-  target: 'https://shikimori.one',
-  changeOrigin: true,
-  pathRewrite: { '^/api/image': '' },
-  onProxyReq: (proxyReq: any) => {
-    proxyReq.setHeader('User-Agent', 'AnimeStream/1.0');
-    proxyReq.setHeader('Referer', 'https://shikimori.one/');
-  }
-} as any));
-
 app.use('/kodik-proxy', createProxyMiddleware({
   target: 'https://kodikapi.com',
   changeOrigin: true,

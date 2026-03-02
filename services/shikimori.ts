@@ -7,9 +7,6 @@ const IMG_BASE_URL = 'https://shikimori.one';
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
 const CACHE_PREFIX = 'as_cache_';
 
-// Debug: Log the base API URL being used
-console.log('[Shikimori Service] Initialized with BASE_API:', BASE_API);
-
 // Concurrency Limiter
 class RequestQueue {
   private queue: (() => void)[] = [];
@@ -243,9 +240,7 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
     }
 
     try {
-      const fetchUrl = `${BASE_API}${endpoint}`;
-      console.log(`[Shikimori Service] Fetching: ${fetchUrl}`);
-      const response = await fetch(fetchUrl, {
+      const response = await fetch(`${BASE_API}${endpoint}`, {
         headers: { 
           'Cache-Control': 'no-cache'
         },
