@@ -1131,7 +1131,7 @@ class DatabaseService {
   }
 
   // Admin & Moderation
-  async submitReport(reporterId: string, targetType: 'user' | 'topic' | 'post' | 'comment' | 'review', targetId: string, reason: string): Promise<boolean> {
+  async submitReport(reporterId: string, targetType: 'user' | 'topic' | 'post' | 'comment' | 'review', targetId: string, reason: string, targetContent?: string): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {
       const { error } = await supabaseClient
@@ -1140,6 +1140,7 @@ class DatabaseService {
           reporter_id: reporterId,
           target_type: targetType,
           target_id: targetId,
+          target_content: targetContent,
           reason: reason,
           status: 'pending'
         }]);
@@ -1155,10 +1156,21 @@ class DatabaseService {
     try {
       const { data, error } = await supabaseClient
         .from('reports')
-        .select('*')
+        .select('*, profiles(name, email)')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      
+      return (data || []).map((r: any) => ({
+        id: r.id,
+        reporterId: r.reporter_id,
+        reporterName: r.profiles?.name || r.reporter_id,
+        targetType: r.target_type,
+        targetId: r.target_id,
+        targetContent: r.target_content,
+        reason: r.reason,
+        createdAt: r.created_at,
+        status: r.status
+      }));
     } catch (e) {
       console.error('Error fetching reports:', e);
       return [];

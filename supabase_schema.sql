@@ -39,3 +39,15 @@ BEGIN
   WHERE id = topic_id;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Reports table for moderation
+CREATE TABLE IF NOT EXISTS reports (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  reporter_id UUID REFERENCES profiles(id),
+  target_type TEXT NOT NULL,
+  target_id UUID NOT NULL,
+  target_content TEXT,
+  reason TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);

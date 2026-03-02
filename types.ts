@@ -62,8 +62,10 @@ export interface User {
 export interface Report {
   id: string;
   reporterId: string;
+  reporterName?: string;
   targetType: 'user' | 'topic' | 'post' | 'comment' | 'review';
   targetId: string;
+  targetContent?: string;
   reason: string;
   createdAt: string;
   status: 'pending' | 'resolved' | 'dismissed';

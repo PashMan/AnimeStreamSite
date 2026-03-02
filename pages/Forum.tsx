@@ -51,7 +51,7 @@ const Forum: React.FC = () => {
 
   // Report State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [reportTarget, setReportTarget] = useState<{type: 'topic' | 'post', id: string} | null>(null);
+  const [reportTarget, setReportTarget] = useState<{type: 'topic' | 'post', id: string, content?: string} | null>(null);
 
   // Load Topic List
   useEffect(() => {
@@ -281,7 +281,7 @@ const Forum: React.FC = () => {
                 <div className="mt-6 flex items-center gap-4 border-t border-white/5 pt-4">
                   <button
                     onClick={() => {
-                      setReportTarget({ type: 'topic', id: currentTopic.id });
+                      setReportTarget({ type: 'topic', id: currentTopic.id, content: currentTopic.title });
                       setIsReportModalOpen(true);
                     }}
                     className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
@@ -361,7 +361,7 @@ const Forum: React.FC = () => {
                              </button>
                              <button
                                onClick={() => {
-                                 setReportTarget({ type: 'post', id: post.id });
+                                 setReportTarget({ type: 'post', id: post.id, content: post.content });
                                  setIsReportModalOpen(true);
                                }}
                                className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
@@ -427,7 +427,7 @@ const Forum: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => {
-                                    setReportTarget({ type: 'post', id: reply.id });
+                                    setReportTarget({ type: 'post', id: reply.id, content: reply.content });
                                     setIsReportModalOpen(true);
                                   }}
                                   className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-red-400 transition-colors"
@@ -504,6 +504,7 @@ const Forum: React.FC = () => {
             isOpen={isReportModalOpen}
             targetId={reportTarget.id}
             targetType={reportTarget.type}
+            targetContent={reportTarget.content}
             onClose={() => {
               setIsReportModalOpen(false);
               setReportTarget(null);

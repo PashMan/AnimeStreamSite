@@ -155,7 +155,7 @@ const AdminPanel: React.FC = () => {
                       {report.status === 'pending' ? 'Ожидает' : report.status === 'resolved' ? 'Решено' : 'Отклонено'}
                     </span>
                     <h3 className="text-lg font-semibold text-white">Жалоба на {report.targetType} ({report.targetId})</h3>
-                    <p className="text-sm text-gray-400">От: {report.reporterId} | Дата: {new Date(report.createdAt).toLocaleString()}</p>
+                    <p className="text-sm text-gray-400">От: {report.reporterName || report.reporterId} | Дата: {new Date(report.createdAt).toLocaleString()}</p>
                   </div>
                   <div className="flex gap-2">
                     {report.status === 'pending' && (
@@ -171,6 +171,12 @@ const AdminPanel: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-black/20 p-4 rounded-lg mb-4">
+                  {report.targetContent && (
+                    <div className="mb-3 pb-3 border-b border-white/5">
+                      <p className="text-sm text-gray-400 mb-1">Содержимое:</p>
+                      <p className="text-white italic">"{report.targetContent}"</p>
+                    </div>
+                  )}
                   <p className="text-gray-300"><span className="font-semibold text-white">Причина:</span> {report.reason}</p>
                 </div>
                 <div className="flex gap-3">
