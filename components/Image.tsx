@@ -1,7 +1,7 @@
 import React, { useState, useEffect, ImgHTMLAttributes } from 'react';
 import { ImageOff } from 'lucide-react';
 import { fetchKodikImage } from '../services/kodik';
-import { fetchJikanImage } from '../services/jikan';
+import { fetchAnilistImage } from '../services/anilist';
 import { FALLBACK_IMAGE } from '../constants';
 
 interface ImageProps extends ImgHTMLAttributes<HTMLImageElement> {
@@ -13,7 +13,7 @@ interface ImageProps extends ImgHTMLAttributes<HTMLImageElement> {
 
 export const Image = ({ src, alt, className, fallbackClassName, priority, animeId, animeTitle, ...props }: ImageProps) => {
   const [imageSrc, setImageSrc] = useState<string | undefined>(src);
-  const [fallbackLevel, setFallbackLevel] = useState(0); // 0: Initial, 1: Kodik, 2: Jikan, 3: Failed
+  const [fallbackLevel, setFallbackLevel] = useState(0); // 0: Initial, 1: Kodik, 2: Anilist, 3: Failed
 
   useEffect(() => {
       setImageSrc(src);
@@ -40,9 +40,9 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
               }
           }).catch(() => active && setFallbackLevel(2));
           return () => { active = false; };
-      } else if (fallbackLevel === 2 && animeId) {
+      } else if (fallbackLevel === 2 && animeTitle) {
           let active = true;
-          fetchJikanImage(animeId).then(url => {
+          fetchAnilistImage(animeTitle).then(url => {
               if (active) {
                   if (url) {
                       setImageSrc(url);
