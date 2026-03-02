@@ -51,7 +51,7 @@ const Details: React.FC = () => {
   const [isSharing, setIsSharing] = useState(false);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [reportTarget, setReportTarget] = useState<{type: 'comment' | 'review', id: string} | null>(null);
+  const [reportTarget, setReportTarget] = useState<{type: 'comment' | 'review', id: string, content?: string, link?: string} | null>(null);
 
   const lastLoadedId = useRef<string | null>(null);
 
@@ -271,6 +271,8 @@ const Details: React.FC = () => {
       const newComment = await db.addComment(id!, user, userComment);
       setComments([newComment, ...comments]);
       setUserComment('');
+    } catch (err: any) {
+      alert(err.message || 'Произошла ошибка при отправке комментария');
     } finally {
       setIsCommenting(false);
     }
@@ -388,8 +390,8 @@ const Details: React.FC = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12">
-           <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 items-start">
+           <div className="flex flex-col gap-4 lg:sticky lg:top-32">
               <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block">
                 <Image src={anime.image} alt={anime.title} animeId={anime.id} animeTitle={anime.originalName || anime.title} className="w-full h-full object-cover" />
               </div>
@@ -506,28 +508,32 @@ const Details: React.FC = () => {
                   </div>
                </section>
 
-              <section className="scroll-mt-24" id="watch">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
-                  <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
-                    <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/20"><Film className="w-6 h-6" /></div> Смотреть онлайн
-                  </h3>
-                </div>
+               <section className="scroll-mt-24" id="watch">
+                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+                   <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
+                     <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/20"><Film className="w-6 h-6" /></div> Смотреть онлайн
+                   </h3>
+                 </div>
 
-                <div className="grid gap-6 transition-all duration-500 grid-cols-1">
-                  <div className="w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
-                      <iframe 
-                        src={`https://kodik.cc/find-player?shikimoriID=${id}&js_api=1`} 
-                        width="100%" 
-                        height="100%" 
-                        allow="autoplay *; fullscreen *" 
-                        referrerPolicy="origin" 
-                        className="w-full h-full border-0" 
-                        title="Player" 
-                      />
-                  </div>
-                </div>
-              </section>
+                 <div className="grid gap-6 transition-all duration-500 grid-cols-1">
+                   <div className="w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
+                       <iframe 
+                         src={`https://kodik.cc/find-player?shikimoriID=${id}&js_api=1`} 
+                         width="100%" 
+                         height="100%" 
+                         allow="autoplay *; fullscreen *" 
+                         referrerPolicy="origin" 
+                         className="w-full h-full border-0" 
+                         title="Player" 
+                       />
+                   </div>
+                 </div>
+               </section>
+            </div>
+         </div>
 
+         {/* Centered content after player */}
+         <div className="max-w-4xl mx-auto mt-16 space-y-16">
               {isRelatedLoading ? (
                 <section>
                   <div className="flex items-center justify-between mb-8">
@@ -612,7 +618,12 @@ const Details: React.FC = () => {
                 reviews={reviews} 
                 onReviewAdded={(newReview) => setReviews([newReview, ...reviews])} 
                 onReport={(reviewId) => {
-                  setReportTarget({ type: 'review', id: reviewId });
+                  setReportTarget({ 
+                    type: 'review', 
+                    id: reviewId, 
+                    content: reviews.find(r => r.id === reviewId)?.content,
+                    link: window.location.pathname
+                  });
                   setIsReportModalOpen(true);
                 }}
                 onDelete={async (reviewId) => {
@@ -666,7 +677,12 @@ const Details: React.FC = () => {
                                 <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button 
                                     onClick={() => {
-                                      setReportTarget({ type: 'comment', id: comment.id });
+                                      setReportTarget({ 
+                                        type: 'comment', 
+                                        id: comment.id,
+                                        content: comment.text,
+                                        link: window.location.pathname
+                                      });
                                       setIsReportModalOpen(true);
                                     }}
                                     className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1"
@@ -695,7 +711,6 @@ const Details: React.FC = () => {
                 </div>
              </section>
            </div>
-        </div>
       </div>
 
       {/* Share Modal */}
@@ -750,6 +765,8 @@ const Details: React.FC = () => {
           }}
           targetType={reportTarget.type}
           targetId={reportTarget.id}
+          targetContent={reportTarget.content}
+          targetLink={reportTarget.link}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Anime, User, Comment, ChatMessage, PrivateMessage, ForumTopic, ForumPost, Review } from '../types';
+import { containsProfanity } from '../utils/profanity';
 
 // Use environment variables or fallback to the key you provided
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://ulumbarwutnsodmzxpst.supabase.co';
@@ -520,6 +521,11 @@ class DatabaseService {
 
   async createForumTopic(topic: { id?: string, title: string, content: string, author: string, animeId?: string, category: string }): Promise<ForumTopic | null> {
     if (!this.isSupabaseAvailable()) return null;
+    
+    if (containsProfanity(topic.title) || containsProfanity(topic.content)) {
+      throw new Error('Ваше сообщение содержит недопустимые слова.');
+    }
+
     try {
       const payload: any = {
         title: topic.title,
@@ -582,6 +588,11 @@ class DatabaseService {
 
   async createForumPost(post: { topicId: string, content: string, author: string, parentId?: string }): Promise<ForumPost | null> {
     if (!this.isSupabaseAvailable()) return null;
+
+    if (containsProfanity(post.content)) {
+      throw new Error('Ваше сообщение содержит недопустимые слова.');
+    }
+
     try {
       const payload: any = {
         topic_id: post.topicId,
@@ -705,6 +716,11 @@ class DatabaseService {
 
   async addComment(targetId: string, user: User, text: string): Promise<Comment> {
     if (!this.isSupabaseAvailable()) throw new Error('Database not available');
+
+    if (containsProfanity(text)) {
+      throw new Error('Ваше сообщение содержит недопустимые слова.');
+    }
+
     try {
       const { data, error } = await supabaseClient
         .from('comments')
@@ -1087,6 +1103,11 @@ class DatabaseService {
 
   async addReview(animeId: string, user: User, content: string, ratings: { plot: number; sound: number; visuals: number; overall: number }): Promise<Review | null> {
     if (!this.isSupabaseAvailable()) return null;
+
+    if (containsProfanity(content)) {
+      throw new Error('Ваша рецензия содержит недопустимые слова.');
+    }
+
     try {
       const { data, error } = await supabaseClient
         .from('reviews')
@@ -1131,7 +1152,7 @@ class DatabaseService {
   }
 
   // Admin & Moderation
-  async submitReport(reporterId: string, targetType: 'user' | 'topic' | 'post' | 'comment' | 'review', targetId: string, reason: string, targetContent?: string): Promise<boolean> {
+  async submitReport(reporterId: string, targetType: 'user' | 'topic' | 'post' | 'comment' | 'review', targetId: string, reason: string, targetContent?: string, targetLink?: string): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {
       const { error } = await supabaseClient
@@ -1141,6 +1162,7 @@ class DatabaseService {
           target_type: targetType,
           target_id: targetId,
           target_content: targetContent,
+          target_link: targetLink,
           reason: reason,
           status: 'pending'
         }]);
@@ -1167,6 +1189,7 @@ class DatabaseService {
         targetType: r.target_type,
         targetId: r.target_id,
         targetContent: r.target_content,
+        targetLink: r.target_link,
         reason: r.reason,
         createdAt: r.created_at,
         status: r.status

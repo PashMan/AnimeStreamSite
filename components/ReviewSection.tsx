@@ -47,6 +47,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
         setRatings({ plot: 5, sound: 5, visuals: 5, overall: 5 });
         setIsWriting(false);
       }
+    } catch (err: any) {
+      alert(err.message || 'Произошла ошибка при публикации рецензии');
     } finally {
       setIsSubmitting(false);
     }

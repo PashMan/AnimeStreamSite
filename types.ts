@@ -66,6 +66,7 @@ export interface Report {
   targetType: 'user' | 'topic' | 'post' | 'comment' | 'review';
   targetId: string;
   targetContent?: string;
+  targetLink?: string;
   reason: string;
   createdAt: string;
   status: 'pending' | 'resolved' | 'dismissed';

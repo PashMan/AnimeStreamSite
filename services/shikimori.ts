@@ -55,7 +55,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(10, 50); // 10 concurrent, 50ms delay
+const requestQueue = new RequestQueue(15, 30); // 15 concurrent, 30ms delay
 
 let globalAbortController = new AbortController();
 
@@ -66,8 +66,8 @@ export const clearRequestQueue = () => {
 };
 
 // Cache configuration (Persistent LocalStorage)
-const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours cache
-const FETCH_TIMEOUT = 15000; // 15 seconds timeout
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours cache
+const FETCH_TIMEOUT = 8000; // 8 seconds timeout
 
 const getFromStorage = (key: string) => {
     try {

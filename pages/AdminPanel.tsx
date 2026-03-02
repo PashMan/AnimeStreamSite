@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { Report, User } from '../types';
@@ -154,7 +155,19 @@ const AdminPanel: React.FC = () => {
                     }`}>
                       {report.status === 'pending' ? 'Ожидает' : report.status === 'resolved' ? 'Решено' : 'Отклонено'}
                     </span>
-                    <h3 className="text-lg font-semibold text-white">Жалоба на {report.targetType} ({report.targetId})</h3>
+                    <h3 className="text-lg font-semibold text-white">
+                      Жалоба на {report.targetType} (
+                      {report.targetLink ? (
+                        <Link to={report.targetLink} className="text-primary hover:underline">{report.targetId}</Link>
+                      ) : report.targetType === 'topic' ? (
+                        <Link to={`/forum/${report.targetId}`} className="text-primary hover:underline">{report.targetId}</Link>
+                      ) : report.targetType === 'user' ? (
+                        <Link to={`/user/${report.targetId}`} className="text-primary hover:underline">{report.targetId}</Link>
+                      ) : (
+                        report.targetId
+                      )}
+                      )
+                    </h3>
                     <p className="text-sm text-gray-400">От: {report.reporterName || report.reporterId} | Дата: {new Date(report.createdAt).toLocaleString()}</p>
                   </div>
                   <div className="flex gap-2">

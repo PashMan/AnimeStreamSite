@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS reports (
   target_type TEXT NOT NULL,
   target_id UUID NOT NULL,
   target_content TEXT,
+  target_link TEXT,
   reason TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

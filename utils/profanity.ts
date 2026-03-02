@@ -13,9 +13,14 @@ const BAD_WORDS = [
 export const containsProfanity = (text: string): boolean => {
   if (!text) return false;
   const lowerText = text.toLowerCase();
+  
   return BAD_WORDS.some(word => {
-    // Basic word boundary check to avoid false positives inside normal words
-    const regex = new RegExp(`(?:^|\\s|[.,!?_\\-])${word}(?:$|\\s|[.,!?_\\-])`, 'i');
-    return regex.test(lowerText);
+    // For very short words, use word boundaries to avoid false positives
+    if (word.length <= 3) {
+      const regex = new RegExp(`(?:^|\\s|[.,!?_\\-])${word}(?:$|\\s|[.,!?_\\-])`, 'i');
+      return regex.test(lowerText);
+    }
+    // For longer words, a simple substring check is often more effective for Russian
+    return lowerText.includes(word);
   });
 };

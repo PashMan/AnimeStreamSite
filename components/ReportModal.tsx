@@ -9,9 +9,10 @@ interface ReportModalProps {
   targetType: 'user' | 'topic' | 'post' | 'comment' | 'review';
   targetId: string;
   targetContent?: string;
+  targetLink?: string;
 }
 
-export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, targetType, targetId, targetContent }) => {
+export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, targetType, targetId, targetContent, targetLink }) => {
   const { user, openAuthModal } = useAuth();
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,7 +29,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, targe
     if (!reason.trim()) return;
 
     setIsSubmitting(true);
-    const result = await db.submitReport(user.id || user.email, targetType, targetId, reason, targetContent);
+    const result = await db.submitReport(user.id || user.email, targetType, targetId, reason, targetContent, targetLink);
     setIsSubmitting(false);
 
     if (result) {
