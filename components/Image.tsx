@@ -1,6 +1,7 @@
 import React, { useState, useEffect, ImgHTMLAttributes } from 'react';
 import { ImageOff } from 'lucide-react';
 import { fetchKodikImage } from '../services/kodik';
+import { fetchJikanImage } from '../services/jikan';
 import { FALLBACK_IMAGE } from '../constants';
 
 interface ImageProps extends ImgHTMLAttributes<HTMLImageElement> {
@@ -12,28 +13,55 @@ interface ImageProps extends ImgHTMLAttributes<HTMLImageElement> {
 
 export const Image = ({ src, alt, className, fallbackClassName, priority, animeId, animeTitle, ...props }: ImageProps) => {
   const [imageSrc, setImageSrc] = useState<string | undefined>(src);
-  const [hasTriedKodik, setHasTriedKodik] = useState(false);
-  const [error, setError] = useState(false);
+  const [fallbackLevel, setFallbackLevel] = useState(0); // 0: Initial, 1: Kodik, 2: Jikan, 3: Failed
 
   useEffect(() => {
       setImageSrc(src);
-      setHasTriedKodik(false);
-      setError(false);
+      setFallbackLevel(0);
   }, [src]);
 
+  // If src is missing initially, start fallback chain
   useEffect(() => {
-    if ((error || imageSrc === FALLBACK_IMAGE) && animeId && !hasTriedKodik) {
-      setHasTriedKodik(true);
-      fetchKodikImage(animeId, animeTitle).then(kodikImage => {
-        if (kodikImage) {
-            setImageSrc(kodikImage);
-            setError(false);
-        }
-      }).catch(() => {});
-    }
-  }, [error, imageSrc, animeId, animeTitle, hasTriedKodik]);
+      if ((!src || src === FALLBACK_IMAGE) && fallbackLevel === 0) {
+          setFallbackLevel(1);
+      }
+  }, [src, fallbackLevel]);
 
-  if (error && (!animeId || hasTriedKodik)) {
+  useEffect(() => {
+      if (fallbackLevel === 1 && animeId) {
+          let active = true;
+          fetchKodikImage(animeId, animeTitle).then(url => {
+              if (active) {
+                  if (url) {
+                      setImageSrc(url);
+                  } else {
+                      setFallbackLevel(2); // Try next
+                  }
+              }
+          }).catch(() => active && setFallbackLevel(2));
+          return () => { active = false; };
+      } else if (fallbackLevel === 2 && animeId) {
+          let active = true;
+          fetchJikanImage(animeId).then(url => {
+              if (active) {
+                  if (url) {
+                      setImageSrc(url);
+                  } else {
+                      setFallbackLevel(3); // Give up
+                  }
+              }
+          }).catch(() => active && setFallbackLevel(3));
+          return () => { active = false; };
+      }
+  }, [fallbackLevel, animeId, animeTitle]);
+
+  const handleError = () => {
+      if (fallbackLevel < 3) {
+          setFallbackLevel(prev => prev + 1);
+      }
+  };
+
+  if (fallbackLevel === 3 || (!imageSrc && fallbackLevel === 0 && !animeId)) {
     return (
       <div className={`flex items-center justify-center bg-white/5 text-slate-500 overflow-hidden ${className} ${fallbackClassName || ''}`}>
         <img src={FALLBACK_IMAGE} alt="" className="w-full h-full object-cover opacity-50 grayscale" />
@@ -46,7 +74,7 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
       src={imageSrc || FALLBACK_IMAGE}
       alt={alt}
       className={className}
-      onError={() => setError(true)}
+      onError={handleError}
       loading={priority ? "eager" : "lazy"}
       referrerPolicy="no-referrer"
       // @ts-ignore

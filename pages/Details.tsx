@@ -551,7 +551,7 @@ const Details: React.FC = () => {
                       return (
                         <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
                           <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden relative">
-                            <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
+                            <Image src={item.anime.image} animeId={item.anime.id} animeTitle={item.anime.originalName || item.anime.title} loading="lazy" className="w-full h-full object-cover" alt="" />
                             {isPriority && <div className="absolute inset-0 bg-primary/20"></div>}
                           </div>
                           <div className="flex flex-col min-w-0 flex-1">

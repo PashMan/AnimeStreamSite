@@ -333,6 +333,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
   }
   
   const russian = data.russian || data.name || 'Без названия';
+  const originalName = data.name || '';
   
   let image = PLACEHOLDER_IMAGE;
   let image_preview = PLACEHOLDER_IMAGE;
@@ -374,7 +375,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
     id: data.id?.toString() || '',
     slug: slugify(data.name || data.russian || ''),
     title: russian,
-    originalName: data.name || '',
+    originalName: originalName,
     image,
     image_preview,
     cover: cover,

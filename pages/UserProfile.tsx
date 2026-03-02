@@ -7,6 +7,7 @@ import { User, Anime } from '../types';
 import { fetchAnimes } from '../services/shikimori';
 import { Loader2, Heart, History, ArrowLeft, UserPlus, MessageSquare, Check, Film, X } from 'lucide-react';
 import SEO from '../components/SEO';
+import { Image } from '../components/Image';
 
 const UserProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -247,7 +248,7 @@ const UserProfile: React.FC = () => {
              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {activeTab === 'favs' && favorites.map(anime => (
                     <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <img src={anime.image} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
                         </div>
@@ -255,7 +256,7 @@ const UserProfile: React.FC = () => {
                 ))}
                 {activeTab === 'watched' && watched.map(anime => (
                     <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <img src={anime.image} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
                         </div>
@@ -263,7 +264,7 @@ const UserProfile: React.FC = () => {
                 ))}
                 {activeTab === 'watching' && watching.map(anime => (
                     <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <img src={anime.image} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
                         </div>
@@ -271,7 +272,7 @@ const UserProfile: React.FC = () => {
                 ))}
                 {activeTab === 'dropped' && dropped.map(anime => (
                     <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <img src={anime.image} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
                         </div>

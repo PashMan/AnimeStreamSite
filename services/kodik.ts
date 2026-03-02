@@ -36,7 +36,13 @@ export const fetchKodikData = async (shikimoriId: string, title?: string): Promi
 
      if ((!data || !data.results?.length) && title) {
         const cleanTitle = title.split('/')[0].trim();
-        data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_episodes=true&with_material_data=true`);
+        // Try searching by original title first
+        data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title_orig=${encodeURIComponent(cleanTitle)}&with_episodes=true&with_material_data=true`);
+        
+        // If still no results, try general title search
+        if (!data || !data.results?.length) {
+            data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_episodes=true&with_material_data=true`);
+        }
      }
      
      if (!data?.results) return [];
@@ -68,7 +74,13 @@ export const fetchKodikAnimeInfo = async (shikimoriId: string, title?: string): 
         
         if ((!data || !data.results || data.results.length === 0) && title) {
              const cleanTitle = title.split('/')[0].trim();
-             data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_material_data=true&with_episodes=true`);
+             // Try searching by original title first
+             data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title_orig=${encodeURIComponent(cleanTitle)}&with_material_data=true&with_episodes=true`);
+             
+             // If still no results, try general title search
+             if (!data || !data.results || data.results.length === 0) {
+                 data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_material_data=true&with_episodes=true`);
+             }
         }
 
         if (data && data.results && data.results.length > 0) {

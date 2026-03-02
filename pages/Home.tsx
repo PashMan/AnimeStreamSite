@@ -484,7 +484,7 @@ const Home: React.FC = () => {
               ];
               return (
               <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
-                <img src={images[idx] || FALLBACK_IMAGE} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <Image src={images[idx] || FALLBACK_IMAGE} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                 <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
                 <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
                   <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
