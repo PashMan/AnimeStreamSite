@@ -1,9 +1,17 @@
-const CACHE_PREFIX = 'as_cache_';
+export const CACHE_PREFIX = 'as_cache_';
 
 export const getFromStorage = (key: string) => {
     try {
         const item = localStorage.getItem(CACHE_PREFIX + key);
-        if (item) return JSON.parse(item);
+        if (item) {
+            const parsed = JSON.parse(item);
+            // Check if data is older than 1 hour
+            if (Date.now() - (parsed.timestamp || 0) < 60 * 60 * 1000) {
+                return parsed;
+            } else {
+                localStorage.removeItem(CACHE_PREFIX + key);
+            }
+        }
     } catch (e) { return null; }
     return null;
 };

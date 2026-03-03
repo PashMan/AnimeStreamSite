@@ -1,5 +1,5 @@
 
-import { getFromStorage, saveToStorage } from './cache';
+import { getFromStorage, saveToStorage, CACHE_PREFIX } from './cache';
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 
