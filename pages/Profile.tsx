@@ -614,7 +614,7 @@ const Profile: React.FC = () => {
                                     <PlayCircle className="w-10 h-10 text-primary opacity-0 group-hover:opacity-100 transition-all" />
                                 </Link>
                             )) : (activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : dropped).map((anime: Anime) => (
-                                <Link to={`/anime/${anime.id}`} key={anime.id} className="group relative rounded-3xl overflow-hidden glass border border-transparent hover:border-primary transition-all">
+                                 <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} key={anime.id} className="group relative rounded-3xl overflow-hidden glass border border-transparent hover:border-primary transition-all">
                                    <div className="aspect-[2/3] relative">
                                       <img 
                                         src={anime.image} 

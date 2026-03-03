@@ -555,7 +555,7 @@ const Forum: React.FC = () => {
                 <h1 className="text-3xl md:text-4xl font-display font-black text-white uppercase tracking-tighter mb-2">
                   Форум: {anime.title}
                 </h1>
-                <Link to={`/anime/${anime.id}`} className="text-primary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+                <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="text-primary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
                   Перейти к аниме
                 </Link>
               </div>

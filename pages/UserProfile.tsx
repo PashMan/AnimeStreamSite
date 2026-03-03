@@ -247,7 +247,7 @@ const UserProfile: React.FC = () => {
              {/* Grid */}
              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {activeTab === 'favs' && favorites.map(anime => (
-                    <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
+                    <Link key={anime.id} to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
                         <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
@@ -255,7 +255,7 @@ const UserProfile: React.FC = () => {
                     </Link>
                 ))}
                 {activeTab === 'watched' && watched.map(anime => (
-                    <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
+                    <Link key={anime.id} to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
                         <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
@@ -263,7 +263,7 @@ const UserProfile: React.FC = () => {
                     </Link>
                 ))}
                 {activeTab === 'watching' && watching.map(anime => (
-                    <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
+                    <Link key={anime.id} to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
                         <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
@@ -271,7 +271,7 @@ const UserProfile: React.FC = () => {
                     </Link>
                 ))}
                 {activeTab === 'dropped' && dropped.map(anime => (
-                    <Link key={anime.id} to={`/anime/${anime.id}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
+                    <Link key={anime.id} to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
                         <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                             <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>

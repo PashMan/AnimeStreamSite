@@ -25,6 +25,7 @@ const Home: React.FC = () => {
   
   const [isHeroLoading, setIsHeroLoading] = useState(() => !getInitialHeroAnimes());
   const [heroIndex, setHeroIndex] = useState(0);
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
   const [upscaleAnime, setUpscaleAnime] = useState('');
   const [isUpscaleSent, setIsUpscaleSent] = useState(false);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -163,7 +164,7 @@ const Home: React.FC = () => {
       ) : currentHero ? (
         <section className="relative h-[85vh] w-full overflow-hidden group">
           {heroAnimes.map((anime, idx) => (
-            <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
+            <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               {/* Use cover for high quality landscape image */}
               <Image 
                 src={anime.cover || anime.image} 
@@ -171,6 +172,7 @@ const Home: React.FC = () => {
                 animeId={anime.id}
                 animeTitle={anime.originalName || anime.title}
                 priority={idx === 0}
+                onImageLoad={() => setLoadedImages(prev => ({...prev, [anime.id]: true}))}
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
@@ -185,7 +187,7 @@ const Home: React.FC = () => {
                 {currentHero.description || "Описание загружается..."}
               </p>
               <div className="flex flex-wrap gap-4 items-center pt-4">
-                <Link to={`/anime/${currentHero.id}`} className="px-10 py-5 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
+                <Link to={`/anime/${currentHero.id}${currentHero.slug ? `-${currentHero.slug}` : ''}`} className="px-10 py-5 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
                   <PlayCircle className="w-6 h-6 fill-current" /> Смотреть
                 </Link>
                 <div className="flex gap-2">

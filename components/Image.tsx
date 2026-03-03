@@ -8,15 +8,18 @@ interface ImageProps extends ImgHTMLAttributes<HTMLImageElement> {
   priority?: boolean;
   animeId?: string;
   animeTitle?: string;
+  onImageLoad?: () => void;
 }
 
-export const Image = ({ src, alt, className, fallbackClassName, priority, animeId, animeTitle, ...props }: ImageProps) => {
+export const Image = ({ src, alt, className, fallbackClassName, priority, animeId, animeTitle, onImageLoad, ...props }: ImageProps) => {
   const [imageSrc, setImageSrc] = useState<string | undefined>(src);
+  const [isLoading, setIsLoading] = useState(true);
   const [fallbackLevel, setFallbackLevel] = useState(0); // 0: Initial, 1: Anilist, 2: Failed
 
   useEffect(() => {
       if (src !== imageSrc) {
           setImageSrc(src);
+          setIsLoading(true);
           setFallbackLevel(0);
       }
   }, [src]);
@@ -45,9 +48,15 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
   }, [fallbackLevel, animeTitle]);
 
   const handleError = () => {
+      setIsLoading(false);
       if (fallbackLevel < 2) {
           setFallbackLevel(prev => prev + 1);
       }
+  };
+
+  const handleLoad = () => {
+      setIsLoading(false);
+      if (onImageLoad) onImageLoad();
   };
 
   if (fallbackLevel === 2 || (!imageSrc && fallbackLevel === 0 && !animeId)) {
@@ -62,8 +71,9 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
     <img
       src={imageSrc || FALLBACK_IMAGE}
       alt={alt}
-      className={className}
+      className={`${className} ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
       onError={handleError}
+      onLoad={handleLoad}
       loading={priority ? "eager" : "lazy"}
       referrerPolicy="no-referrer"
       // @ts-ignore
