@@ -1,5 +1,5 @@
 
-export const onRequest = async (context) => {
+export const onRequest = async (context: any) => {
   const { id } = context.params;
   
   if (!id || Array.isArray(id)) {

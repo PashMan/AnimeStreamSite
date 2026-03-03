@@ -1,4 +1,4 @@
-export const onRequest = async (context) => {
+export const onRequest = async (context: any) => {
   const url = new URL(context.request.url);
 
   // Handle CORS preflight requests
