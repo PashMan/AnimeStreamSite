@@ -1,5 +1,5 @@
 
-export const onRequest: PagesFunction = async (context) => {
+export const onRequest = async (context) => {
   const { id } = context.params;
   
   if (!id || Array.isArray(id)) {

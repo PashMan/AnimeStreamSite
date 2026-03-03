@@ -1,4 +1,4 @@
-export const onRequest: PagesFunction = async (context) => {
+export const onRequest = async (context) => {
   const url = new URL(context.request.url);
   const path = url.pathname.replace(/^\/kodik-proxy/, '');
   const targetUrl = `https://kodikapi.com${path}${url.search}`;
@@ -9,9 +9,10 @@ export const onRequest: PagesFunction = async (context) => {
   headers.set('Referer', 'https://kodikapi.com/');
   headers.set('Accept', 'application/json, text/plain, */*');
 
-  const init: RequestInit = {
+  const init = {
     method: context.request.method,
     headers: headers,
+    body: undefined as any
   };
 
   if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {

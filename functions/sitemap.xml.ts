@@ -34,7 +34,7 @@ const COLLECTIONS = [
   { id: 'school' }, { id: 'show-biz' }
 ];
 
-export const onRequest: PagesFunction = async (context) => {
+export const onRequest = async (context) => {
   try {
     const today = new Date().toISOString();
     const url = new URL(context.request.url);

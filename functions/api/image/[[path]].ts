@@ -1,4 +1,4 @@
-export const onRequest: PagesFunction = async (context) => {
+export const onRequest = async (context) => {
   const url = new URL(context.request.url);
 
   // Handle CORS preflight requests

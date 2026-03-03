@@ -1,4 +1,4 @@
-export const onRequest: PagesFunction = async (context) => {
+export const onRequest = async (context) => {
   const url = new URL(context.request.url);
   
   // Handle CORS preflight requests
@@ -28,9 +28,10 @@ export const onRequest: PagesFunction = async (context) => {
     headers.set('Authorization', authHeader);
   }
 
-  const init: RequestInit = {
+  const init = {
     method: context.request.method,
     headers: headers,
+    body: undefined as any
   };
 
   if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {
