@@ -6,6 +6,16 @@ import { Report, User } from '../types';
 import { Shield, AlertTriangle, Trash2, UserX, MessageSquareOff, CheckCircle, XCircle } from 'lucide-react';
 import { containsProfanity } from '../utils/profanity';
 
+const translateType = (type: string) => {
+  switch(type) {
+    case 'review': return 'отзыв';
+    case 'comment': return 'комментарий';
+    case 'topic': return 'тему';
+    case 'user': return 'пользователя';
+    default: return type;
+  }
+};
+
 const AdminPanel: React.FC = () => {
   const { user } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
@@ -156,17 +166,16 @@ const AdminPanel: React.FC = () => {
                       {report.status === 'pending' ? 'Ожидает' : report.status === 'resolved' ? 'Решено' : 'Отклонено'}
                     </span>
                     <h3 className="text-lg font-semibold text-white">
-                      Жалоба на {report.targetType} (
-                      {report.targetLink ? (
-                        <Link to={report.targetLink} className="text-primary hover:underline">{report.targetId}</Link>
+                      Жалоба на {report.targetLink ? (
+                        <Link to={report.targetLink} className="text-indigo-400 hover:underline">{translateType(report.targetType)}</Link>
                       ) : report.targetType === 'topic' ? (
-                        <Link to={`/forum/${report.targetId}`} className="text-primary hover:underline">{report.targetId}</Link>
+                        <Link to={`/forum/${report.targetId}`} className="text-indigo-400 hover:underline">{translateType(report.targetType)}</Link>
                       ) : report.targetType === 'user' ? (
-                        <Link to={`/user/${report.targetId}`} className="text-primary hover:underline">{report.targetId}</Link>
+                        <Link to={`/user/${report.targetId}`} className="text-indigo-400 hover:underline">{translateType(report.targetType)}</Link>
                       ) : (
-                        report.targetId
+                        translateType(report.targetType)
                       )}
-                      )
+                      <span className="text-sm text-gray-500 ml-2">({report.targetId})</span>
                     </h3>
                     <p className="text-sm text-gray-400">От: {report.reporterName || report.reporterId} | Дата: {new Date(report.createdAt).toLocaleString()}</p>
                   </div>

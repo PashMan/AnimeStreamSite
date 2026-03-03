@@ -390,13 +390,13 @@ const Details: React.FC = () => {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 items-start">
-           <div className="flex flex-col gap-4 lg:sticky lg:top-32">
-              <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 items-stretch">
+           <div className="flex flex-col gap-4 h-full">
+              <div className="aspect-[2/3] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 ring-4 ring-dark bg-surface hidden lg:block shrink-0">
                 <Image src={anime.image} alt={anime.title} animeId={anime.id} animeTitle={anime.originalName || anime.title} className="w-full h-full object-cover" />
               </div>
               
-              <div className="grid grid-cols-1 gap-3 relative" ref={statusDropdownRef}>
+              <div className="grid grid-cols-1 gap-3 relative shrink-0" ref={statusDropdownRef}>
                 <button 
                   onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
                   disabled={isActionLoading} 
@@ -468,7 +468,7 @@ const Details: React.FC = () => {
                 </button>
               </div>
 
-              <div className="bg-surface/50 p-6 rounded-[2rem] border border-white/5 space-y-4 backdrop-blur-md shadow-xl">
+              <div className="bg-surface/50 p-6 rounded-[2rem] border border-white/5 space-y-4 backdrop-blur-md shadow-xl flex-1">
                  <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Информация</h3>
                  <div className="space-y-3 text-sm font-medium">
                     <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-slate-400">Тип</span><span className="font-bold text-white">{anime.type}</span></div>
@@ -532,8 +532,10 @@ const Details: React.FC = () => {
             </div>
          </div>
 
-         {/* Centered content after player */}
-         <div className="max-w-4xl mx-auto mt-16 space-y-16">
+         {/* Content after player aligned to right column */}
+         <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 mt-16">
+            <div className="hidden lg:block"></div>
+            <div className="space-y-16">
               {isRelatedLoading ? (
                 <section>
                   <div className="flex items-center justify-between mb-8">
@@ -711,6 +713,7 @@ const Details: React.FC = () => {
                 </div>
              </section>
            </div>
+         </div>
       </div>
 
       {/* Share Modal */}
