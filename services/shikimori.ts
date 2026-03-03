@@ -1,11 +1,11 @@
 
+import { getFromStorage, saveToStorage } from './cache';
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
-const CACHE_PREFIX = 'as_cache_';
 
 // Debug: Log the base API URL being used
 console.log('[Shikimori Service] Initialized with BASE_API:', BASE_API);
@@ -72,48 +72,6 @@ export const CACHE_TTL_LONG = 24 * 60 * 60 * 1000; // 24 hours
 export const CACHE_TTL_SHORT = 20 * 60 * 1000; // 20 minutes
 const CACHE_TTL = CACHE_TTL_LONG; // Default to long
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout
-
-const getFromStorage = (key: string) => {
-    try {
-        const item = localStorage.getItem(CACHE_PREFIX + key);
-        if (item) return JSON.parse(item);
-    } catch (e) { return null; }
-    return null;
-};
-
-const saveToStorage = (key: string, data: any) => {
-    try {
-        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
-            data,
-            timestamp: Date.now()
-        }));
-    } catch (e) {
-        // If quota exceeded, clear old cache
-        try {
-            // Clear items older than 1 hour
-            const now = Date.now();
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k.startsWith(CACHE_PREFIX)) {
-                    try {
-                        const item = JSON.parse(localStorage.getItem(k) || '{}');
-                        if (now - (item.timestamp || 0) > 60 * 60 * 1000) {
-                            localStorage.removeItem(k);
-                        }
-                    } catch (e) {}
-                }
-            }
-            
-            localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
-                data,
-                timestamp: Date.now()
-            }));
-        } catch(e2) {
-             // If still full, clear all
-             try { localStorage.clear(); } catch (e3) {}
-        }
-    }
-};
 
 export const GENRE_MAP: Record<string, number> = {
   'Экшен': 1, 'Приключения': 2, 'Машины': 3, 'Комедия': 4, 'Безумие': 5,
@@ -455,8 +413,12 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
 
     const query = new URLSearchParams(cleanParams).toString();
     
+    // Use short cache for search queries
+    const isSearch = !!params.search;
+    const ttl = isSearch ? CACHE_TTL_SHORT : CACHE_TTL_LONG;
+    
     // Increased retries to 3
-    const data = await fetchApi(`/animes?${query}`, 3, CACHE_TTL_LONG, bypassQueue);
+    const data = await fetchApi(`/animes?${query}`, 3, ttl, bypassQueue);
     
     if (!data || (Array.isArray(data) && data.length === 0)) {
         return [];

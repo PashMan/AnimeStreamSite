@@ -1,4 +1,6 @@
 
+import { getFromStorage, saveToStorage } from './cache';
+
 export interface KodikTranslation {
   id: number;
   title: string;
@@ -17,6 +19,7 @@ export interface KodikAnime {
 const KODIK_TOKEN = "b3b563060d02ee000ca18740b7842ca0";
 // Use the proxy to avoid mixed content and CORS issues
 const BASE_URL = "/kodik-proxy"; 
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache
 
 const fetchApi = async (url: string) => {
   try {
@@ -30,6 +33,13 @@ const fetchApi = async (url: string) => {
 }
 
 export const fetchKodikData = async (shikimoriId: string, title?: string): Promise<KodikAnime[]> => {
+  const cacheKey = `kodik_${shikimoriId}`;
+  const cached = getFromStorage(cacheKey);
+  const now = Date.now();
+  if (cached && (now - cached.timestamp < CACHE_TTL)) {
+      return cached.data;
+  }
+
   try {
      // Use the proxy path
      let data = await fetchApi(`${BASE_URL}/search?token=${KODIK_TOKEN}&shikimori_id=${shikimoriId}&with_episodes=true&with_material_data=true`);
@@ -56,7 +66,9 @@ export const fetchKodikData = async (shikimoriId: string, title?: string): Promi
         }
      });
 
-     return Array.from(uniqueTranslations.values()).sort((a: any, b: any) => b.last_episode - a.last_episode);
+     const result = Array.from(uniqueTranslations.values()).sort((a: any, b: any) => b.last_episode - a.last_episode);
+     saveToStorage(cacheKey, result);
+     return result;
   } catch (e) {
      return [];
   }
