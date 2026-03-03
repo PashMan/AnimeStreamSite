@@ -26,6 +26,22 @@ app.get('/api/health-check', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Debug Shikimori
+app.get('/api/debug-shikimori', async (req, res) => {
+  try {
+    const response = await fetch('https://shikimori.one/api/animes?limit=1', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://shikimori.one/'
+      }
+    });
+    const data = await response.text();
+    res.json({ status: response.status, data: data.substring(0, 100) });
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
 // API Routes
 app.get('/api/sitemap.xml', sitemapHandler);
 app.get('/sitemap.xml', sitemapHandler);
