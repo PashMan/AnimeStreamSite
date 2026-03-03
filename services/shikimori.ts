@@ -68,7 +68,9 @@ export const clearRequestQueue = () => {
 };
 
 // Cache configuration (Persistent LocalStorage)
-const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours cache
+export const CACHE_TTL_LONG = 24 * 60 * 60 * 1000; // 24 hours
+export const CACHE_TTL_SHORT = 20 * 60 * 1000; // 20 minutes
+const CACHE_TTL = CACHE_TTL_LONG; // Default to long
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout
 
 const getFromStorage = (key: string) => {
@@ -454,7 +456,7 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
     const query = new URLSearchParams(cleanParams).toString();
     
     // Increased retries to 3
-    const data = await fetchApi(`/animes?${query}`, 3, CACHE_TTL, bypassQueue);
+    const data = await fetchApi(`/animes?${query}`, 3, CACHE_TTL_LONG, bypassQueue);
     
     if (!data || (Array.isArray(data) && data.length === 0)) {
         return [];
@@ -520,7 +522,7 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
 
     // Fetch screenshots to find a better cover (landscape) for hero banners
     try {
-        const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
+        const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, CACHE_TTL_LONG);
         if (Array.isArray(screenshots) && screenshots.length > 0) {
              const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
              if (validScreen) {
@@ -555,7 +557,7 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
 
 export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/screenshots`);
+    const data = await fetchApi(`/animes/${id}/screenshots`, 1, CACHE_TTL_LONG);
     return Array.isArray(data) ? data.map((s: any) => proxyImage(s.original)) : [];
   } catch (e) {
     return [];
@@ -564,7 +566,7 @@ export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
 
 export const fetchAnimeVideos = async (id: string): Promise<{ name: string; url: string; image: string }[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/videos`);
+    const data = await fetchApi(`/animes/${id}/videos`, 2, CACHE_TTL_SHORT);
     if (Array.isArray(data)) {
       return data.map((v: any) => ({
         name: v.name || 'Трейлер',
@@ -580,7 +582,7 @@ export const fetchAnimeVideos = async (id: string): Promise<{ name: string; url:
 
 export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string; anime: Anime }[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/related`, 2, 60 * 60 * 1000);
+    const data = await fetchApi(`/animes/${id}/related`, 2, CACHE_TTL_LONG);
     if (Array.isArray(data)) {
       const items = data
         .filter((item: any) => !!item.anime)
@@ -599,7 +601,7 @@ export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string
 
 export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/similar`, 2, 60 * 60 * 1000);
+    const data = await fetchApi(`/animes/${id}/similar`, 2, CACHE_TTL_LONG);
     if (!data || !Array.isArray(data)) return MOCK_ANIME.slice(0, 4);
     return Promise.all(data.slice(0, 10).map(mapAnime));
   } catch (e) {
@@ -609,7 +611,7 @@ export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
 
 export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
   try {
-    const data = await fetchApi(`/calendar`, 2, CACHE_TTL, false);
+    const data = await fetchApi(`/calendar`, 2, CACHE_TTL_SHORT, false);
     if (!data || !Array.isArray(data)) return SCHEDULE;
 
     const daysMap: Record<string, any[]> = { 'Пн': [], 'Вт': [], 'Ср': [], 'Чт': [], 'Пт': [], 'Сб': [], 'Вс': [] };
@@ -638,7 +640,7 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
     // Cache news for 30 minutes to improve performance
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000, true);
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, CACHE_TTL_SHORT, true);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
     const newsItems = data.map(topic => {
@@ -678,7 +680,7 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
 
 export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => {
   try {
-    const topic = await fetchApi(`/topics/${id}`, 2, 30 * 60 * 1000, true);
+    const topic = await fetchApi(`/topics/${id}`, 2, CACHE_TTL_SHORT, true);
     if (!topic) return MOCK_NEWS.find(n => n.id === id) || MOCK_NEWS[0];
 
     const html = topic.html_body || topic.body || '';
