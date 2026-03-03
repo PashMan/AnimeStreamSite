@@ -18,7 +18,7 @@ export const onRequest = async (context: any) => {
 
   // Create new headers
   const headers = new Headers();
-  headers.set('User-Agent', 'AnimeStream/1.0 (+https://anime-stream.ru)');
+  headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
   headers.set('Referer', 'https://shikimori.one/');
   headers.set('Accept', 'application/json, text/plain, */*');
   
