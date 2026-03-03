@@ -20,7 +20,7 @@
     }
   ],
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
+    { "source": "/sitemap.xml", "destination": "/server-api/sitemap.xml" },
     { "source": "/api/shikimori/(.*)", "destination": "/api/shikimori" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

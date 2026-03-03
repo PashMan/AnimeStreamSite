@@ -1,5 +1,18 @@
 export const onRequest: PagesFunction = async (context) => {
   const url = new URL(context.request.url);
+
+  // Handle CORS preflight requests
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
   const path = url.pathname.replace(/^\/api\/image/, '');
   const targetUrl = `https://shikimori.one${path}${url.search}`;
 

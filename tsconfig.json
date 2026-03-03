@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["./**/*.ts", "./**/*.tsx"],
-  "exclude": ["node_modules", "functions", "api", "server.ts"]
+  "exclude": ["node_modules", "functions", "server-api", "server.ts"]
 }

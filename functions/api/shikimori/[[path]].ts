@@ -1,14 +1,32 @@
 export const onRequest: PagesFunction = async (context) => {
   const url = new URL(context.request.url);
+  
+  // Handle CORS preflight requests
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
   const path = url.pathname.replace(/^\/api\/shikimori/, '');
   const targetUrl = `https://shikimori.one/api${path}${url.search}`;
 
-  // Create new headers to avoid leaking client headers or sending invalid ones
+  // Create new headers
   const headers = new Headers();
-  headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+  headers.set('User-Agent', 'AnimeStream/1.0 (+https://anime-stream.ru)');
   headers.set('Referer', 'https://shikimori.one/');
   headers.set('Accept', 'application/json, text/plain, */*');
-  headers.set('Accept-Language', 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7');
+  
+  // Forward Authorization header if present (for OAuth)
+  const authHeader = context.request.headers.get('Authorization');
+  if (authHeader) {
+    headers.set('Authorization', authHeader);
+  }
 
   const init: RequestInit = {
     method: context.request.method,
@@ -17,7 +35,6 @@ export const onRequest: PagesFunction = async (context) => {
 
   if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {
     init.body = context.request.body;
-    // Forward Content-Type if present
     const contentType = context.request.headers.get('Content-Type');
     if (contentType) {
       headers.set('Content-Type', contentType);
@@ -33,7 +50,7 @@ export const onRequest: PagesFunction = async (context) => {
     newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     newHeaders.set('Access-Control-Allow-Headers', '*');
     
-    // Remove security headers that might block embedding/CORS
+    // Remove security headers that might block embedding
     newHeaders.delete('Content-Security-Policy');
     newHeaders.delete('X-Frame-Options');
 
@@ -45,7 +62,10 @@ export const onRequest: PagesFunction = async (context) => {
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { 
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*' 
+      }
     });
   }
 };

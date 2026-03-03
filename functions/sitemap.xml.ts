@@ -83,8 +83,8 @@ export const onRequest: PagesFunction = async (context) => {
       
       clearTimeout(timeoutId);
 
-      news = newsData;
-      animes = animePages.flat();
+      news = newsData as any[];
+      animes = animePages.flat() as any[];
 
     } catch (e) {
       console.error('Sitemap fetch error:', e);

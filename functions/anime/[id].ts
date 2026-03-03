@@ -18,7 +18,7 @@ export const onRequest: PagesFunction = async (context) => {
       return context.next();
     }
 
-    const anime = await res.json();
+    const anime = await res.json() as any;
     
     // Fetch the original index.html (SPA fallback)
     // We fetch the root "/" to get index.html content
