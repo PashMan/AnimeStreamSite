@@ -60,8 +60,13 @@ export const onRequest = async (context: any) => {
       statusText: response.statusText,
       headers: newHeaders,
     });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { 
+  } catch (e: any) {
+    return new Response(JSON.stringify({ 
+      error: String(e),
+      message: e.message,
+      stack: e.stack,
+      targetUrl: targetUrl
+    }), { 
       status: 500,
       headers: { 
         'Content-Type': 'application/json',
