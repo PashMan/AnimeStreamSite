@@ -21,36 +21,62 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// Health Check
+app.get('/api/health-check', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // API Routes
 app.get('/api/sitemap.xml', sitemapHandler);
 app.get('/sitemap.xml', sitemapHandler);
 
 // Proxies
-app.use('/api/shikimori', createProxyMiddleware({
+const shikimoriProxy = createProxyMiddleware({
   target: 'https://shikimori.one/api',
   changeOrigin: true,
+  secure: false,
   pathRewrite: { '^/api/shikimori': '' },
-  onProxyReq: (proxyReq: any) => {
-    proxyReq.setHeader('User-Agent', 'AnimeStream/1.0');
+  onProxyReq: (proxyReq: any, req: any, res: any) => {
+    proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     proxyReq.setHeader('Referer', 'https://shikimori.one/');
+  },
+  onError: (err: any, req: any, res: any) => {
+    console.error('Shikimori Proxy Error:', err);
+    res.status(500).send('Proxy Error');
   }
-} as any));
+} as any);
 
-app.use('/api/image', createProxyMiddleware({
+app.use('/api/shikimori', shikimoriProxy);
+
+const imageProxy = createProxyMiddleware({
   target: 'https://shikimori.one',
   changeOrigin: true,
+  secure: false,
   pathRewrite: { '^/api/image': '' },
-  onProxyReq: (proxyReq: any) => {
-    proxyReq.setHeader('User-Agent', 'AnimeStream/1.0');
+  onProxyReq: (proxyReq: any, req: any, res: any) => {
+    proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
     proxyReq.setHeader('Referer', 'https://shikimori.one/');
+  },
+  onError: (err: any, req: any, res: any) => {
+    console.error('Image Proxy Error:', err);
+    res.status(500).send('Proxy Error');
   }
-} as any));
+} as any);
 
-app.use('/kodik-proxy', createProxyMiddleware({
+app.use('/api/image', imageProxy);
+
+const kodikProxy = createProxyMiddleware({
   target: 'https://kodikapi.com',
   changeOrigin: true,
-  pathRewrite: { '^/kodik-proxy': '' }
-}));
+  secure: false,
+  pathRewrite: { '^/kodik-proxy': '' },
+  onError: (err: any, req: any, res: any) => {
+    console.error('Kodik Proxy Error:', err);
+    res.status(500).send('Proxy Error');
+  }
+} as any);
+
+app.use('/kodik-proxy', kodikProxy);
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
