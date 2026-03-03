@@ -23,7 +23,17 @@ export const onRequest: PagesFunction = async (context) => {
     // Fetch the original index.html (SPA fallback)
     // We fetch the root "/" to get index.html content
     const url = new URL(context.request.url);
-    const originalResponse = await fetch(`${url.origin}/`);
+    url.pathname = '/index.html';
+    
+    let originalResponse: Response;
+    // @ts-ignore
+    if (context.env.ASSETS) {
+       // @ts-ignore
+       originalResponse = await context.env.ASSETS.fetch(url);
+    } else {
+       originalResponse = await fetch(url);
+    }
+    
     let html = await originalResponse.text();
 
     const title = `Смотреть ${anime.russian || anime.name} онлайн бесплатно`;

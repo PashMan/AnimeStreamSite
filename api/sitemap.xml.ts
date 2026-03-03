@@ -72,7 +72,7 @@ export default async function sitemapHandler(req: Request, res: Response) {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
       const headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -80,20 +80,32 @@ export default async function sitemapHandler(req: Request, res: Response) {
         'Accept': 'application/json'
       };
 
-      const [animeRes, newsRes] = await Promise.all([
-        fetch(`${SHIKIMORI_API_URL}/animes?limit=20&order=popularity`, {
-          headers: headers,
-          signal: controller.signal
-        }),
-        fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=15`, {
-          headers: headers,
-          signal: controller.signal
-        })
-      ]);
+      // Fetch News
+      const newsPromise = fetch(`${SHIKIMORI_API_URL}/topics?type=News&limit=20`, {
+        headers: headers,
+        signal: controller.signal
+      }).then(res => res.ok ? res.json() : []);
+
+      // Fetch Anime (Parallel pages)
+      const animePromises = [];
+      const MAX_PAGES = 20; // 20 * 50 = 1000 animes
+      const PER_PAGE = 50;
+
+      for (let i = 1; i <= MAX_PAGES; i++) {
+        animePromises.push(
+          fetch(`${SHIKIMORI_API_URL}/animes?limit=${PER_PAGE}&order=popularity&page=${i}`, {
+            headers: headers,
+            signal: controller.signal
+          }).then(res => res.ok ? res.json() : [])
+        );
+      }
+
+      const [newsData, ...animePages] = await Promise.all([newsPromise, ...animePromises]);
+      
       clearTimeout(timeoutId);
 
-      if (animeRes.ok) animes = await animeRes.json();
-      if (newsRes.ok) news = await newsRes.json();
+      news = newsData;
+      animes = animePages.flat();
     } catch (e) {
       console.error('Sitemap fetch error:', e);
     }
