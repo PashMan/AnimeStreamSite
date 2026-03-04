@@ -168,14 +168,8 @@ const Details: React.FC = () => {
         // Fetch Related
         fetchRelatedAnimes(id).then(relatedData => {
           if (!isMounted) return;
-          
-          // Filter out music/irrelevant relations
-          const filteredRelated = relatedData.filter(item => 
-            !['Музыка', 'Music'].includes(item.relation)
-          );
-
-          const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel', 'Фильм', 'Movie'];
-          const sortedRelated = [...filteredRelated].sort((a, b) => {
+          const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'];
+          const sortedRelated = [...relatedData].sort((a, b) => {
             const aPri = priorityRelations.indexOf(a.relation);
             const bPri = priorityRelations.indexOf(b.relation);
             if (aPri !== -1 && bPri === -1) return -1;
@@ -183,9 +177,7 @@ const Details: React.FC = () => {
             if (aPri !== -1 && bPri !== -1) return aPri - bPri;
             return 0;
           });
-          
-          // Limit to top 8 to prevent overflow
-          setRelated(sortedRelated.slice(0, 8));
+          setRelated(sortedRelated);
         }).catch(err => console.error("Related fetch error", err))
           .finally(() => { if (isMounted) setIsRelatedLoading(false); });
 
