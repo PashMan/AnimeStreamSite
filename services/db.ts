@@ -11,10 +11,22 @@ let supabaseClient: any = null;
 console.log('Initializing Supabase with URL:', supabaseUrl);
 console.log('Supabase Key present:', supabaseKey !== 'placeholder' && !!supabaseKey);
 
+// Memory storage for Supabase auth to avoid localStorage DOMException
+const memoryStorage = {
+    getItem: (key: string) => null,
+    setItem: (key: string, value: string) => {},
+    removeItem: (key: string) => {},
+};
+
 try {
   if (supabaseUrl && supabaseKey && supabaseKey !== 'placeholder') {
-    supabaseClient = createClient(supabaseUrl, supabaseKey);
-    console.log('Supabase client created successfully');
+    supabaseClient = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        storage: memoryStorage,
+        persistSession: false,
+      },
+    });
+    console.log('Supabase client created successfully with memory storage');
   } else {
     console.warn('Supabase client NOT created: URL or Key is missing/placeholder');
   }
