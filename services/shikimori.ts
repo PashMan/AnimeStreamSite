@@ -1,5 +1,6 @@
 
 import { getFromStorage, saveToStorage, CACHE_PREFIX } from './cache';
+import { safeLocalStorage } from './safeStorage';
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 
@@ -453,8 +454,8 @@ export const getAnimeById = async (id: string | number) => {
 const findInCachedLists = (id: string): Anime | null => {
     try {
         // Search in all local storage keys starting with CACHE_PREFIX
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
+        for (let i = 0; i < safeLocalStorage.length; i++) {
+            const key = safeLocalStorage.key(i);
             if (key && key.startsWith(CACHE_PREFIX)) {
                 const item = getFromStorage(key.replace(CACHE_PREFIX, ''));
                 if (item && item.data && Array.isArray(item.data)) {
