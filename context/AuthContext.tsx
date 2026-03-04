@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
 import { db, supabase } from '../services/db';
-import { safeLocalStorage } from '../services/safeStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -20,7 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = safeLocalStorage.getItem('as_session');
+    const saved = localStorage.getItem('as_session');
     return saved ? JSON.parse(saved) : null;
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -91,9 +90,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     if (user) {
-      safeLocalStorage.setItem('as_session', JSON.stringify(user));
+      localStorage.setItem('as_session', JSON.stringify(user));
     } else {
-      safeLocalStorage.removeItem('as_session');
+      localStorage.removeItem('as_session');
     }
   }, [user]);
 
@@ -137,7 +136,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         // Always clear local state even if server logout fails
         setUser(null);
-        safeLocalStorage.removeItem('as_session');
+        localStorage.removeItem('as_session');
         window.location.reload(); // Force reload to clear any lingering state
     }
   };

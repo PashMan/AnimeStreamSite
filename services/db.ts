@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Anime, User, Comment, ChatMessage, PrivateMessage, ForumTopic, ForumPost, Review } from '../types';
 import { containsProfanity } from '../utils/profanity';
-import { safeLocalStorage } from './safeStorage';
 
 // Use environment variables or fallback to the key you provided
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://ulumbarwutnsodmzxpst.supabase.co';
@@ -892,15 +891,15 @@ class DatabaseService {
 
   // History (Keep local as it's per-device usually, or move to DB if requested)
   async addToHistory(email: string, anime: Anime, ep: number) {
-    const data = safeLocalStorage.getItem(`as_history_${email}`);
+    const data = localStorage.getItem(`as_history_${email}`);
     let history = data ? JSON.parse(data) : [];
     history = history.filter((h: any) => h.animeId !== anime.id);
     history.unshift({ animeId: anime.id, title: anime.title, image: anime.image, episode: ep, date: new Date().toISOString() });
-    safeLocalStorage.setItem(`as_history_${email}`, JSON.stringify(history.slice(0, 30)));
+    localStorage.setItem(`as_history_${email}`, JSON.stringify(history.slice(0, 30)));
   }
 
   async getHistory(email: string): Promise<any[]> {
-    const data = safeLocalStorage.getItem(`as_history_${email}`);
+    const data = localStorage.getItem(`as_history_${email}`);
     return data ? JSON.parse(data) : [];
   }
 
