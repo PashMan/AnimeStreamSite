@@ -5,7 +5,6 @@ import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
-const CACHE_PREFIX = 'as_cache_';
 
 // Debug: Log the base API URL being used
 console.log('[Shikimori Service] Initialized with BASE_API:', BASE_API);
@@ -67,51 +66,7 @@ export const clearRequestQueue = () => {
   globalAbortController = new AbortController();
 };
 
-// Cache configuration (Persistent LocalStorage)
-const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours cache
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout
-
-const getFromStorage = (key: string) => {
-    try {
-        const item = localStorage.getItem(CACHE_PREFIX + key);
-        if (item) return JSON.parse(item);
-    } catch (e) { return null; }
-    return null;
-};
-
-const saveToStorage = (key: string, data: any) => {
-    try {
-        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
-            data,
-            timestamp: Date.now()
-        }));
-    } catch (e) {
-        // If quota exceeded, clear old cache
-        try {
-            // Clear items older than 1 hour
-            const now = Date.now();
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k.startsWith(CACHE_PREFIX)) {
-                    try {
-                        const item = JSON.parse(localStorage.getItem(k) || '{}');
-                        if (now - (item.timestamp || 0) > 60 * 60 * 1000) {
-                            localStorage.removeItem(k);
-                        }
-                    } catch (e) {}
-                }
-            }
-            
-            localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
-                data,
-                timestamp: Date.now()
-            }));
-        } catch(e2) {
-             // If still full, clear all
-             try { localStorage.clear(); } catch (e3) {}
-        }
-    }
-};
 
 export const GENRE_MAP: Record<string, number> = {
   'Экшен': 1, 'Приключения': 2, 'Машины': 3, 'Комедия': 4, 'Безумие': 5,
@@ -221,17 +176,8 @@ const processNewsHtml = (html: string | undefined): string => {
   return processed;
 };
 
-const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQueue = false): Promise<any> => {
-  const cacheKey = endpoint;
-  const cached = getFromStorage(cacheKey);
-  const now = Date.now();
-
-  // 1. Return fresh cache immediately
-  if (cached && (now - cached.timestamp < ttl)) {
-    return cached.data;
-  }
-
-  // 2. Define the network fetch task
+const fetchApi = async (endpoint: string, retries = 2, bypassQueue = false): Promise<any> => {
+  // Define the network fetch task
   const networkTask = async (): Promise<any> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
@@ -278,7 +224,6 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
       }
 
       const data = await response.json();
-      saveToStorage(cacheKey, data);
       return data;
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -300,16 +245,10 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
           console.warn(`Retrying ${endpoint} in ${delay}ms... (${retries} left)`);
           await new Promise(r => setTimeout(r, delay));
           // Recursive call with decremented retries, bypassing queue to prioritize retry
-          return fetchApi(endpoint, retries - 1, ttl, true);
+          return fetchApi(endpoint, retries - 1, true);
       }
 
       console.warn(`Fetch failed for ${endpoint}:`, error);
-      
-      // 3. Fallback to stale cache if available
-      if (cached) {
-          console.log(`Using stale cache for ${endpoint}`);
-          return cached.data;
-      }
       throw error;
     } finally {
       if (!bypassQueue) {
@@ -318,16 +257,14 @@ const fetchApi = async (endpoint: string, retries = 2, ttl = CACHE_TTL, bypassQu
     }
   };
 
-  // 4. Execute with queue or directly
+  // Execute with queue or directly
   if (bypassQueue) {
     return networkTask().catch((err: any) => {
-        if (cached) return cached.data;
         return null;
     });
   }
   
   return requestQueue.add(networkTask).catch((err: any) => {
-      if (cached) return cached.data;
       return null;
   });
 };
@@ -398,43 +335,6 @@ export const mapAnime = async (data: any): Promise<Anime> => {
   };
 };
 
-export const getInitialHeroAnimes = (): Anime[] | null => {
-    try {
-        const query = 'limit=5&order=popularity&status=ongoing';
-        const cacheKey = `/animes?${query}`;
-        const cached = getFromStorage(cacheKey);
-        if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
-             if (Array.isArray(cached.data)) {
-                 // We need to map the raw data to Anime objects synchronously
-                 // Since mapAnime is async (it checks for high-res cover), we do a best-effort sync map here
-                 // or just return the raw data and let the component handle it?
-                 // Actually mapAnime is async because of `proxyImage`? No, `proxyImage` is sync.
-                 // mapAnime is async?
-                 // Let's check mapAnime.
-                 return cached.data.map((item: any) => ({
-                    id: item.id?.toString() || '',
-                    slug: slugify(item.name || item.russian || ''),
-                    title: item.russian || item.name || 'Без названия',
-                    originalName: item.name || '',
-                    image: item.image ? (typeof item.image === 'string' ? proxyImage(item.image) : proxyImage(item.image.original)) : PLACEHOLDER_IMAGE,
-                    image_preview: item.image ? (typeof item.image === 'string' ? proxyImage(item.image) : proxyImage(item.image.preview)) : PLACEHOLDER_IMAGE,
-                    cover: item.image ? (typeof item.image === 'string' ? proxyImage(item.image) : proxyImage(item.image.original)) : PLACEHOLDER_IMAGE,
-                    rating: item.score ? parseFloat(item.score) : 0,
-                    year: item.aired_on ? new Date(item.aired_on).getFullYear() : 0,
-                    type: item.kind === 'movie' ? 'Movie' : 'TV Series',
-                    genres: item.genres ? item.genres.map((g: any) => g.russian || g.name) : [],
-                    episodes: item.episodes || 0,
-                    episodesAired: item.episodes_aired || 0,
-                    status: item.status === 'ongoing' ? 'Ongoing' : 'Completed',
-                    description: (item.description || '').replace(/\[.*?\]/g, '').trim(),
-                    studio: item.studios?.[0]?.name || ''
-                 }));
-             }
-        }
-    } catch (e) { return null; }
-    return null;
-};
-
 export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue = false): Promise<Anime[]> => {
   try {
     const cleanParams: any = { limit: '20' };
@@ -454,7 +354,7 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
     const query = new URLSearchParams(cleanParams).toString();
     
     // Increased retries to 3
-    const data = await fetchApi(`/animes?${query}`, 3, CACHE_TTL, bypassQueue);
+    const data = await fetchApi(`/animes?${query}`, 3, bypassQueue);
     
     if (!data || (Array.isArray(data) && data.length === 0)) {
         return [];
@@ -485,34 +385,10 @@ export const getAnimeById = async (id: string | number) => {
   }
 };
 
-// Helper to search in cached lists
-const findInCachedLists = (id: string): Anime | null => {
-    try {
-        // Search in all local storage keys starting with CACHE_PREFIX
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith(CACHE_PREFIX)) {
-                const item = getFromStorage(key.replace(CACHE_PREFIX, ''));
-                if (item && item.data && Array.isArray(item.data)) {
-                    const found = item.data.find((a: any) => a.id?.toString() === id);
-                    if (found) return found;
-                }
-            }
-        }
-    } catch (e) { }
-    return null;
-};
-
 export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
   try {
     const data = await getAnimeById(id);
     if (!data) {
-        // Try to find in cache before giving up
-        const cachedRaw = findInCachedLists(id);
-        if (cachedRaw) {
-            console.log(`[Anime Details] Found in cache fallback: ${id}`);
-            return mapAnime(cachedRaw);
-        }
         return null;
     }
     
@@ -520,7 +396,7 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
 
     // Fetch screenshots to find a better cover (landscape) for hero banners
     try {
-        const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, 60 * 60 * 1000);
+        const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1);
         if (Array.isArray(screenshots) && screenshots.length > 0) {
              const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
              if (validScreen) {
@@ -540,22 +416,13 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
     return anime;
   } catch (e) {
     console.warn(`[Anime Details] Failed to load API. Error:`, e);
-    
-    // Try to find in cache as a last resort
-    const cachedRaw = findInCachedLists(id);
-    if (cachedRaw) {
-        console.log(`[Anime Details] Recovered from cache after error: ${id}`);
-        return mapAnime(cachedRaw);
-    }
-
-    // Return null to indicate failure, let UI handle it
     return null;
   }
 };
 
 export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/screenshots`);
+    const data = await fetchApi(`/animes/${id}/screenshots`, 1);
     return Array.isArray(data) ? data.map((s: any) => proxyImage(s.original)) : [];
   } catch (e) {
     return [];
@@ -564,7 +431,7 @@ export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
 
 export const fetchAnimeVideos = async (id: string): Promise<{ name: string; url: string; image: string }[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/videos`);
+    const data = await fetchApi(`/animes/${id}/videos`, 2);
     if (Array.isArray(data)) {
       return data.map((v: any) => ({
         name: v.name || 'Трейлер',
@@ -580,7 +447,7 @@ export const fetchAnimeVideos = async (id: string): Promise<{ name: string; url:
 
 export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string; anime: Anime }[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/related`, 2, 60 * 60 * 1000);
+    const data = await fetchApi(`/animes/${id}/related`, 2);
     if (Array.isArray(data)) {
       const items = data
         .filter((item: any) => !!item.anime)
@@ -599,7 +466,7 @@ export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string
 
 export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
   try {
-    const data = await fetchApi(`/animes/${id}/similar`, 2, 60 * 60 * 1000);
+    const data = await fetchApi(`/animes/${id}/similar`, 2);
     if (!data || !Array.isArray(data)) return MOCK_ANIME.slice(0, 4);
     return Promise.all(data.slice(0, 10).map(mapAnime));
   } catch (e) {
@@ -609,7 +476,7 @@ export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
 
 export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
   try {
-    const data = await fetchApi(`/calendar`, 2, CACHE_TTL, false);
+    const data = await fetchApi(`/calendar`, 2, false);
     if (!data || !Array.isArray(data)) return SCHEDULE;
 
     const daysMap: Record<string, any[]> = { 'Пн': [], 'Вт': [], 'Ср': [], 'Чт': [], 'Пт': [], 'Сб': [], 'Вс': [] };
@@ -638,7 +505,7 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
     // Cache news for 30 minutes to improve performance
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, 30 * 60 * 1000, true);
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, true);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
     const newsItems = data.map(topic => {
@@ -678,7 +545,7 @@ export const fetchNews = async (): Promise<NewsItem[]> => {
 
 export const fetchNewsDetails = async (id: string): Promise<NewsItem | null> => {
   try {
-    const topic = await fetchApi(`/topics/${id}`, 2, 30 * 60 * 1000, true);
+    const topic = await fetchApi(`/topics/${id}`, 2, true);
     if (!topic) return MOCK_NEWS.find(n => n.id === id) || MOCK_NEWS[0];
 
     const html = topic.html_body || topic.body || '';

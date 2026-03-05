@@ -44,6 +44,7 @@ const Details: React.FC = () => {
   const [isCommenting, setIsCommenting] = useState(false);
 
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [isRelatedExpanded, setIsRelatedExpanded] = useState(false);
   
   // Share feature
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -168,15 +169,31 @@ const Details: React.FC = () => {
         // Fetch Related
         fetchRelatedAnimes(id).then(relatedData => {
           if (!isMounted) return;
-          const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'];
-          const sortedRelated = [...relatedData].sort((a, b) => {
+          
+          // Filter out music/irrelevant relations
+          const filteredRelated = relatedData.filter(item => 
+            !['Музыка', 'Music'].includes(item.relation)
+          );
+
+          const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel', 'Фильм', 'Movie'];
+          const sortedRelated = [...filteredRelated].sort((a, b) => {
+            // 1. Sort by relation priority
             const aPri = priorityRelations.indexOf(a.relation);
             const bPri = priorityRelations.indexOf(b.relation);
             if (aPri !== -1 && bPri === -1) return -1;
             if (aPri === -1 && bPri !== -1) return 1;
             if (aPri !== -1 && bPri !== -1) return aPri - bPri;
+            
+            // 2. If relations are equal or both not priority, sort by type (TV Series before OVA)
+            const typeOrder: Record<string, number> = { 'TV Series': 1, 'Movie': 2, 'OVA': 3, 'ONA': 4 };
+            const aType = typeOrder[a.anime.type] || 5;
+            const bType = typeOrder[b.anime.type] || 5;
+            if (aType !== bType) return aType - bType;
+
             return 0;
           });
+          
+          // Limit to top 8 to prevent overflow
           setRelated(sortedRelated);
         }).catch(err => console.error("Related fetch error", err))
           .finally(() => { if (isMounted) setIsRelatedLoading(false); });
@@ -557,7 +574,7 @@ const Details: React.FC = () => {
                 <section>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8">Порядок просмотра</h3>
                   <div className="flex flex-col gap-3">
-                    {related.map((item, idx) => {
+                    {related.slice(0, isRelatedExpanded ? related.length : 8).map((item, idx) => {
                       const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
                       return (
                         <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
@@ -577,6 +594,15 @@ const Details: React.FC = () => {
                         </Link>
                       );
                     })}
+                    {related.length > 8 && (
+                        <button 
+                            onClick={() => setIsRelatedExpanded(!isRelatedExpanded)}
+                            className="text-primary font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 mt-2"
+                        >
+                            {isRelatedExpanded ? 'Свернуть' : 'Показать еще'}
+                            <ChevronRight className={`w-3 h-3 transition-transform ${isRelatedExpanded ? '-rotate-90' : 'rotate-90'}`} />
+                        </button>
+                    )}
                   </div>
                 </section>
               )}

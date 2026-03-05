@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { User } from '../types';
 import { db, supabase } from '../services/db';
 
+
 interface AuthContextType {
   user: User | null;
   login: (credentials: { email: string; password: string }) => Promise<boolean>;
@@ -19,8 +20,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('as_session');
-    return saved ? JSON.parse(saved) : null;
+    try {
+        const saved = localStorage.getItem('as_session');
+        return saved ? JSON.parse(saved) : null;
+    } catch {
+        return null;
+    }
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
@@ -89,10 +94,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('as_session', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('as_session');
+    try {
+        if (user) {
+            localStorage.setItem('as_session', JSON.stringify(user));
+        } else {
+            localStorage.removeItem('as_session');
+        }
+    } catch (e) {
+        // Ignore storage errors
     }
   }, [user]);
 
@@ -136,7 +145,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         // Always clear local state even if server logout fails
         setUser(null);
-        localStorage.removeItem('as_session');
+        try {
+            localStorage.removeItem('as_session');
+        } catch {}
         window.location.reload(); // Force reload to clear any lingering state
     }
   };

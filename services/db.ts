@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Anime, User, Comment, ChatMessage, PrivateMessage, ForumTopic, ForumPost, Review } from '../types';
 import { containsProfanity } from '../utils/profanity';
 
+
 // Use environment variables or fallback to the key you provided
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://ulumbarwutnsodmzxpst.supabase.co';
 const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsdW1iYXJ3dXRuc29kbXp4cHN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MDA5ODIsImV4cCI6MjA4NzI3Njk4Mn0.4HTww4JB9dcc9FcyONURPsdcu4CAdKzScsshAj3lJxs';
@@ -10,10 +11,22 @@ let supabaseClient: any = null;
 console.log('Initializing Supabase with URL:', supabaseUrl);
 console.log('Supabase Key present:', supabaseKey !== 'placeholder' && !!supabaseKey);
 
+// Memory storage for Supabase auth to avoid localStorage DOMException
+const memoryStorage = {
+    getItem: (key: string) => null,
+    setItem: (key: string, value: string) => {},
+    removeItem: (key: string) => {},
+};
+
 try {
   if (supabaseUrl && supabaseKey && supabaseKey !== 'placeholder') {
-    supabaseClient = createClient(supabaseUrl, supabaseKey);
-    console.log('Supabase client created successfully');
+    supabaseClient = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        storage: memoryStorage,
+        persistSession: false,
+      },
+    });
+    console.log('Supabase client created successfully with memory storage');
   } else {
     console.warn('Supabase client NOT created: URL or Key is missing/placeholder');
   }
@@ -891,16 +904,25 @@ class DatabaseService {
 
   // History (Keep local as it's per-device usually, or move to DB if requested)
   async addToHistory(email: string, anime: Anime, ep: number) {
-    const data = localStorage.getItem(`as_history_${email}`);
-    let history = data ? JSON.parse(data) : [];
-    history = history.filter((h: any) => h.animeId !== anime.id);
-    history.unshift({ animeId: anime.id, title: anime.title, image: anime.image, episode: ep, date: new Date().toISOString() });
-    localStorage.setItem(`as_history_${email}`, JSON.stringify(history.slice(0, 30)));
+    try {
+        const key = `as_history_${email}`;
+        const data = localStorage.getItem(key);
+        let history = data ? JSON.parse(data) : [];
+        history = history.filter((h: any) => h.animeId !== anime.id);
+        history.unshift({ animeId: anime.id, title: anime.title, image: anime.image, episode: ep, date: new Date().toISOString() });
+        localStorage.setItem(key, JSON.stringify(history.slice(0, 30)));
+    } catch (e) {
+        // Ignore storage errors
+    }
   }
 
   async getHistory(email: string): Promise<any[]> {
-    const data = localStorage.getItem(`as_history_${email}`);
-    return data ? JSON.parse(data) : [];
+    try {
+        const data = localStorage.getItem(`as_history_${email}`);
+        return data ? JSON.parse(data) : [];
+    } catch (e) {
+        return [];
+    }
   }
 
   // Private Messages

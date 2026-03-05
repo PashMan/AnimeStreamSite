@@ -5,7 +5,7 @@ import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Cl
 import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
-import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails, getInitialHeroAnimes } from '../services/shikimori';
+import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ForumTopic } from '../types';
@@ -16,14 +16,14 @@ const Home: React.FC = () => {
   const trendingRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
   
-  const [heroAnimes, setHeroAnimes] = useState<Anime[]>(() => getInitialHeroAnimes() || []);
+  const [heroAnimes, setHeroAnimes] = useState<Anime[]>([]);
   const [trendingAnimes, setTrendingAnimes] = useState<Anime[]>([]);
   const [newAnimes, setNewAnimes] = useState<Anime[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [forumTopics, setForumTopics] = useState<ForumTopic[]>([]);
   
-  const [isHeroLoading, setIsHeroLoading] = useState(() => !getInitialHeroAnimes());
+  const [isHeroLoading, setIsHeroLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
   const [upscaleAnime, setUpscaleAnime] = useState('');

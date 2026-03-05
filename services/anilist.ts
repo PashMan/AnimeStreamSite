@@ -1,56 +1,5 @@
 
 const ANILIST_API = 'https://graphql.anilist.co';
-const CACHE_PREFIX = 'anilist_img_';
-const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-// Persistent Cache Helper
-const getFromCache = (key: string): string | null | undefined => {
-    try {
-        const item = localStorage.getItem(CACHE_PREFIX + key);
-        if (item) {
-            const parsed = JSON.parse(item);
-            if (Date.now() - parsed.timestamp < CACHE_TTL) {
-                return parsed.value;
-            } else {
-                localStorage.removeItem(CACHE_PREFIX + key);
-            }
-        }
-    } catch (e) { return undefined; }
-    return undefined;
-};
-
-const saveToCache = (key: string, value: string | null) => {
-    try {
-        // Clear old items if full
-        try {
-            const now = Date.now();
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k.startsWith(CACHE_PREFIX)) {
-                    const item = JSON.parse(localStorage.getItem(k) || '{}');
-                    if (now - (item.timestamp || 0) > CACHE_TTL) {
-                        localStorage.removeItem(k);
-                    }
-                }
-            }
-        } catch (e2) {}
-        
-        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({
-            value,
-            timestamp: Date.now()
-        }));
-    } catch (e) {
-        // If quota exceeded, clear all anilist cache
-        try {
-             for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k.startsWith(CACHE_PREFIX)) {
-                    localStorage.removeItem(k);
-                }
-            }
-        } catch (e3) {}
-    }
-};
 
 // Request queue
 const queue: { title: string; resolve: (value: string | null) => void; reject: (reason?: any) => void }[] = [];
@@ -72,14 +21,6 @@ const processQueue = async () => {
         const currentItem = queue[0]; // Peek
         const { title, resolve } = currentItem;
         
-        // Check cache again just in case
-        const cached = getFromCache(title);
-        if (cached !== undefined) {
-            queue.shift();
-            resolve(cached);
-            continue;
-        }
-
         try {
             const query = `
             query ($search: String) {
@@ -121,18 +62,11 @@ const processQueue = async () => {
             queue.shift(); // Remove from queue
 
             if (!response.ok) {
-                if (response.status === 404) {
-                    saveToCache(title, null);
-                    resolve(null);
-                } else {
-                    // Other errors (500, etc) - don't cache, just return null
-                    resolve(null);
-                }
+                resolve(null);
             } else {
                 const data = await response.json();
                 const media = data.data?.Media;
                 const imageUrl = media?.coverImage?.extraLarge || media?.coverImage?.large || null;
-                saveToCache(title, imageUrl);
                 resolve(imageUrl);
             }
 
@@ -159,9 +93,6 @@ const processQueue = async () => {
 export const fetchAnilistImage = (title: string): Promise<string | null> => {
     if (!title) return Promise.resolve(null);
     
-    const cached = getFromCache(title);
-    if (cached !== undefined) return Promise.resolve(cached);
-
     return new Promise((resolve, reject) => {
         queue.push({ title, resolve, reject });
         processQueue();

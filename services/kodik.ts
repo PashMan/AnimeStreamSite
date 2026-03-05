@@ -1,4 +1,6 @@
 
+
+
 export interface KodikTranslation {
   id: number;
   title: string;
@@ -17,6 +19,7 @@ export interface KodikAnime {
 const KODIK_TOKEN = "b3b563060d02ee000ca18740b7842ca0";
 // Use the proxy to avoid mixed content and CORS issues
 const BASE_URL = "/kodik-proxy"; 
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache
 
 const fetchApi = async (url: string) => {
   try {
@@ -56,7 +59,8 @@ export const fetchKodikData = async (shikimoriId: string, title?: string): Promi
         }
      });
 
-     return Array.from(uniqueTranslations.values()).sort((a: any, b: any) => b.last_episode - a.last_episode);
+     const result = Array.from(uniqueTranslations.values()).sort((a: any, b: any) => b.last_episode - a.last_episode);
+     return result;
   } catch (e) {
      return [];
   }

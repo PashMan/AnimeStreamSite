@@ -241,6 +241,42 @@ const Layout: React.FC = () => {
           </button>
         </div>
         
+        <div className="px-6 py-4">
+          <form onSubmit={handleSearch} className="relative w-full group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
+            <input
+              type="text"
+              aria-label="Поиск аниме"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              placeholder="Найти аниме..."
+              className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-2">
+                  {suggestions.map((anime) => (
+                    <Link
+                      key={anime.id}
+                      to={`/anime/${anime.id}`}
+                      className="flex items-center gap-4 p-2 hover:bg-white/5 rounded-xl transition-colors group/item"
+                      onClick={() => { setShowSuggestions(false); setIsMenuOpen(false); }}
+                    >
+                      <img src={anime.image} alt={anime.title} className="w-10 h-14 object-cover rounded-lg" />
+                      <span className="text-sm font-bold text-slate-200 truncate">{anime.title}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </form>
+        </div>
+        
         <nav className="flex-1 overflow-y-auto p-6 flex flex-col gap-2">
           <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
             Главная
