@@ -1,10 +1,13 @@
 
 import { Anime, ScheduleItem, NewsItem } from '../types';
 import { MOCK_ANIME, SCHEDULE, MOCK_NEWS, FALLBACK_IMAGE } from '../constants';
+import { getFromStorage, saveToStorage } from './cache';
 
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes default cache
+const LONG_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for static data
 
 // Debug: Log the base API URL being used
 console.log('[Shikimori Service] Initialized with BASE_API:', BASE_API);
@@ -176,7 +179,13 @@ const processNewsHtml = (html: string | undefined): string => {
   return processed;
 };
 
-const fetchApi = async (endpoint: string, retries = 2, bypassQueue = false): Promise<any> => {
+export const fetchApi = async (endpoint: string, retries = 2, bypassQueue = false, ttl = CACHE_TTL): Promise<any> => {
+  // Check cache
+  const cached = getFromStorage(`shikimori_${endpoint}`);
+  if (cached && (Date.now() - cached.timestamp < ttl)) {
+    return cached.data;
+  }
+
   // Define the network fetch task
   const networkTask = async (): Promise<any> => {
     const controller = new AbortController();
@@ -224,6 +233,7 @@ const fetchApi = async (endpoint: string, retries = 2, bypassQueue = false): Pro
       }
 
       const data = await response.json();
+      saveToStorage(`shikimori_${endpoint}`, data);
       return data;
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -245,7 +255,7 @@ const fetchApi = async (endpoint: string, retries = 2, bypassQueue = false): Pro
           console.warn(`Retrying ${endpoint} in ${delay}ms... (${retries} left)`);
           await new Promise(r => setTimeout(r, delay));
           // Recursive call with decremented retries, bypassing queue to prioritize retry
-          return fetchApi(endpoint, retries - 1, true);
+          return fetchApi(endpoint, retries - 1, true, ttl);
       }
 
       console.warn(`Fetch failed for ${endpoint}:`, error);
@@ -370,17 +380,9 @@ export const fetchAnimes = async (params: Record<string, any> = {}, bypassQueue 
 };
 
 export const getAnimeById = async (id: string | number) => {
-  const controller = new AbortController();
-  // Increase to 8 seconds
-  const timeoutId = setTimeout(() => controller.abort(), 8000); 
-  
   try {
-    const response = await fetch(`${BASE_API}/animes/${id}`, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!response.ok) throw new Error('Failed to fetch anime');
-    return await response.json();
+    return await fetchApi(`/animes/${id}`, 2, false, LONG_CACHE_TTL);
   } catch (e) {
-    clearTimeout(timeoutId);
     throw e;
   }
 };

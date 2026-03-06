@@ -33,6 +33,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/kodik-proxy/, ''),
+      },
+      '/api/anilist': {
+        target: 'https://graphql.anilist.co',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/anilist/, ''),
       }
     },
     host: true // Expose to network for testing
@@ -64,6 +70,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/kodik-proxy/, ''),
+      },
+      '/api/anilist': {
+        target: 'https://graphql.anilist.co',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/anilist/, ''),
       }
     },
     host: true

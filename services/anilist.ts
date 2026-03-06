@@ -1,5 +1,8 @@
 
-const ANILIST_API = 'https://graphql.anilist.co';
+import { getFromStorage, saveToStorage } from './cache';
+
+const ANILIST_API = '/api/anilist';
+const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Request queue
 const queue: { title: string; resolve: (value: string | null) => void; reject: (reason?: any) => void }[] = [];
@@ -21,6 +24,14 @@ const processQueue = async () => {
         const currentItem = queue[0]; // Peek
         const { title, resolve } = currentItem;
         
+        // Check cache again
+        const cached = getFromStorage(`anilist_${title}`);
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+            queue.shift();
+            resolve(cached.data);
+            continue;
+        }
+
         try {
             const query = `
             query ($search: String) {
@@ -67,6 +78,7 @@ const processQueue = async () => {
                 const data = await response.json();
                 const media = data.data?.Media;
                 const imageUrl = media?.coverImage?.extraLarge || media?.coverImage?.large || null;
+                saveToStorage(`anilist_${title}`, imageUrl);
                 resolve(imageUrl);
             }
 
@@ -93,6 +105,11 @@ const processQueue = async () => {
 export const fetchAnilistImage = (title: string): Promise<string | null> => {
     if (!title) return Promise.resolve(null);
     
+    const cached = getFromStorage(`anilist_${title}`);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        return Promise.resolve(cached.data);
+    }
+
     return new Promise((resolve, reject) => {
         queue.push({ title, resolve, reject });
         processQueue();

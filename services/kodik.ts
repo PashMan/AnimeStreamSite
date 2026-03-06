@@ -1,6 +1,8 @@
 
 
 
+import { getFromStorage, saveToStorage } from './cache';
+
 export interface KodikTranslation {
   id: number;
   title: string;
@@ -19,13 +21,21 @@ export interface KodikAnime {
 const KODIK_TOKEN = "b3b563060d02ee000ca18740b7842ca0";
 // Use the proxy to avoid mixed content and CORS issues
 const BASE_URL = "/kodik-proxy"; 
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours cache for video links
 
 const fetchApi = async (url: string) => {
+  // Check cache
+  const cached = getFromStorage(`kodik_${url}`);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+    return cached.data;
+  }
+
   try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Kodik API Error: ${res.status}`);
-      return await res.json();
+      const data = await res.json();
+      saveToStorage(`kodik_${url}`, data);
+      return data;
   } catch (e) {
       // Silently fail
       return null;
