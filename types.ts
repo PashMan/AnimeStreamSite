@@ -103,6 +103,58 @@ export interface ForumPost {
   createdAt: string;
 }
 
+export interface Club {
+  id: string;
+  name: string;
+  description: string;
+  avatarUrl: string;
+  creatorId: string;
+  createdAt: string;
+  membersCount?: number;
+}
+
+export interface ClubMember {
+  clubId: string;
+  userId: string;
+  role: 'admin' | 'moderator' | 'member';
+  joinedAt: string;
+  user?: User;
+}
+
+export interface ClubMessage {
+  id: string;
+  clubId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+  user?: {
+    name: string;
+    avatar: string;
+  };
+}
+
+export interface CommunityCollection {
+  id: string;
+  name: string;
+  description: string;
+  creatorId: string;
+  isPublic: boolean;
+  createdAt: string;
+  creator?: {
+    name: string;
+    avatar: string;
+  };
+  items?: CommunityCollectionItem[];
+}
+
+export interface CommunityCollectionItem {
+  collectionId: string;
+  animeId: string;
+  animeTitle: string;
+  animeImage: string;
+  addedAt: string;
+}
+
 export interface Comment {
   id: string;
   user: {

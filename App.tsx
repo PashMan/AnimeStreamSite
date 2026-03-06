@@ -13,6 +13,7 @@ import Home from './pages/Home';
 const Catalog = React.lazy(() => import('./pages/Catalog'));
 const Collections = React.lazy(() => import('./pages/Collections'));
 const CollectionDetail = React.lazy(() => import('./pages/CollectionDetail'));
+const CommunityCollectionDetail = React.lazy(() => import('./pages/CommunityCollectionDetail'));
 const Details = React.lazy(() => import('./pages/Details'));
 const TextPage = React.lazy(() => import('./pages/TextPage'));
 const NewsDetails = React.lazy(() => import('./pages/NewsDetails'));
@@ -23,6 +24,7 @@ const ResetPassword = React.lazy(() => import('./pages/ResetPassword'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 const Messages = React.lazy(() => import('./pages/Messages'));
 const Social = React.lazy(() => import('./pages/Social'));
+const ClubDetail = React.lazy(() => import('./pages/ClubDetail'));
 const News = React.lazy(() => import('./pages/News'));
 const AdminPanel = React.lazy(() => import('./pages/AdminPanel'));
 
@@ -68,6 +70,7 @@ const App: React.FC = () => {
             <Route path="catalog" element={<Catalog />} />
             <Route path="collections" element={<Collections />} />
             <Route path="collections/:id" element={<CollectionDetail />} />
+            <Route path="collections/community/:id" element={<CommunityCollectionDetail />} />
             <Route path="news" element={<News />} />
             <Route path="news/:id" element={<NewsDetails />} />
             <Route path="anime/:id" element={<Details />} />
@@ -76,6 +79,7 @@ const App: React.FC = () => {
             <Route path="favorites" element={<Navigate to="/profile" replace />} />
             <Route path="messages" element={<Messages />} />
             <Route path="social" element={<Social />} />
+            <Route path="club/:id" element={<ClubDetail />} />
             <Route path="community" element={<Navigate to="/social" replace />} />
             <Route path="forum" element={<Forum />} />
             <Route path="forum/:topicId" element={<Forum />} />

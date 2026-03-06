@@ -6,14 +6,20 @@ import { Search, UserPlus, MessageSquare, Users, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 
+import CreateClubModal from '../components/CreateClubModal';
+
 const Social: React.FC = () => {
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
+  const [activeTab, setActiveTab] = useState<'people' | 'clubs'>('people');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
   const [recentUsers, setRecentUsers] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingFriends, setIsLoadingFriends] = useState(true);
+  const [clubs, setClubs] = useState<any[]>([]);
+  const [isLoadingClubs, setIsLoadingClubs] = useState(false);
+  const [isCreateClubModalOpen, setIsCreateClubModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -55,6 +61,16 @@ const Social: React.FC = () => {
     loadData();
   }, [user?.email]);
 
+  useEffect(() => {
+    if (activeTab === 'clubs') {
+      setIsLoadingClubs(true);
+      db.getClubs().then(data => {
+        setClubs(data);
+        setIsLoadingClubs(false);
+      });
+    }
+  }, [activeTab]);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -84,139 +100,210 @@ const Social: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-h-screen">
-      <SEO title="Люди - Поиск и друзья" description="Находите друзей, общайтесь и делитесь впечатлениями об аниме." />
+      <SEO title="Сообщество - Люди и Клубы" description="Находите друзей, вступайте в клубы и общайтесь с единомышленниками." />
+      
+      {/* Tabs */}
+      <div className="flex gap-4 mb-10">
+        <button 
+          onClick={() => setActiveTab('people')}
+          className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${activeTab === 'people' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-surface/50 text-slate-400 hover:text-white border border-white/5'}`}
+        >
+          Люди
+        </button>
+        <button 
+          onClick={() => setActiveTab('clubs')}
+          className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${activeTab === 'clubs' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-surface/50 text-slate-400 hover:text-white border border-white/5'}`}
+        >
+          Клубы
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Friends List */}
-        <div className="lg:col-span-1 space-y-6">
-           <div className="bg-surface/30 rounded-3xl p-6 border border-white/5 backdrop-blur-md">
-              <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-primary" />
-                  Мои друзья
-              </h2>
-              {isLoadingFriends ? (
-                  <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
-              ) : friends.length === 0 ? (
-                  <div className="text-center py-10 text-slate-500 text-xs font-bold uppercase tracking-widest">
-                      У вас пока нет друзей
-                  </div>
-              ) : (
-                  <div className="space-y-4">
-                      {friends.map(friend => (
-                          <div key={friend.id} className="flex items-center justify-between bg-white/5 p-3 rounded-xl gap-3">
-                              <div className="flex items-center gap-3 min-w-0">
-                                  <Link to={`/user/${friend.name || friend.id || friend.email}`} className="shrink-0">
-                                      <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-lg object-cover" />
-                                  </Link>
-                                  <div className="min-w-0">
-                                      <Link to={`/user/${friend.name || friend.id || friend.email}`} className="font-bold text-sm text-white truncate hover:text-primary transition-colors">{friend.name}</Link>
-                                      <div className="text-[10px] text-slate-500 uppercase tracking-wider truncate">Online</div>
+        {activeTab === 'people' ? (
+          <>
+            {/* Friends List */}
+            <div className="lg:col-span-1 space-y-6">
+               <div className="bg-surface/30 rounded-3xl p-6 border border-white/5 backdrop-blur-md">
+                  <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-primary" />
+                      Мои друзья
+                  </h2>
+                  {isLoadingFriends ? (
+                      <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
+                  ) : friends.length === 0 ? (
+                      <div className="text-center py-10 text-slate-500 text-xs font-bold uppercase tracking-widest">
+                          У вас пока нет друзей
+                      </div>
+                  ) : (
+                      <div className="space-y-4">
+                          {friends.map(friend => (
+                              <div key={friend.id} className="flex items-center justify-between bg-white/5 p-3 rounded-xl gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                      <Link to={`/user/${friend.name || friend.id || friend.email}`} className="shrink-0">
+                                          <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-lg object-cover" />
+                                      </Link>
+                                      <div className="min-w-0">
+                                          <Link to={`/user/${friend.name || friend.id || friend.email}`} className="font-bold text-sm text-white truncate hover:text-primary transition-colors">{friend.name}</Link>
+                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider truncate">Online</div>
+                                      </div>
                                   </div>
+                                  <Link to={`/messages?user=${friend.email}`} className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors shrink-0">
+                                      <MessageSquare className="w-4 h-4" />
+                                  </Link>
                               </div>
-                              <Link to={`/messages?user=${friend.email}`} className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors shrink-0">
-                                  <MessageSquare className="w-4 h-4" />
-                              </Link>
-                          </div>
-                      ))}
-                  </div>
-              )}
-           </div>
-        </div>
+                          ))}
+                      </div>
+                  )}
+               </div>
+            </div>
 
-        {/* Search Area */}
-        <div className="lg:col-span-2 space-y-6">
-            <div className="bg-surface/30 rounded-3xl p-8 border border-white/5 backdrop-blur-md">
-                <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-6">Поиск людей</h2>
-                <form onSubmit={handleSearch} className="flex gap-4 mb-8">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input 
-                            type="text" 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Введите имя пользователя..."
-                            className="w-full bg-black/20 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-primary outline-none transition-colors"
-                        />
-                    </div>
-                    <button type="submit" disabled={isSearching} className="px-8 bg-primary text-white font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-violet-600 transition-colors disabled:opacity-50">
-                        {isSearching ? <Loader2 className="animate-spin" /> : 'Найти'}
-                    </button>
-                </form>
-
-                <div className="space-y-4">
-                    {searchResults.length > 0 && (
-                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Результаты поиска</div>
-                    )}
-                    
-                    {/* Show Recent Users if no search results */}
-                    {searchResults.length === 0 && !searchQuery && (
-                        <div className="space-y-4">
-                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Недавние пользователи</div>
-                            {recentUsers.map(result => {
-                                const isFriend = friends.some(f => f.id === result.id);
-                                return (
-                                    <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
-                                        <div className="flex items-center gap-4 min-w-0">
-                                            <Link to={`/user/${result.name || result.id || result.email}`} className="shrink-0">
-                                                <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
-                                            </Link>
-                                            <div className="min-w-0">
-                                                <Link to={`/user/${result.name || result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
-                                                <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
-                                            </div>
-                                        </div>
-                                        {isFriend ? (
-                                            <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 shrink-0">
-                                                <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Написать</span>
-                                            </Link>
-                                        ) : (
-                                            <button 
-                                                onClick={() => handleAddFriend(result.email)}
-                                                className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
-                                            >
-                                                <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>
-                                            </button>
-                                        )}
-                                    </div>
-                                );
-                            })}
+            {/* Search Area */}
+            <div className="lg:col-span-2 space-y-6">
+                <div className="bg-surface/30 rounded-3xl p-8 border border-white/5 backdrop-blur-md">
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-6">Поиск людей</h2>
+                    <form onSubmit={handleSearch} className="flex gap-4 mb-8">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <input 
+                                type="text" 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Введите имя пользователя..."
+                                className="w-full bg-black/20 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white focus:border-primary outline-none transition-colors"
+                            />
                         </div>
-                    )}
+                        <button type="submit" disabled={isSearching} className="px-8 bg-primary text-white font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-violet-600 transition-colors disabled:opacity-50">
+                            {isSearching ? <Loader2 className="animate-spin" /> : 'Найти'}
+                        </button>
+                    </form>
 
-                    {searchResults.map(result => {
-                        const isFriend = friends.some(f => f.id === result.id);
-                        return (
-                            <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
-                                <div className="flex items-center gap-4 min-w-0">
-                                    <Link to={`/user/${result.name || result.id || result.email}`} className="shrink-0">
-                                        <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
-                                    </Link>
-                                    <div className="min-w-0">
-                                        <Link to={`/user/${result.name || result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
-                                        <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
-                                    </div>
-                                </div>
-                                {isFriend ? (
-                                    <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 shrink-0">
-                                        <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Написать</span>
-                                    </Link>
-                                ) : (
-                                    <button 
-                                        onClick={() => handleAddFriend(result.email)}
-                                        className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
-                                    >
-                                        <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>
-                                    </button>
-                                )}
+                    <div className="space-y-4">
+                        {searchResults.length > 0 && (
+                            <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Результаты поиска</div>
+                        )}
+                        
+                        {/* Show Recent Users if no search results */}
+                        {searchResults.length === 0 && !searchQuery && (
+                            <div className="space-y-4">
+                                <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Недавние пользователи</div>
+                                {recentUsers.map(result => {
+                                    const isFriend = friends.some(f => f.id === result.id);
+                                    return (
+                                        <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
+                                            <div className="flex items-center gap-4 min-w-0">
+                                                <Link to={`/user/${result.name || result.id || result.email}`} className="shrink-0">
+                                                    <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
+                                                </Link>
+                                                <div className="min-w-0">
+                                                    <Link to={`/user/${result.name || result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
+                                                    <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
+                                                </div>
+                                            </div>
+                                            {isFriend ? (
+                                                <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 shrink-0">
+                                                    <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Написать</span>
+                                                </Link>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => handleAddFriend(result.email)}
+                                                    className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
+                                                >
+                                                    <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        );
-                    })}
-                    {searchResults.length === 0 && searchQuery && !isSearching && (
-                        <div className="text-center py-10 text-slate-500">Ничего не найдено</div>
-                    )}
+                        )}
+
+                        {searchResults.map(result => {
+                            const isFriend = friends.some(f => f.id === result.id);
+                            return (
+                                <div key={result.id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl hover:bg-white/10 transition-colors gap-4">
+                                    <div className="flex items-center gap-4 min-w-0">
+                                        <Link to={`/user/${result.name || result.id || result.email}`} className="shrink-0">
+                                            <img src={result.avatar} alt={result.name} className="w-12 h-12 rounded-xl object-cover" />
+                                        </Link>
+                                        <div className="min-w-0">
+                                            <Link to={`/user/${result.name || result.id || result.email}`} className="font-bold text-white truncate hover:text-primary transition-colors">{result.name}</Link>
+                                            <div className="text-xs text-slate-400 truncate">{result.bio || 'Нет описания'}</div>
+                                        </div>
+                                    </div>
+                                    {isFriend ? (
+                                        <Link to={`/messages?user=${result.email}`} className="px-4 py-2 bg-white/5 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2 shrink-0">
+                                            <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Написать</span>
+                                        </Link>
+                                    ) : (
+                                        <button 
+                                            onClick={() => handleAddFriend(result.email)}
+                                            className="px-4 py-2 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl hover:bg-violet-600 transition-colors flex items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
+                                        >
+                                            <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Добавить</span>
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {searchResults.length === 0 && searchQuery && !isSearching && (
+                            <div className="text-center py-10 text-slate-500">Ничего не найдено</div>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+          </>
+        ) : (
+          <div className="lg:col-span-3 space-y-6">
+             <div className="bg-surface/30 rounded-3xl p-8 border border-white/5 backdrop-blur-md">
+                <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Клубы сообщества</h2>
+                    <button 
+                      onClick={() => user ? setIsCreateClubModalOpen(true) : openAuthModal()}
+                      className="px-6 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-violet-600 transition-colors shadow-lg shadow-primary/20"
+                    >
+                        Создать клуб
+                    </button>
+                </div>
+
+                {isLoadingClubs ? (
+                    <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
+                ) : clubs.length === 0 ? (
+                    <div className="text-center py-20">
+                        <Users className="w-16 h-16 text-slate-700 mx-auto mb-4" />
+                        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Клубов пока нет. Станьте первым!</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {clubs.map(club => (
+                            <Link key={club.id} to={`/club/${club.id}`} className="group bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 transition-all">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <img src={club.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${club.name}`} alt={club.name} className="w-16 h-16 rounded-2xl object-cover" />
+                                    <div>
+                                        <h3 className="font-black text-white uppercase tracking-tight group-hover:text-primary transition-colors">{club.name}</h3>
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{club.membersCount || 0} участников</div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-400 line-clamp-2 mb-4">{club.description || 'Нет описания'}</p>
+                                <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                                    <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Создан {new Date(club.createdAt).toLocaleDateString()}</span>
+                                    <span className="text-[9px] text-primary font-black uppercase tracking-widest group-hover:translate-x-1 transition-transform">Подробнее →</span>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                )}
+             </div>
+          </div>
+        )}
       </div>
+
+      <CreateClubModal 
+        isOpen={isCreateClubModalOpen} 
+        onClose={() => setIsCreateClubModalOpen(false)}
+        onSuccess={() => {
+          db.getClubs().then(setClubs);
+        }}
+      />
     </div>
   );
 };

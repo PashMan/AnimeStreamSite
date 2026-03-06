@@ -1,15 +1,17 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, Send, MessageSquare } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Loader2, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, Send, MessageSquare, Plus } from 'lucide-react';
 import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
-import { Anime, ScheduleItem, NewsItem, ForumTopic } from '../types';
+import { Anime, ScheduleItem, NewsItem, ForumTopic, CommunityCollection } from '../types';
 import { FALLBACK_IMAGE, COLLECTIONS_DATA } from '../constants';
+
+import CreateCollectionModal from '../components/CreateCollectionModal';
 
 const Home: React.FC = () => {
   const ongoingRef = useRef<HTMLDivElement>(null);
@@ -22,6 +24,10 @@ const Home: React.FC = () => {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [forumTopics, setForumTopics] = useState<ForumTopic[]>([]);
+  const [communityCollections, setCommunityCollections] = useState<CommunityCollection[]>([]);
+  const [collectionType, setCollectionType] = useState<'official' | 'community'>('official');
+  const [isLoadingCollections, setIsLoadingCollections] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
   const [isHeroLoading, setIsHeroLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
@@ -31,6 +37,16 @@ const Home: React.FC = () => {
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   const currentDayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][new Date().getDay()];
+
+  useEffect(() => {
+    if (collectionType === 'community') {
+      setIsLoadingCollections(true);
+      db.getCommunityCollections().then(data => {
+        setCommunityCollections(data);
+        setIsLoadingCollections(false);
+      });
+    }
+  }, [collectionType]);
 
   // Initial Data Load
   useEffect(() => {
@@ -514,37 +530,106 @@ const Home: React.FC = () => {
 
         {/* Collections Section */}
         <section className="mt-12">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter font-display flex items-center gap-3">
-              <Sparkles className="w-8 h-8 text-primary" />
-              Подборки
-            </h2>
-            <Link to="/collections" className="text-sm font-bold text-slate-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
-              Смотреть все <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {COLLECTIONS_DATA.slice(0, 4).map((collection, idx) => {
-              const images = [
-                trendingAnimes[0]?.image,
-                newAnimes[0]?.image,
-                heroAnimes[2]?.image,
-                heroAnimes[1]?.image
-              ];
-              return (
-              <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
-                <img src={images[idx] || FALLBACK_IMAGE} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
-                <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
-                  <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
-                    100+
-                  </div>
-                  <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg">{collection.title}</h3>
-                </div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex items-center gap-6">
+              <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter font-display flex items-center gap-3">
+                <Sparkles className="w-8 h-8 text-primary" />
+                Подборки
+              </h2>
+              
+              <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5">
+                <button 
+                  onClick={() => setCollectionType('official')}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${collectionType === 'official' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                >
+                  Официальные
+                </button>
+                <button 
+                  onClick={() => setCollectionType('community')}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${collectionType === 'community' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                >
+                  Сообщество
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {collectionType === 'community' && (
+                <button 
+                  onClick={() => user ? setIsCreateModalOpen(true) : openAuthModal()}
+                  className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black text-white uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Создать подборку
+                </button>
+              )}
+              <Link to="/collections" className="text-sm font-bold text-slate-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
+                Смотреть все <ChevronRight className="w-4 h-4" />
               </Link>
-            )})}
+            </div>
           </div>
+
+          {collectionType === 'official' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {COLLECTIONS_DATA.slice(0, 4).map((collection, idx) => {
+                const images = [
+                  trendingAnimes[0]?.image,
+                  newAnimes[0]?.image,
+                  heroAnimes[2]?.image,
+                  heroAnimes[1]?.image
+                ];
+                return (
+                <Link key={collection.id} to={`/collections/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
+                  <img src={images[idx] || FALLBACK_IMAGE} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
+                  <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
+                    <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
+                      100+
+                    </div>
+                    <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg">{collection.title}</h3>
+                  </div>
+                </Link>
+              )})}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {isLoadingCollections ? (
+                Array(4).fill(0).map((_, i) => (
+                  <div key={i} className="h-48 rounded-3xl bg-white/5 animate-pulse border border-white/5"></div>
+                ))
+              ) : communityCollections.length === 0 ? (
+                <div className="col-span-full text-center py-10 text-slate-500 font-bold uppercase tracking-widest text-xs">
+                  Подборок от сообщества пока нет
+                </div>
+              ) : (
+                communityCollections.slice(0, 4).map((collection) => (
+                  <Link key={collection.id} to={`/collections/community/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
+                    <div className="absolute inset-0 bg-gradient-to-br from-violet-900/40 to-black/80"></div>
+                    <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="bg-primary/20 backdrop-blur-md px-2 py-0.5 rounded text-primary text-[9px] font-black uppercase tracking-widest border border-primary/20">
+                          Community
+                        </div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                          {collection.items?.length || 0} аниме
+                        </div>
+                      </div>
+                      <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg group-hover:text-primary transition-colors">{collection.name}</h3>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 truncate">от {collection.creator?.name}</p>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          )}
         </section>
+        
+        <CreateCollectionModal 
+          isOpen={isCreateModalOpen} 
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => {
+            db.getCommunityCollections().then(setCommunityCollections);
+          }}
+        />
       </div>
     </div>
   );

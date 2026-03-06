@@ -1,5 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
-import { Anime, User, Comment, ChatMessage, PrivateMessage, ForumTopic, ForumPost, Review } from '../types';
+import { 
+  Anime, 
+  User, 
+  Comment, 
+  ChatMessage, 
+  PrivateMessage, 
+  ForumTopic, 
+  ForumPost, 
+  Review,
+  Club,
+  ClubMember,
+  ClubMessage,
+  CommunityCollection,
+  CommunityCollectionItem
+} from '../types';
 import { containsProfanity } from '../utils/profanity';
 
 
@@ -1326,6 +1340,279 @@ class DatabaseService {
     } catch (e) {
       console.error('Error updating user status:', e);
       return false;
+    }
+  }
+
+  // Clubs
+  async getClubs(): Promise<Club[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('clubs')
+        .select('*, club_members(count)')
+        .order('created_at', { ascending: false });
+      
+      return data?.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        description: d.description,
+        avatarUrl: d.avatar_url,
+        creatorId: d.creator_id,
+        createdAt: d.created_at,
+        membersCount: d.club_members?.[0]?.count || 0
+      })) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async getClub(id: string): Promise<Club | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data } = await supabaseClient
+        .from('clubs')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (!data) return null;
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        avatarUrl: data.avatar_url,
+        creatorId: data.creator_id,
+        createdAt: data.created_at
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async createClub(club: { name: string; description: string; avatarUrl: string; creatorId: string }): Promise<Club | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data, error } = await supabaseClient
+        .from('clubs')
+        .insert([{
+          name: club.name,
+          description: club.description,
+          avatar_url: club.avatarUrl,
+          creator_id: club.creatorId
+        }])
+        .select()
+        .single();
+      
+      if (error || !data) return null;
+
+      // Add creator as admin member
+      await supabaseClient.from('club_members').insert([{
+        club_id: data.id,
+        user_id: club.creatorId,
+        role: 'admin'
+      }]);
+
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        avatarUrl: data.avatar_url,
+        creatorId: data.creator_id,
+        createdAt: data.created_at
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async joinClub(clubId: string, userId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('club_members')
+        .insert([{ club_id: clubId, user_id: userId, role: 'member' }]);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async leaveClub(clubId: string, userId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('club_members')
+        .delete()
+        .eq('club_id', clubId)
+        .eq('user_id', userId);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async getClubMembers(clubId: string): Promise<ClubMember[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('club_members')
+        .select('*, profiles(*)')
+        .eq('club_id', clubId);
+      
+      return data?.map((d: any) => ({
+        clubId: d.club_id,
+        userId: d.user_id,
+        role: d.role,
+        joinedAt: d.joined_at,
+        user: this.mapProfileToUser(d.profiles)
+      })) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async getClubMessages(clubId: string): Promise<ClubMessage[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('club_messages')
+        .select('*, profiles(name, avatar)')
+        .eq('club_id', clubId)
+        .order('created_at', { ascending: true })
+        .limit(100);
+      
+      return data?.map((d: any) => ({
+        id: d.id,
+        clubId: d.club_id,
+        userId: d.user_id,
+        content: d.content,
+        createdAt: d.created_at,
+        user: {
+          name: d.profiles?.name || 'Unknown',
+          avatar: d.profiles?.avatar || ''
+        }
+      })) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async sendClubMessage(clubId: string, userId: string, content: string): Promise<ClubMessage | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data, error } = await supabaseClient
+        .from('club_messages')
+        .insert([{ club_id: clubId, user_id: userId, content }])
+        .select('*, profiles(name, avatar)')
+        .single();
+      
+      if (error || !data) return null;
+      return {
+        id: data.id,
+        clubId: data.club_id,
+        userId: data.user_id,
+        content: data.content,
+        createdAt: data.created_at,
+        user: {
+          name: data.profiles?.name || 'Unknown',
+          avatar: data.profiles?.avatar || ''
+        }
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Community Collections
+  async getCommunityCollections(): Promise<CommunityCollection[]> {
+    if (!this.isSupabaseAvailable()) return [];
+    try {
+      const { data } = await supabaseClient
+        .from('community_collections')
+        .select('*, profiles(name, avatar)')
+        .eq('is_public', true)
+        .order('created_at', { ascending: false });
+      
+      return data?.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        description: d.description,
+        creatorId: d.creator_id,
+        isPublic: d.is_public,
+        createdAt: d.created_at,
+        creator: {
+          name: d.profiles?.name || 'Unknown',
+          avatar: d.profiles?.avatar || ''
+        }
+      })) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async getCommunityCollection(id: string): Promise<CommunityCollection | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data } = await supabaseClient
+        .from('community_collections')
+        .select('*, profiles(name, avatar), community_collection_items(*)')
+        .eq('id', id)
+        .single();
+      
+      if (!data) return null;
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        creatorId: data.creator_id,
+        isPublic: data.is_public,
+        createdAt: data.created_at,
+        creator: {
+          name: data.profiles?.name || 'Unknown',
+          avatar: data.profiles?.avatar || ''
+        },
+        items: data.community_collection_items?.map((i: any) => ({
+          collectionId: i.collection_id,
+          animeId: i.anime_id,
+          animeTitle: i.anime_title,
+          animeImage: i.anime_image,
+          addedAt: i.added_at
+        }))
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async createCommunityCollection(collection: { name: string; description: string; creatorId: string; isPublic: boolean }, items: { animeId: string; animeTitle: string; animeImage: string }[]): Promise<CommunityCollection | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const { data, error } = await supabaseClient
+        .from('community_collections')
+        .insert([{
+          name: collection.name,
+          description: collection.description,
+          creator_id: collection.creatorId,
+          is_public: collection.isPublic
+        }])
+        .select()
+        .single();
+      
+      if (error || !data) return null;
+
+      if (items.length > 0) {
+        const itemPayloads = items.map(item => ({
+          collection_id: data.id,
+          anime_id: item.animeId,
+          anime_title: item.animeTitle,
+          anime_image: item.animeImage
+        }));
+        await supabaseClient.from('community_collection_items').insert(itemPayloads);
+      }
+
+      return this.getCommunityCollection(data.id);
+    } catch (e) {
+      return null;
     }
   }
 }
