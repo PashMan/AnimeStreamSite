@@ -1440,11 +1440,57 @@ class DatabaseService {
   async leaveClub(clubId: string, userId: string): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {
+      // Check if this is the last member
+      const { data: members } = await supabaseClient
+        .from('club_members')
+        .select('user_id')
+        .eq('club_id', clubId);
+      
+      const isLastMember = members && members.length === 1 && members[0].user_id === userId;
+
       const { error } = await supabaseClient
         .from('club_members')
         .delete()
         .eq('club_id', clubId)
         .eq('user_id', userId);
+      
+      if (error) return false;
+
+      if (isLastMember) {
+        await this.deleteClub(clubId);
+      }
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async updateClub(clubId: string, updates: { name?: string; description?: string; avatarUrl?: string }): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const dbUpdates: any = {};
+      if (updates.name) dbUpdates.name = updates.name;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.avatarUrl) dbUpdates.avatar_url = updates.avatarUrl;
+
+      const { error } = await supabaseClient
+        .from('clubs')
+        .update(dbUpdates)
+        .eq('id', clubId);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async deleteClub(clubId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      // Delete messages first (though foreign keys should handle it if set to cascade)
+      await supabaseClient.from('club_messages').delete().eq('club_id', clubId);
+      await supabaseClient.from('club_members').delete().eq('club_id', clubId);
+      const { error } = await supabaseClient.from('clubs').delete().eq('id', clubId);
       return !error;
     } catch (e) {
       return false;
@@ -1476,7 +1522,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('club_messages')
-        .select('*, profiles(name, avatar)')
+        .select('*, profiles(name, avatar, email)')
         .eq('club_id', clubId)
         .order('created_at', { ascending: true })
         .limit(100);
@@ -1489,7 +1535,8 @@ class DatabaseService {
         createdAt: d.created_at,
         user: {
           name: d.profiles?.name || 'Unknown',
-          avatar: d.profiles?.avatar || ''
+          avatar: d.profiles?.avatar || '',
+          email: d.profiles?.email || ''
         }
       })) || [];
     } catch (e) {
@@ -1503,7 +1550,7 @@ class DatabaseService {
       const { data, error } = await supabaseClient
         .from('club_messages')
         .insert([{ club_id: clubId, user_id: userId, content }])
-        .select('*, profiles(name, avatar)')
+        .select('*, profiles(name, avatar, email)')
         .single();
       
       if (error || !data) return null;
@@ -1515,11 +1562,38 @@ class DatabaseService {
         createdAt: data.created_at,
         user: {
           name: data.profiles?.name || 'Unknown',
-          avatar: data.profiles?.avatar || ''
+          avatar: data.profiles?.avatar || '',
+          email: data.profiles?.email || ''
         }
       };
     } catch (e) {
       return null;
+    }
+  }
+
+  async updateClubMessage(messageId: string, content: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('club_messages')
+        .update({ content })
+        .eq('id', messageId);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async deleteClubMessage(messageId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('club_messages')
+        .delete()
+        .eq('id', messageId);
+      return !error;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -1529,7 +1603,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('community_collections')
-        .select('*, profiles(name, avatar)')
+        .select('*, profiles(name, avatar, email), community_collection_items(*)')
         .eq('is_public', true)
         .order('created_at', { ascending: false });
       
@@ -1542,8 +1616,16 @@ class DatabaseService {
         createdAt: d.created_at,
         creator: {
           name: d.profiles?.name || 'Unknown',
-          avatar: d.profiles?.avatar || ''
-        }
+          avatar: d.profiles?.avatar || '',
+          email: d.profiles?.email || ''
+        },
+        items: d.community_collection_items?.map((i: any) => ({
+          collectionId: i.collection_id,
+          animeId: i.anime_id,
+          animeTitle: i.anime_title,
+          animeImage: i.anime_image,
+          addedAt: i.added_at
+        }))
       })) || [];
     } catch (e) {
       return [];
@@ -1555,7 +1637,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('community_collections')
-        .select('*, profiles(name, avatar), community_collection_items(*)')
+        .select('*, profiles(name, avatar, email), community_collection_items(*)')
         .eq('id', id)
         .single();
       
@@ -1569,7 +1651,8 @@ class DatabaseService {
         createdAt: data.created_at,
         creator: {
           name: data.profiles?.name || 'Unknown',
-          avatar: data.profiles?.avatar || ''
+          avatar: data.profiles?.avatar || '',
+          email: data.profiles?.email || ''
         },
         items: data.community_collection_items?.map((i: any) => ({
           collectionId: i.collection_id,

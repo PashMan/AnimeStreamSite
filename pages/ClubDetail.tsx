@@ -12,7 +12,11 @@ import {
   Loader2, 
   ArrowLeft,
   Settings,
-  Plus
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  Check
 } from 'lucide-react';
 import SEO from '../components/SEO';
 
@@ -27,6 +31,13 @@ const ClubDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [editClubName, setEditClubName] = useState('');
+  const [editClubDesc, setEditClubDesc] = useState('');
+  const [editClubAvatar, setEditClubAvatar] = useState('');
+  const [isUpdatingClub, setIsUpdatingClub] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isMember = user && members.some(m => m.userId === user.id);
@@ -45,6 +56,9 @@ const ClubDetail: React.FC = () => {
           return;
         }
         setClub(clubData);
+        setEditClubName(clubData.name);
+        setEditClubDesc(clubData.description || '');
+        setEditClubAvatar(clubData.avatarUrl || '');
 
         const membersData = await db.getClubMembers(id);
         setMembers(membersData);
@@ -59,9 +73,6 @@ const ClubDetail: React.FC = () => {
     };
 
     loadClubData();
-
-    // Set up real-time subscription for messages if needed
-    // For now, we'll just poll or rely on manual refresh
   }, [id, navigate]);
 
   useEffect(() => {
@@ -87,8 +98,12 @@ const ClubDetail: React.FC = () => {
     try {
       const success = await db.leaveClub(id, user.id);
       if (success) {
-        const updatedMembers = await db.getClubMembers(id);
-        setMembers(updatedMembers);
+        if (members.length === 1) {
+          navigate('/social');
+        } else {
+          const updatedMembers = await db.getClubMembers(id);
+          setMembers(updatedMembers);
+        }
       }
     } catch (error) {
       console.error('Error leaving club:', error);
@@ -109,6 +124,53 @@ const ClubDetail: React.FC = () => {
       }
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleEditMessage = async (msgId: string) => {
+    if (!editContent.trim()) return;
+    try {
+      const success = await db.updateClubMessage(msgId, editContent.trim());
+      if (success) {
+        setEditingMessageId(null);
+        const updatedMessages = await db.getClubMessages(id!);
+        setMessages(updatedMessages);
+      }
+    } catch (error) {
+      console.error('Error editing message:', error);
+    }
+  };
+
+  const handleDeleteMessage = async (msgId: string) => {
+    if (!window.confirm('Удалить сообщение?')) return;
+    try {
+      const success = await db.deleteClubMessage(msgId);
+      if (success) {
+        const updatedMessages = await db.getClubMessages(id!);
+        setMessages(updatedMessages);
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  };
+
+  const handleUpdateClub = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || isUpdatingClub) return;
+    setIsUpdatingClub(true);
+    try {
+      const success = await db.updateClub(id, {
+        name: editClubName,
+        description: editClubDesc,
+        avatarUrl: editClubAvatar
+      });
+      if (success) {
+        const updatedClub = await db.getClub(id);
+        if (updatedClub) setClub(updatedClub);
+        setShowSettings(false);
+      }
+    } finally {
+      setIsUpdatingClub(false);
     }
   };
 
@@ -164,7 +226,10 @@ const ClubDetail: React.FC = () => {
                 </button>
               )}
               {isAdmin && (
-                <button className="w-full py-4 bg-white/5 text-slate-400 text-xs font-black uppercase tracking-widest rounded-2xl hover:text-white transition-all border border-white/5 flex items-center justify-center gap-2">
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  className="w-full py-4 bg-white/5 text-slate-400 text-xs font-black uppercase tracking-widest rounded-2xl hover:text-white transition-all border border-white/5 flex items-center justify-center gap-2"
+                >
                   <Settings className="w-4 h-4" /> Настройки
                 </button>
               )}
@@ -216,10 +281,74 @@ const ClubDetail: React.FC = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-black text-white uppercase tracking-widest">{msg.user?.name}</span>
                       <span className="text-[9px] text-slate-600 font-bold">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      {msg.userId === user?.id && (
+                        <div className="flex items-center gap-2 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => {
+                              setEditingMessageId(msg.id);
+                              setEditContent(msg.content);
+                            }}
+                            className="text-slate-500 hover:text-white transition-colors"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="text-slate-500 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className={`p-4 rounded-2xl text-sm ${msg.userId === user?.id ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none'}`}>
-                      {msg.content}
-                    </div>
+                    
+                    {editingMessageId === msg.id ? (
+                      <div className="w-full bg-white/5 rounded-2xl p-2 flex flex-col gap-2">
+                        <textarea 
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="w-full bg-transparent border-none text-sm text-white focus:ring-0 resize-none p-2"
+                          rows={2}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => setEditingMessageId(null)}
+                            className="p-1 text-slate-400 hover:text-white transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleEditMessage(msg.id)}
+                            className="p-1 text-primary hover:text-violet-400 transition-colors"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`p-4 rounded-2xl text-sm group relative ${msg.userId === user?.id ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none'}`}>
+                        {msg.content}
+                        {msg.userId === user?.id && (
+                          <div className="absolute -left-12 top-1/2 -translate-y-1/2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => {
+                                setEditingMessageId(msg.id);
+                                setEditContent(msg.content);
+                              }}
+                              className="p-1.5 bg-surface/80 rounded-lg text-slate-400 hover:text-white border border-white/5"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="p-1.5 bg-surface/80 rounded-lg text-slate-400 hover:text-red-500 border border-white/5"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -257,6 +386,61 @@ const ClubDetail: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface w-full max-w-md rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <h2 className="text-xl font-black text-white uppercase tracking-tighter">Настройки клуба</h2>
+              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateClub} className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Название</label>
+                <input 
+                  type="text" 
+                  value={editClubName}
+                  onChange={(e) => setEditClubName(e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Описание</label>
+                <textarea 
+                  value={editClubDesc}
+                  onChange={(e) => setEditClubDesc(e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white focus:border-primary outline-none transition-colors resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">URL Аватара</label>
+                <input 
+                  type="text" 
+                  value={editClubAvatar}
+                  onChange={(e) => setEditClubAvatar(e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={isUpdatingClub}
+                className="w-full py-4 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-violet-600 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+              >
+                {isUpdatingClub ? <Loader2 className="animate-spin mx-auto" /> : 'Сохранить изменения'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

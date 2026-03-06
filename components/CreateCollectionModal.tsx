@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Search, Plus, Loader2, Trash2 } from 'lucide-react';
 import { Anime } from '../types';
 import { fetchAnimes } from '../services/shikimori';
@@ -20,24 +20,45 @@ const CreateCollectionModal: React.FC<CreateCollectionModalProps> = ({ isOpen, o
   const [selectedAnime, setSelectedAnime] = useState<Anime[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
     setIsSearching(true);
+    setSearchError(null);
     try {
-      const results = await fetchAnimes({ search: searchQuery, limit: 10 });
+      const results = await fetchAnimes({ search: query, limit: 10 });
       setSearchResults(results);
     } catch (error) {
       console.error('Search error:', error);
+      setSearchError('Ошибка поиска. Попробуйте позже.');
     } finally {
       setIsSearching(false);
     }
   };
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery) {
+        handleSearch(searchQuery);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const addAnime = (anime: Anime) => {
+    if (!anime.id || !anime.title || !anime.image) {
+      console.warn('Invalid anime data:', anime);
+      return;
+    }
     if (!selectedAnime.find(a => a.id === anime.id)) {
       setSelectedAnime([...selectedAnime, anime]);
     }
@@ -117,7 +138,7 @@ const CreateCollectionModal: React.FC<CreateCollectionModalProps> = ({ isOpen, o
 
           <div className="space-y-4">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Добавить аниме ({selectedAnime.length})</label>
-            <form onSubmit={handleSearch} className="flex gap-3">
+            <div className="flex gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input 
@@ -128,10 +149,18 @@ const CreateCollectionModal: React.FC<CreateCollectionModalProps> = ({ isOpen, o
                   className="w-full bg-black/20 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-sm text-white focus:border-primary outline-none transition-colors"
                 />
               </div>
-              <button type="submit" disabled={isSearching} className="px-6 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-violet-600 transition-colors">
-                {isSearching ? <Loader2 className="animate-spin w-4 h-4" /> : 'Найти'}
-              </button>
-            </form>
+              {isSearching && (
+                <div className="flex items-center px-4">
+                  <Loader2 className="animate-spin w-4 h-4 text-primary" />
+                </div>
+              )}
+            </div>
+
+            {searchError && (
+              <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest px-4">
+                {searchError}
+              </div>
+            )}
 
             {searchResults.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-black/20 rounded-2xl border border-white/5">

@@ -97,7 +97,12 @@ const CommunityCollectionDetail: React.FC = () => {
             <div className="flex flex-wrap items-center justify-center gap-6">
               <div className="flex items-center gap-2 text-slate-500">
                 <Users className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-widest">от {collection.creator?.name}</span>
+                <Link 
+                  to={`/profile/${collection.creator?.email}`}
+                  className="text-xs font-bold uppercase tracking-widest hover:text-white transition-colors"
+                >
+                  от {collection.creator?.name}
+                </Link>
               </div>
               <div className="flex items-center gap-2 text-slate-500">
                 <Calendar className="w-4 h-4" />

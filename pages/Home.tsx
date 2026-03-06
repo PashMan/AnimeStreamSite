@@ -601,23 +601,44 @@ const Home: React.FC = () => {
                   Подборок от сообщества пока нет
                 </div>
               ) : (
-                communityCollections.slice(0, 4).map((collection) => (
-                  <Link key={collection.id} to={`/collections/community/${collection.id}`} className="group relative h-48 rounded-3xl overflow-hidden block shadow-xl border border-white/5">
-                    <div className="absolute inset-0 bg-gradient-to-br from-violet-900/40 to-black/80"></div>
-                    <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="bg-primary/20 backdrop-blur-md px-2 py-0.5 rounded text-primary text-[9px] font-black uppercase tracking-widest border border-primary/20">
-                          Community
+                communityCollections.slice(0, 4).map((collection) => {
+                  const firstAnimeImage = collection.items?.[0]?.animeImage;
+                  return (
+                    <div key={collection.id} className="group relative h-48 rounded-3xl overflow-hidden shadow-xl border border-white/5">
+                      {firstAnimeImage ? (
+                        <img 
+                          src={firstAnimeImage} 
+                          alt={collection.name} 
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-violet-900/40 to-black/80"></div>
+                      )}
+                      <div className="absolute inset-0 bg-black/60 group-hover:bg-black/40 transition-colors duration-500"></div>
+                      
+                      <Link to={`/collections/community/${collection.id}`} className="absolute inset-0 z-10"></Link>
+
+                      <div className="absolute inset-0 p-6 flex flex-col justify-end z-20 pointer-events-none">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="bg-primary/20 backdrop-blur-md px-2 py-0.5 rounded text-primary text-[9px] font-black uppercase tracking-widest border border-primary/20">
+                            Community
+                          </div>
+                          <div className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
+                            {collection.items?.length || 0} аниме
+                          </div>
                         </div>
-                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                          {collection.items?.length || 0} аниме
-                        </div>
+                        <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg group-hover:text-primary transition-colors">{collection.name}</h3>
+                        <Link 
+                          to={`/profile/${collection.creator?.email}`}
+                          className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 truncate hover:text-white transition-colors pointer-events-auto"
+                        >
+                          от {collection.creator?.name}
+                        </Link>
                       </div>
-                      <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg group-hover:text-primary transition-colors">{collection.name}</h3>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 truncate">от {collection.creator?.name}</p>
                     </div>
-                  </Link>
-                ))
+                  );
+                })
               )}
             </div>
           )}

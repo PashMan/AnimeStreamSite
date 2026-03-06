@@ -130,6 +130,7 @@ export interface ClubMessage {
   user?: {
     name: string;
     avatar: string;
+    email: string;
   };
 }
 
@@ -143,6 +144,7 @@ export interface CommunityCollection {
   creator?: {
     name: string;
     avatar: string;
+    email: string;
   };
   items?: CommunityCollectionItem[];
 }
