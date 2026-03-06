@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Logo } from './Layout';
 
 const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, login, register, resetPassword } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, login, loginWithGoogle, register, resetPassword } = useAuth();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot-password'>('login');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -57,7 +57,7 @@ const AuthModal: React.FC = () => {
   };
 
   const handleGoogleLogin = () => {
-      alert('Вход через Google будет реализован позже');
+      loginWithGoogle();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -7,6 +7,7 @@ import { db, supabase } from '../services/db';
 interface AuthContextType {
   user: User | null;
   login: (credentials: { email: string; password: string }) => Promise<boolean>;
+  loginWithGoogle: () => Promise<void>;
   register: (data: { name: string; email: string; password: string }) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
@@ -119,6 +120,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return false;
   };
 
+  const loginWithGoogle = async () => {
+    try {
+      await db.loginWithGoogle();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const register = async (data: { name: string; email: string; password: string }) => {
     try {
       const result = await db.register(data);
@@ -174,7 +183,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, resetPassword, logout, updateProfile, isAuthModalOpen, openAuthModal, closeAuthModal }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, register, resetPassword, logout, updateProfile, isAuthModalOpen, openAuthModal, closeAuthModal }}>
       {children}
     </AuthContext.Provider>
   );

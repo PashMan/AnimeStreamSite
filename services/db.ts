@@ -184,6 +184,23 @@ class DatabaseService {
       }
   }
 
+  async loginWithGoogle(): Promise<{ success: boolean; message?: string }> {
+    if (!this.isSupabaseAvailable()) return { success: false, message: 'Database unavailable' };
+    try {
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) return { success: false, message: error.message };
+      return { success: true };
+    } catch (e) {
+      console.error('Google login exception:', e);
+      return { success: false, message: 'Exception occurred' };
+    }
+  }
+
   async resetPassword(email: string): Promise<{ success: boolean; message?: string }> {
     if (!this.isSupabaseAvailable()) return { success: false, message: 'Database unavailable' };
     try {
