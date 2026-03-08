@@ -283,7 +283,17 @@ const Social: React.FC = () => {
                                         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{club.membersCount || 0} участников</div>
                                     </div>
                                 </div>
-                                <p className="text-xs text-slate-400 line-clamp-2 mb-4">{club.description || 'Нет описания'}</p>
+                                <p className="text-xs text-slate-400 line-clamp-2 mb-4">
+                                    {(club.description || 'Нет описания')
+                                        .replace(/<[^>]*>?/gm, '')
+                                        .replace(/!\[.*?\]\(.*?\)/g, '')
+                                        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+                                        .replace(/(\*\*|__)(.*?)\1/g, '$2')
+                                        .replace(/(\*|_)(.*?)\1/g, '$2')
+                                        .replace(/`([^`]+)`/g, '$1')
+                                        .replace(/^> (.*$)/gm, '$1')
+                                    }
+                                </p>
                                 <div className="flex items-center justify-between pt-4 border-t border-white/5">
                                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Создан {new Date(club.createdAt).toLocaleDateString()}</span>
                                     <span className="text-[9px] text-primary font-black uppercase tracking-widest group-hover:translate-x-1 transition-transform">Подробнее →</span>
