@@ -111,12 +111,14 @@ export interface Club {
   creatorId: string;
   createdAt: string;
   membersCount?: number;
+  isPrivate?: boolean;
 }
 
 export interface ClubMember {
   clubId: string;
   userId: string;
   role: 'admin' | 'moderator' | 'member';
+  status?: 'active' | 'pending';
   joinedAt: string;
   user?: User;
 }

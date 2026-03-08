@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Loader2, Camera } from 'lucide-react';
+import { X, Plus, Loader2, Camera, Upload } from 'lucide-react';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 
@@ -14,6 +14,8 @@ const CreateClubModal: React.FC<CreateClubModalProps> = ({ isOpen, onClose, onSu
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -24,11 +26,18 @@ const CreateClubModal: React.FC<CreateClubModalProps> = ({ isOpen, onClose, onSu
 
     setIsSubmitting(true);
     try {
+      let finalAvatarUrl = avatarUrl.trim();
+      if (avatarFile) {
+        const uploadedUrl = await db.uploadClubAvatar(avatarFile);
+        if (uploadedUrl) finalAvatarUrl = uploadedUrl;
+      }
+
       const success = await db.createClub({
         name: name.trim(),
         description: description.trim(),
-        avatarUrl: avatarUrl.trim(),
-        creatorId: user.id
+        avatarUrl: finalAvatarUrl,
+        creatorId: user.id,
+        isPrivate
       });
       if (success) {
         onSuccess();
@@ -37,6 +46,8 @@ const CreateClubModal: React.FC<CreateClubModalProps> = ({ isOpen, onClose, onSu
         setName('');
         setDescription('');
         setAvatarUrl('');
+        setAvatarFile(null);
+        setIsPrivate(false);
       }
     } catch (error) {
       console.error('Error creating club:', error);
@@ -59,23 +70,37 @@ const CreateClubModal: React.FC<CreateClubModalProps> = ({ isOpen, onClose, onSu
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div className="flex flex-col items-center gap-4 mb-4">
             <div className="relative group">
-              <div className="w-24 h-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="Avatar Preview" className="w-full h-full object-cover" />
+              <div className="w-24 h-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden relative">
+                {(avatarUrl || avatarFile) ? (
+                  <img 
+                    src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} 
+                    alt="Avatar Preview" 
+                    className="w-full h-full object-cover" 
+                  />
                 ) : (
                   <Camera className="w-8 h-8 text-slate-600" />
                 )}
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      setAvatarFile(e.target.files[0]);
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
               </div>
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-3xl cursor-pointer">
-                <Plus className="w-6 h-6 text-white" />
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-3xl pointer-events-none">
+                <Upload className="w-6 h-6 text-white" />
               </div>
             </div>
             <input 
               type="text" 
               value={avatarUrl}
               onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="URL аватарки клуба"
-              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-primary outline-none transition-colors"
+              placeholder="Или вставьте URL"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-primary outline-none transition-colors text-center"
             />
           </div>
 
@@ -100,6 +125,16 @@ const CreateClubModal: React.FC<CreateClubModalProps> = ({ isOpen, onClose, onSu
               rows={3}
               className="w-full bg-black/20 border border-white/10 rounded-2xl px-6 py-4 text-white focus:border-primary outline-none transition-colors resize-none"
             />
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/5 cursor-pointer" onClick={() => setIsPrivate(!isPrivate)}>
+            <div className={`w-10 h-6 rounded-full p-1 transition-colors ${isPrivate ? 'bg-primary' : 'bg-slate-700'}`}>
+              <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isPrivate ? 'translate-x-4' : ''}`} />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-white">Закрытый клуб</div>
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Вступление только по заявкам</div>
+            </div>
           </div>
 
           <button 

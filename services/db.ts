@@ -1382,14 +1382,15 @@ class DatabaseService {
         description: data.description,
         avatarUrl: data.avatar_url,
         creatorId: data.creator_id,
-        createdAt: data.created_at
+        createdAt: data.created_at,
+        isPrivate: data.is_private
       };
     } catch (e) {
       return null;
     }
   }
 
-  async createClub(club: { name: string; description: string; avatarUrl: string; creatorId: string }): Promise<Club | null> {
+  async createClub(club: { name: string; description: string; avatarUrl: string; creatorId: string; isPrivate?: boolean }): Promise<Club | null> {
     if (!this.isSupabaseAvailable()) return null;
     try {
       const { data, error } = await supabaseClient
@@ -1398,7 +1399,8 @@ class DatabaseService {
           name: club.name,
           description: club.description,
           avatar_url: club.avatarUrl,
-          creator_id: club.creatorId
+          creator_id: club.creatorId,
+          is_private: club.isPrivate || false
         }])
         .select()
         .single();
@@ -1409,7 +1411,8 @@ class DatabaseService {
       await supabaseClient.from('club_members').insert([{
         club_id: data.id,
         user_id: club.creatorId,
-        role: 'admin'
+        role: 'admin',
+        status: 'active'
       }]);
 
       return {
@@ -1418,7 +1421,8 @@ class DatabaseService {
         description: data.description,
         avatarUrl: data.avatar_url,
         creatorId: data.creator_id,
-        createdAt: data.created_at
+        createdAt: data.created_at,
+        isPrivate: data.is_private
       };
     } catch (e) {
       return null;
@@ -1428,9 +1432,13 @@ class DatabaseService {
   async joinClub(clubId: string, userId: string): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {
+      // Check if club is private
+      const club = await this.getClub(clubId);
+      const status = club?.isPrivate ? 'pending' : 'active';
+
       const { error } = await supabaseClient
         .from('club_members')
-        .insert([{ club_id: clubId, user_id: userId, role: 'member' }]);
+        .insert([{ club_id: clubId, user_id: userId, role: 'member', status }]);
       return !error;
     } catch (e) {
       return false;
@@ -1466,13 +1474,14 @@ class DatabaseService {
     }
   }
 
-  async updateClub(clubId: string, updates: { name?: string; description?: string; avatarUrl?: string }): Promise<boolean> {
+  async updateClub(clubId: string, updates: { name?: string; description?: string; avatarUrl?: string; isPrivate?: boolean }): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {
       const dbUpdates: any = {};
       if (updates.name) dbUpdates.name = updates.name;
       if (updates.description !== undefined) dbUpdates.description = updates.description;
       if (updates.avatarUrl) dbUpdates.avatar_url = updates.avatarUrl;
+      if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate;
 
       const { error } = await supabaseClient
         .from('clubs')
@@ -1481,6 +1490,75 @@ class DatabaseService {
       return !error;
     } catch (e) {
       return false;
+    }
+  }
+
+  async kickMember(clubId: string, userId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      // Delete messages first
+      await supabaseClient.from('club_messages').delete().eq('club_id', clubId).eq('user_id', userId);
+      // Delete member
+      const { error } = await supabaseClient
+        .from('club_members')
+        .delete()
+        .eq('club_id', clubId)
+        .eq('user_id', userId);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async approveJoinRequest(clubId: string, userId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('club_members')
+        .update({ status: 'active' })
+        .eq('club_id', clubId)
+        .eq('user_id', userId);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async rejectJoinRequest(clubId: string, userId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('club_members')
+        .delete()
+        .eq('club_id', clubId)
+        .eq('user_id', userId);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async uploadClubAvatar(file: File): Promise<string | null> {
+    if (!this.isSupabaseAvailable()) return null;
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from('club-avatars')
+        .upload(filePath, file);
+
+      if (uploadError) {
+          console.error('Upload error:', uploadError);
+          return null;
+      }
+
+      const { data } = supabaseClient.storage.from('club-avatars').getPublicUrl(filePath);
+      return data.publicUrl;
+    } catch (e) {
+      console.error('Upload exception:', e);
+      return null;
     }
   }
 
@@ -1509,6 +1587,7 @@ class DatabaseService {
         clubId: d.club_id,
         userId: d.user_id,
         role: d.role,
+        status: d.status || 'active',
         joinedAt: d.joined_at,
         user: this.mapProfileToUser(d.profiles)
       })) || [];
