@@ -61,7 +61,7 @@ const Forum: React.FC = () => {
       setIsLoading(true);
       try {
         const [topicsData, animeData] = await Promise.all([
-          db.getForumTopics(animeIdParam || undefined, activeCategory !== 'all' ? activeCategory : undefined),
+          db.getForumTopics(animeIdParam || undefined, activeCategory !== 'all' ? activeCategory : undefined, 50),
           animeIdParam ? fetchAnimeDetails(animeIdParam) : Promise.resolve(null)
         ]);
 

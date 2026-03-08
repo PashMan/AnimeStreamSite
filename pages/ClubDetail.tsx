@@ -269,7 +269,18 @@ const ClubDetail: React.FC = () => {
               className="w-32 h-32 rounded-3xl mx-auto mb-6 object-cover shadow-2xl shadow-primary/20"
             />
             <h1 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">{club.name}</h1>
-            <p className="text-sm text-slate-400 mb-6">{club.description || 'Нет описания'}</p>
+            <div className="text-sm text-slate-400 mb-6 prose prose-invert prose-sm max-w-none break-words [&>p]:mb-0 [&>p:last-child]:mb-0">
+              <ReactMarkdown 
+                rehypePlugins={[rehypeRaw]} 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  img: ({node, ...props}) => <img {...props} className="max-w-full rounded-lg my-2" />,
+                  a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline" />
+                }}
+              >
+                {club.description || 'Нет описания'}
+              </ReactMarkdown>
+            </div>
             
             <div className="flex flex-col gap-3">
               {isMember ? (
@@ -544,11 +555,10 @@ const ClubDetail: React.FC = () => {
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Описание</label>
-                <textarea 
+                <RichTextarea 
                   value={editClubDesc}
                   onChange={(e) => setEditClubDesc(e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white focus:border-primary outline-none transition-colors resize-none"
-                  rows={3}
+                  className="w-full bg-black/20 border border-white/10 rounded-b-2xl rounded-tr-2xl px-4 py-3 text-white focus:border-primary outline-none transition-colors resize-none min-h-[120px]"
                 />
               </div>
 

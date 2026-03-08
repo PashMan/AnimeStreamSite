@@ -498,17 +498,18 @@ class DatabaseService {
   }
 
   // Forum
-  async getForumTopics(animeId?: string, category?: string): Promise<ForumTopic[]> {
+  async getForumTopics(animeId?: string, category?: string, limit: number = 20, excludeCategory?: string): Promise<ForumTopic[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
       let q = supabaseClient
         .from('forum_topics')
         .select('id, title, content, created_at, category, anime_id, views, replies_count, author_email, profiles(id, name, avatar, email)')
         .order('created_at', { ascending: false })
-        .limit(20); // Reduced limit for performance
+        .limit(limit);
       
       if (animeId) q = q.eq('anime_id', animeId);
       if (category) q = q.eq('category', category);
+      if (excludeCategory) q = q.neq('category', excludeCategory);
       
       const { data } = await q;
       return data?.map((d: any) => ({
@@ -1344,13 +1345,14 @@ class DatabaseService {
   }
 
   // Clubs
-  async getClubs(): Promise<Club[]> {
+  async getClubs(limit: number = 50): Promise<Club[]> {
     if (!this.isSupabaseAvailable()) return [];
     try {
       const { data } = await supabaseClient
         .from('clubs')
         .select('*, club_members(count)')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(limit);
       
       return data?.map((d: any) => ({
         id: d.id,

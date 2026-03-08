@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Plus, Loader2, Camera, Upload } from 'lucide-react';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
+import { RichTextarea } from './RichTextarea';
 
 interface CreateClubModalProps {
   isOpen: boolean;
@@ -118,12 +119,11 @@ const CreateClubModal: React.FC<CreateClubModalProps> = ({ isOpen, onClose, onSu
 
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Описание</label>
-            <textarea 
+            <RichTextarea 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="О чем этот клуб?"
-              rows={3}
-              className="w-full bg-black/20 border border-white/10 rounded-2xl px-6 py-4 text-white focus:border-primary outline-none transition-colors resize-none"
+              className="w-full bg-black/20 border border-white/10 rounded-b-2xl rounded-tr-2xl px-6 py-4 text-white focus:border-primary outline-none transition-colors resize-none min-h-[120px]"
             />
           </div>
 

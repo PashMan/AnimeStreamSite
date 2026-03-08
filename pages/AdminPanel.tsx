@@ -43,7 +43,7 @@ const AdminPanel: React.FC = () => {
       // (This is a simplified approach for demonstration)
       
       // Example: Fetching some recent topics to check
-      const topics = await db.getForumTopics();
+      const topics = await db.getForumTopics(undefined, undefined, 100);
       const flaggedTopics = topics.filter(t => containsProfanity(t.title) || containsProfanity(t.content)).map(t => ({
         type: 'topic',
         id: t.id,

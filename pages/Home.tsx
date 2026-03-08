@@ -70,9 +70,9 @@ const Home: React.FC = () => {
           if (isMounted) setSchedule(data);
         });
         
-        db.getForumTopics(undefined, undefined).then(topics => {
+        db.getForumTopics(undefined, undefined, 5, 'news').then(topics => {
           if (isMounted) {
-            setForumTopics(topics.filter(t => t.category !== 'news').slice(0, 5));
+            setForumTopics(topics);
           }
         });
     };
