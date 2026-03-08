@@ -34,10 +34,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let profileSubscription: any = null;
 
     // Function to fetch and set user profile
-    const fetchUserProfile = async (email: string) => {
+    const fetchUserProfile = async (email: string, force = false) => {
+      // Check if profile was updated recently (within 5 minutes)
+      const lastUpdate = localStorage.getItem('as_profile_updated');
+      if (!force && lastUpdate && Date.now() - parseInt(lastUpdate) < 5 * 60 * 1000 && user?.email === email) {
+        return;
+      }
+
       const profile = await db.getProfile(email);
       if (profile) {
         setUser(profile);
+        localStorage.setItem('as_profile_updated', Date.now().toString());
       }
     };
 
@@ -57,7 +64,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           },
           (payload: any) => {
             console.log('Profile updated:', payload);
-            fetchUserProfile(email);
+            fetchUserProfile(email, true);
           }
         )
         .subscribe();
@@ -77,7 +84,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Listen for auth changes (e.g. email confirmation link clicked)
     const { data: { subscription: authSubscription } } = db.onAuthStateChange(async (event: string, session: any) => {
       if (event === 'SIGNED_IN' && session?.user?.email) {
-        await fetchUserProfile(session.user.email);
+        await fetchUserProfile(session.user.email, true);
         subscribeToProfile(session.user.email);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);

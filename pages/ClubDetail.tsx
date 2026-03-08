@@ -3,6 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { Club, ClubMember, ClubMessage } from '../types';
+import { RichTextarea } from '../components/RichTextarea';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 import { 
   Users, 
   MessageSquare, 
@@ -404,11 +408,11 @@ const ClubDetail: React.FC = () => {
                       
                       {editingMessageId === msg.id ? (
                         <div className="w-full bg-white/5 rounded-2xl p-2 flex flex-col gap-2">
-                          <textarea 
+                          <RichTextarea 
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full bg-transparent border-none text-sm text-white focus:ring-0 resize-none p-2"
-                            rows={2}
+                            className="w-full bg-transparent border-none text-sm text-white focus:ring-0 resize-none p-2 min-h-[80px]"
+                            placeholder="Редактировать сообщение..."
                           />
                           <div className="flex justify-end gap-2">
                             <button 
@@ -427,7 +431,18 @@ const ClubDetail: React.FC = () => {
                         </div>
                       ) : (
                         <div className={`p-4 rounded-2xl text-sm group relative ${msg.userId === user?.id ? 'bg-primary text-white rounded-tr-none' : 'bg-white/5 text-slate-200 rounded-tl-none'}`}>
-                          {msg.content}
+                          <div className="prose prose-invert prose-sm max-w-none break-words [&>p]:mb-0 [&>p:last-child]:mb-0">
+                            <ReactMarkdown 
+                              rehypePlugins={[rehypeRaw]} 
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                img: ({node, ...props}) => <img {...props} className="max-w-full rounded-lg my-2" />,
+                                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline" />
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
                           {(msg.userId === user?.id || isAdmin) && (
                             <div className="absolute -left-12 top-1/2 -translate-y-1/2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               {msg.userId === user?.id && (
@@ -468,22 +483,28 @@ const ClubDetail: React.FC = () => {
           )}
 
           {isMember ? (
-            <form onSubmit={handleSendMessage} className="p-6 bg-black/20 border-t border-white/5 flex gap-4">
-              <input 
-                type="text" 
+            <div className="p-6 bg-black/20 border-t border-white/5 flex flex-col gap-4">
+              <RichTextarea 
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder="Напишите сообщение..."
-                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white focus:border-primary outline-none transition-colors"
+                className="min-h-[100px]"
+                onSubmit={() => {
+                   if (newMessage.trim() && !isSending) {
+                     handleSendMessage({ preventDefault: () => {} } as React.FormEvent);
+                   }
+                }}
               />
-              <button 
-                type="submit" 
-                disabled={!newMessage.trim() || isSending}
-                className="px-8 bg-primary text-white rounded-2xl hover:bg-violet-600 transition-colors disabled:opacity-50 shadow-lg shadow-primary/20"
-              >
-                {isSending ? <Loader2 className="animate-spin" /> : <Send className="w-5 h-5" />}
-              </button>
-            </form>
+              <div className="flex justify-end">
+                <button 
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim() || isSending}
+                  className="px-8 py-3 bg-primary text-white rounded-2xl hover:bg-violet-600 transition-colors disabled:opacity-50 shadow-lg shadow-primary/20 flex items-center gap-2"
+                >
+                  {isSending ? <Loader2 className="animate-spin w-5 h-5" /> : <>Отправить <Send className="w-5 h-5" /></>}
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="p-8 bg-black/40 text-center border-t border-white/5">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Вступите в клуб, чтобы участвовать в чате</p>

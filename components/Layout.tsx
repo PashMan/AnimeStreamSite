@@ -59,14 +59,16 @@ const Layout: React.FC = () => {
   useEffect(() => {
     if (user?.email) {
       const updatePresence = async () => {
-        await db.updateLastSeen(user.email);
+        if (document.visibilityState === 'visible') {
+          await db.updateLastSeen(user.email);
+        }
       };
 
       updatePresence();
 
       const interval = setInterval(() => {
         updatePresence();
-      }, 10000); // Check every 10s
+      }, 60000); // Check every 60s
       
       return () => {
         clearInterval(interval);
