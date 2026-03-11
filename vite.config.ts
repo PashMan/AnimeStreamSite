@@ -1,0 +1,87 @@
+
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  base: '/',
+  server: {
+    proxy: {
+      '/api/shikimori': {
+        target: 'https://shikimori.one/api',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/shikimori/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://shikimori.one/'
+        }
+      },
+      '/api/image': {
+        target: 'https://shikimori.one',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/image/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://shikimori.one/'
+        }
+      },
+      '/api/anilist': {
+        target: 'https://graphql.anilist.co',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/anilist/, ''),
+      }
+    },
+    host: true // Expose to network for testing
+  },
+  preview: {
+    proxy: {
+      '/api/shikimori': {
+        target: 'https://shikimori.one/api',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/shikimori/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://shikimori.one/'
+        }
+      },
+      '/api/image': {
+        target: 'https://shikimori.one',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/image/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://shikimori.one/'
+        }
+      },
+      '/api/anilist': {
+        target: 'https://graphql.anilist.co',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/anilist/, ''),
+      }
+    },
+    host: true
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom', 'react-helmet-async'],
+          'ui-vendor': ['lucide-react'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+          'markdown-vendor': ['react-markdown', 'rehype-raw', 'remark-gfm'],
+        }
+      }
+    }
+  }
+});
