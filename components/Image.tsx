@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ImgHTMLAttributes } from 'react';
+import React, { useState, useEffect, useRef, ImgHTMLAttributes } from 'react';
 import { ImageOff } from 'lucide-react';
 import { fetchAnilistImage } from '../services/anilist';
 import { FALLBACK_IMAGE } from '../constants';
@@ -15,6 +15,20 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
   const [imageSrc, setImageSrc] = useState<string | undefined>(src);
   const [isLoading, setIsLoading] = useState(true);
   const [fallbackLevel, setFallbackLevel] = useState(0); // 0: Initial, 1: Anilist, 2: Failed
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+      if (!imgRef.current) return;
+      const observer = new IntersectionObserver(([entry]) => {
+          if (entry.isIntersecting) {
+              setIsInView(true);
+              observer.disconnect();
+          }
+      }, { rootMargin: '200px' });
+      observer.observe(imgRef.current);
+      return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
       if (src !== imageSrc) {
@@ -32,7 +46,7 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
   }, [src, fallbackLevel]);
 
   useEffect(() => {
-      if (fallbackLevel === 1 && animeTitle) {
+      if (fallbackLevel === 1 && animeTitle && isInView) {
           let active = true;
           fetchAnilistImage(animeTitle).then(url => {
               if (active) {
@@ -69,6 +83,7 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
 
   return (
     <img
+      ref={imgRef}
       src={imageSrc || FALLBACK_IMAGE}
       alt={alt}
       className={`${className} ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}

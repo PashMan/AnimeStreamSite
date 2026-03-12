@@ -12,6 +12,31 @@ import SEO from '../components/SEO';
 import ReviewSection from '../components/ReviewSection';
 import { ReportModal } from '../components/ReportModal';
 
+const LazySection: React.FC<{ onVisible: () => void; children: React.ReactNode; className?: string }> = ({ onVisible, children, className }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hasTriggered, setHasTriggered] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasTriggered) {
+          setHasTriggered(true);
+          onVisible();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, [onVisible, hasTriggered]);
+
+  return <div ref={ref} className={className}>{children}</div>;
+};
+
 const Details: React.FC = () => {
   const { id: paramId } = useParams<{ id: string }>();
   // Extract numeric ID from the start of the string (e.g. "123-anime-slug" -> "123")
@@ -45,6 +70,12 @@ const Details: React.FC = () => {
 
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRelatedExpanded, setIsRelatedExpanded] = useState(false);
+
+  // Lazy loading states
+  const [shouldLoadRelated, setShouldLoadRelated] = useState(false);
+  const [shouldLoadSimilar, setShouldLoadSimilar] = useState(false);
+  const [shouldLoadReviews, setShouldLoadReviews] = useState(false);
+  const [shouldLoadComments, setShouldLoadComments] = useState(false);
   
   // Share feature
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -129,6 +160,12 @@ const Details: React.FC = () => {
       setComments([]);
       setIsDescriptionExpanded(false);
 
+      // Reset lazy load triggers
+      setShouldLoadRelated(false);
+      setShouldLoadSimilar(false);
+      setShouldLoadReviews(false);
+      setShouldLoadComments(false);
+
       try {
         // 1. Critical Path: Main Details
         let data = await fetchAnimeDetails(id);
@@ -164,58 +201,6 @@ const Details: React.FC = () => {
         setAnime(data);
         setIsMainLoading(false); // Unblock UI immediately
 
-        // 2. Lazy Path: Independent fetches
-        
-        // Fetch Related
-        fetchRelatedAnimes(id).then(relatedData => {
-          if (!isMounted) return;
-          
-          // Filter out music/irrelevant relations
-          const filteredRelated = relatedData.filter(item => 
-            !['Музыка', 'Music'].includes(item.relation)
-          );
-
-          const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel', 'Фильм', 'Movie'];
-          const sortedRelated = [...filteredRelated].sort((a, b) => {
-            // 1. Sort by relation priority
-            const aPri = priorityRelations.indexOf(a.relation);
-            const bPri = priorityRelations.indexOf(b.relation);
-            if (aPri !== -1 && bPri === -1) return -1;
-            if (aPri === -1 && bPri !== -1) return 1;
-            if (aPri !== -1 && bPri !== -1) return aPri - bPri;
-            
-            // 2. If relations are equal or both not priority, sort by type (TV Series before OVA)
-            const typeOrder: Record<string, number> = { 'TV Series': 1, 'Movie': 2, 'OVA': 3, 'ONA': 4 };
-            const aType = typeOrder[a.anime.type] || 5;
-            const bType = typeOrder[b.anime.type] || 5;
-            if (aType !== bType) return aType - bType;
-
-            return 0;
-          });
-          
-          // Limit to top 8 to prevent overflow
-          setRelated(sortedRelated);
-        }).catch(err => console.error("Related fetch error", err))
-          .finally(() => { if (isMounted) setIsRelatedLoading(false); });
-
-        // Fetch Similar
-        fetchSimilarAnimes(id).then(similarData => {
-          if (isMounted) setSimilar(similarData);
-        }).catch(err => console.error("Similar fetch error", err))
-          .finally(() => { if (isMounted) setIsSimilarLoading(false); });
-
-        // Fetch Reviews
-        db.getAnimeReviews(id).then(animeReviews => {
-          if (isMounted) setReviews(animeReviews);
-        }).catch(err => console.error("Reviews fetch error", err))
-          .finally(() => { if (isMounted) setIsReviewsLoading(false); });
-
-        // Fetch Comments
-        db.getUserComments(id).then(userComments => {
-          if (isMounted) setComments(userComments);
-        }).catch(err => console.error("Comments fetch error", err))
-          .finally(() => { if (isMounted) setIsCommentsLoading(false); });
-
         // User specific data (Favorites/Watched) - can be done in parallel with lazy load
         if (user?.email) {
           Promise.all([
@@ -247,6 +232,55 @@ const Details: React.FC = () => {
     loadDetails();
     return () => { isMounted = false; };
   }, [id, user?.email]);
+
+  // Lazy Load Effects
+  useEffect(() => {
+    if (shouldLoadRelated && id && related.length === 0) {
+      fetchRelatedAnimes(id).then(relatedData => {
+        const filteredRelated = relatedData.filter(item => !['Музыка', 'Music'].includes(item.relation));
+        const priorityRelations = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel', 'Фильм', 'Movie'];
+        const sortedRelated = [...filteredRelated].sort((a, b) => {
+          const aPri = priorityRelations.indexOf(a.relation);
+          const bPri = priorityRelations.indexOf(b.relation);
+          if (aPri !== -1 && bPri === -1) return -1;
+          if (aPri === -1 && bPri !== -1) return 1;
+          if (aPri !== -1 && bPri !== -1) return aPri - bPri;
+          const typeOrder: Record<string, number> = { 'TV Series': 1, 'Movie': 2, 'OVA': 3, 'ONA': 4 };
+          const aType = typeOrder[a.anime.type] || 5;
+          const bType = typeOrder[b.anime.type] || 5;
+          if (aType !== bType) return aType - bType;
+          return 0;
+        });
+        setRelated(sortedRelated);
+      }).catch(err => console.error("Related fetch error", err))
+        .finally(() => setIsRelatedLoading(false));
+    }
+  }, [shouldLoadRelated, id]);
+
+  useEffect(() => {
+    if (shouldLoadSimilar && id && similar.length === 0) {
+      fetchSimilarAnimes(id).then(similarData => {
+        setSimilar(similarData);
+      }).catch(err => console.error("Similar fetch error", err))
+        .finally(() => setIsSimilarLoading(false));
+    }
+  }, [shouldLoadSimilar, id]);
+
+  useEffect(() => {
+    if (shouldLoadReviews && id && reviews.length === 0) {
+      db.getAnimeReviews(id).then(setReviews)
+        .catch(err => console.error("Reviews fetch error", err))
+        .finally(() => setIsReviewsLoading(false));
+    }
+  }, [shouldLoadReviews, id]);
+
+  useEffect(() => {
+    if (shouldLoadComments && id && comments.length === 0) {
+      db.getUserComments(id).then(setComments)
+        .catch(err => console.error("Comments fetch error", err))
+        .finally(() => setIsCommentsLoading(false));
+    }
+  }, [shouldLoadComments, id]);
 
   const handleFavorite = async () => {
     if (!user?.email) { openAuthModal(); return; }
@@ -543,204 +577,217 @@ const Details: React.FC = () => {
                          className="w-full h-full border-0" 
                          title="Player" 
                        />
-                   </div>
-                 </div>
-               </section>
-            </div>
-         </div>
-
-         {/* Content after player aligned to right column */}
-         <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 mt-16">
-            <div className="hidden lg:block"></div>
-            <div className="space-y-16">
-              {isRelatedLoading ? (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
-                  </div>
-                  <div className="flex flex-col gap-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/5 animate-pulse">
-                        <div className="w-16 h-24 bg-white/10 rounded-xl shrink-0"></div>
-                        <div className="flex-1 py-2 space-y-2">
-                           <div className="h-3 w-20 bg-white/10 rounded"></div>
-                           <div className="h-4 w-3/4 bg-white/10 rounded"></div>
+                       <div className="absolute inset-0 bg-dark/90 flex flex-col items-center justify-center text-center p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                          <AlertTriangle className="w-12 h-12 text-slate-500 mb-4" />
+                           <p className="text-slate-300 font-bold text-sm uppercase tracking-widest">Видео для этого аниме пока не добавлено</p>
+                           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-2">Мы работаем над этим!</p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : related.length > 0 && (
-                <section>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8">Порядок просмотра</h3>
-                  <div className="flex flex-col gap-3">
-                    {related.slice(0, isRelatedExpanded ? related.length : 8).map((item, idx) => {
-                      const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
-                      return (
-                        <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
-                          <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden relative">
-                            <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
-                            {isPriority && <div className="absolute inset-0 bg-primary/20"></div>}
-                          </div>
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <div className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${isPriority ? 'text-primary' : 'text-slate-500'}`}>
-                              {item.relation}
-                              {isPriority && <Forward className="w-3 h-3" />}
-                            </div>
-                            <h4 className={`text-sm font-bold text-white truncate group-hover:text-primary transition-colors`}>{item.anime.title}</h4>
-                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{item.anime.year} • {item.anime.type}</div>
-                          </div>
-                          <ChevronRight className={`w-4 h-4 ${isPriority ? 'text-primary' : 'text-slate-600'} group-hover:translate-x-1 transition-transform`} />
-                        </Link>
-                      );
-                    })}
-                    {related.length > 8 && (
-                        <button 
-                            onClick={() => setIsRelatedExpanded(!isRelatedExpanded)}
-                            className="text-primary font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 mt-2"
-                        >
-                            {isRelatedExpanded ? 'Свернуть' : 'Показать еще'}
-                            <ChevronRight className={`w-3 h-3 transition-transform ${isRelatedExpanded ? '-rotate-90' : 'rotate-90'}`} />
-                        </button>
-                    )}
-                  </div>
-                </section>
-              )}
-
-              {isSimilarLoading ? (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
-                  </div>
-                  <div className="flex gap-6 overflow-hidden">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="w-[200px] md:w-[240px] shrink-0">
-                        <div className="aspect-[2/3] bg-white/5 rounded-3xl mb-3 animate-pulse"></div>
-                        <div className="h-4 w-3/4 bg-white/5 rounded mb-2 animate-pulse"></div>
-                        <div className="h-3 w-1/2 bg-white/5 rounded animate-pulse"></div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : similar.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Похожее</h3>
-                    <div className="flex gap-2">
-                      <button aria-label="Scroll left" onClick={() => scrollSlider(similarRef, 'left')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
-                      <button aria-label="Scroll right" onClick={() => scrollSlider(similarRef, 'right')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
                     </div>
                   </div>
-                  <div ref={similarRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
-                    {similar.map((sim, idx) => (
-                      <div key={idx} className="w-[200px] md:w-[240px] shrink-0 snap-start">
-                        <AnimeCard anime={sim} />
+                </section>
+             </div>
+          </div>
+
+          {/* Content after player aligned to right column */}
+          <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 mt-16">
+             <div className="hidden lg:block"></div>
+             <div className="space-y-16">
+              <LazySection onVisible={() => setShouldLoadRelated(true)}>
+                {isRelatedLoading ? (
+                  <section>
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
+                    </div>
+                    <div className="flex flex-col gap-4">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/5 animate-pulse">
+                          <div className="w-16 h-24 bg-white/10 rounded-xl shrink-0"></div>
+                          <div className="flex-1 py-2 space-y-2">
+                             <div className="h-3 w-20 bg-white/10 rounded"></div>
+                             <div className="h-4 w-3/4 bg-white/10 rounded"></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : related.length > 0 && (
+                  <section>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-8">Порядок просмотра</h3>
+                    <div className="flex flex-col gap-3">
+                      {related.slice(0, isRelatedExpanded ? related.length : 8).map((item, idx) => {
+                        const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
+                        return (
+                          <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
+                            <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden relative">
+                              <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
+                              {isPriority && <div className="absolute inset-0 bg-primary/20"></div>}
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <div className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${isPriority ? 'text-primary' : 'text-slate-500'}`}>
+                                {item.relation}
+                                {isPriority && <Forward className="w-3 h-3" />}
+                              </div>
+                              <h4 className={`text-sm font-bold text-white truncate group-hover:text-primary transition-colors`}>{item.anime.title}</h4>
+                              <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{item.anime.year} • {item.anime.type}</div>
+                            </div>
+                            <ChevronRight className={`w-4 h-4 ${isPriority ? 'text-primary' : 'text-slate-600'} group-hover:translate-x-1 transition-transform`} />
+                          </Link>
+                        );
+                      })}
+                      {related.length > 8 && (
+                          <button 
+                              onClick={() => setIsRelatedExpanded(!isRelatedExpanded)}
+                              className="text-primary font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 mt-2"
+                          >
+                              {isRelatedExpanded ? 'Свернуть' : 'Показать еще'}
+                              <ChevronRight className={`w-3 h-3 transition-transform ${isRelatedExpanded ? '-rotate-90' : 'rotate-90'}`} />
+                          </button>
+                      )}
+                    </div>
+                  </section>
+                )}
+              </LazySection>
+
+              <LazySection onVisible={() => setShouldLoadSimilar(true)}>
+                {isSimilarLoading ? (
+                  <section>
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="h-8 w-48 bg-white/10 rounded-lg animate-pulse"></div>
+                    </div>
+                    <div className="flex gap-6 overflow-hidden">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="w-[200px] md:w-[240px] shrink-0">
+                          <div className="aspect-[2/3] bg-white/5 rounded-3xl mb-3 animate-pulse"></div>
+                          <div className="h-4 w-3/4 bg-white/5 rounded mb-2 animate-pulse"></div>
+                          <div className="h-3 w-1/2 bg-white/5 rounded animate-pulse"></div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : similar.length > 0 && (
+                  <section>
+                    <div className="flex items-center justify-between mb-8">
+                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Похожее</h3>
+                      <div className="flex gap-2">
+                        <button aria-label="Scroll left" onClick={() => scrollSlider(similarRef, 'left')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
+                        <button aria-label="Scroll right" onClick={() => scrollSlider(similarRef, 'right')} className="p-2.5 bg-white/5 hover:bg-accent rounded-xl transition-all shadow-xl active:scale-90"><ChevronRight className="w-5 h-5" /></button>
                       </div>
-                    ))}
+                    </div>
+                    <div ref={similarRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-6 snap-x">
+                      {similar.map((sim, idx) => (
+                        <div key={idx} className="w-[200px] md:w-[240px] shrink-0 snap-start">
+                          <AnimeCard anime={sim} />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </LazySection>
+
+              <LazySection onVisible={() => setShouldLoadReviews(true)}>
+                <ReviewSection 
+                  animeId={id!} 
+                  reviews={reviews} 
+                  onReviewAdded={(newReview) => setReviews([newReview, ...reviews])} 
+                  onReport={(reviewId) => {
+                    setReportTarget({ 
+                      type: 'review', 
+                      id: reviewId, 
+                      content: reviews.find(r => r.id === reviewId)?.content,
+                      link: window.location.pathname
+                    });
+                    setIsReportModalOpen(true);
+                  }}
+                  onDelete={async (reviewId) => {
+                    if (window.confirm('Удалить рецензию?')) {
+                      await db.deleteReview(reviewId);
+                      setReviews(reviews.filter(r => r.id !== reviewId));
+                    }
+                  }}
+                />
+              </LazySection>
+
+              <LazySection onVisible={() => setShouldLoadComments(true)}>
+                <section className="pt-10 border-t border-white/5">
+                  <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({isCommentsLoading ? '...' : comments.length})</h3>
+                  <div className="bg-surface/30 rounded-[2.5rem] p-8 border border-white/5 mb-12 shadow-2xl backdrop-blur-sm">
+                     {user ? (
+                        <form onSubmit={handleAddComment} className="flex flex-col gap-6">
+                           <div className="flex gap-5 items-start">
+                              <img src={user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
+                              <textarea value={userComment} onChange={(e) => setUserComment(e.target.value)} placeholder="Напишите ваш отзыв..." className="flex-1 bg-dark/60 border border-white/10 rounded-3xl p-6 text-sm text-white focus:border-primary outline-none min-h-[140px] resize-none transition-all shadow-inner" />
+                           </div>
+                           <button type="submit" disabled={isCommenting || !userComment.trim()} className="self-end px-12 py-4 bg-primary text-white font-black text-[10px] uppercase rounded-2xl shadow-xl shadow-primary/20 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all tracking-widest">
+                              {isCommenting ? 'ОТПРАВКА...' : 'ОПУБЛИКОВАТЬ'}
+                           </button>
+                        </form>
+                     ) : (
+                        <div className="text-center py-10"><button onClick={openAuthModal} className="px-12 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-white text-[10px] uppercase hover:bg-white/10 transition-all tracking-widest">АВТОРИЗАЦИЯ</button></div>
+                     )}
+                  </div>
+
+                  <div className="space-y-8">
+                     {isCommentsLoading ? (
+                       [...Array(3)].map((_, i) => (
+                          <div key={i} className="flex gap-6">
+                             <div className="w-14 h-14 bg-white/5 rounded-2xl shrink-0 animate-pulse"></div>
+                             <div className="flex-1">
+                                <div className="h-4 w-32 bg-white/5 rounded mb-3 animate-pulse"></div>
+                                <div className="h-24 w-full bg-white/5 rounded-[2rem] animate-pulse"></div>
+                             </div>
+                          </div>
+                       ))
+                     ) : (
+                       comments.map((comment) => (
+                          <div key={comment.id} className="flex gap-6 group">
+                             <img src={comment.user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
+                             <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-3 mb-3">
+                                   <span className="font-black text-white text-base">{comment.user.name}</span>
+                                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
+                                </div>
+                                <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">
+                                  {comment.text}
+                                  <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                      onClick={() => {
+                                        setReportTarget({ 
+                                          type: 'comment', 
+                                          id: comment.id,
+                                          content: comment.text,
+                                          link: window.location.pathname
+                                        });
+                                        setIsReportModalOpen(true);
+                                      }}
+                                      className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1"
+                                    >
+                                      <AlertTriangle className="w-3 h-3" /> Пожаловаться
+                                    </button>
+                                    {(user?.role === 'admin' || user?.role === 'moderator') && (
+                                      <button 
+                                        onClick={async () => {
+                                          if (window.confirm('Удалить комментарий?')) {
+                                            await db.deleteComment(comment.id);
+                                            setComments(comments.filter(c => c.id !== comment.id));
+                                          }
+                                        }}
+                                        className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest flex items-center gap-1"
+                                      >
+                                        Удалить
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                             </div>
+                          </div>
+                       ))
+                     )}
                   </div>
                 </section>
-              )}
-
-              <ReviewSection 
-                animeId={id!} 
-                reviews={reviews} 
-                onReviewAdded={(newReview) => setReviews([newReview, ...reviews])} 
-                onReport={(reviewId) => {
-                  setReportTarget({ 
-                    type: 'review', 
-                    id: reviewId, 
-                    content: reviews.find(r => r.id === reviewId)?.content,
-                    link: window.location.pathname
-                  });
-                  setIsReportModalOpen(true);
-                }}
-                onDelete={async (reviewId) => {
-                  if (window.confirm('Удалить рецензию?')) {
-                    await db.deleteReview(reviewId);
-                    setReviews(reviews.filter(r => r.id !== reviewId));
-                  }
-                }}
-              />
-
-              <section className="pt-10 border-t border-white/5">
-                <h3 className="text-2xl font-black text-white uppercase mb-10">Комментарии ({isCommentsLoading ? '...' : comments.length})</h3>
-                <div className="bg-surface/30 rounded-[2.5rem] p-8 border border-white/5 mb-12 shadow-2xl backdrop-blur-sm">
-                   {user ? (
-                      <form onSubmit={handleAddComment} className="flex flex-col gap-6">
-                         <div className="flex gap-5 items-start">
-                            <img src={user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shadow-lg ring-2 ring-white/5" alt="" />
-                            <textarea value={userComment} onChange={(e) => setUserComment(e.target.value)} placeholder="Напишите ваш отзыв..." className="flex-1 bg-dark/60 border border-white/10 rounded-3xl p-6 text-sm text-white focus:border-primary outline-none min-h-[140px] resize-none transition-all shadow-inner" />
-                         </div>
-                         <button type="submit" disabled={isCommenting || !userComment.trim()} className="self-end px-12 py-4 bg-primary text-white font-black text-[10px] uppercase rounded-2xl shadow-xl shadow-primary/20 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all tracking-widest">
-                            {isCommenting ? 'ОТПРАВКА...' : 'ОПУБЛИКОВАТЬ'}
-                         </button>
-                      </form>
-                   ) : (
-                      <div className="text-center py-10"><button onClick={openAuthModal} className="px-12 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-white text-[10px] uppercase hover:bg-white/10 transition-all tracking-widest">АВТОРИЗАЦИЯ</button></div>
-                   )}
-                </div>
-
-                <div className="space-y-8">
-                   {isCommentsLoading ? (
-                     [...Array(3)].map((_, i) => (
-                        <div key={i} className="flex gap-6">
-                           <div className="w-14 h-14 bg-white/5 rounded-2xl shrink-0 animate-pulse"></div>
-                           <div className="flex-1">
-                              <div className="h-4 w-32 bg-white/5 rounded mb-3 animate-pulse"></div>
-                              <div className="h-24 w-full bg-white/5 rounded-[2rem] animate-pulse"></div>
-                           </div>
-                        </div>
-                     ))
-                   ) : (
-                     comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-6 group">
-                           <img src={comment.user.avatar} loading="lazy" className="w-14 h-14 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-white/5" alt="" />
-                           <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-3 mb-3">
-                                 <span className="font-black text-white text-base">{comment.user.name}</span>
-                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
-                              </div>
-                              <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">
-                                {comment.text}
-                                <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button 
-                                    onClick={() => {
-                                      setReportTarget({ 
-                                        type: 'comment', 
-                                        id: comment.id,
-                                        content: comment.text,
-                                        link: window.location.pathname
-                                      });
-                                      setIsReportModalOpen(true);
-                                    }}
-                                    className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1"
-                                  >
-                                    <AlertTriangle className="w-3 h-3" /> Пожаловаться
-                                  </button>
-                                  {(user?.role === 'admin' || user?.role === 'moderator') && (
-                                    <button 
-                                      onClick={async () => {
-                                        if (window.confirm('Удалить комментарий?')) {
-                                          await db.deleteComment(comment.id);
-                                          setComments(comments.filter(c => c.id !== comment.id));
-                                        }
-                                      }}
-                                      className="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-widest flex items-center gap-1"
-                                    >
-                                      Удалить
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                           </div>
-                        </div>
-                     ))
-                   )}
-                </div>
-             </section>
-           </div>
-         </div>
-      </div>
+              </LazySection>
+            </div>
+          </div>
+        </div>
 
       {/* Share Modal */}
       {isShareModalOpen && (

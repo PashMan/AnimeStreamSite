@@ -6,7 +6,7 @@ import { getFromStorage, saveToStorage } from './cache';
 const BASE_API = '/api/shikimori';
 const IMG_BASE_URL = 'https://shikimori.one';
 const PLACEHOLDER_IMAGE = FALLBACK_IMAGE;
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes default cache
+const CACHE_TTL = 60 * 60 * 1000; // 60 minutes default cache
 const LONG_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for static data
 
 // Debug: Log the base API URL being used
@@ -59,7 +59,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(3, 250); // 3 concurrent, 250ms delay to respect 5 req/sec limit
+const requestQueue = new RequestQueue(2, 400); // 2 concurrent, 400ms delay to respect 5 req/sec limit safely
 
 let globalAbortController = new AbortController();
 
@@ -422,7 +422,7 @@ export const getAnimeById = async (id: string | number) => {
   }
 };
 
-export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
+export const fetchAnimeDetails = async (id: string, includeScreenshots = true): Promise<Anime | null> => {
   try {
     const data = await getAnimeById(id);
     if (!data) {
@@ -432,22 +432,25 @@ export const fetchAnimeDetails = async (id: string): Promise<Anime | null> => {
     let anime = await mapAnime(data);
 
     // Fetch screenshots to find a better cover (landscape) for hero banners
-    try {
-        const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1);
-        if (Array.isArray(screenshots) && screenshots.length > 0) {
-             const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
-             if (validScreen) {
-                 // If we found a valid screenshot, use it as the cover since it's landscape and high quality
-                 anime.cover = proxyImage(validScreen.original);
-                 
-                 // If the main image was missing, also use this as the main image
-                 if (anime.image === PLACEHOLDER_IMAGE) {
-                     anime.image = anime.cover;
+    if (includeScreenshots) {
+        try {
+            // Use LONG_CACHE_TTL for screenshots as they are static
+            const screenshots = await fetchApi(`/animes/${id}/screenshots`, 1, false, LONG_CACHE_TTL);
+            if (Array.isArray(screenshots) && screenshots.length > 0) {
+                 const validScreen = screenshots.find((s: any) => s.original && !s.original.includes('missing'));
+                 if (validScreen) {
+                     // If we found a valid screenshot, use it as the cover since it's landscape and high quality
+                     anime.cover = proxyImage(validScreen.original);
+                     
+                     // If the main image was missing, also use this as the main image
+                     if (anime.image === PLACEHOLDER_IMAGE) {
+                         anime.image = anime.cover;
+                     }
                  }
-             }
+            }
+        } catch (e) {
+            console.warn('Failed to fetch fallback screenshots', e);
         }
-    } catch (e) {
-        console.warn('Failed to fetch fallback screenshots', e);
     }
 
     return anime;
@@ -542,7 +545,7 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
 export const fetchNews = async (): Promise<NewsItem[]> => {
   try {
     // Cache news for 30 minutes to improve performance
-    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, true);
+    const data = await fetchApi(`/topics?forum=news&limit=12&linked_type=Anime`, 2, false);
     if (!data || !Array.isArray(data)) return MOCK_NEWS;
 
     const newsItems = data.map(topic => {

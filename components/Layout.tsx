@@ -112,9 +112,14 @@ const Layout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-dark text-slate-200 font-sans selection:bg-primary/30">
+      {(import.meta as any).env?.VITE_ENV === 'staging' && (
+        <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-black text-[10px] font-black uppercase tracking-widest text-center py-1 z-[100]">
+          Staging Environment (Тестовый сервер)
+        </div>
+      )}
       <AuthModal />
       
-      <header className="fixed top-0 w-full z-50 bg-dark/80 backdrop-blur-2xl border-b border-white/5">
+      <header className={`fixed w-full z-50 bg-dark/80 backdrop-blur-2xl border-b border-white/5 transition-all ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'top-6' : 'top-0'}`}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-24 gap-8">
             <Link to="/" aria-label="AnimeStream Home" className="hover:opacity-90 transition-opacity">
@@ -362,7 +367,7 @@ const Layout: React.FC = () => {
         </div>
       </div>
 
-      <main className="flex-grow pt-20">
+      <main className={`flex-grow ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'pt-28' : 'pt-20'}`}>
         <Outlet />
       </main>
 

@@ -43,18 +43,98 @@ try {
     console.log('Supabase client created successfully with memory storage');
   } else {
     console.warn('Supabase client NOT created: URL or Key is missing/placeholder');
+    // Create a dummy object so D1 methods can still be attached
+    supabaseClient = {
+      auth: {
+        signInWithPassword: async () => ({ error: { message: 'Auth disabled' } }),
+        signUp: async () => ({ error: { message: 'Auth disabled' } }),
+        signOut: async () => ({ error: null }),
+        getSession: async () => ({ data: { session: null } }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+      },
+      storage: {
+        from: () => ({
+          upload: async () => ({ error: { message: 'Storage disabled' } }),
+          getPublicUrl: () => ({ data: { publicUrl: '' } })
+        })
+      }
+    };
   }
 } catch (e) {
   console.error('Supabase initialization failed:', e);
+  supabaseClient = { auth: {}, storage: {} };
 }
+
+// --- D1 Migration: Override Database Methods ---
+class D1QueryBuilder {
+  table: string;
+  action: string = 'select';
+  cols: string = '*';
+  wheres: any[] = [];
+  orders: any[] = [];
+  lim: number | null = null;
+  payload: any = null;
+  isSingle: boolean = false;
+
+  constructor(table: string) {
+    this.table = table;
+  }
+
+  select(cols = '*') { this.action = 'select'; this.cols = cols; return this; }
+  insert(payload: any) { this.action = 'insert'; this.payload = payload; return this; }
+  update(payload: any) { this.action = 'update'; this.payload = payload; return this; }
+  delete() { this.action = 'delete'; return this; }
+  
+  eq(col: string, val: any) { this.wheres.push({ col, op: '=', val }); return this; }
+  in(col: string, vals: any[]) { this.wheres.push({ col, op: 'IN', val: vals }); return this; }
+  
+  order(col: string, { ascending = true } = {}) { this.orders.push({ col, ascending }); return this; }
+  limit(n: number) { this.lim = n; return this; }
+  single() { this.isSingle = true; return this; }
+  
+  rpc(params: any) { this.action = 'rpc'; this.payload = params; return this; }
+
+  async then(resolve: any, reject: any) {
+    try {
+      const res = await fetch('/api/db/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: this.table,
+          action: this.action,
+          cols: this.cols,
+          wheres: this.wheres,
+          orders: this.orders,
+          limit: this.lim,
+          payload: this.payload,
+          isSingle: this.isSingle
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const result = await res.json();
+      resolve(result);
+    } catch (e) {
+      if (reject) reject(e);
+      else console.error("D1 Query Error:", e);
+    }
+  }
+}
+
+// Override Supabase DB methods to use Cloudflare D1
+if (supabaseClient) {
+  supabaseClient.from = (table: string) => new D1QueryBuilder(table);
+  supabaseClient.rpc = (fn: string, params: any) => new D1QueryBuilder(fn).rpc(params);
+}
+// -----------------------------------------------
 
 class DatabaseService {
   private isSupabaseAvailable(): boolean {
-    const available = supabaseClient !== null;
-    if (!available) {
-      console.warn('Database operation attempted but Supabase is not available');
-    }
-    return available;
+    // We are now using D1 via API, so the database is always available
+    return true;
   }
 
   // Auth

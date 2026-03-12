@@ -2,7 +2,7 @@
 import { getFromStorage, saveToStorage } from './cache';
 
 const ANILIST_API = '/api/anilist';
-const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Request queue
 const queue: { title: string; resolve: (value: string | null) => void; reject: (reason?: any) => void }[] = [];
@@ -95,8 +95,8 @@ const processQueue = async () => {
             resolve(null);
         }
 
-        // Strict delay between requests (500ms = ~120 req/min)
-        await new Promise(r => setTimeout(r, 500));
+        // Strict delay between requests (1000ms = 60 req/min) to respect Anilist's 90 req/min limit
+        await new Promise(r => setTimeout(r, 1000));
     }
 
     isProcessing = false;

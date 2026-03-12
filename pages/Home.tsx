@@ -6,7 +6,7 @@ import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeScreenshots, fetchAnimeDetails } from '../services/shikimori';
-import { db } from '../services/db';
+import { db } from '../services/d1_db';
 import { useAuth } from '../context/AuthContext';
 import { Anime, ScheduleItem, NewsItem, ForumTopic, CommunityCollection } from '../types';
 import { FALLBACK_IMAGE, COLLECTIONS_DATA } from '../constants';

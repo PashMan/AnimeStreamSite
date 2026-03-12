@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
-import { db, supabase } from '../services/db';
+import { db } from '../services/d1_db';
 
 
 interface AuthContextType {
@@ -31,8 +31,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
-    let profileSubscription: any = null;
-
     // Function to fetch and set user profile
     const fetchUserProfile = async (email: string, force = false) => {
       // Check if profile was updated recently (within 5 minutes)
@@ -48,56 +46,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
-    // Function to subscribe to profile changes
-    const subscribeToProfile = (email: string) => {
-      if (profileSubscription) profileSubscription.unsubscribe();
-
-      profileSubscription = supabase
-        .channel('public:profiles')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `email=eq.${email}`,
-          },
-          (payload: any) => {
-            console.log('Profile updated:', payload);
-            fetchUserProfile(email, true);
-          }
-        )
-        .subscribe();
-    };
-
     // Check for existing session
     const checkSession = async () => {
       const { data: { session } } = await db.getSession();
       if (session?.user?.email) {
         await fetchUserProfile(session.user.email);
-        subscribeToProfile(session.user.email);
       }
     };
     
     checkSession();
 
-    // Listen for auth changes (e.g. email confirmation link clicked)
+    // Listen for auth changes
     const { data: { subscription: authSubscription } } = db.onAuthStateChange(async (event: string, session: any) => {
       if (event === 'SIGNED_IN' && session?.user?.email) {
         await fetchUserProfile(session.user.email, true);
-        subscribeToProfile(session.user.email);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
-        if (profileSubscription) {
-            profileSubscription.unsubscribe();
-            profileSubscription = null;
-        }
       }
     });
 
     return () => {
       authSubscription.unsubscribe();
-      if (profileSubscription) profileSubscription.unsubscribe();
     };
   }, []);
 

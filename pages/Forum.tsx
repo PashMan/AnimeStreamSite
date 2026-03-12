@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useParams, useNavigate } from 'react-router-dom';
 import { MessageSquare, Plus, User, Clock, ChevronRight, ArrowLeft, Loader2, MessageCircle, Eye, Hash, Send, Reply, AlertTriangle, Trash2 } from 'lucide-react';
-import { db } from '../services/db';
+import { db } from '../services/d1_db';
 import { useAuth } from '../context/AuthContext';
 import { ForumTopic, ForumPost, Anime } from '../types';
 import { fetchAnimeDetails, fetchNews } from '../services/shikimori';
