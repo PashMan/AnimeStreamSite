@@ -59,7 +59,7 @@ class RequestQueue {
   }
 }
 
-const requestQueue = new RequestQueue(4, 200); // 4 concurrent, 200ms delay to respect 5 req/sec limit safely
+const requestQueue = new RequestQueue(1, 1000); // 1 concurrent, 1000ms delay to respect 5 req/sec limit safely
 
 let globalAbortController = new AbortController();
 

@@ -577,7 +577,7 @@ const Details: React.FC = () => {
                          className="w-full h-full border-0" 
                          title="Player" 
                        />
-                       <div className="absolute inset-0 bg-dark/90 flex flex-col items-center justify-center text-center p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                       <div className="absolute inset-0 bg-dark/90 flex flex-col items-center justify-center text-center p-6 opacity-0 transition-opacity duration-300 pointer-events-none">
                           <AlertTriangle className="w-12 h-12 text-slate-500 mb-4" />
                            <p className="text-slate-300 font-bold text-sm uppercase tracking-widest">Видео для этого аниме пока не добавлено</p>
                            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-2">Мы работаем над этим!</p>
