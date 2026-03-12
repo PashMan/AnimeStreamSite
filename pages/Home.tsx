@@ -95,12 +95,8 @@ const Home: React.FC = () => {
             }, 300);
 
             // Sequentially enrich hero items with details (description, better cover)
-            // We do this one by one with a delay to avoid 429 Rate Limit
-            const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-            
-            // Enrich ALL items to ensure quality (descriptions, high-res covers)
-            for (const anime of data) {
-                if (!isMounted) break;
+            // We do this in parallel to speed up loading
+            await Promise.all(data.map(async (anime) => {
                 try {
                     // Fetch details
                     const details = await fetchAnimeDetails(anime.id);
@@ -115,12 +111,10 @@ const Home: React.FC = () => {
                             return next;
                         });
                     }
-                    // Wait 500ms between requests to be nice to the API and avoid 429
-                    await delay(500);
                 } catch (e) {
                     console.warn(`Failed to enrich hero item ${anime.id}`, e);
                 }
-            }
+            }));
         } else {
             setIsHeroLoading(false);
             loadLists();
