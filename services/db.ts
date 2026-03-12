@@ -116,9 +116,9 @@ class D1QueryBuilder {
       }
       
       const result = await res.json();
-      resolve(result);
+      resolve({ data: result, error: null });
     } catch (e) {
-      if (reject) reject(e);
+      if (reject) reject({ data: null, error: e });
       else console.error("D1 Query Error:", e);
     }
   }
@@ -163,8 +163,6 @@ class DatabaseService {
       
       if (error) {
         console.error('Profile fetch error:', error.message);
-        // If profile doesn't exist but auth does, maybe create it? 
-        // For now, return null or handle gracefully.
         return null;
       }
       
@@ -311,7 +309,8 @@ class DatabaseService {
     }
   }
 
-  private mapProfileToUser(p: any): User {
+  private mapProfileToUser(p: any): User | null {
+    if (!p) return null;
     let name = p.name;
     // If name looks like a UUID or is missing, use email prefix
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -955,7 +954,7 @@ class DatabaseService {
       // Remove duplicates just in case
       const uniqueData = Array.from(new Map(allData.map(item => [item.id, item])).values());
       
-      return uniqueData.map((p: any) => this.mapProfileToUser(p));
+      return uniqueData.map((p: any) => this.mapProfileToUser(p)).filter((u): u is User => u !== null);
     } catch (e) {
       console.error('getFriendsList error:', e);
       return [];
