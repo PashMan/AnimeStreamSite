@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
-import { db } from '../services/d1_db';
+import { db } from '../services/db';
 
 
 interface AuthContextType {

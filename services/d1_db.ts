@@ -139,7 +139,7 @@ class D1DatabaseService {
       avatarShape: p.avatar_shape || 'circle',
       cardOpacity: p.card_opacity,
       cardBlur: p.card_blur,
-      last_seen: p.last_seen,
+      lastSeen: p.last_seen,
       role: p.role || 'user'
     };
   }
