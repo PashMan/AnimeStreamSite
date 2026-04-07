@@ -1,4 +1,3 @@
-
 export const onRequest = async (context: any) => {
   const { id } = context.params;
   
@@ -18,8 +17,18 @@ export const onRequest = async (context: any) => {
       return context.next();
     }
 
-    const anime = await res.json() as any;\n\n    // BLOCK HENTAI PAGES - Redirect to home\n    const adultGenreIds = [12, 539, 33, 34, 28, 26];\n    if (anime.rating === 'rx' || anime.genres?.some((g: any) => adultGenreIds.includes(g.id))) {\n      return new Response('Adult content blocked', { \n        status: 301, \n        headers: { Location: '/' } \n      });\n    }\n
-    // We fetch the root "/" to get index.html content
+    const anime = await res.json() as any;
+
+    // BLOCK HENTAI PAGES - Redirect to home
+    const adultGenreIds = [12, 539, 33, 34, 28, 26];
+    if (anime.rating === 'rx' || anime.genres?.some((g: any) => adultGenreIds.includes(g.id))) {
+      return new Response('Adult content blocked', { 
+        status: 301,
+        headers: { Location: '/' }
+      });
+    }
+
+    // Fetch the original index.html (SPA fallback)
     const url = new URL(context.request.url);
     url.pathname = '/index.html';
     
@@ -35,7 +44,7 @@ export const onRequest = async (context: any) => {
     let html = await originalResponse.text();
 
     const title = `Смотреть ${anime.russian || anime.name} ${anime.name ? `/ ${anime.name} ` : ''}онлайн бесплатно в хорошем качестве`;
-    const description = `Аниме ${anime.russian || anime.name} (${new Date(anime.aired_on).getFullYear() || ''}). ${anime.description ? anime.description.slice(0, 120).replace(/"/g, '&quot;') : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Anilibria, Kodik и других.`;
+    const description = `Аниме ${anime.russian || anime.name} (${new Date(anime.aired_on).getFullYear() || ''}). ${anime.description ? anime.description.slice(0, 120).replace(/"/g, '"') : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Anilibria, Kodik и других.`;
     const image = anime.image?.original ? `https://shikimori.one${anime.image.original}` : '';
     const keywords = `${anime.russian || anime.name}, ${anime.name}, смотреть ${anime.russian || anime.name}, аниме онлайн, смотреть аниме бесплатно`;
 
@@ -114,3 +123,4 @@ export const onRequest = async (context: any) => {
     return context.next();
   }
 };
+

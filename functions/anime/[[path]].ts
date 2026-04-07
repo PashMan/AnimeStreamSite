@@ -27,7 +27,18 @@ export const onRequest: PagesFunction = async (context) => {
       return env.ASSETS.fetch(request);
     }
 
-    const anime = await shikimoriRes.json() as any;\n\n    // BLOCK HENTAI PAGES - Redirect to home\n    const adultGenreIds = [12, 539, 33, 34, 28, 26];\n    if (anime.rating === 'rx' || anime.genres?.some((g: any) => adultGenreIds.includes(g.id))) {\n      return new Response('Adult content blocked', { \n        status: 301, \n        headers: { Location: '/' } \n      });\n    }\n
+    const anime = await shikimoriRes.json() as any;
+
+    // BLOCK HENTAI PAGES - Redirect to home
+    const adultGenreIds = [12, 539, 33, 34, 28, 26];
+    if (anime.rating === 'rx' || anime.genres?.some((g: any) => adultGenreIds.includes(g.id))) {
+      return new Response('Adult content blocked', { 
+        status: 301,
+        headers: { Location: '/' }
+      });
+    }
+
+    const title = anime.russian || anime.name;
     const originalTitle = anime.name;
     const image = anime.image?.original ? `https://shikimori.one${anime.image.original}` : '';
     const score = anime.score;
@@ -132,3 +143,4 @@ export const onRequest: PagesFunction = async (context) => {
     return env.ASSETS.fetch(request);
   }
 };
+
