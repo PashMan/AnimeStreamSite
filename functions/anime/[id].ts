@@ -18,9 +18,7 @@ export const onRequest = async (context: any) => {
       return context.next();
     }
 
-    const anime = await res.json() as any;
-    
-    // Fetch the original index.html (SPA fallback)
+    const anime = await res.json() as any;\n\n    // BLOCK HENTAI PAGES - Redirect to home\n    const adultGenreIds = [12, 539, 33, 34, 28, 26];\n    if (anime.rating === 'rx' || anime.genres?.some((g: any) => adultGenreIds.includes(g.id))) {\n      return new Response('Adult content blocked', { \n        status: 301, \n        headers: { Location: '/' } \n      });\n    }\n
     // We fetch the root "/" to get index.html content
     const url = new URL(context.request.url);
     url.pathname = '/index.html';
