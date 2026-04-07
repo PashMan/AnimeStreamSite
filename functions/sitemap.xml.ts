@@ -1,4 +1,3 @@
-
 const SHIKIMORI_API_URL = 'https://shikimori.one/api';
 
 // Helper for slug generation
@@ -65,14 +64,14 @@ export const onRequest = async (context: any) => {
         signal: controller.signal
       }).then(res => res.ok ? res.json() : []);
 
-      // Fetch Anime (Parallel pages)
+      // Fetch Anime (Parallel pages) - EXCLUDE HENentai
       const animePromises = [];
-      const MAX_PAGES = 20; // 20 * 50 = 1000 animes
+      const MAX_PAGES = 25; // 25 * 50 = 1250 animes to compensate for filtering
       const PER_PAGE = 50;
 
       for (let i = 1; i <= MAX_PAGES; i++) {
         animePromises.push(
-          fetch(`${SHIKIMORI_API_URL}/animes?limit=${PER_PAGE}&order=popularity&page=${i}`, {
+          fetch(`${SHIKIMORI_API_URL}/animes?limit=${PER_PAGE}&order=popularity&rating=!rx&genre=!12,!539,!33,!34,!28,!26&page=${i}`, {
             headers: { 'User-Agent': 'KamiAnime/1.0', 'Accept': 'application/json' },
             signal: controller.signal
           }).then(res => res.ok ? res.json() : [])
@@ -162,3 +161,4 @@ export const onRequest = async (context: any) => {
     return new Response('Error generating sitemap', { status: 500 });
   }
 };
+

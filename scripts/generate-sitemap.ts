@@ -87,12 +87,12 @@ async function fetchWithRetry(url: string, retries = 0): Promise<any> {
 
 async function fetchAnimeByYear(year: number) {
   let yearAnime: string[] = [];
-  const MAX_PAGES_PER_YEAR = 10; // Restored to 10 pages (500 items)
+const MAX_PAGES_PER_YEAR = 15; // Increased for adult filtering
 
   process.stdout.write(`Fetching year ${year}: `);
 
   for (let page = 1; page <= MAX_PAGES_PER_YEAR; page++) {
-      const url = `${SHIKIMORI_API}/animes?limit=50&order=popularity&season=${year}&page=${page}`;
+const url = `${SHIKIMORI_API}/animes?limit=50&order=popularity&season=${year}&rating=!rx&genre=!12,!539,!33,!34,!28,!26&page=${page}`;
       const data = await fetchWithRetry(url);
       
       if (!data || !Array.isArray(data) || data.length === 0) {
