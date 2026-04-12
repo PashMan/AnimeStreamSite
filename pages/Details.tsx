@@ -13,6 +13,7 @@ import ReviewSection from '../components/ReviewSection';
 import { ReportModal } from '../components/ReportModal';
 import { LazyRender } from '../components/LazyRender';
 import { usePlayerSync } from '../hooks/usePlayerSync';
+import { CustomR2Player } from '../components/CustomR2Player';
 
 const Details: React.FC = () => {
   const { id: paramId, episode: paramEpisode } = useParams<{ id: string, episode?: string }>();
@@ -27,9 +28,8 @@ const Details: React.FC = () => {
   
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<string>('Kodik');
-  const [players, setPlayers] = useState<{ name: string; iframe: string | null }[]>([
-    { name: 'Kodik', iframe: null },
-    { name: 'Anilibria', iframe: null }
+  const [players, setPlayers] = useState<{ name: string; iframe: string | null; isCustom?: boolean }[]>([
+    { name: 'Kodik', iframe: null }
   ]);
   const [hasFetchedPlayers, setHasFetchedPlayers] = useState(false);
   const [isPlayersLoading, setIsPlayersLoading] = useState(false);
@@ -170,8 +170,7 @@ const Details: React.FC = () => {
       setComments([]);
       setIsDescriptionExpanded(false);
       setPlayers([
-        { name: 'Kodik', iframe: null },
-        { name: 'Anilibria', iframe: null }
+        { name: 'Kodik', iframe: null }
       ]);
       setHasFetchedPlayers(false);
       setSelectedPlayer('Kodik');
@@ -423,9 +422,12 @@ const Details: React.FC = () => {
             }
             setPlayers(data);
             setHasFetchedPlayers(true);
-            // Default to first player with an iframe, or Kodik
+            // Default to custom player, then first player with an iframe, or Kodik
+            const customPlayer = data.find(p => p.isCustom);
             const playerWithIframe = data.find(p => p.iframe);
-            if (playerWithIframe) {
+            if (customPlayer) {
+              setSelectedPlayer(customPlayer.name);
+            } else if (playerWithIframe) {
               setSelectedPlayer(playerWithIframe.name);
             } else {
               setSelectedPlayer('Kodik');
@@ -457,14 +459,27 @@ const Details: React.FC = () => {
     </div>
   );
 
+  const isYourName = id === '32281';
+  const seoTitle = isYourName 
+    ? `Смотреть Твоё имя (Kimi no Na wa) в 4K онлайн бесплатно` 
+    : `Смотреть ${anime.title} ${anime.originalName ? `/ ${anime.originalName} ` : ''}онлайн бесплатно в хорошем качестве`;
+  
+  const seoDescription = isYourName
+    ? `Смотреть аниме Твоё имя (Kimi no Na wa) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Потрясающая детализация шедевра Макото Синкая без рекламы.`
+    : `Аниме ${anime.title} (${anime.year}). ${anime.description ? anime.description.slice(0, 120) : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Kodik и других.`;
+
+  const seoKeywords = isYourName
+    ? `смотреть твоё имя в 4к, твое имя 4k онлайн, kimi no na wa 4k, макото синкай твое имя 4к, смотреть аниме в 4к, ${anime.title}, ${anime.originalName}`
+    : `${anime.title}, ${anime.originalName}, смотреть ${anime.title}, ${anime.genres.join(', ')}, аниме онлайн, смотреть аниме бесплатно`;
+
   return (
     <div className="w-full relative overflow-x-hidden pb-20">
       <SEO 
-        title={`Смотреть ${anime.title} ${anime.originalName ? `/ ${anime.originalName} ` : ''}онлайн бесплатно в хорошем качестве`} 
-        description={`Аниме ${anime.title} (${anime.year}). ${anime.description ? anime.description.slice(0, 120) : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Anilibria, Kodik и других.`}
+        title={seoTitle} 
+        description={seoDescription}
         image={anime.image}
         type="video.movie"
-        keywords={`${anime.title}, ${anime.originalName}, смотреть ${anime.title}, ${anime.genres.join(', ')}, аниме онлайн, смотреть аниме бесплатно`}
+        keywords={seoKeywords}
         schemaData={{
           "@context": "https://schema.org",
           "@graph": [
@@ -751,8 +766,11 @@ const Details: React.FC = () => {
                                 <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
                                 <p className="text-slate-300 font-bold text-sm uppercase tracking-widest">Поиск плеера...</p>
                               </div>
-                            ) : players.find(p => p.name === selectedPlayer)?.iframe ? (() => {
+                            ) : (players.find(p => p.name === selectedPlayer)?.iframe || players.find(p => p.name === selectedPlayer)?.isCustom) ? (() => {
                               const player = players.find(p => p.name === selectedPlayer)!;
+                              if (player.isCustom) {
+                                return <CustomR2Player src="https://pub-d0b4d263c7994440a43bd92c7d002465.r2.dev/kimi-no-na-wa/master.m3u8" />;
+                              }
                               let finalIframeUrl = player.iframe;
                               if (paramEpisode && finalIframeUrl && player.name === 'Kodik') {
                                 try {

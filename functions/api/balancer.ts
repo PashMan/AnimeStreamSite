@@ -17,8 +17,7 @@ export async function onRequest(context: any) {
   }
 
   const players: any[] = [
-    { name: 'Kodik', iframe: null },
-    { name: 'Anilibria', iframe: null }
+    { name: 'Kodik', iframe: null }
   ];
   
   let kinopoisk_id: string | null = null;
@@ -36,8 +35,7 @@ export async function onRequest(context: any) {
     shikimori_id,
     kinopoisk_id: null as string | null,
     imdb_id: null as string | null,
-    world_art_id: null as string | null,
-    anilibria_id: null as number | null
+    world_art_id: null as string | null
   };
 
   // 1. Kodik
@@ -60,29 +58,6 @@ export async function onRequest(context: any) {
       const kodikPlayer = players.find(p => p.name === 'Kodik');
       if (kodikPlayer) {
         kodikPlayer.iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
-      }
-    }
-  } catch (e) {}
-
-  // 2. Collaps removed
-
-
-  // 3. Anilibria
-  try {
-    const anilibriaRes = await fetch(`https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`);
-    if (anilibriaRes.ok) {
-      const anilibriaData = await anilibriaRes.json();
-      if (anilibriaData && anilibriaData.length > 0) {
-        let bestMatch = anilibriaData[0];
-        if (year) {
-          const yearMatch = anilibriaData.find((r: any) => r.year === parseInt(String(year)));
-          if (yearMatch) bestMatch = yearMatch;
-        }
-        const anilibriaPlayer = players.find(p => p.name === 'Anilibria');
-        if (anilibriaPlayer) {
-          anilibriaPlayer.iframe = `https://www.anilibria.tv/public/iframe.php?id=${bestMatch.id}`;
-          ids.anilibria_id = bestMatch.id;
-        }
       }
     }
   } catch (e) {}
