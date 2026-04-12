@@ -20,7 +20,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
       autoplay: false,
       pip: true,
       autoSize: true,
-      autoMini: false, // Disabled to prevent auto-PIP
+      autoMini: false,
       screenshot: true,
       setting: true,
       playbackRate: true,
@@ -29,6 +29,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
       fullscreenWeb: true,
       miniProgressBar: true,
       lang: 'ru',
+      // Disable layer messages for play/pause/seek
+      layers: [
+        {
+          name: 'play-pause-layer',
+          html: '',
+          style: { display: 'none' },
+        },
+      ],
       customType: {
         m3u8: function (video, url, artInstance) {
           if (Hls.isSupported()) {
@@ -88,11 +96,15 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
               }
             });
 
-            // Translate playback rate setting
+            // Translate settings
             artInstance.on('ready', () => {
               const playbackRateSetting = artInstance.setting.get('playbackRate');
               if (playbackRateSetting) {
                 playbackRateSetting.html = 'Скорость';
+              }
+              const aspectRatioSetting = artInstance.setting.get('aspectRatio');
+              if (aspectRatioSetting) {
+                aspectRatioSetting.html = 'Соотношение сторон';
               }
             });
 
