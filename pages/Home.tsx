@@ -33,8 +33,6 @@ const Home: React.FC = () => {
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
-  const MAX_EPISODES_AIRED = 52;
-
   const currentDayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][new Date().getDay()];
 
   useEffect(() => {
@@ -53,15 +51,14 @@ const Home: React.FC = () => {
     
     const loadHero = async () => {
         if (heroAnimes.length === 0) setIsHeroLoading(true);
-        const data = await fetchAnimes({ order: 'popularity', status: 'ongoing', limit: 10 }, true);
+        const data = await fetchAnimes({ order: 'popularity', status: 'ongoing', limit: 5 }, true);
         if (!isMounted) return;
-
+        
         if (data && data.length > 0) {
-            const filteredData = data.filter((anime: Anime) => anime.episodesAired && anime.episodesAired < MAX_EPISODES_AIRED);
-            setHeroAnimes(filteredData);
+            setHeroAnimes(data);
             setIsHeroLoading(false);
-
-            await Promise.all(filteredData.map(async (anime) => {
+            
+            await Promise.all(data.map(async (anime) => {
                 try {
                     const details = await fetchAnimeDetails(anime.id);
                     if (details && isMounted) {
@@ -86,9 +83,7 @@ const Home: React.FC = () => {
     loadHero();
     
     // Immediate load for first sections
-    fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 40 }).then(data =>
-      setNewAnimes(data.filter((anime: Anime) => anime.episodesAired && anime.episodesAired < MAX_EPISODES_AIRED))
-    );
+    fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 20 }).then(setNewAnimes);
     fetchAnimes({ order: 'popularity', limit: 20 }).then(setTrendingAnimes);
     
     return () => { isMounted = false; };

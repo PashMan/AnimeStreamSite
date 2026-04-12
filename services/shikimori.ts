@@ -354,11 +354,6 @@ export const mapAnime = async (data: any): Promise<Anime> => {
       cover = proxyImage(`/system/animes/original/${data.id}.jpg`);
   }
 
-  // Prepare description with fallback if Shikimori provides only tags or empty
-  const rawDesc = data.description || '';
-  const cleanedDesc = rawDesc.replace(/\[.*?\]/g, '').trim();
-  const finalDesc = cleanedDesc || 'Описание отсутствует';
-
   return {
     id: data.id?.toString() || '',
     slug: slugify(data.name || data.russian || ''),
@@ -374,7 +369,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
     episodes: data.episodes || 0,
     episodesAired: data.episodes_aired || 0,
     status: data.status === 'anons' ? 'Upcoming' : (data.status === 'ongoing' ? 'Ongoing' : 'Completed'),
-    description: finalDesc,
+    description: (data.description || 'Описание отсутствует').replace(/\[.*?\]/g, '').trim(),
     studio: data.studios?.[0]?.name || 'Неизвестно',
     worldArtId: data.world_art_id?.toString(),
     kinopoiskId: data.kinopoisk_id?.toString(),

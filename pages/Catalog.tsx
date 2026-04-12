@@ -39,7 +39,6 @@ const Catalog: React.FC = () => {
 
       const params: any = { 
         page: 1, 
-        limit: 24,
         order: shikimoriOrderMap[currentSort] || 'popularity',
         search: searchQuery || undefined 
       };
@@ -69,7 +68,6 @@ const Catalog: React.FC = () => {
     
     const params: any = { 
         page: nextPage, 
-        limit: 24,
         order: currentSort === 'rating' ? 'ranked' : (currentSort === 'new' ? 'aired_on' : 'popularity'), 
         search: searchQuery || undefined 
     };
@@ -128,7 +126,7 @@ const Catalog: React.FC = () => {
           handleLoadMore();
         }
       },
-      { threshold: 0.01, rootMargin: '400px 0px' }
+      { threshold: 0.1 }
     );
 
     const currentTarget = observerTarget.current;
@@ -243,22 +241,9 @@ const Catalog: React.FC = () => {
                 </div>
               )}
               {hasMore && animeList.length > 0 && (
-                <>
-                  <div ref={observerTarget} className="mt-20 flex justify-center py-10">
-                    {isLoadingMore && <Loader2 className="w-8 h-8 text-primary animate-spin" />}
-                  </div>
-                  {!isLoadingMore && (
-                    <div className="mt-4 flex justify-center">
-                      <button
-                        onClick={handleLoadMore}
-                        className="px-6 py-3 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-colors"
-                        aria-label="Загрузить ещё"
-                      >
-                        Загрузить ещё
-                      </button>
-                    </div>
-                  )}
-                </>
+                <div ref={observerTarget} className="mt-20 flex justify-center py-10">
+                  {isLoadingMore && <Loader2 className="w-8 h-8 text-primary animate-spin" />}
+                </div>
               )}
               
               {/* SEO Text Block */}

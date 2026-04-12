@@ -1,3 +1,4 @@
+
 const SHIKIMORI_API_URL = 'https://shikimori.one/api';
 
 // Helper for slug generation
@@ -161,4 +162,3 @@ export const onRequest = async (context: any) => {
     return new Response('Error generating sitemap', { status: 500 });
   }
 };
-

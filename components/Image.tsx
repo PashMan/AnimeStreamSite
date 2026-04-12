@@ -77,15 +77,6 @@ export const Image = ({ src, alt, className, fallbackClassName, priority, animeI
   const handleLoad = () => {
       setIsLoading(false);
       if (onImageLoad) onImageLoad();
-      
-      // Detect placeholder images (small dimensions)
-      if (imgRef.current) {
-        const img = imgRef.current;
-        if (img.naturalWidth < 100 && img.naturalHeight < 100) {
-          console.log(`[Image] Placeholder detected (${img.naturalWidth}x${img.naturalHeight}), triggering fallback`);
-          handleError();
-        }
-      }
   };
 
   if (fallbackLevel === 2 || (!imageSrc && fallbackLevel === 0 && !animeId)) {

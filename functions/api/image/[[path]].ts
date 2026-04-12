@@ -1,19 +1,7 @@
-const JIKAN_API = 'https://api.jikan.moe/v4/anime';
-
-const extractAnimeIdFromPath = (path: string): string | null => {
-  const match = path.match(/\/(\d+)\.(jpg|jpeg|png|webp)$/i);
-  return match ? match[1] : null;
-};
-
-const imageHeaders = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Referer': 'https://shikimori.one/',
-  'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
-};
-
 export const onRequest = async (context: any) => {
   const url = new URL(context.request.url);
 
+  // Handle CORS preflight requests
   if (context.request.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -28,93 +16,69 @@ export const onRequest = async (context: any) => {
   const path = url.pathname.replace(/^\/api\/image/, '');
   const targetUrl = `https://shikimori.one${path}${url.search}`;
 
-  const cache = (caches as any).default;
+  // 1. Check Cloudflare Cache first
+  const cache = caches.default;
+  // Use a clean Request object for the cache key to ignore user-specific headers like Cookies or User-Agent
   const cacheKey = new Request(url.toString(), { method: 'GET' });
-  const cached = await cache.match(cacheKey);
+  let response = await cache.match(cacheKey);
 
-  if (cached) {
-    const hit = new Response(cached.body, cached);
-    hit.headers.set('X-Image-Cache', 'HIT');
-    return hit;
+  if (response) {
+    // Return cached response immediately with a custom header
+    const cachedResponse = new Response(response.body, response);
+    cachedResponse.headers.set('X-Image-Cache', 'HIT');
+    return cachedResponse;
   }
 
+  // 2. If not in cache, fetch from Shikimori
+  const headers = new Headers();
+  headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+  headers.set('Referer', 'https://shikimori.one/');
+  headers.set('Accept', 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8');
+
   try {
-    const shikiRes = await fetch(targetUrl, {
-      method: 'GET',
-      headers: imageHeaders,
+    const fetchResponse = await fetch(targetUrl, {
+      method: context.request.method,
+      headers: headers,
     });
 
-    if (shikiRes.ok) {
-      const newHeaders = new Headers(shikiRes.headers);
+    // Only cache successful image responses
+    if (fetchResponse.ok) {
+      const newHeaders = new Headers(fetchResponse.headers);
       newHeaders.set('Access-Control-Allow-Origin', '*');
+      
+      // Cache for 30 days (2592000 seconds) in browser AND Cloudflare CDN
       newHeaders.set('Cache-Control', 'public, max-age=2592000, s-maxage=2592000');
+      
       newHeaders.delete('Content-Security-Policy');
       newHeaders.delete('X-Frame-Options');
       newHeaders.delete('Vary');
       newHeaders.delete('Set-Cookie');
 
-      const response = new Response(shikiRes.body, {
-        status: shikiRes.status,
-        statusText: shikiRes.statusText,
+      response = new Response(fetchResponse.body, {
+        status: fetchResponse.status,
+        statusText: fetchResponse.statusText,
         headers: newHeaders,
       });
 
+      // 3. Store in Cloudflare Cache asynchronously
       context.waitUntil(cache.put(cacheKey, response.clone()));
-
-      const miss = new Response(response.body, response);
-      miss.headers.set('X-Image-Cache', 'MISS');
-      miss.headers.set('X-Image-Source', 'Shikimori');
-      return miss;
+      
+      const missResponse = new Response(response.body, response);
+      missResponse.headers.set('X-Image-Cache', 'MISS');
+      return missResponse;
     }
 
-    // Shikimori failed: try Jikan fallback by anime id from filename
-    const animeId = extractAnimeIdFromPath(path);
-    if (animeId) {
-      const jikanRes = await fetch(`${JIKAN_API}/${animeId}`);
-      if (jikanRes.ok) {
-        const jikanData = await jikanRes.json() as any;
-        const imageUrl =
-          jikanData?.data?.images?.jpg?.large_image_url ||
-          jikanData?.data?.images?.jpg?.image_url ||
-          jikanData?.data?.images?.webp?.large_image_url ||
-          jikanData?.data?.images?.webp?.image_url;
-
-        if (imageUrl) {
-          const imageRes = await fetch(imageUrl);
-          if (imageRes.ok) {
-            const headers = new Headers(imageRes.headers);
-            headers.set('Access-Control-Allow-Origin', '*');
-            headers.set('Cache-Control', 'public, max-age=2592000, s-maxage=2592000');
-            headers.set('X-Image-Source', 'Jikan-Fallback');
-
-            const fallbackResponse = new Response(imageRes.body, {
-              status: 200,
-              headers
-            });
-
-            context.waitUntil(cache.put(cacheKey, fallbackResponse.clone()));
-            return fallbackResponse;
-          }
-        }
-      }
-    }
-
-    return new Response(shikiRes.body, {
-      status: shikiRes.status,
-      statusText: shikiRes.statusText,
-      headers: {
-        'Cache-Control': 'public, max-age=60',
-        'Access-Control-Allow-Origin': '*',
-        'X-Image-Source': 'Shikimori-Error'
-      }
+    // If Shikimori returned an error (like 404 or 429), don't cache it for long
+    return new Response(fetchResponse.body, {
+      status: fetchResponse.status,
+      statusText: fetchResponse.statusText,
+      headers: { 'Cache-Control': 'public, max-age=60' } // Cache errors for only 1 minute
     });
+
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
+    return new Response(JSON.stringify({ error: String(e) }), { 
       status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 };

@@ -143,4 +143,3 @@ export const onRequest: PagesFunction = async (context) => {
     return env.ASSETS.fetch(request);
   }
 };
-

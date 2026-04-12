@@ -10,6 +10,12 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('/*', cors());
 
+// ... API routes ...
+
+export default {
+  fetch: app.fetch,
+};
+
   // Simple in-memory log buffer for debugging
   const debugLogs: any[] = [];
   const addLog = (message: string, data?: any) => {
