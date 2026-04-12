@@ -158,17 +158,21 @@ html, body {
   --plyr-color-main: #E11D48; /* Tailwind rose-600 */
 }
 
-/* Collapsible volume bar */
-.custom-plyr-wrapper .plyr__volume input[type="range"] {
-  max-width: 0;
-  opacity: 0;
-  transition: all 0.3s ease;
-  margin-left: 0;
+/* Fix Plyr settings menu cutoff on mobile */
+.plyr__menu__container > div {
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.custom-plyr-wrapper .plyr__volume:hover input[type="range"],
-.custom-plyr-wrapper .plyr__volume input[type="range"]:focus {
-  max-width: 80px;
-  opacity: 1;
-  margin-left: 5px;
+/* Ensure the back button in the menu is always visible and clickable */
+.plyr__menu__container .plyr__control--back {
+  min-height: 40px;
+  position: sticky;
+  top: 0;
+  background: rgba(255, 255, 255, 0.9);
+  z-index: 10;
+}
+.plyr--full-ui.plyr--video .plyr__menu__container .plyr__control--back {
+  background: #1a1a1a; /* Match Plyr dark theme */
 }

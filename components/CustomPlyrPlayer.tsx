@@ -21,11 +21,12 @@ export const CustomPlyrPlayer: React.FC<CustomPlyrPlayerProps> = ({ src }) => {
         'play-large', 'play', 'progress', 'current-time', 'duration',
         'mute', 'volume', 'settings', 'fullscreen'
       ],
-      settings: ['quality', 'speed'],
+      settings: ['quality', 'speed', 'audio'],
       i18n: {
         quality: 'Качество',
         speed: 'Скорость',
         normal: 'Обычная',
+        audio: 'Озвучка',
       }
     };
 
@@ -38,6 +39,22 @@ export const CustomPlyrPlayer: React.FC<CustomPlyrPlayerProps> = ({ src }) => {
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         const availableQualities = hls.levels.map((l) => l.height);
         
+        // Handle audio tracks if they exist in the manifest
+        if (hls.audioTracks && hls.audioTracks.length > 1) {
+          // Map HLS audio tracks to Plyr format
+          const audioTracks = hls.audioTracks.map((track, index) => ({
+            id: index.toString(),
+            kind: 'audio',
+            label: track.name || track.language || `Озвучка ${index + 1}`,
+            language: track.language || 'ru',
+            default: track.default
+          }));
+
+          // We need to pass these to plyr somehow, but plyr's native audio track support
+          // is limited when using hls.js. We have to hook into plyr's language selection.
+          // For now, we enable the audio setting in the menu.
+        }
+
         defaultOptions.quality = {
           default: availableQualities[availableQualities.length - 1],
           options: availableQualities.sort((a, b) => b - a),
