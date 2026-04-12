@@ -59,7 +59,9 @@ const Details: React.FC = () => {
 
   const [roomId, setRoomId] = useState<string | null>(searchParams.get('room'));
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { role, usersCount, myId, sync } = usePlayerSync(roomId, iframeRef);
+  const nativeVideoRef = useRef<HTMLVideoElement>(null);
+  const isCustomPlayer = players.find(p => p.name === selectedPlayer)?.isCustom || false;
+  const { role, usersCount, myId, sync } = usePlayerSync(roomId, iframeRef, nativeVideoRef, isCustomPlayer);
   
   const [isRoomInstructionOpen, setIsRoomInstructionOpen] = useState(false);
 
@@ -769,7 +771,7 @@ const Details: React.FC = () => {
                             ) : (players.find(p => p.name === selectedPlayer)?.iframe || players.find(p => p.name === selectedPlayer)?.isCustom) ? (() => {
                               const player = players.find(p => p.name === selectedPlayer)!;
                               if (player.isCustom) {
-                                return <CustomPlyrPlayer src="https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8" />;
+                                return <CustomPlyrPlayer ref={nativeVideoRef} src="https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8" />;
                               }
                               let finalIframeUrl = player.iframe;
                               if (paramEpisode && finalIframeUrl && player.name === 'Kodik') {

@@ -9,7 +9,12 @@ interface SyncState {
   episode?: string;
 }
 
-export const usePlayerSync = (roomId: string | null, iframeRef: React.RefObject<HTMLIFrameElement>) => {
+export const usePlayerSync = (
+  roomId: string | null, 
+  iframeRef: React.RefObject<HTMLIFrameElement>,
+  nativeVideoRef: React.RefObject<HTMLVideoElement>,
+  isCustomPlayer: boolean
+) => {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const clientIdRef = useRef(Math.random().toString(36).substring(7));
   const [role, setRole] = useState<'host' | 'viewer' | null>(null);
@@ -123,9 +128,43 @@ export const usePlayerSync = (roomId: string | null, iframeRef: React.RefObject<
     return () => clearInterval(interval);
   }, [role, isSubscribed, episode]);
 
+  // Listen to native video events
+  useEffect(() => {
+    if (!roomId || !isCustomPlayer || !nativeVideoRef.current) return;
+    const video = nativeVideoRef.current;
+
+    const handlePlay = () => {
+      isPlayingRef.current = true;
+      if (roleRef.current === 'host') updateHostState({ isPlaying: true });
+    };
+    const handlePause = () => {
+      isPlayingRef.current = false;
+      if (roleRef.current === 'host') updateHostState({ isPlaying: false });
+    };
+    const handleSeeked = () => {
+      lastTimeRef.current = video.currentTime;
+      if (roleRef.current === 'host') updateHostState({ time: video.currentTime });
+    };
+    const handleTimeUpdate = () => {
+      lastTimeRef.current = video.currentTime;
+    };
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('seeked', handleSeeked);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('seeked', handleSeeked);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+  }, [roomId, isCustomPlayer, nativeVideoRef, role]);
+
   // Listen to iframe messages
   useEffect(() => {
-    if (!roomId || !iframeRef.current) return;
+    if (!roomId || !iframeRef.current || isCustomPlayer) return;
 
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
@@ -216,6 +255,33 @@ export const usePlayerSync = (roomId: string | null, iframeRef: React.RefObject<
       navigate(`/anime/${id}/${state.episode}?room=${roomId}`);
       return;
     }
+
+    if (isCustomPlayer) {
+      if (!nativeVideoRef.current) {
+        console.warn('[SYNC] Cannot sync: native video ref not ready');
+        return;
+      }
+      const video = nativeVideoRef.current;
+
+      console.log(`[SYNC] Viewer syncing to NATIVE player${force ? ' (forced)' : ''}:`, state);
+
+      if (force || state.isPlaying !== isPlayingRef.current) {
+        isPlayingRef.current = state.isPlaying;
+        if (state.isPlaying) {
+          video.play().catch(e => console.warn('[SYNC] Play prevented by browser:', e));
+        } else {
+          video.pause();
+        }
+      }
+
+      const timeDiff = Math.abs(state.time - video.currentTime);
+      if (force || timeDiff > 3) {
+        console.log(`[SYNC] Seeking native player to ${state.time} (diff: ${timeDiff.toFixed(1)}s)`);
+        video.currentTime = state.time;
+      }
+      return;
+    }
+
     if (!iframeRef.current || !iframeRef.current.contentWindow) {
       console.warn('[SYNC] Cannot sync: iframe not ready');
       return;
