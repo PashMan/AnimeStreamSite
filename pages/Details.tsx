@@ -13,7 +13,7 @@ import ReviewSection from '../components/ReviewSection';
 import { ReportModal } from '../components/ReportModal';
 import { LazyRender } from '../components/LazyRender';
 import { usePlayerSync } from '../hooks/usePlayerSync';
-import { CustomPlyrPlayer } from '../components/CustomPlyrPlayer';
+import { CustomPlayer } from '../components/CustomPlayer';
 
 const Details: React.FC = () => {
   const { id: paramId, episode: paramEpisode } = useParams<{ id: string, episode?: string }>();
@@ -771,7 +771,7 @@ const Details: React.FC = () => {
                             ) : (players.find(p => p.name === selectedPlayer)?.iframe || players.find(p => p.name === selectedPlayer)?.isCustom) ? (() => {
                               const player = players.find(p => p.name === selectedPlayer)!;
                               if (player.isCustom) {
-                                return <CustomPlyrPlayer ref={nativeVideoRef} src="https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8" />;
+                                return <CustomPlayer ref={nativeVideoRef} src="https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8" />;
                               }
                               let finalIframeUrl = player.iframe;
                               if (paramEpisode && finalIframeUrl && player.name === 'Kodik') {

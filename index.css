@@ -152,27 +152,3 @@ html, body {
 }
 .markdown-body u { text-decoration: underline; text-decoration-color: #8B5CF6; text-underline-offset: 4px; }
 .markdown-body img { max-width: 100%; border-radius: 1rem; margin: 1rem 0; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); }
-
-/* Plyr Customization */
-:root {
-  --plyr-color-main: #E11D48; /* Tailwind rose-600 */
-}
-
-/* Fix Plyr settings menu cutoff on mobile */
-.plyr__menu__container > div {
-  max-height: 60vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* Ensure the back button in the menu is always visible and clickable */
-.plyr__menu__container .plyr__control--back {
-  min-height: 40px;
-  position: sticky;
-  top: 0;
-  background: rgba(255, 255, 255, 0.9);
-  z-index: 10;
-}
-.plyr--full-ui.plyr--video .plyr__menu__container .plyr__control--back {
-  background: #1a1a1a; /* Match Plyr dark theme */
-}
