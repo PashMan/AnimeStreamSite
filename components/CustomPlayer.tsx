@@ -20,7 +20,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
       autoplay: false,
       pip: true,
       autoSize: true,
-      autoMini: true,
+      autoMini: false, // Disabled to prevent auto-PIP
       screenshot: true,
       setting: true,
       playbackRate: true,
@@ -85,6 +85,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                     return item.html;
                   },
                 });
+              }
+            });
+
+            // Translate playback rate setting
+            artInstance.on('ready', () => {
+              const playbackRateSetting = artInstance.setting.get('playbackRate');
+              if (playbackRateSetting) {
+                playbackRateSetting.html = 'Скорость';
               }
             });
 
