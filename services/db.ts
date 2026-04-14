@@ -679,16 +679,16 @@ class DatabaseService {
 
   // Anime 4K
   async getAnime4k(): Promise<string[]> {
-    if (!this.isSupabaseAvailable()) return ['32281', '50594'];
+    if (!this.isSupabaseAvailable()) return ['32281', '50594', '38826'];
     try {
       const { data, error } = await supabaseClient.from('anime_4k').select('anime_id');
       if (error || !data || data.length === 0) {
         // Fallback to hardcoded IDs if table doesn't exist or is empty
-        return ['32281', '50594'];
+        return ['32281', '50594', '38826'];
       }
       return data.map((d: any) => d.anime_id.toString());
     } catch (e) {
-      return ['32281', '50594'];
+      return ['32281', '50594', '38826'];
     }
   }
 
