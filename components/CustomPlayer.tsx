@@ -4,9 +4,10 @@ import Hls from 'hls.js';
 
 interface CustomPlayerProps {
   src: string;
+  maxAudioTracks?: number;
 }
 
-export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ src }, ref) => {
+export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ src, maxAudioTracks }, ref) => {
   const artRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,11 +76,15 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
               if (isAudioAdded) return;
               isAudioAdded = true;
 
-              const tracks = data.audioTracks.map((t, index) => ({
+              let tracks = data.audioTracks.map((t, index) => ({
                 html: t.name || t.language || `Озвучка ${index + 1}`,
                 trackId: index,
                 default: index === hls.audioTrack
               }));
+
+              if (maxAudioTracks && tracks.length > maxAudioTracks) {
+                tracks = tracks.slice(0, maxAudioTracks);
+              }
 
               if (tracks.length > 1) {
                 artInstance.setting.add({
@@ -127,7 +132,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
         art.destroy(false);
       }
     };
-  }, [src, ref]);
+  }, [src, ref, maxAudioTracks]);
 
   return <div ref={artRef} className="w-full aspect-video rounded-xl overflow-hidden bg-black" />;
 });

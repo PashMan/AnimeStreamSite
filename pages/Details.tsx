@@ -462,16 +462,24 @@ const Details: React.FC = () => {
   );
 
   const isYourName = id === '32281';
+  const isSuzume = id === '50594';
+  
   const seoTitle = isYourName 
     ? `Смотреть Твоё имя (Kimi no Na wa) в 4K онлайн бесплатно` 
+    : isSuzume
+    ? `Смотреть Судзумэ, закрывающая двери (Suzume no Tojimari) в 4K онлайн бесплатно`
     : `Смотреть ${anime.title} ${anime.originalName ? `/ ${anime.originalName} ` : ''}онлайн бесплатно в хорошем качестве`;
   
   const seoDescription = isYourName
     ? `Смотреть аниме Твоё имя (Kimi no Na wa) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Потрясающая детализация шедевра Макото Синкая без рекламы.`
+    : isSuzume
+    ? `Смотреть аниме Судзумэ, закрывающая двери (Suzume no Tojimari) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Насладитесь потрясающей детализацией шедевра Макото Синкая в 2160p без рекламы.`
     : `Аниме ${anime.title} (${anime.year}). ${anime.description ? anime.description.slice(0, 120) : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Kodik и других.`;
 
   const seoKeywords = isYourName
     ? `смотреть твоё имя в 4к, твое имя 4k онлайн, kimi no na wa 4k, макото синкай твое имя 4к, смотреть аниме в 4к, ${anime.title}, ${anime.originalName}`
+    : isSuzume
+    ? `смотреть судзумэ в 4к, судзумэ закрывающая двери 4k онлайн, suzume no tojimari 4k, макото синкай судзумэ 4к, смотреть аниме в 4к, 2160p, uhd, ${anime.title}, ${anime.originalName}`
     : `${anime.title}, ${anime.originalName}, смотреть ${anime.title}, ${anime.genres.join(', ')}, аниме онлайн, смотреть аниме бесплатно`;
 
   return (
@@ -771,7 +779,13 @@ const Details: React.FC = () => {
                             ) : (players.find(p => p.name === selectedPlayer)?.iframe || players.find(p => p.name === selectedPlayer)?.isCustom) ? (() => {
                               const player = players.find(p => p.name === selectedPlayer)!;
                               if (player.isCustom) {
-                                return <CustomPlayer ref={nativeVideoRef} src="https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8" />;
+                                const isSuzume = id === '50594';
+                                const customSrc = isSuzume 
+                                  ? "https://cdn1.kamianime.club/suzume/master.m3u8" 
+                                  : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
+                                const maxTracks = isSuzume ? 5 : undefined;
+                                
+                                return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} />;
                               }
                               let finalIframeUrl = player.iframe;
                               if (paramEpisode && finalIframeUrl && player.name === 'Kodik') {

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare, Plus } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare, Plus, MonitorPlay } from 'lucide-react';
 import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
@@ -23,6 +23,7 @@ const Home: React.FC = () => {
   const [heroAnimes, setHeroAnimes] = useState<Anime[]>([]);
   const [newAnimes, setNewAnimes] = useState<Anime[]>([]);
   const [trendingAnimes, setTrendingAnimes] = useState<Anime[]>([]);
+  const [animes4k, setAnimes4k] = useState<Anime[]>([]);
   const [communityCollections, setCommunityCollections] = useState<CommunityCollection[]>([]);
   const [collectionType, setCollectionType] = useState<'official' | 'community'>('official');
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
@@ -32,6 +33,8 @@ const Home: React.FC = () => {
   const [heroIndex, setHeroIndex] = useState(0);
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
+
+  const anime4kRef = useRef<HTMLDivElement>(null);
 
   const currentDayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][new Date().getDay()];
 
@@ -99,6 +102,19 @@ const Home: React.FC = () => {
         if (isMounted) {
             setTrendingAnimes(data);
         }
+    });
+
+    // Fetch 4K Animes
+    db.getAnime4k().then(async (ids) => {
+      try {
+        const promises = ids.map(id => fetchAnimeDetails(id));
+        const results = await Promise.all(promises);
+        if (isMounted) {
+          setAnimes4k(results.filter(a => a !== null) as Anime[]);
+        }
+      } catch (e) {
+        console.error('Failed to fetch 4K animes', e);
+      }
     });
     
     return () => { isMounted = false; };
@@ -208,6 +224,72 @@ const Home: React.FC = () => {
           <div ref={ongoingRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
             {newAnimes.length > 0 ? newAnimes.map((anime, idx) => (
               <div key={`ongoing-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
+                <AnimeCard anime={anime} />
+              </div>
+            )) : Array.from({length: 4}).map((_, i) => (
+              <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
+                  <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
+                  <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-white/5 rounded w-1/2"></div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 4K Anime Section */}
+        <section>
+          <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 shadow-lg shadow-purple-500/10">
+                    <MonitorPlay className="w-5 h-5" />
+                </div>
+                <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Аниме в 4K</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Ультра-высокое качество</p>
+                </div>
+            </div>
+            <div className="flex gap-3 items-center">
+               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
+               <button aria-label="Scroll left" onClick={() => scrollContainer(anime4kRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
+               <button aria-label="Scroll right" onClick={() => scrollContainer(anime4kRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+            </div>
+          </div>
+          <div ref={anime4kRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
+            {animes4k.length > 0 ? animes4k.map((anime, idx) => (
+              <div key={`4k-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
+                <AnimeCard anime={anime} />
+              </div>
+            )) : Array.from({length: 4}).map((_, i) => (
+              <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
+                  <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
+                  <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-white/5 rounded w-1/2"></div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 4K Anime Section */}
+        <section>
+          <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 shadow-lg shadow-purple-500/10">
+                    <MonitorPlay className="w-5 h-5" />
+                </div>
+                <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Аниме в 4K</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Ультра-высокое качество</p>
+                </div>
+            </div>
+            <div className="flex gap-3 items-center">
+               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
+               <button aria-label="Scroll left" onClick={() => scrollContainer(anime4kRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
+               <button aria-label="Scroll right" onClick={() => scrollContainer(anime4kRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+            </div>
+          </div>
+          <div ref={anime4kRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
+            {animes4k.length > 0 ? animes4k.map((anime, idx) => (
+              <div key={`4k-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
                 <AnimeCard anime={anime} />
               </div>
             )) : Array.from({length: 4}).map((_, i) => (
