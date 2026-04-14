@@ -783,8 +783,8 @@ const Details: React.FC = () => {
                                 const customSrc = isSuzume 
                                   ? "https://cdn1.kamianime.club/suzume/master.m3u8" 
                                   : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
-                                const maxTracks = isSuzume ? 5 : undefined;
-                                const audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria'] : undefined;
+                                const maxTracks = undefined;
+                                const audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria', 'Ю. Сербин', 'Netflix КЗ.', 'Оригинал + Субтитры', 'Оригинал'] : undefined;
                                 
                                 return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} audioTrackNames={audioTrackNames} />;
                               }

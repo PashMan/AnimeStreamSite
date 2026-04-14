@@ -14,50 +14,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
   useEffect(() => {
     if (!artRef.current) return;
 
-    let art: Artplayer;
-    let blobUrl: string | null = null;
-
-    const initPlayer = async () => {
-      let finalUrl = src;
-
-      if (maxAudioTracks && src.endsWith('.m3u8')) {
-        try {
-          const res = await fetch(src);
-          const text = await res.text();
-          const baseUrl = src.substring(0, src.lastIndexOf('/') + 1);
-          
-          const lines = text.split('\n');
-          let audioCount = 0;
-          const newLines = lines.map(line => {
-            if (line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
-              audioCount++;
-              if (audioCount > maxAudioTracks) return null;
-            }
-            if (line.includes('URI="')) {
-              return line.replace(/URI="([^"]+)"/, (match, uri) => {
-                if (!uri.startsWith('http')) return `URI="${baseUrl}${uri}"`;
-                return match;
-              });
-            }
-            if (line && !line.startsWith('#') && !line.startsWith('http')) {
-              return baseUrl + line;
-            }
-            return line;
-          }).filter(l => l !== null);
-          
-          const blob = new Blob([newLines.join('\n')], { type: 'application/vnd.apple.mpegurl' });
-          blobUrl = URL.createObjectURL(blob);
-          finalUrl = blobUrl;
-        } catch (e) {
-          console.error('Failed to rewrite manifest', e);
-        }
-      }
-
-      if (!artRef.current) return;
-
-      art = new Artplayer({
-        container: artRef.current,
-        url: finalUrl,
+    const art = new Artplayer({
+      container: artRef.current,
+      url: src,
       theme: '#E11D48',
       volume: 0.7,
       autoplay: false,
@@ -189,16 +148,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
     } else if (ref) {
       ref.current = art.video;
     }
-    };
-
-    initPlayer();
 
     return () => {
       if (art && art.destroy) {
         art.destroy(false);
-      }
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
       }
     };
   }, [src, ref, maxAudioTracks, audioTrackNames]);
