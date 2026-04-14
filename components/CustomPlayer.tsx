@@ -59,6 +59,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
       art = new Artplayer({
         container: artRef.current,
         url: finalUrl,
+        type: src.includes('.m3u8') ? 'm3u8' : undefined,
         theme: '#E11D48',
       volume: 0.7,
       autoplay: false,
@@ -103,7 +104,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
             });
 
             let isQualityAdded = false;
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
               if (isQualityAdded) return;
               isQualityAdded = true;
               
@@ -118,10 +119,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                 return height ? height + 'p' : 'Unknown';
               };
 
-              const qualities = hls.levels.map((l, index) => ({
+              const levels = data.levels || hls.levels;
+              const qualities = levels.map((l: any, index: number) => ({
                 html: getQualityName(l),
                 level: index,
-                default: index === hls.levels.length - 1
+                default: index === levels.length - 1
               })).reverse();
 
               if (qualities.length > 0) {
