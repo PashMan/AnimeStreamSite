@@ -5,9 +5,10 @@ import Hls from 'hls.js';
 interface CustomPlayerProps {
   src: string;
   maxAudioTracks?: number;
+  audioTrackNames?: string[];
 }
 
-export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ src, maxAudioTracks }, ref) => {
+export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ src, maxAudioTracks, audioTrackNames }, ref) => {
   const artRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,17 +42,48 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
       customType: {
         m3u8: function (video, url, artInstance) {
           if (Hls.isSupported()) {
+            if (artInstance.hls) artInstance.hls.destroy();
             const hls = new Hls();
-            hls.loadSource(url);
+            artInstance.hls = hls;
             hls.attachMedia(video);
+            hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+              hls.loadSource(url);
+            });
+
+            hls.on(Hls.Events.ERROR, function (event, data) {
+              if (data.fatal) {
+                switch (data.type) {
+                  case Hls.ErrorTypes.NETWORK_ERROR:
+                    console.error('fatal network error encountered, try to recover');
+                    hls.startLoad();
+                    break;
+                  case Hls.ErrorTypes.MEDIA_ERROR:
+                    console.error('fatal media error encountered, try to recover');
+                    hls.recoverMediaError();
+                    break;
+                  default:
+                    hls.destroy();
+                    break;
+                }
+              }
+            });
 
             let isQualityAdded = false;
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
               if (isQualityAdded) return;
               isQualityAdded = true;
               
+              const getQualityName = (height: number) => {
+                if (height >= 2000) return '4K';
+                if (height >= 1000) return '1080p';
+                if (height >= 700) return '720p';
+                if (height >= 480) return '480p';
+                if (height >= 360) return '360p';
+                return height + 'p';
+              };
+
               const qualities = hls.levels.map((l, index) => ({
-                html: l.height + 'p',
+                html: getQualityName(l.height),
                 level: index,
                 default: index === hls.levels.length - 1
               })).reverse();
@@ -77,7 +109,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
               isAudioAdded = true;
 
               let tracks = data.audioTracks.map((t, index) => ({
-                html: t.name || t.language || `Озвучка ${index + 1}`,
+                html: (audioTrackNames && audioTrackNames[index]) ? audioTrackNames[index] : (t.name || t.language || `Озвучка ${index + 1}`),
                 trackId: index,
                 default: index === hls.audioTrack
               }));
@@ -132,7 +164,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
         art.destroy(false);
       }
     };
-  }, [src, ref, maxAudioTracks]);
+  }, [src, ref, maxAudioTracks, audioTrackNames]);
 
   return <div ref={artRef} className="w-full aspect-video rounded-xl overflow-hidden bg-black" />;
 });

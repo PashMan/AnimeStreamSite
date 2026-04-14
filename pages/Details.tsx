@@ -784,8 +784,9 @@ const Details: React.FC = () => {
                                   ? "https://cdn1.kamianime.club/suzume/master.m3u8" 
                                   : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
                                 const maxTracks = isSuzume ? 5 : undefined;
+                                const audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria'] : undefined;
                                 
-                                return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} />;
+                                return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} audioTrackNames={audioTrackNames} />;
                               }
                               let finalIframeUrl = player.iframe;
                               if (paramEpisode && finalIframeUrl && player.name === 'Kodik') {

@@ -223,11 +223,11 @@ const Home: React.FC = () => {
           </div>
           <div ref={ongoingRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
             {newAnimes.length > 0 ? newAnimes.map((anime, idx) => (
-              <div key={`ongoing-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
+              <div key={`ongoing-${anime.id}-${idx}`} className="w-[220px] sm:w-[260px] flex-none snap-start">
                 <AnimeCard anime={anime} />
               </div>
             )) : Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
+              <div key={i} className="w-[220px] sm:w-[260px] flex-none snap-start animate-pulse">
                   <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
                   <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-white/5 rounded w-1/2"></div>
@@ -256,44 +256,11 @@ const Home: React.FC = () => {
           </div>
           <div ref={anime4kRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
             {animes4k.length > 0 ? animes4k.map((anime, idx) => (
-              <div key={`4k-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
+              <div key={`4k-${anime.id}-${idx}`} className="w-[220px] sm:w-[260px] flex-none snap-start">
                 <AnimeCard anime={anime} />
               </div>
             )) : Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
-                  <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
-                  <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-white/5 rounded w-1/2"></div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 4K Anime Section */}
-        <section>
-          <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 shadow-lg shadow-purple-500/10">
-                    <MonitorPlay className="w-5 h-5" />
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Аниме в 4K</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Ультра-высокое качество</p>
-                </div>
-            </div>
-            <div className="flex gap-3 items-center">
-               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
-               <button aria-label="Scroll left" onClick={() => scrollContainer(anime4kRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
-               <button aria-label="Scroll right" onClick={() => scrollContainer(anime4kRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
-            </div>
-          </div>
-          <div ref={anime4kRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
-            {animes4k.length > 0 ? animes4k.map((anime, idx) => (
-              <div key={`4k-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
-                <AnimeCard anime={anime} />
-              </div>
-            )) : Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
+              <div key={i} className="w-[220px] sm:w-[260px] flex-none snap-start animate-pulse">
                   <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
                   <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-white/5 rounded w-1/2"></div>
@@ -323,11 +290,11 @@ const Home: React.FC = () => {
           </div>
           <div ref={trendingRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
             {trendingAnimes.length > 0 ? trendingAnimes.map((anime, idx) => (
-              <div key={`trend-${anime.id}-${idx}`} className="min-w-[220px] sm:min-w-[260px] snap-start">
+              <div key={`trend-${anime.id}-${idx}`} className="w-[220px] sm:w-[260px] flex-none snap-start">
                 <AnimeCard anime={anime} rank={idx + 1} />
               </div>
             )) : Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="min-w-[220px] sm:min-w-[260px] snap-start animate-pulse">
+              <div key={i} className="w-[220px] sm:w-[260px] flex-none snap-start animate-pulse">
                   <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
                   <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-white/5 rounded w-1/2"></div>
