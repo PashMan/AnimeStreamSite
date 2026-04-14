@@ -52,19 +52,8 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
 
             hls.on(Hls.Events.ERROR, function (event, data) {
               if (data.fatal) {
-                switch (data.type) {
-                  case Hls.ErrorTypes.NETWORK_ERROR:
-                    console.error('fatal network error encountered, try to recover');
-                    hls.startLoad();
-                    break;
-                  case Hls.ErrorTypes.MEDIA_ERROR:
-                    console.error('fatal media error encountered, try to recover');
-                    hls.recoverMediaError();
-                    break;
-                  default:
-                    hls.destroy();
-                    break;
-                }
+                console.error('HLS.js fatal error:', data.type, data.details);
+                // Removed aggressive auto-recovery to prevent ERR_HTTP2_PROTOCOL_ERROR infinite loops
               }
             });
 
@@ -73,17 +62,19 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
               if (isQualityAdded) return;
               isQualityAdded = true;
               
-              const getQualityName = (height: number) => {
-                if (height >= 2000) return '4K';
-                if (height >= 1000) return '1080p';
-                if (height >= 700) return '720p';
-                if (height >= 480) return '480p';
-                if (height >= 360) return '360p';
-                return height + 'p';
+              const getQualityName = (level: any) => {
+                const width = level.width || 0;
+                const height = level.height || 0;
+                if (width >= 3800 || height >= 1500) return '4K';
+                if (width >= 1900 || height >= 800) return '1080p';
+                if (width >= 1200 || height >= 500) return '720p';
+                if (width >= 800 || height >= 400) return '480p';
+                if (width >= 600 || height >= 300) return '360p';
+                return height ? height + 'p' : 'Unknown';
               };
 
               const qualities = hls.levels.map((l, index) => ({
-                html: getQualityName(l.height),
+                html: getQualityName(l),
                 level: index,
                 default: index === hls.levels.length - 1
               })).reverse();
