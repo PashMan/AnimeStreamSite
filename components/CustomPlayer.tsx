@@ -14,9 +14,50 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
   useEffect(() => {
     if (!artRef.current) return;
 
-    const art = new Artplayer({
-      container: artRef.current,
-      url: src,
+    let art: Artplayer;
+    let blobUrl: string | null = null;
+
+    const initPlayer = async () => {
+      let finalUrl = src;
+
+      if (maxAudioTracks && src.endsWith('.m3u8')) {
+        try {
+          const res = await fetch(src);
+          const text = await res.text();
+          const baseUrl = src.substring(0, src.lastIndexOf('/') + 1);
+          
+          const lines = text.split('\n');
+          let audioCount = 0;
+          const newLines = lines.map(line => {
+            if (line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
+              audioCount++;
+              if (audioCount > maxAudioTracks) return null;
+            }
+            if (line.includes('URI="')) {
+              return line.replace(/URI="([^"]+)"/, (match, uri) => {
+                if (!uri.startsWith('http')) return `URI="${baseUrl}${uri}"`;
+                return match;
+              });
+            }
+            if (line && !line.startsWith('#') && !line.startsWith('http')) {
+              return baseUrl + line;
+            }
+            return line;
+          }).filter(l => l !== null);
+          
+          const blob = new Blob([newLines.join('\n')], { type: 'application/vnd.apple.mpegurl' });
+          blobUrl = URL.createObjectURL(blob);
+          finalUrl = blobUrl;
+        } catch (e) {
+          console.error('Failed to rewrite manifest', e);
+        }
+      }
+
+      if (!artRef.current) return;
+
+      art = new Artplayer({
+        container: artRef.current,
+        url: finalUrl,
       theme: '#E11D48',
       volume: 0.7,
       autoplay: false,
@@ -43,7 +84,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
         m3u8: function (video, url, artInstance) {
           if (Hls.isSupported()) {
             if (artInstance.hls) artInstance.hls.destroy();
-            const hls = new Hls();
+            const hls = new Hls({
+              maxMaxBufferLength: 30,
+              maxBufferSize: 60 * 1000 * 1000,
+            });
             artInstance.hls = hls;
             hls.attachMedia(video);
             hls.on(Hls.Events.MEDIA_ATTACHED, () => {
@@ -105,10 +149,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                 default: index === hls.audioTrack
               }));
 
-              if (maxAudioTracks && tracks.length > maxAudioTracks) {
-                tracks = tracks.slice(0, maxAudioTracks);
-              }
-
               if (tracks.length > 1) {
                 artInstance.setting.add({
                   name: 'audio',
@@ -149,10 +189,16 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
     } else if (ref) {
       ref.current = art.video;
     }
+    };
+
+    initPlayer();
 
     return () => {
       if (art && art.destroy) {
         art.destroy(false);
+      }
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
       }
     };
   }, [src, ref, maxAudioTracks, audioTrackNames]);
