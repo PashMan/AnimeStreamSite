@@ -28,8 +28,8 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
       // Filter out Anilibria
       playersList = playersList.filter(p => p.name !== 'Anilibria');
 
-      // Add custom player for Kimi no Na wa (32281) and Suzume (50594)
-      if (shikimoriId === '32281' || shikimoriId === '50594') {
+      // Add custom player for Kimi no Na wa (32281), Suzume (50594), and Weathering with You (38826)
+      if (shikimoriId === '32281' || shikimoriId === '50594' || shikimoriId === '38826') {
         playersList.unshift({
           name: 'KamiPlayer (4K)',
           iframe: null,
