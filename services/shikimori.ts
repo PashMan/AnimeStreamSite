@@ -319,8 +319,8 @@ export const mapAnime = async (data: any): Promise<Anime> => {
                image_preview = image;
            }
       } else {
-          // For main image (used in cards), prefer preview over original
-          const candidates = [data.image.preview, data.image.x96, data.image.original];
+          // For main image (used in cards), prefer original over preview for better quality
+          const candidates = [data.image.original, data.image.preview, data.image.x96];
           for (const img of candidates) {
               if (img && !img.includes('missing') && !img.includes('none.png')) {
                   image = proxyImage(img);

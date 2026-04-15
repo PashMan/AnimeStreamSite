@@ -8,6 +8,8 @@ import AuthModal from './AuthModal';
 import { fetchAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE } from '../constants';
 
+import { useSlugBlocks } from '../store/slugBlocks';
+
 // Helper to find a random anime with a player
 const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
   // Shikimori has around 1000+ popular TV animes. Let's pick a random page.
@@ -55,6 +57,12 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
 
   const isActive = (path: string) => pathname === path;
+
+  const { fetchSlugBlocks } = useSlugBlocks();
+
+  useEffect(() => {
+    fetchSlugBlocks();
+  }, [fetchSlugBlocks]);
 
   useEffect(() => {
     if (user?.email) {

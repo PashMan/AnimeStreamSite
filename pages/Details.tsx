@@ -217,7 +217,14 @@ const Details: React.FC = () => {
 
         // Fetch DMCA blocks
         db.getDmcaBlocks().then(blocks => {
-          if (isMounted) setIsBlocked(blocks.includes(id));
+          if (isMounted && blocks.includes(id)) setIsBlocked(true);
+        }).catch(console.error);
+
+        // Fetch Slug blocks
+        db.getSlugBlocks().then(blocks => {
+          if (isMounted && blocks.includes(id) && paramId?.includes('-')) {
+            setIsBlocked(true);
+          }
         }).catch(console.error);
 
         // User specific data (Favorites/Watched) - can be done in parallel with lazy load

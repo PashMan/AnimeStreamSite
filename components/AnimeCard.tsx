@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Star, PlayCircle } from 'lucide-react';
 import { Anime } from '../types';
 import { Image } from './Image';
+import { useSlugBlocks } from '../store/slugBlocks';
 
 interface AnimeCardProps {
   anime: Anime;
@@ -11,9 +12,11 @@ interface AnimeCardProps {
 
 const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
   const episodeCount = `${anime.episodesAired || 0} / ${anime.episodes || '?'}`;
+  const { slugBlocks } = useSlugBlocks();
+  const isSlugBlocked = slugBlocks.includes(anime.id);
 
   return (
-    <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="group block relative w-full h-full">
+    <Link to={`/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`} className="group block relative w-full h-full">
       <div className="relative w-full aspect-[2/3] rounded-[2.5rem] overflow-hidden mb-5 bg-surface border border-white/5 group-hover:border-primary/50 transition-all shadow-xl group-hover:shadow-primary/20">
         <Image 
           src={anime.image} 

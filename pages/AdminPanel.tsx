@@ -21,10 +21,12 @@ const AdminPanel: React.FC = () => {
   const { user } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'reports' | 'profanity' | 'dmca' | 'users' | 'seo'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'profanity' | 'dmca' | 'slug' | 'users' | 'seo'>('reports');
   const [profaneContent, setProfaneContent] = useState<any[]>([]);
   const [dmcaBlocks, setDmcaBlocks] = useState<string[]>([]);
+  const [slugBlocks, setSlugBlocks] = useState<string[]>([]);
   const [newDmcaId, setNewDmcaId] = useState('');
+  const [newSlugId, setNewSlugId] = useState('');
   const [users, setUsers] = useState<User[]>([]);
 
   const [initialLoad, setInitialLoad] = useState(true);
@@ -44,6 +46,9 @@ const AdminPanel: React.FC = () => {
 
       const fetchedDmca = await db.getDmcaBlocks();
       setDmcaBlocks(fetchedDmca);
+
+      const fetchedSlugBlocks = await db.getSlugBlocks();
+      setSlugBlocks(fetchedSlugBlocks);
 
       if (user?.role === 'admin') {
         const fetchedUsers = await db.getAllUsers();
@@ -159,6 +164,39 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleAddSlugBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSlugId.trim()) return;
+    
+    // Extract ID if it's a URL
+    let idToAdd = newSlugId.trim();
+    const match = idToAdd.match(/\/animes\/(?:[a-z]+)?(\d+)/);
+    if (match) {
+      idToAdd = match[1];
+    } else if (!/^\d+$/.test(idToAdd)) {
+      alert('Пожалуйста, введите корректный ID или ссылку на Shikimori');
+      return;
+    }
+
+    const success = await db.addSlugBlock(idToAdd);
+    if (success) {
+      setSlugBlocks(prev => [...prev, idToAdd]);
+      setNewSlugId('');
+    } else {
+      alert('Ошибка при добавлении блокировки');
+    }
+  };
+
+  const handleRemoveSlugBlock = async (id: string) => {
+    if (!window.confirm(`Удалить блокировку слага для аниме с ID ${id}?`)) return;
+    const success = await db.removeSlugBlock(id);
+    if (success) {
+      setSlugBlocks(prev => prev.filter(b => b !== id));
+    } else {
+      alert('Ошибка при удалении блокировки');
+    }
+  };
+
   if (user?.role !== 'admin' && user?.role !== 'moderator') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
@@ -200,6 +238,14 @@ const AdminPanel: React.FC = () => {
           }`}
         >
           Блокировки (DMCA)
+        </button>
+        <button
+          onClick={() => setActiveTab('slug')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeTab === 'slug' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          Скрытие слага
         </button>
         {user?.role === 'admin' && (
           <>
@@ -366,6 +412,55 @@ const AdminPanel: React.FC = () => {
                           onClick={() => handleRemoveDmcaBlock(id)}
                           className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Разблокировать"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: activeTab === 'slug' ? 'block' : 'none' }}>
+            <div className="space-y-6">
+              <div className="bg-slate-800/50 border border-white/10 rounded-xl p-6">
+                <h2 className="text-xl font-bold text-white mb-4">Скрыть слаг (английское название) из URL</h2>
+                <p className="text-gray-400 mb-4 text-sm">
+                  Добавьте ID аниме, чтобы оно открывалось только по короткой ссылке (например, /anime/12345). 
+                  Старая ссылка с названием будет заблокирована.
+                </p>
+                <form onSubmit={handleAddSlugBlock} className="flex gap-4">
+                  <input
+                    type="text"
+                    value={newSlugId}
+                    onChange={(e) => setNewSlugId(e.target.value)}
+                    placeholder="ID аниме на Shikimori или ссылка"
+                    className="flex-1 bg-slate-900/50 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition-colors"
+                  >
+                    Скрыть
+                  </button>
+                </form>
+              </div>
+
+              <div className="bg-slate-800/50 border border-white/10 rounded-xl p-6">
+                <h2 className="text-xl font-bold text-white mb-4">Скрытые слоги ({slugBlocks.length})</h2>
+                {slugBlocks.length === 0 ? (
+                  <p className="text-gray-400">Список пуст</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {slugBlocks.map(id => (
+                      <div key={id} className="bg-slate-900/50 border border-white/5 rounded-lg p-4 flex items-center justify-between group">
+                        <span className="text-white font-mono">{id}</span>
+                        <button
+                          onClick={() => handleRemoveSlugBlock(id)}
+                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Удалить"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

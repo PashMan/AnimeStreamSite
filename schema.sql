@@ -246,3 +246,10 @@ CREATE TABLE IF NOT EXISTS room_users (
   PRIMARY KEY (room_id, user_id)
 );
 
+-- Slug Blocks
+CREATE TABLE IF NOT EXISTS slug_blocks (
+  id TEXT PRIMARY KEY,
+  anime_id TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+

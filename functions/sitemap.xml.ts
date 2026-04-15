@@ -1,17 +1,6 @@
 
 const SHIKIMORI_API_URL = 'https://shikimori.one/api';
 
-// Helper for slug generation
-const slugify = (text: string): string => {
-  return text
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')     // Replace spaces with -
-    .replace(/[^\w\-]+/g, '') // Remove all non-word chars
-    .replace(/\-\-+/g, '-');  // Replace multiple - with single -
-};
-
 // Hardcoded collections
 const COLLECTIONS = [
   { id: 'super-power' }, { id: 'friendship' }, { id: 'coming-of-age' },
@@ -131,15 +120,14 @@ export const onRequest = async (context: any) => {
   </url>`;
     });
 
-    // Add Anime URLs with Slugs
+    // Add Anime URLs without Slugs to prevent indexing of english names
     if (Array.isArray(animes)) {
       animes.forEach((anime: any) => {
-        const slug = slugify(anime.name || anime.russian || 'anime');
         const lastmod = anime.updated_at ? new Date(anime.updated_at).toISOString() : today;
         
         xml += `
   <url>
-    <loc>${SITE_URL}/anime/${anime.id}-${slug}</loc>
+    <loc>${SITE_URL}/anime/${anime.id}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

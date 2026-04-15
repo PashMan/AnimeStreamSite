@@ -2051,6 +2051,34 @@ class DatabaseService {
       return false;
     }
   }
+  async getSlugBlocks(): Promise<string[]> {
+    try {
+      const { data, error } = await supabaseClient.from('slug_blocks').select('anime_id');
+      if (error) return [];
+      return data.map((d: any) => d.anime_id);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async addSlugBlock(animeId: string): Promise<boolean> {
+    try {
+      const id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
+      const { error } = await supabaseClient.from('slug_blocks').insert([{ id, anime_id: animeId }]);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async removeSlugBlock(animeId: string): Promise<boolean> {
+    try {
+      const { error } = await supabaseClient.from('slug_blocks').delete().eq('anime_id', animeId);
+      return !error;
+    } catch (e) {
+      return false;
+    }
+  }
 }
 
 export const db = new DatabaseService();
