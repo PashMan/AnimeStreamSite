@@ -208,7 +208,7 @@ export interface NewsItem {
 
 export interface ScheduleItem {
   day: string;
-  animes: { id: string; time: string; title: string }[];
+  animes: { id: string; time: string; title: string; slug?: string }[];
 }
 
 export interface Review {

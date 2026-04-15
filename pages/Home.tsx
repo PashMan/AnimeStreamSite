@@ -9,16 +9,19 @@ import { LazyRender } from '../components/LazyRender';
 import { fetchAnimes, fetchCalendar, fetchNews, fetchAnimeDetails } from '../services/shikimori';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
+import { useSlugBlocks } from '../store/slugBlocks';
+import { useDmcaBlocks } from '../store/dmcaBlocks';
 import { Anime, ScheduleItem, NewsItem, ForumTopic, CommunityCollection } from '../types';
 import { FALLBACK_IMAGE, COLLECTIONS_DATA } from '../constants';
 import CollectionCard from '../components/CollectionCard';
-
 import CreateCollectionModal from '../components/CreateCollectionModal';
 
 const Home: React.FC = () => {
   const ongoingRef = useRef<HTMLDivElement>(null);
   const trendingRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
+  const { slugBlocks } = useSlugBlocks();
+  const { dmcaBlocks } = useDmcaBlocks();
   
   const [heroAnimes, setHeroAnimes] = useState<Anime[]>([]);
   const [newAnimes, setNewAnimes] = useState<Anime[]>([]);
@@ -182,7 +185,7 @@ const Home: React.FC = () => {
                 {currentHero.description || "Описание загружается..."}
               </p>
               <div className="flex flex-wrap gap-4 items-center pt-4">
-                <Link to={`/anime/${currentHero.id}${currentHero.slug ? `-${currentHero.slug}` : ''}`} className="px-10 py-5 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
+                <Link to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} className="px-10 py-5 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
                   <PlayCircle className="w-6 h-6 fill-current" /> Смотреть
                 </Link>
                 <div className="flex gap-2">
@@ -326,12 +329,16 @@ const Home: React.FC = () => {
                         )}
                         <h4 className={`text-[10px] font-black uppercase mb-3 text-center tracking-widest transition-colors shrink-0 ${day.day === currentDayName ? 'text-primary' : 'text-slate-500 group-hover:text-primary'}`}>{day.day}</h4>
                         <div className="space-y-2.5 flex-1">
-                          {day.animes.length > 0 ? day.animes.map((item, idx) => (
-                            <Link key={idx} to={`/anime/${item.id}`} className="block group/item hover:bg-white/5 p-1 rounded-lg transition-colors">
+                          {day.animes.length > 0 ? day.animes.map((item, idx) => {
+                            const isDmcaBlocked = dmcaBlocks.includes(item.id.toString());
+                            const isSlugBlocked = slugBlocks.includes(item.id.toString());
+                            const targetUrl = isDmcaBlocked ? `/anime/${item.id}-watch` : `/anime/${item.id}${item.slug && !isSlugBlocked ? `-${item.slug}` : ''}`;
+                            return (
+                            <Link key={idx} to={targetUrl} className="block group/item hover:bg-white/5 p-1 rounded-lg transition-colors">
                               <div className="text-[7px] text-slate-500 font-black flex items-center gap-1 mb-0.5 group-hover/item:text-primary transition-colors uppercase"><Clock className="w-2.5 h-2.5" /> {item.time}</div>
                               <p className="text-[10px] font-bold text-white/80 leading-tight line-clamp-1 group-hover/item:line-clamp-none transition-colors group-hover/item:text-white">{item.title}</p>
                             </Link>
-                          )) : <p className="text-[7px] text-slate-700 font-black uppercase text-center mt-2">Пусто</p>}
+                          )}) : <p className="text-[7px] text-slate-700 font-black uppercase text-center mt-2">Пусто</p>}
                         </div>
                     </div>
                   </div>
@@ -359,8 +366,12 @@ const Home: React.FC = () => {
                       
                       {isExpanded && (
                         <div className="px-4 pb-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                          {day.animes.length > 0 ? day.animes.map((item, idx) => (
-                            <Link key={idx} to={`/anime/${item.id}`} className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 active:scale-[0.98] transition-transform">
+                          {day.animes.length > 0 ? day.animes.map((item, idx) => {
+                            const isDmcaBlocked = dmcaBlocks.includes(item.id.toString());
+                            const isSlugBlocked = slugBlocks.includes(item.id.toString());
+                            const targetUrl = isDmcaBlocked ? `/anime/${item.id}-watch` : `/anime/${item.id}${item.slug && !isSlugBlocked ? `-${item.slug}` : ''}`;
+                            return (
+                            <Link key={idx} to={targetUrl} className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 active:scale-[0.98] transition-transform">
                               <div className="mt-0.5 min-w-[40px] px-1.5 py-1 bg-black/40 rounded text-[9px] font-black text-primary text-center tracking-wider border border-white/5">
                                 {item.time}
                               </div>
@@ -368,7 +379,7 @@ const Home: React.FC = () => {
                                 <p className="text-xs font-bold text-white leading-snug line-clamp-2">{item.title}</p>
                               </div>
                             </Link>
-                          )) : (
+                          )}) : (
                             <div className="text-center py-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Нет релизов</div>
                           )}
                         </div>

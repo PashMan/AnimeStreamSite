@@ -9,6 +9,7 @@ import { fetchAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE } from '../constants';
 
 import { useSlugBlocks } from '../store/slugBlocks';
+import { useDmcaBlocks } from '../store/dmcaBlocks';
 
 // Helper to find a random anime with a player
 const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
@@ -59,10 +60,12 @@ const Layout: React.FC = () => {
   const isActive = (path: string) => pathname === path;
 
   const { fetchSlugBlocks } = useSlugBlocks();
+  const { dmcaBlocks, setDmcaBlocks } = useDmcaBlocks();
 
   useEffect(() => {
     fetchSlugBlocks();
-  }, [fetchSlugBlocks]);
+    db.getDmcaBlocks().then(setDmcaBlocks).catch(console.error);
+  }, [fetchSlugBlocks, setDmcaBlocks]);
 
   useEffect(() => {
     if (user?.email) {
@@ -156,10 +159,12 @@ const Layout: React.FC = () => {
                   <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="p-2">
                       <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 py-2">Результаты поиска</div>
-                      {suggestions.map((anime) => (
+                      {suggestions.map((anime) => {
+                        const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
+                        return (
                         <Link
                           key={anime.id}
-                          to={`/anime/${anime.id}`}
+                          to={isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}`}
                           className="flex items-center gap-4 p-2 hover:bg-white/5 rounded-xl transition-colors group/item"
                           onClick={() => setShowSuggestions(false)}
                         >
@@ -185,7 +190,7 @@ const Layout: React.FC = () => {
                             </div>
                           </div>
                         </Link>
-                      ))}
+                      )})}
                     </div>
                   </div>
                 )}
@@ -275,17 +280,19 @@ const Layout: React.FC = () => {
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="p-2">
-                  {suggestions.map((anime) => (
+                  {suggestions.map((anime) => {
+                    const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
+                    return (
                     <Link
                       key={anime.id}
-                      to={`/anime/${anime.id}`}
+                      to={isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}`}
                       className="flex items-center gap-4 p-2 hover:bg-white/5 rounded-xl transition-colors group/item"
                       onClick={() => { setShowSuggestions(false); setIsMenuOpen(false); }}
                     >
                       <img src={anime.image} alt={anime.title} className="w-10 h-14 object-cover rounded-lg" />
                       <span className="text-sm font-bold text-slate-200 truncate">{anime.title}</span>
                     </Link>
-                  ))}
+                  )})}
                 </div>
               </div>
             )}

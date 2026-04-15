@@ -9,9 +9,13 @@ import { FALLBACK_IMAGE } from '../constants';
 import { Link } from 'react-router-dom';
 import imageCompression from 'browser-image-compression';
 import SEO from '../components/SEO';
+import { useSlugBlocks } from '../store/slugBlocks';
+import { useDmcaBlocks } from '../store/dmcaBlocks';
 
 const Profile: React.FC = () => {
   const { user, openAuthModal, updateProfile } = useAuth();
+  const { slugBlocks } = useSlugBlocks();
+  const { dmcaBlocks } = useDmcaBlocks();
   const [allFavIds, setAllFavIds] = useState<string[]>([]);
   const [allWatchedIds, setAllWatchedIds] = useState<string[]>([]);
   const [allWatchingIds, setAllWatchingIds] = useState<string[]>([]);
@@ -613,8 +617,12 @@ const Profile: React.FC = () => {
                                     <div className="flex-grow"><h4 className="text-lg font-black text-white truncate uppercase tracking-tighter">{item.title}</h4><p className="text-xs text-slate-400 font-bold mt-1 uppercase">Серия {item.episode}</p></div>
                                     <PlayCircle className="w-10 h-10 text-primary opacity-0 group-hover:opacity-100 transition-all" />
                                 </Link>
-                            )) : (activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : dropped).map((anime: Anime) => (
-                                 <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} key={anime.id} className="group relative rounded-3xl overflow-hidden glass border border-transparent hover:border-primary transition-all">
+                            )) : (activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : dropped).map((anime: Anime) => {
+                                 const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
+                                 const isSlugBlocked = slugBlocks.includes(anime.id.toString());
+                                 const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
+                                 return (
+                                 <Link to={targetUrl} key={anime.id} className="group relative rounded-3xl overflow-hidden glass border border-transparent hover:border-primary transition-all">
                                    <div className="aspect-[2/3] relative">
                                       <img 
                                         src={anime.image} 
@@ -627,7 +635,7 @@ const Profile: React.FC = () => {
                                       <div className="absolute bottom-4 left-4 right-4"><h4 className="text-xs font-black text-white truncate uppercase mb-1">{anime.title}</h4><div className="text-[9px] font-black text-primary uppercase">{anime.type}</div></div>
                                    </div>
                                 </Link>
-                            ))}
+                            )})}
                         </div>
                     ) : (
                         <div className="p-16 text-center glass rounded-[2rem] border border-white/5"><p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Список пуст</p></div>

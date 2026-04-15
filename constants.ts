@@ -172,13 +172,13 @@ export const MOCK_EPISODES: Episode[] = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 export const SCHEDULE: ScheduleItem[] = [
-  { day: "Пн", animes: [{ id: "1", time: "20:30", title: "Поднятие уровня" }, { id: "2", time: "22:00", title: "Волейбол!!" }] },
-  { day: "Вт", animes: [{ id: "4", time: "18:00", title: "Человек-бензопила" }] },
-  { day: "Ср", animes: [{ id: "3", time: "19:30", title: "Магическая битва" }, { id: "6", time: "21:00", title: "Семья шпиона" }] },
-  { day: "Чт", animes: [{ id: "2", time: "20:00", title: "Фрирен" }] },
-  { day: "Пт", animes: [{ id: "5", time: "23:00", title: "Атака титанов" }] },
-  { day: "Сб", animes: [{ id: "1", time: "10:00", title: "Ван-Пис" }] },
-  { day: "Вс", animes: [{ id: "6", time: "12:00", title: "Истребитель демонов" }] },
+  { day: "Пн", animes: [{ id: "1", time: "20:30", title: "Поднятие уровня", slug: "solo-leveling" }, { id: "2", time: "22:00", title: "Волейбол!!", slug: "haikyuu" }] },
+  { day: "Вт", animes: [{ id: "4", time: "18:00", title: "Человек-бензопила", slug: "chainsaw-man" }] },
+  { day: "Ср", animes: [{ id: "3", time: "19:30", title: "Магическая битва", slug: "jujutsu-kaisen" }, { id: "6", time: "21:00", title: "Семья шпиона", slug: "spy-x-family" }] },
+  { day: "Чт", animes: [{ id: "2", time: "20:00", title: "Фрирен", slug: "frieren" }] },
+  { day: "Пт", animes: [{ id: "5", time: "23:00", title: "Атака титанов", slug: "attack-on-titan" }] },
+  { day: "Сб", animes: [{ id: "1", time: "10:00", title: "Ван-Пис", slug: "one-piece" }] },
+  { day: "Вс", animes: [{ id: "6", time: "12:00", title: "Истребитель демонов", slug: "demon-slayer" }] },
 ];
 
 export const MOCK_NEWS: NewsItem[] = [

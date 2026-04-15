@@ -21,6 +21,36 @@ export const onRequestPost = async (context: any) => {
           const placeholders = w.val.map(() => '?').join(',');
           params.push(...w.val.map((v: any) => v === undefined ? null : v));
           return `${w.col} IN (${placeholders})`;
+        } else if (w.op === 'ILIKE') {
+          params.push(w.val === undefined ? null : w.val);
+          return `${w.col} LIKE ?`;
+        } else if (w.op === '!=') {
+          params.push(w.val === undefined ? null : w.val);
+          return `${w.col} != ?`;
+        } else if (w.op === 'OR') {
+          const orParts = w.val.split('),and(');
+          if (orParts.length > 1) {
+             const matches = w.val.match(/and\(([^)]+)\)/g);
+             const orClauses = matches.map((andStr: string) => {
+                const inner = andStr.slice(4, -1);
+                const parts = inner.split(',');
+                const sqlParts = parts.map((p: string) => {
+                   const [col, op, ...valParts] = p.split('.');
+                   params.push(valParts.join('.'));
+                   return `${col} = ?`;
+                });
+                return `(${sqlParts.join(' AND ')})`;
+             });
+             return `(${orClauses.join(' OR ')})`;
+          } else {
+             const parts = w.val.split(',');
+             const sqlParts = parts.map((p: string) => {
+                const [col, op, ...valParts] = p.split('.');
+                params.push(valParts.join('.'));
+                return `${col} = ?`;
+             });
+             return `(${sqlParts.join(' OR ')})`;
+          }
         } else {
           params.push(w.val === undefined ? null : w.val);
           return `${w.col} ${w.op} ?`;

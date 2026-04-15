@@ -4,6 +4,7 @@ import { Star, PlayCircle } from 'lucide-react';
 import { Anime } from '../types';
 import { Image } from './Image';
 import { useSlugBlocks } from '../store/slugBlocks';
+import { useDmcaBlocks } from '../store/dmcaBlocks';
 
 interface AnimeCardProps {
   anime: Anime;
@@ -13,10 +14,16 @@ interface AnimeCardProps {
 const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
   const episodeCount = `${anime.episodesAired || 0} / ${anime.episodes || '?'}`;
   const { slugBlocks } = useSlugBlocks();
+  const { dmcaBlocks } = useDmcaBlocks();
   const isSlugBlocked = slugBlocks.includes(anime.id);
+  const isDmcaBlocked = dmcaBlocks.includes(anime.id);
+
+  const targetUrl = isDmcaBlocked 
+    ? `/anime/${anime.id}-watch` 
+    : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
 
   return (
-    <Link to={`/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`} className="group block relative w-full h-full">
+    <Link to={targetUrl} className="group block relative w-full h-full">
       <div className="relative w-full aspect-[2/3] rounded-[2.5rem] overflow-hidden mb-5 bg-surface border border-white/5 group-hover:border-primary/50 transition-all shadow-xl group-hover:shadow-primary/20">
         <Image 
           src={anime.image} 

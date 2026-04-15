@@ -92,7 +92,10 @@ class D1QueryBuilder {
   delete() { this.action = 'delete'; return this; }
   
   eq(col: string, val: any) { this.wheres.push({ col, op: '=', val }); return this; }
+  neq(col: string, val: any) { this.wheres.push({ col, op: '!=', val }); return this; }
+  ilike(col: string, val: any) { this.wheres.push({ col, op: 'ILIKE', val }); return this; }
   in(col: string, vals: any[]) { this.wheres.push({ col, op: 'IN', val: vals }); return this; }
+  or(condition: string) { this.wheres.push({ col: 'OR', op: 'OR', val: condition }); return this; }
   
   order(col: string, { ascending = true } = {}) { this.orders.push({ col, ascending }); return this; }
   limit(n: number) { this.lim = n; return this; }

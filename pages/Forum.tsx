@@ -12,6 +12,8 @@ import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import SEO from '../components/SEO';
 import { ReportModal } from '../components/ReportModal';
+import { useSlugBlocks } from '../store/slugBlocks';
+import { useDmcaBlocks } from '../store/dmcaBlocks';
 
 const CATEGORIES = [
   { id: 'general', name: 'Общее', description: 'Общие обсуждения на любые темы' },
@@ -28,6 +30,8 @@ const Forum: React.FC = () => {
   
   const { user, openAuthModal } = useAuth();
   const navigate = useNavigate();
+  const { slugBlocks } = useSlugBlocks();
+  const { dmcaBlocks } = useDmcaBlocks();
   
   // List State
   const [topics, setTopics] = useState<ForumTopic[]>([]);
@@ -581,7 +585,7 @@ const Forum: React.FC = () => {
                 <h1 className="text-3xl md:text-4xl font-display font-black text-white uppercase tracking-tighter mb-2">
                   Форум: {anime.title}
                 </h1>
-                <Link to={`/anime/${anime.id}${anime.slug ? `-${anime.slug}` : ''}`} className="text-primary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+                <Link to={dmcaBlocks.includes(anime.id.toString()) ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !slugBlocks.includes(anime.id.toString()) ? `-${anime.slug}` : ''}`} className="text-primary hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
                   Перейти к аниме
                 </Link>
               </div>

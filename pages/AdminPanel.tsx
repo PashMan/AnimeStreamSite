@@ -135,13 +135,13 @@ const AdminPanel: React.FC = () => {
     
     // Extract ID if it's a URL
     let idToAdd = newDmcaId.trim();
-    const match = idToAdd.match(/animes\/(?:[a-z0-9]+-)?(\d+)/);
-    if (match) {
-      idToAdd = match[1];
-    } else if (idToAdd.includes('shikimori.one/animes/')) {
+    if (idToAdd.includes('shikimori.one/animes/') || idToAdd.includes('/anime/')) {
       const parts = idToAdd.split('/');
       const lastPart = parts[parts.length - 1];
       idToAdd = lastPart.split('-')[0];
+    } else if (!/^[a-z]?\d+$/i.test(idToAdd)) {
+      alert('Пожалуйста, введите корректный ID или ссылку на Shikimori');
+      return;
     }
 
     const success = await db.addDmcaBlock(idToAdd);
@@ -170,10 +170,11 @@ const AdminPanel: React.FC = () => {
     
     // Extract ID if it's a URL
     let idToAdd = newSlugId.trim();
-    const match = idToAdd.match(/\/animes\/(?:[a-z]+)?(\d+)/);
-    if (match) {
-      idToAdd = match[1];
-    } else if (!/^\d+$/.test(idToAdd)) {
+    if (idToAdd.includes('shikimori.one/animes/') || idToAdd.includes('/anime/')) {
+      const parts = idToAdd.split('/');
+      const lastPart = parts[parts.length - 1];
+      idToAdd = lastPart.split('-')[0];
+    } else if (!/^[a-z]?\d+$/i.test(idToAdd)) {
       alert('Пожалуйста, введите корректный ID или ссылку на Shikimori');
       return;
     }

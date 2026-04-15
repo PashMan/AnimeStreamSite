@@ -14,11 +14,16 @@ import { ReportModal } from '../components/ReportModal';
 import { LazyRender } from '../components/LazyRender';
 import { usePlayerSync } from '../hooks/usePlayerSync';
 import { CustomPlayer } from '../components/CustomPlayer';
+import { useSlugBlocks } from '../store/slugBlocks';
+import { useDmcaBlocks } from '../store/dmcaBlocks';
 
 const Details: React.FC = () => {
   const { id: paramId, episode: paramEpisode } = useParams<{ id: string, episode?: string }>();
   // Extract numeric ID from the start of the string (e.g. "123-anime-slug" -> "123")
   const id = paramId ? parseInt(paramId).toString() : undefined;
+
+  const { slugBlocks } = useSlugBlocks();
+  const { dmcaBlocks } = useDmcaBlocks();
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -217,12 +222,14 @@ const Details: React.FC = () => {
 
         // Fetch DMCA blocks
         db.getDmcaBlocks().then(blocks => {
-          if (isMounted && blocks.includes(id)) setIsBlocked(true);
+          if (isMounted && blocks.includes(id) && !paramId?.endsWith('-watch')) {
+            setIsBlocked(true);
+          }
         }).catch(console.error);
 
         // Fetch Slug blocks
         db.getSlugBlocks().then(blocks => {
-          if (isMounted && blocks.includes(id) && paramId?.includes('-')) {
+          if (isMounted && blocks.includes(id) && paramId?.includes('-') && !paramId?.endsWith('-watch')) {
             setIsBlocked(true);
           }
         }).catch(console.error);
@@ -878,8 +885,13 @@ const Details: React.FC = () => {
                     <div className="flex flex-col gap-3">
                       {related.slice(0, isRelatedExpanded ? related.length : 8).map((item, idx) => {
                         const isPriority = ['Продолжение', 'Предыстория', 'Sequel', 'Prequel'].includes(item.relation);
+                        const isDmcaBlocked = dmcaBlocks.includes(item.anime.id.toString());
+                        const isSlugBlocked = slugBlocks.includes(item.anime.id.toString());
+                        const targetUrl = isDmcaBlocked 
+                          ? `/anime/${item.anime.id}-watch` 
+                          : `/anime/${item.anime.id}${item.anime.slug && !isSlugBlocked ? `-${item.anime.slug}` : ''}`;
                         return (
-                          <Link key={idx} to={`/anime/${item.anime.id}${item.anime.slug ? `-${item.anime.slug}` : ''}`} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
+                          <Link key={idx} to={targetUrl} className={`flex gap-4 p-3 rounded-2xl transition-all group items-center ${isPriority ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}>
                             <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden relative">
                               <img src={item.anime.image} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="" />
                               {isPriority && <div className="absolute inset-0 bg-primary/20"></div>}

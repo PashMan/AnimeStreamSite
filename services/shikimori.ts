@@ -588,7 +588,8 @@ export const fetchCalendar = async (): Promise<ScheduleItem[]> => {
         daysMap[name].push({ 
             id: i.anime.id.toString(), 
             time: d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), 
-            title: i.anime.russian || i.anime.name 
+            title: i.anime.russian || i.anime.name,
+            slug: slugify(i.anime.name || i.anime.russian || '')
         });
     }
     });

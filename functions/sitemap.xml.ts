@@ -79,6 +79,18 @@ export const onRequest = async (context: any) => {
       console.error('Sitemap fetch error:', e);
     }
 
+    let dmcaBlocks: string[] = [];
+    try {
+      if (context.env?.DB) {
+        const { results } = await context.env.DB.prepare('SELECT anime_id FROM dmca_blocks').all();
+        if (results) {
+          dmcaBlocks = results.map((r: any) => r.anime_id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch dmca blocks for sitemap:', e);
+    }
+
     // 3. Generate XML
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
@@ -124,10 +136,12 @@ export const onRequest = async (context: any) => {
     if (Array.isArray(animes)) {
       animes.forEach((anime: any) => {
         const lastmod = anime.updated_at ? new Date(anime.updated_at).toISOString() : today;
+        const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
+        const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}`;
         
         xml += `
   <url>
-    <loc>${SITE_URL}/anime/${anime.id}</loc>
+    <loc>${SITE_URL}${targetUrl}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

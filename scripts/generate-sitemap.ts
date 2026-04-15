@@ -87,7 +87,7 @@ async function fetchWithRetry(url: string, retries = 0): Promise<any> {
 
 async function fetchAnimeByYear(year: number) {
   let yearAnime: string[] = [];
-  const MAX_PAGES_PER_YEAR = 15; // Increased for adult filtering
+  const MAX_PAGES_PER_YEAR = 5; // Reduced to avoid timeout
 
   process.stdout.write(`Fetching year ${year}: `);
 
@@ -109,14 +109,34 @@ async function fetchAnimeByYear(year: number) {
 }
 
 async function fetchTopAnime() {
-  console.log('Fetching anime by year (2000-2026)...');
+  console.log('Fetching anime by year (2010-2026)...');
   let allAnime: Set<string> = new Set();
   const currentYear = new Date().getFullYear();
-  const startYear = 2000; // Restored to 2000
+  const startYear = 2010; // Reduced to avoid timeout
   
+  let dmcaBlocks: string[] = [];
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('dmca_blocks').select('anime_id');
+      if (data) {
+        dmcaBlocks = data.map((d: any) => d.anime_id);
+      }
+    } catch (e) {
+      console.error('Failed to fetch dmca_blocks', e);
+    }
+  }
+
   for (let year = currentYear; year >= startYear; year--) {
       const animeForYear = await fetchAnimeByYear(year);
-      animeForYear.forEach(url => allAnime.add(url));
+      animeForYear.forEach(url => {
+        // url is like /anime/12345
+        const id = url.split('/').pop();
+        if (id && dmcaBlocks.includes(id)) {
+          allAnime.add(`/anime/${id}-watch`);
+        } else {
+          allAnime.add(url);
+        }
+      });
       await delay(1000); // Delay between years
   }
   

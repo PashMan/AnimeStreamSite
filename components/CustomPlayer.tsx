@@ -85,12 +85,12 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
       customType: {
         m3u8: function (video, url, artInstance) {
           if (Hls.isSupported()) {
-            if (artInstance.hls) artInstance.hls.destroy();
+            if ((artInstance as any).hls) (artInstance as any).hls.destroy();
             const hls = new Hls({
               maxMaxBufferLength: 30,
               maxBufferSize: 60 * 1000 * 1000,
             });
-            artInstance.hls = hls;
+            (artInstance as any).hls = hls;
             hls.attachMedia(video);
             hls.on(Hls.Events.MEDIA_ATTACHED, () => {
               hls.loadSource(url);
@@ -147,7 +147,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
               isAudioAdded = true;
 
               let tracks = data.audioTracks.map((t, index) => ({
-                html: (audioTrackNames && audioTrackNames[index]) ? audioTrackNames[index] : (t.name || t.language || `Озвучка ${index + 1}`),
+                html: (audioTrackNames && audioTrackNames[index]) ? audioTrackNames[index] : (t.name || (t as any).language || `Озвучка ${index + 1}`),
                 trackId: index,
                 default: index === hls.audioTrack
               }));
@@ -169,11 +169,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
 
             // Translate settings
             artInstance.on('ready', () => {
-              const playbackRateSetting = artInstance.setting.get('playbackRate');
+              const playbackRateSetting = (artInstance.setting as any).get ? (artInstance.setting as any).get('playbackRate') : (artInstance.setting as any).find('playbackRate');
               if (playbackRateSetting) {
                 playbackRateSetting.html = 'Скорость';
               }
-              const aspectRatioSetting = artInstance.setting.get('aspectRatio');
+              const aspectRatioSetting = (artInstance.setting as any).get ? (artInstance.setting as any).get('aspectRatio') : (artInstance.setting as any).find('aspectRatio');
               if (aspectRatioSetting) {
                 aspectRatioSetting.html = 'Соотношение сторон';
               }
