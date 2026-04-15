@@ -464,6 +464,7 @@ const Details: React.FC = () => {
   const isYourName = id === '32281';
   const isSuzume = id === '50594';
   const isWeathering = id === '38826';
+  const isGardenOfWords = id === '16782';
   
   const seoTitle = isYourName 
     ? `Смотреть Твоё имя (Kimi no Na wa) в 4K онлайн бесплатно` 
@@ -471,6 +472,8 @@ const Details: React.FC = () => {
     ? `Смотреть Судзумэ, закрывающая двери (Suzume no Tojimari) в 4K онлайн бесплатно`
     : isWeathering
     ? `Смотреть Дитя погоды (Tenki no Ko) в 4K онлайн бесплатно`
+    : isGardenOfWords
+    ? `Смотреть Сад изящных слов (Kotonoha no Niwa) в 4K онлайн бесплатно`
     : `Смотреть ${anime.title} ${anime.originalName ? `/ ${anime.originalName} ` : ''}онлайн бесплатно в хорошем качестве`;
   
   const seoDescription = isYourName
@@ -479,6 +482,8 @@ const Details: React.FC = () => {
     ? `Смотреть аниме Судзумэ, закрывающая двери (Suzume no Tojimari) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Насладитесь потрясающей детализацией шедевра Макото Синкая в 2160p без рекламы.`
     : isWeathering
     ? `Смотреть аниме Дитя погоды (Tenki no Ko) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Насладитесь потрясающей детализацией шедевра Макото Синкая в 2160p без рекламы.`
+    : isGardenOfWords
+    ? `Смотреть аниме Сад изящных слов (Kotonoha no Niwa) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Насладитесь потрясающей детализацией шедевра Макото Синкая в 2160p без рекламы.`
     : `Аниме ${anime.title} (${anime.year}). ${anime.description ? anime.description.slice(0, 120) : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Kodik и других.`;
 
   const seoKeywords = isYourName
@@ -487,6 +492,8 @@ const Details: React.FC = () => {
     ? `смотреть судзумэ в 4к, судзумэ закрывающая двери 4k онлайн, suzume no tojimari 4k, макото синкай судзумэ 4к, смотреть аниме в 4к, 2160p, uhd, ${anime.title}, ${anime.originalName}`
     : isWeathering
     ? `смотреть дитя погоды в 4к, дитя погоды 4k онлайн, tenki no ko 4k, макото синкай дитя погоды 4к, смотреть аниме в 4к, 2160p, uhd, ${anime.title}, ${anime.originalName}`
+    : isGardenOfWords
+    ? `смотреть сад изящных слов в 4к, сад изящных слов 4k онлайн, kotonoha no niwa 4k, макото синкай сад изящных слов 4к, смотреть аниме в 4к, 2160p, uhd, ${anime.title}, ${anime.originalName}`
     : `${anime.title}, ${anime.originalName}, смотреть ${anime.title}, ${anime.genres.join(', ')}, аниме онлайн, смотреть аниме бесплатно`;
 
   return (
@@ -788,10 +795,13 @@ const Details: React.FC = () => {
                               if (player.isCustom) {
                                 const isSuzume = id === '50594';
                                 const isWeathering = id === '38826';
+                                const isGardenOfWords = id === '16782';
                                 const customSrc = isSuzume 
                                   ? "https://cdn1.kamianime.club/suzume/master.m3u8" 
                                   : isWeathering
                                   ? "https://cdn1.kamianime.club/weathering/master.m3u8"
+                                  : isGardenOfWords
+                                  ? "https://cdn1.kamianime.club/garden_of_words/master.m3u8"
                                   : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
                                 const maxTracks = isSuzume ? 5 : undefined;
                                 const audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria', 'Ю. Сербин', 'Netflix КЗ.', 'Оригинал + Субтитры', 'Оригинал'] : undefined;
