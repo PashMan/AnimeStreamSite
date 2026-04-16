@@ -8,6 +8,7 @@ export interface Anime {
   image_preview?: string;
   cover?: string;
   rating: number;
+  ageRating?: string;
   score?: number;
   year: number;
   type: 'TV Series' | 'Movie' | 'OVA' | 'ONA' | 'Special' | 'Music';

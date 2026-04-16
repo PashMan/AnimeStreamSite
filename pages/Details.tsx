@@ -511,6 +511,21 @@ const Details: React.FC = () => {
     ? `смотреть сад изящных слов в 4к, сад изящных слов 4k онлайн, kotonoha no niwa 4k, макото синкай сад изящных слов 4к, смотреть аниме в 4к, 2160p, uhd, ${anime.title}, ${anime.originalName}`
     : `${anime.title}, ${anime.originalName}, смотреть ${anime.title}, ${anime.genres.join(', ')}, аниме онлайн, смотреть аниме бесплатно`;
 
+  const isHentai = anime.ageRating === 'rx' || anime.genres.some(g => g.toLowerCase() === 'hentai' || g.toLowerCase() === 'хентай' || g.toLowerCase() === 'эччи' || g.toLowerCase() === 'ecchi' || g.toLowerCase() === 'yaoi' || g.toLowerCase() === 'yuri' || g.toLowerCase() === 'яой' || g.toLowerCase() === 'юри');
+
+  if (isHentai) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
+        <SEO title="Страница не найдена" noindex={true} />
+        <h1 className="text-6xl font-black text-white mb-4">404</h1>
+        <p className="text-slate-400 mb-8">Эта страница была удалена или недоступна.</p>
+        <Link to="/" className="px-8 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/80 transition-colors">
+          На главную
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full relative overflow-x-hidden pb-20">
       <SEO 
@@ -519,6 +534,7 @@ const Details: React.FC = () => {
         image={anime.image}
         type="video.movie"
         keywords={seoKeywords}
+        noindex={isHentai}
         schemaData={{
           "@context": "https://schema.org",
           "@graph": [

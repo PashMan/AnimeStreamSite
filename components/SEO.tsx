@@ -9,6 +9,7 @@ interface SEOProps {
   type?: string;
   keywords?: string;
   schemaData?: object;
+  noindex?: boolean;
 }
 
 const SEO: React.FC<SEOProps> = ({ 
@@ -18,7 +19,8 @@ const SEO: React.FC<SEOProps> = ({
   url = typeof window !== 'undefined' ? window.location.href : '',
   type = "website",
   keywords = "аниме, смотреть аниме, аниме онлайн, аниме бесплатно, новинки аниме, топ аниме",
-  schemaData
+  schemaData,
+  noindex = false
 }) => {
   const siteTitle = "KamiAnime";
   const fullTitle = `${title} | ${siteTitle}`;
@@ -29,6 +31,7 @@ const SEO: React.FC<SEOProps> = ({
       <title>{fullTitle}</title>
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
+      {noindex && <meta name="robots" content="noindex, nofollow" />}
 
       {/* Canonical URL */}
       {url && <link rel="canonical" href={url} />}

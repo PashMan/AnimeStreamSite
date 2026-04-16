@@ -363,6 +363,7 @@ export const mapAnime = async (data: any): Promise<Anime> => {
     image_preview,
     cover: cover,
     rating: data.score ? parseFloat(data.score) : 0,
+    ageRating: data.rating || '',
     year: data.aired_on ? new Date(data.aired_on).getFullYear() : (data.released_on ? new Date(data.released_on).getFullYear() : 0),
     type: data.kind === 'movie' ? 'Movie' : (data.kind === 'ova' ? 'OVA' : (data.kind === 'ona' ? 'ONA' : 'TV Series')),
     genres: data.genres ? data.genres.map((g: any) => g.russian || g.name) : [],

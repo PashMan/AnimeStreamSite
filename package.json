@@ -14,6 +14,7 @@
     "deploy:prod": "wrangler pages deploy dist --branch main",
     "lint": "tsc --noEmit",
     "sitemap": "tsx scripts/generate-sitemap.ts",
+    "sitemap:remove": "tsx scripts/generate-remove-sitemap.ts",
     "generate-seo": "tsx scripts/generate-seo.ts"
   },
   "dependencies": {
