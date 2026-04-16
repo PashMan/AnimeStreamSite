@@ -81,9 +81,16 @@ const AdminPanel: React.FC = () => {
   };
 
   const handleUpdateReportStatus = async (reportId: string, status: 'resolved' | 'dismissed') => {
-    const success = await db.updateReportStatus(reportId, status);
-    if (success) {
-      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status } : r));
+    if (status === 'resolved') {
+        const success = await db.deleteReport(reportId);
+        if (success) {
+            setReports(prev => prev.filter(r => r.id !== reportId));
+        }
+    } else {
+        const success = await db.updateReportStatus(reportId, status);
+        if (success) {
+          setReports(prev => prev.map(r => r.id === reportId ? { ...r, status } : r));
+        }
     }
   };
 

@@ -14,6 +14,7 @@ import SEO from '../components/SEO';
 import { ReportModal } from '../components/ReportModal';
 import { useSlugBlocks } from '../store/slugBlocks';
 import { useDmcaBlocks } from '../store/dmcaBlocks';
+import { filterProfanity } from '../utils/profanity';
 
 const CATEGORIES = [
   { id: 'general', name: 'Общее', description: 'Общие обсуждения на любые темы' },
@@ -269,7 +270,7 @@ const Forum: React.FC = () => {
             </span>
           </div>
           <h1 className="text-3xl md:text-4xl font-display font-black text-white uppercase tracking-tight leading-tight mb-6">
-            {currentTopic.title}
+            {filterProfanity(currentTopic.title)}
           </h1>
         </div>
 
@@ -306,7 +307,7 @@ const Forum: React.FC = () => {
                              )
                          }}
                        >
-                           {currentTopic.content}
+                           {filterProfanity(currentTopic.content)}
                        </ReactMarkdown>
                     </div>
                 )}
@@ -386,7 +387,7 @@ const Forum: React.FC = () => {
                                     )
                                 }}
                               >
-                                  {post.content}
+                                  {filterProfanity(post.content)}
                               </ReactMarkdown>
                            </div>
                            <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -401,7 +402,7 @@ const Forum: React.FC = () => {
                                  setReportTarget({ 
                                    type: 'post', 
                                    id: post.id, 
-                                   content: post.content,
+                                   content: filterProfanity(post.content),
                                    link: window.location.pathname + window.location.search
                                  });
                                  setIsReportModalOpen(true);
@@ -457,7 +458,7 @@ const Forum: React.FC = () => {
                                       )
                                   }}
                                 >
-                                    {reply.content}
+                                    {filterProfanity(reply.content)}
                                 </ReactMarkdown>
                               </div>
                               <div className="mt-3 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -472,7 +473,7 @@ const Forum: React.FC = () => {
                                     setReportTarget({ 
                                       type: 'post', 
                                       id: reply.id, 
-                                      content: reply.content,
+                                      content: filterProfanity(reply.content),
                                       link: window.location.pathname + window.location.search
                                     });
                                     setIsReportModalOpen(true);
@@ -697,9 +698,9 @@ const Forum: React.FC = () => {
                   </div>
                 </div>
                 <h3 className="text-lg md:text-xl font-black text-white group-hover:text-primary transition-colors uppercase tracking-tight leading-tight line-clamp-1">
-                  {topic.title}
+                  {filterProfanity(topic.title)}
                 </h3>
-                <p className="text-slate-400 text-xs line-clamp-2">{topic.content}</p>
+                <p className="text-slate-400 text-xs line-clamp-2">{filterProfanity(topic.content)}</p>
               </div>
               
               <div className="flex items-center gap-6 shrink-0 border-t md:border-t-0 md:border-l border-white/5 pt-4 md:pt-0 md:pl-6 w-full md:w-auto justify-between md:justify-end">

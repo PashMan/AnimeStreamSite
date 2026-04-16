@@ -24,3 +24,25 @@ export const containsProfanity = (text: string): boolean => {
     return lowerText.includes(word);
   });
 };
+
+export const filterProfanity = (text: string): string => {
+  if (!text) return text;
+  let filteredText = text;
+  
+  // Sort by length descending so longer words are replaced first
+  const sortedWords = [...BAD_WORDS].sort((a, b) => b.length - a.length);
+  
+  sortedWords.forEach(word => {
+    if (word.length <= 3) {
+      const regex = new RegExp(`(^|\\s|[.,!?_\\-])(${word})($|\\s|[.,!?_\\-])`, 'gi');
+      filteredText = filteredText.replace(regex, (match, p1, p2, p3) => {
+        return p1 + '*'.repeat(p2.length) + p3;
+      });
+    } else {
+      const regex = new RegExp(word, 'gi');
+      filteredText = filteredText.replace(regex, '*'.repeat(word.length));
+    }
+  });
+  
+  return filteredText;
+};

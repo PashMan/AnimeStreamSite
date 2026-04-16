@@ -11,6 +11,7 @@ import { RichTextarea } from '../components/RichTextarea';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import { filterProfanity } from '../utils/profanity';
 
 const NewsDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -275,7 +276,7 @@ const NewsDetails: React.FC = () => {
                                     )
                                 }}
                             >
-                                {comment.text}
+                                {filterProfanity(comment.text)}
                             </ReactMarkdown>
                         </div>
                         <button 

@@ -87,32 +87,36 @@ const UserProfile: React.FC = () => {
   // Lazy load tab content
   useEffect(() => {
     const loadTabContent = async () => {
-      if (activeTab === 'favs' && favorites.length === 0 && allFavIds.length > 0) {
-         const idsToLoad = allFavIds.slice(0, 20);
+      if (activeTab === 'favs' && favorites.length === 0 && Array.isArray(allFavIds) && allFavIds.length > 0) {
+         const idsToLoad = allFavIds.filter(Boolean).slice(0, 20);
+         if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
             setFavorites(data);
          } catch (e) {
             console.error("Error loading favorites", e);
          }
-      } else if (activeTab === 'watched' && watched.length === 0 && allWatchedIds.length > 0) {
-         const idsToLoad = allWatchedIds.slice(0, 20);
+      } else if (activeTab === 'watched' && watched.length === 0 && Array.isArray(allWatchedIds) && allWatchedIds.length > 0) {
+         const idsToLoad = allWatchedIds.filter(Boolean).slice(0, 20);
+         if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
             setWatched(data);
          } catch (e) {
             console.error("Error loading watched", e);
          }
-      } else if (activeTab === 'watching' && watching.length === 0 && allWatchingIds.length > 0) {
-         const idsToLoad = allWatchingIds.slice(0, 20);
+      } else if (activeTab === 'watching' && watching.length === 0 && Array.isArray(allWatchingIds) && allWatchingIds.length > 0) {
+         const idsToLoad = allWatchingIds.filter(Boolean).slice(0, 20);
+         if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
             setWatching(data);
          } catch (e) {
             console.error("Error loading watching", e);
          }
-      } else if (activeTab === 'dropped' && dropped.length === 0 && allDroppedIds.length > 0) {
-         const idsToLoad = allDroppedIds.slice(0, 20);
+      } else if (activeTab === 'dropped' && dropped.length === 0 && Array.isArray(allDroppedIds) && allDroppedIds.length > 0) {
+         const idsToLoad = allDroppedIds.filter(Boolean).slice(0, 20);
+         if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
             setDropped(data);

@@ -1466,6 +1466,20 @@ class DatabaseService {
     }
   }
 
+  async deleteReport(reportId: string): Promise<boolean> {
+    if (!this.isSupabaseAvailable()) return false;
+    try {
+      const { error } = await supabaseClient
+        .from('reports')
+        .delete()
+        .eq('id', reportId);
+      return !error;
+    } catch (e) {
+      console.error('Error deleting report:', e);
+      return false;
+    }
+  }
+
   async deleteComment(commentId: string): Promise<boolean> {
     if (!this.isSupabaseAvailable()) return false;
     try {

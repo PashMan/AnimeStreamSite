@@ -16,6 +16,7 @@ import { usePlayerSync } from '../hooks/usePlayerSync';
 import { CustomPlayer } from '../components/CustomPlayer';
 import { useSlugBlocks } from '../store/slugBlocks';
 import { useDmcaBlocks } from '../store/dmcaBlocks';
+import { filterProfanity } from '../utils/profanity';
 
 const Details: React.FC = () => {
   const { id: paramId, episode: paramEpisode } = useParams<{ id: string, episode?: string }>();
@@ -1021,14 +1022,14 @@ const Details: React.FC = () => {
                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{comment.date}</span>
                                 </div>
                                 <div className="text-slate-400 text-base leading-relaxed bg-white/[0.02] p-6 rounded-[2rem] border border-white/5 group-hover:border-white/10 transition-all shadow-sm">
-                                  {comment.text}
+                                  {filterProfanity(comment.text)}
                                   <div className="mt-4 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button 
                                       onClick={() => {
                                         setReportTarget({ 
                                           type: 'comment', 
                                           id: comment.id,
-                                          content: comment.text,
+                                          content: filterProfanity(comment.text),
                                           link: window.location.pathname
                                         });
                                         setIsReportModalOpen(true);
