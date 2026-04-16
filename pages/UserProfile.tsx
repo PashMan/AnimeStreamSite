@@ -1,15 +1,16 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { User, Anime } from '../types';
 import { fetchAnimes } from '../services/shikimori';
-import { Loader2, Heart, History, ArrowLeft, UserPlus, MessageSquare, Check, Film, X } from 'lucide-react';
+import { Loader2, Heart, History, ArrowLeft, UserPlus, MessageSquare, Check, Film, X, Clock, Tv } from 'lucide-react';
 import SEO from '../components/SEO';
 import { Image } from '../components/Image';
 import { useSlugBlocks } from '../store/slugBlocks';
 import { useDmcaBlocks } from '../store/dmcaBlocks';
+import { AnimeListRow } from '../components/AnimeListRow';
 
 const UserProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -84,49 +85,83 @@ const UserProfile: React.FC = () => {
     loadProfile();
   }, [id, currentUser]);
 
-  // Lazy load tab content
+  // Progressive load tab content
   useEffect(() => {
-    const loadTabContent = async () => {
-      if (activeTab === 'favs' && favorites.length === 0 && Array.isArray(allFavIds) && allFavIds.length > 0) {
-         const idsToLoad = allFavIds.filter(Boolean).slice(0, 20);
-         if (idsToLoad.length === 0) return;
-         try {
-            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
-            setFavorites(data);
-         } catch (e) {
-            console.error("Error loading favorites", e);
-         }
-      } else if (activeTab === 'watched' && watched.length === 0 && Array.isArray(allWatchedIds) && allWatchedIds.length > 0) {
-         const idsToLoad = allWatchedIds.filter(Boolean).slice(0, 20);
-         if (idsToLoad.length === 0) return;
-         try {
-            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
-            setWatched(data);
-         } catch (e) {
-            console.error("Error loading watched", e);
-         }
-      } else if (activeTab === 'watching' && watching.length === 0 && Array.isArray(allWatchingIds) && allWatchingIds.length > 0) {
-         const idsToLoad = allWatchingIds.filter(Boolean).slice(0, 20);
-         if (idsToLoad.length === 0) return;
-         try {
-            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
-            setWatching(data);
-         } catch (e) {
-            console.error("Error loading watching", e);
-         }
-      } else if (activeTab === 'dropped' && dropped.length === 0 && Array.isArray(allDroppedIds) && allDroppedIds.length > 0) {
-         const idsToLoad = allDroppedIds.filter(Boolean).slice(0, 20);
-         if (idsToLoad.length === 0) return;
-         try {
-            const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
-            setDropped(data);
-         } catch (e) {
-            console.error("Error loading dropped", e);
-         }
+    let isCancelled = false;
+
+    const loadAllAnimes = async (ids: string[], setter: React.Dispatch<React.SetStateAction<Anime[]>>) => {
+      const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+      if (uniqueIds.length === 0) return;
+      
+      const chunkSize = 50;
+      let allLoaded: Anime[] = [];
+      setter([]); // reset first
+      
+      for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+        if (isCancelled) break;
+        const chunk = uniqueIds.slice(i, i + chunkSize);
+        try {
+          const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true);
+          if (Array.isArray(data)) {
+            allLoaded = [...allLoaded, ...data];
+            if (!isCancelled) {
+              setter(allLoaded);
+            }
+          }
+        } catch (e) {
+          console.error("Error loading chunk", e);
+        }
       }
     };
-    loadTabContent();
+
+    if (activeTab === 'favs' && favorites.length === 0 && allFavIds.length > 0) {
+      loadAllAnimes(allFavIds, setFavorites);
+    } else if (activeTab === 'watched' && watched.length === 0 && allWatchedIds.length > 0) {
+      loadAllAnimes(allWatchedIds, setWatched);
+    } else if (activeTab === 'watching' && watching.length === 0 && allWatchingIds.length > 0) {
+      loadAllAnimes(allWatchingIds, setWatching);
+    } else if (activeTab === 'dropped' && dropped.length === 0 && allDroppedIds.length > 0) {
+      loadAllAnimes(allDroppedIds, setDropped);
+    }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds]);
+
+  // Always progressive load watched in background if not already loading, to get total stats
+  // We can just rely on the active tab, but to get total stats for watched, we might need it implicitly.
+  // Actually, wait, lets just load watched in the background regardless of active tab for stats
+  useEffect(() => {
+    let isCancelled = false;
+    
+    const prefetchWatchedForStats = async () => {
+       if (allWatchedIds.length === 0 || watched.length > 0) return;
+       const uniqueIds = Array.from(new Set(allWatchedIds.filter(Boolean)));
+       const chunkSize = 50;
+       let allLoaded: Anime[] = [];
+       for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+          if (isCancelled) break;
+          const chunk = uniqueIds.slice(i, i + chunkSize);
+          try {
+             // Lower priority for background prefetch
+             const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, false, 2);
+             if (Array.isArray(data)) {
+                allLoaded = [...allLoaded, ...data];
+             }
+          } catch (e) {}
+       }
+       if (!isCancelled && allLoaded.length > 0) {
+          setWatched(allLoaded);
+       }
+    };
+    
+    if (activeTab !== 'watched' && allWatchedIds.length > 0 && watched.length === 0) {
+       prefetchWatchedForStats();
+    }
+    
+    return () => { isCancelled = true; };
+  }, [allWatchedIds, activeTab]);
 
   const handleAddFriend = async () => {
       if (!currentUser || !profile) return;
@@ -160,6 +195,21 @@ const UserProfile: React.FC = () => {
 
   const isOwnProfile = currentUser?.email === profile.email;
 
+  const watchStats = useMemo(() => {
+     let totalEpisodes = 0;
+     let totalMinutes = 0;
+     // sum episodes from currently loaded watched array
+     watched.forEach(anime => {
+        totalEpisodes += anime.episodesAired || anime.episodes || 0;
+        // Assume 24 mins per episode as average
+        totalMinutes += (anime.episodesAired || anime.episodes || 0) * 24; 
+     });
+     return {
+        totalEpisodes,
+        totalHours: Math.round(totalMinutes / 60)
+     };
+  }, [watched]);
+
   return (
     <div className="min-h-screen pb-20">
       <SEO title={`${profile.name} - Профиль`} description={`Профиль пользователя ${profile.name} на KamiAnime`} />
@@ -192,6 +242,29 @@ const UserProfile: React.FC = () => {
                 {profile.bio && (
                     <p className="text-slate-400 text-sm leading-relaxed text-center md:text-left">{profile.bio}</p>
                 )}
+
+                {/* --- STATS BLOCK --- */}
+                <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
+                   <div className="flex items-center gap-3 text-slate-300">
+                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                          <Tv className="w-4 h-4 text-primary" />
+                       </div>
+                       <div className="flex flex-col">
+                          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Просмотрено</span>
+                          <span className="font-black text-sm">{watchStats.totalEpisodes} серий</span>
+                       </div>
+                   </div>
+                   <div className="flex items-center gap-3 text-slate-300">
+                       <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                          <Clock className="w-4 h-4 text-green-500" />
+                       </div>
+                       <div className="flex flex-col">
+                          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Потрачено</span>
+                          <span className="font-black text-sm">{watchStats.totalHours} часов</span>
+                       </div>
+                   </div>
+                </div>
+                {/* --- END STATS BLOCK --- */}
                 
                 {!isOwnProfile && (
                     <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
@@ -230,78 +303,42 @@ const UserProfile: React.FC = () => {
                   onClick={() => setActiveTab('favs')}
                   className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'favs' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
                 >
-                    <Heart className="w-4 h-4" /> Избранное <span className="opacity-50 ml-1">{favorites.length}</span>
+                    <Heart className="w-4 h-4" /> Избранное <span className="opacity-50 ml-1">{favorites.length > 0 ? favorites.length : allFavIds.length}</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('watched')}
                   className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'watched' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
                 >
-                    <History className="w-4 h-4" /> Просмотрено <span className="opacity-50 ml-1">{allWatchedIds.length}</span>
+                    <History className="w-4 h-4" /> Просмотрено <span className="opacity-50 ml-1">{watched.length > 0 ? watched.length : allWatchedIds.length}</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('watching')}
                   className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'watching' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
                 >
-                    <Film className="w-4 h-4" /> Смотрю <span className="opacity-50 ml-1">{allWatchingIds.length}</span>
+                    <Film className="w-4 h-4" /> Смотрю <span className="opacity-50 ml-1">{watching.length > 0 ? watching.length : allWatchingIds.length}</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('dropped')}
                   className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'dropped' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
                 >
-                    <X className="w-4 h-4" /> Брошено <span className="opacity-50 ml-1">{allDroppedIds.length}</span>
+                    <X className="w-4 h-4" /> Брошено <span className="opacity-50 ml-1">{dropped.length > 0 ? dropped.length : allDroppedIds.length}</span>
                 </button>
              </div>
 
-             {/* Grid */}
-             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {activeTab === 'favs' && favorites.map(anime => {
-                    const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
-                    const isSlugBlocked = slugBlocks.includes(anime.id.toString());
-                    const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
-                    return (
-                    <Link key={anime.id} to={targetUrl} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                            <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
-                        </div>
-                    </Link>
-                )})}
-                {activeTab === 'watched' && watched.map(anime => {
-                    const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
-                    const isSlugBlocked = slugBlocks.includes(anime.id.toString());
-                    const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
-                    return (
-                    <Link key={anime.id} to={targetUrl} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                            <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
-                        </div>
-                    </Link>
-                )})}
-                {activeTab === 'watching' && watching.map(anime => {
-                    const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
-                    const isSlugBlocked = slugBlocks.includes(anime.id.toString());
-                    const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
-                    return (
-                    <Link key={anime.id} to={targetUrl} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                            <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
-                        </div>
-                    </Link>
-                )})}
-                {activeTab === 'dropped' && dropped.map(anime => {
-                    const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
-                    const isSlugBlocked = slugBlocks.includes(anime.id.toString());
-                    const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
-                    return (
-                    <Link key={anime.id} to={targetUrl} className="group relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface-light">
-                        <Image src={anime.image} animeId={anime.id} animeTitle={anime.originalName || anime.title} alt={anime.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                            <h3 className="text-white font-bold text-sm line-clamp-2">{anime.title}</h3>
-                        </div>
-                    </Link>
-                )})}
+             {/* List View */}
+             <div className="flex flex-col gap-3">
+                {activeTab === 'favs' && favorites.map(anime => (
+                    <AnimeListRow key={anime.id} anime={anime} />
+                ))}
+                {activeTab === 'watched' && watched.map(anime => (
+                    <AnimeListRow key={anime.id} anime={anime} />
+                ))}
+                {activeTab === 'watching' && watching.map(anime => (
+                    <AnimeListRow key={anime.id} anime={anime} />
+                ))}
+                {activeTab === 'dropped' && dropped.map(anime => (
+                    <AnimeListRow key={anime.id} anime={anime} />
+                ))}
              </div>
              
              {((activeTab === 'favs' && favorites.length === 0 && allFavIds.length === 0) || 
