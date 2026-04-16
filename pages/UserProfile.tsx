@@ -176,6 +176,23 @@ const UserProfile: React.FC = () => {
       }
   };
 
+  const isOwnProfile = currentUser?.email === profile?.email;
+
+  const watchStats = useMemo(() => {
+     let totalEpisodes = 0;
+     let totalMinutes = 0;
+     // sum episodes from currently loaded watched array
+     watched.forEach(anime => {
+        totalEpisodes += anime.episodesAired || anime.episodes || 0;
+        // Assume 24 mins per episode as average
+        totalMinutes += (anime.episodesAired || anime.episodes || 0) * 24; 
+     });
+     return {
+        totalEpisodes,
+        totalHours: Math.round(totalMinutes / 60)
+     };
+  }, [watched]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -192,23 +209,6 @@ const UserProfile: React.FC = () => {
       </div>
     );
   }
-
-  const isOwnProfile = currentUser?.email === profile.email;
-
-  const watchStats = useMemo(() => {
-     let totalEpisodes = 0;
-     let totalMinutes = 0;
-     // sum episodes from currently loaded watched array
-     watched.forEach(anime => {
-        totalEpisodes += anime.episodesAired || anime.episodes || 0;
-        // Assume 24 mins per episode as average
-        totalMinutes += (anime.episodesAired || anime.episodes || 0) * 24; 
-     });
-     return {
-        totalEpisodes,
-        totalHours: Math.round(totalMinutes / 60)
-     };
-  }, [watched]);
 
   return (
     <div className="min-h-screen pb-20">
