@@ -26,7 +26,11 @@ async function fetchHentaiAnime() {
           const data = await response.json();
           if (!data || data.length === 0) break;
           
-          const urls = data.map((anime: any) => `/anime/${anime.id}`);
+          const urls = data.flatMap((anime: any) => 
+            anime.name 
+              ? [`/anime/${anime.id}`, `/anime/${anime.id}-${anime.name}`] 
+              : [`/anime/${anime.id}`]
+          );
           hentaiUrls.push(...urls);
           process.stdout.write('.');
           await delay(500);
