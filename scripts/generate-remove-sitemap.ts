@@ -13,6 +13,17 @@ const SHIKIMORI_API = 'https://shikimori.one/api';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const slugify = (text: string): string => {
+  if (!text) return '';
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')     // Replace spaces with -
+    .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+    .replace(/\-\-+/g, '-');  // Replace multiple - with single -
+};
+
 async function fetchHentaiAnime() {
   let hentaiUrls: string[] = [];
   console.log('Fetching hentai anime to remove...');
@@ -26,11 +37,11 @@ async function fetchHentaiAnime() {
           const data = await response.json();
           if (!data || data.length === 0) break;
           
-          const urls = data.flatMap((anime: any) => 
-            anime.name 
-              ? [`/anime/${anime.id}`, `/anime/${anime.id}-${anime.name}`] 
-              : [`/anime/${anime.id}`]
-          );
+          const urls = data.flatMap((anime: any) => {
+            const base = `/anime/${anime.id}`;
+            const slug = slugify(anime.name || anime.russian || '');
+            return slug ? [base, `${base}-${slug}`] : [base];
+          });
           hentaiUrls.push(...urls);
           process.stdout.write('.');
           await delay(500);

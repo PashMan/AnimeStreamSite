@@ -85,6 +85,17 @@ async function fetchWithRetry(url: string, retries = 0): Promise<any> {
     }
 }
 
+const slugify = (text: string): string => {
+  if (!text) return '';
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')     // Replace spaces with -
+    .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+    .replace(/\-\-+/g, '-');  // Replace multiple - with single -
+};
+
 async function fetchAnimeByYear(year: number) {
   let yearAnime: string[] = [];
   const MAX_PAGES_PER_YEAR = 5; // Reduced to avoid timeout
@@ -99,7 +110,11 @@ async function fetchAnimeByYear(year: number) {
           break; 
       }
       
-      const urls = data.map((anime: any) => `/anime/${anime.id}`);
+      const urls = data.flatMap((anime: any) => {
+          const base = `/anime/${anime.id}`;
+          const slug = slugify(anime.name || anime.russian || '');
+          return slug ? [base, `${base}-${slug}`] : [base];
+      });
       yearAnime.push(...urls);
       process.stdout.write('.');
       await delay(500); // Slightly reduced delay but kept for safety
