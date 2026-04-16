@@ -42,6 +42,19 @@ async function fetchHentaiAnime() {
   return hentaiUrls;
 }
 
+function escapeXml(unsafe: string) {
+  return unsafe.replace(/[<>&'"]/g, function (c) {
+      switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+          default: return c;
+      }
+  });
+}
+
 async function generateRemoveSitemap() {
   const urls = await fetchHentaiAnime();
   if (urls.length === 0) return;
@@ -50,7 +63,7 @@ async function generateRemoveSitemap() {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(route => `  <url>
-    <loc>${SITE_URL}${route}</loc>
+    <loc>${escapeXml(SITE_URL + route)}</loc>
     <lastmod>${date}</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>

@@ -187,11 +187,24 @@ async function fetchNews() {
     return data.map((news: any) => `/news/${news.id}`);
 }
 
+function escapeXml(unsafe: string) {
+  return unsafe.replace(/[<>&'"]/g, function (c) {
+      switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+          default: return c;
+      }
+  });
+}
+
 function generateSitemapXML(urls: string[], priority = '0.8', freq = 'weekly') {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(route => `  <url>
-    <loc>${SITE_URL}${route}</loc>
+    <loc>${escapeXml(SITE_URL + route)}</loc>
     <changefreq>${route === '/' ? 'daily' : freq}</changefreq>
     <priority>${route === '/' ? '1.0' : priority}</priority>
   </url>`).join('\n')}
