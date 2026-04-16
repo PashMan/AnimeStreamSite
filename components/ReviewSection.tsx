@@ -178,7 +178,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ animeId, reviews, onRevie
         ) : (
           reviews.map((review) => {
             const isExpanded = expandedReviews.has(review.id);
-            const filteredContent = filterProfanity(review.content);
+            const filteredContent = review.content;
             const shouldShowExpand = filteredContent.length > 300;
             const displayContent = isExpanded ? filteredContent : filteredContent.slice(0, 300) + (shouldShowExpand ? '...' : '');
 

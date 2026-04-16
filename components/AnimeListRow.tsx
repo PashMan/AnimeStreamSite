@@ -25,7 +25,7 @@ export const AnimeListRow: React.FC<{ anime: Anime }> = ({ anime }) => {
             
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-widest mt-auto">
                 <span className="flex items-center gap-1"><Tv className="w-3 h-3" /> {anime.type}</span>
-                {anime.episodesAired > 0 && <span className="flex items-center gap-1 text-slate-300"><Clock className="w-3 h-3 text-slate-500" /> {anime.episodesAired} эп.</span>}
+                {(anime.episodesAired || 0) > 0 && <span className="flex items-center gap-1 text-slate-300"><Clock className="w-3 h-3 text-slate-500" /> {anime.episodesAired} эп.</span>}
                 <span className="flex items-center gap-1 text-yellow-500"><Star className="w-3 h-3 fill-current" /> {anime.rating || 'N/A'}</span>
             </div>
         </div>

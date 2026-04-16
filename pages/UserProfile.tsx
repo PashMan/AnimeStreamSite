@@ -178,20 +178,14 @@ const UserProfile: React.FC = () => {
 
   const isOwnProfile = currentUser?.email === profile?.email;
 
-  const watchStats = useMemo(() => {
-     let totalEpisodes = 0;
-     let totalMinutes = 0;
-     // sum episodes from currently loaded watched array
-     watched.forEach(anime => {
-        totalEpisodes += anime.episodesAired || anime.episodes || 0;
-        // Assume 24 mins per episode as average
-        totalMinutes += (anime.episodesAired || anime.episodes || 0) * 24; 
-     });
-     return {
-        totalEpisodes,
-        totalHours: Math.round(totalMinutes / 60)
-     };
-  }, [watched]);
+  const watchStats = {
+     totalEpisodes: 0,
+     totalHours: 0
+  };
+  watched.forEach(anime => {
+     watchStats.totalEpisodes += anime.episodesAired || anime.episodes || 0;
+     watchStats.totalHours += Math.round(((anime.episodesAired || anime.episodes || 0) * 24) / 60);
+  });
 
   if (isLoading) {
     return (
