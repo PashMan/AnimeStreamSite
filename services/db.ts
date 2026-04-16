@@ -476,6 +476,8 @@ class DatabaseService {
         if (updates.bio !== undefined) basicMapped.bio = updates.bio;
         if (updates.friends !== undefined) basicMapped.friends = JSON.stringify(updates.friends);
         if (updates.watchedAnimeIds) basicMapped.watched_anime_ids = JSON.stringify(updates.watchedAnimeIds);
+        if (updates.watchingAnimeIds) basicMapped.watching_anime_ids = JSON.stringify(updates.watchingAnimeIds);
+        if (updates.droppedAnimeIds) basicMapped.dropped_anime_ids = JSON.stringify(updates.droppedAnimeIds);
 
         // Only include columns that exist in the schema cache or try one by one if needed
         // For now, just try a very basic update if the first one failed
