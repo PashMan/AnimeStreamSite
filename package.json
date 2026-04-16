@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.ts",
-    "build": "npm run sitemap && vite build",
-    "build:staging": "npm run sitemap && vite build --mode staging",
+    "build": "npm run sitemap && npm run sitemap:remove && vite build",
+    "build:staging": "npm run sitemap && npm run sitemap:remove && vite build --mode staging",
     "preview": "vite preview",
     "preview:staging": "wrangler pages dev dist",
     "deploy:staging": "wrangler pages deploy dist --branch staging",
