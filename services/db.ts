@@ -446,9 +446,9 @@ class DatabaseService {
       if (updates.avatar) mapped.avatar = updates.avatar;
       if (updates.bio !== undefined) mapped.bio = updates.bio;
       if (updates.isPremium !== undefined) mapped.is_premium = updates.isPremium;
-      if (updates.watchedAnimeIds) mapped.watched_anime_ids = updates.watchedAnimeIds;
-      if (updates.watchingAnimeIds) mapped.watching_anime_ids = updates.watchingAnimeIds;
-      if (updates.droppedAnimeIds) mapped.dropped_anime_ids = updates.droppedAnimeIds;
+      if (updates.watchedAnimeIds) mapped.watched_anime_ids = JSON.stringify(updates.watchedAnimeIds);
+      if (updates.watchingAnimeIds) mapped.watching_anime_ids = JSON.stringify(updates.watchingAnimeIds);
+      if (updates.droppedAnimeIds) mapped.dropped_anime_ids = JSON.stringify(updates.droppedAnimeIds);
       if (updates.profileBg !== undefined) mapped.profile_bg = updates.profileBg;
       if (updates.profileBanner !== undefined) mapped.profile_banner = updates.profileBanner;
       if (updates.profileLayout !== undefined) mapped.profile_layout = updates.profileLayout;
@@ -456,7 +456,7 @@ class DatabaseService {
       if (updates.avatarShape !== undefined) mapped.avatar_shape = updates.avatarShape;
       if (updates.cardOpacity !== undefined) mapped.card_opacity = updates.cardOpacity;
       if (updates.cardBlur !== undefined) mapped.card_blur = updates.cardBlur;
-      if (updates.friends !== undefined) mapped.friends = updates.friends;
+      if (updates.friends !== undefined) mapped.friends = JSON.stringify(updates.friends);
 
       // Try full update first
       let result = await supabaseClient
@@ -474,8 +474,8 @@ class DatabaseService {
         if (updates.name) basicMapped.name = updates.name;
         if (updates.avatar) basicMapped.avatar = updates.avatar;
         if (updates.bio !== undefined) basicMapped.bio = updates.bio;
-        if (updates.friends !== undefined) basicMapped.friends = updates.friends;
-        if (updates.watchedAnimeIds) basicMapped.watched_anime_ids = updates.watchedAnimeIds;
+        if (updates.friends !== undefined) basicMapped.friends = JSON.stringify(updates.friends);
+        if (updates.watchedAnimeIds) basicMapped.watched_anime_ids = JSON.stringify(updates.watchedAnimeIds);
 
         // Only include columns that exist in the schema cache or try one by one if needed
         // For now, just try a very basic update if the first one failed
