@@ -12,7 +12,7 @@ export const AnimeListRow: React.FC<{ anime: Anime }> = ({ anime }) => {
   
   const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
   const isSlugBlocked = slugBlocks.includes(anime.id.toString());
-  const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? \`-\${anime.slug}\` : ''}`;
+  const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? "-" + anime.slug : ''}`;
 
   return (
     <Link to={targetUrl} className="group flex gap-4 bg-surface-light border border-white/5 rounded-2xl p-3 hover:bg-white/5 transition-colors items-center overflow-hidden w-full text-left inline-flex">
