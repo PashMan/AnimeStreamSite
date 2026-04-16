@@ -89,7 +89,8 @@ const UserProfile: React.FC = () => {
   useEffect(() => {
     let isCancelled = false;
 
-    const loadAllAnimes = async (ids: string[], setter: React.Dispatch<React.SetStateAction<Anime[]>>) => {
+    const loadAllAnimes = async (ids: string[] | null | undefined, setter: React.Dispatch<React.SetStateAction<Anime[]>>) => {
+      if (!Array.isArray(ids)) return;
       const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
       if (uniqueIds.length === 0) return;
       
@@ -321,16 +322,16 @@ const UserProfile: React.FC = () => {
 
              {/* List View */}
              <div className="flex flex-col gap-3">
-                {activeTab === 'favs' && favorites.map(anime => (
+                {activeTab === 'favs' && Array.isArray(favorites) && favorites.map(anime => (
                     <AnimeListRow key={anime.id} anime={anime} />
                 ))}
-                {activeTab === 'watched' && watched.map(anime => (
+                {activeTab === 'watched' && Array.isArray(watched) && watched.map(anime => (
                     <AnimeListRow key={anime.id} anime={anime} />
                 ))}
-                {activeTab === 'watching' && watching.map(anime => (
+                {activeTab === 'watching' && Array.isArray(watching) && watching.map(anime => (
                     <AnimeListRow key={anime.id} anime={anime} />
                 ))}
-                {activeTab === 'dropped' && dropped.map(anime => (
+                {activeTab === 'dropped' && Array.isArray(dropped) && dropped.map(anime => (
                     <AnimeListRow key={anime.id} anime={anime} />
                 ))}
              </div>
