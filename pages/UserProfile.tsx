@@ -69,10 +69,10 @@ const UserProfile: React.FC = () => {
             db.getWatched(user.email)
           ]);
 
-          setAllFavIds(favIds);
-          setAllWatchedIds(watchedIds);
-          setAllWatchingIds(user.watchingAnimeIds || []);
-          setAllDroppedIds(user.droppedAnimeIds || []);
+          setAllFavIds(Array.isArray(favIds) ? favIds : []);
+          setAllWatchedIds(Array.isArray(watchedIds) ? watchedIds : []);
+          setAllWatchingIds(Array.isArray(user.watchingAnimeIds) ? user.watchingAnimeIds : []);
+          setAllDroppedIds(Array.isArray(user.droppedAnimeIds) ? user.droppedAnimeIds : []);
 
         } else {
             setIsLoading(false);
@@ -137,7 +137,7 @@ const UserProfile: React.FC = () => {
     let isCancelled = false;
     
     const prefetchWatchedForStats = async () => {
-       if (allWatchedIds.length === 0 || watched.length > 0) return;
+       if (!Array.isArray(allWatchedIds) || allWatchedIds.length === 0 || watched.length > 0) return;
        const uniqueIds = Array.from(new Set(allWatchedIds.filter(Boolean)));
        const chunkSize = 50;
        let allLoaded: Anime[] = [];
