@@ -587,7 +587,7 @@ class DatabaseService {
     if (!this.isSupabaseAvailable()) return [];
     try {
       const { data } = await supabaseClient.from('profiles').select('watched_anime_ids').eq('email', email).single();
-      return data?.watched_anime_ids || [];
+      return this.safeParseArray(data?.watched_anime_ids);
     } catch (e) {
       return [];
     }

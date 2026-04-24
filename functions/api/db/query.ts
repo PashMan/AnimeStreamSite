@@ -126,6 +126,17 @@ export const onRequestPost = async (context: any) => {
         } catch (e2) {
           throw e; // throw original error if migration fails
         }
+      } else if (e.message && e.message.includes('watching_anime_ids') || e.message.includes('dropped_anime_ids') || e.message.includes('watched_anime_ids')) {
+        try {
+          await db.prepare('ALTER TABLE profiles ADD COLUMN watched_anime_ids TEXT').run();
+        } catch(skip) {}
+        try {
+          await db.prepare('ALTER TABLE profiles ADD COLUMN watching_anime_ids TEXT').run();
+        } catch(skip) {}
+        try {
+          await db.prepare('ALTER TABLE profiles ADD COLUMN dropped_anime_ids TEXT').run();
+        } catch(skip) {}
+        result = await stmt.all();
       } else if (e.message && e.message.includes('shikimori')) {
         try {
           await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_token TEXT').run();

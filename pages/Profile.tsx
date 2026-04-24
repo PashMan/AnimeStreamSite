@@ -28,7 +28,7 @@ const Profile: React.FC = () => {
   const [friends, setFriends] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'watching' | 'dropped' | 'history' | 'friends' | 'settings' | 'design'>('favs');
+  const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'watching' | 'dropped' | 'history' | 'friends' | 'settings' | 'design' | 'integrations'>('favs');
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
