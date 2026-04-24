@@ -98,6 +98,7 @@ const Profile: React.FC = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
+    const manual = urlParams.get('manual');
     if (code && user?.email) {
       const linkShikimori = async () => {
          setIsActionLoading(true);
@@ -108,7 +109,7 @@ const Profile: React.FC = () => {
              body: JSON.stringify({ 
                 code, 
                 email: user.email, 
-                redirectUri: window.location.origin + '/profile' 
+                redirectUri: manual ? "urn:ietf:wg:oauth:2.0:oob" : window.location.origin + '/profile' 
              })
            });
            const data = await res.json();
@@ -363,7 +364,7 @@ const Profile: React.FC = () => {
                     <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
                   </button>
                   <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
-                    <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
+                    <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
                   </button>
                   {user.isPremium && (
                       <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'text-black' : 'text-yellow-500 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308' } : {}}>
@@ -624,7 +625,7 @@ const Profile: React.FC = () => {
                      {user.shikimoriId ? (
                          <div className="flex items-center gap-4 p-5 bg-[#000000] border border-blue-500/30 rounded-2xl w-max">
                             <div className="bg-blue-500/20 p-3 rounded-xl border border-blue-500/50">
-                               <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
+                               <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                             </div>
                             <div>
                                <p className="text-white font-bold text-sm">Shikimori привязан</p>
@@ -632,17 +633,45 @@ const Profile: React.FC = () => {
                             </div>
                          </div>
                      ) : (
-                         <button 
-                            type="button"
-                            onClick={() => {
-                               const shikimoriClientId = "kI3V5SN4EtzP_DaAjykHoXVdJJVCe2XPW-q0qiDcmig";
-                               window.location.href = `https://shikimori.one/oauth/authorize?client_id=${shikimoriClientId}&redirect_uri=${window.location.origin}/profile&response_type=code`;
-                            }}
-                            className="flex items-center gap-3 px-6 py-4 bg-[#212121] hover:bg-blue-600 border border-blue-500/30 rounded-2xl text-white font-black text-[11px] uppercase tracking-widest transition-all"
-                         >
-                            <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
-                            Привязать аккаунт Shikimori
-                         </button>
+                         <div className="space-y-4">
+                             <button 
+                                type="button"
+                                onClick={() => {
+                                   const shikimoriClientId = "kI3V5SN4EtzP_DaAjykHoXVdJJVCe2XPW-q0qiDcmig";
+                                   window.location.href = `https://shikimori.one/oauth/authorize?client_id=${shikimoriClientId}&redirect_uri=${encodeURIComponent(window.location.origin + '/profile')}&response_type=code`;
+                                }}
+                                className="flex items-center gap-3 px-6 py-4 bg-[#212121] hover:bg-blue-600 border border-blue-500/30 rounded-2xl text-white font-black text-[11px] uppercase tracking-widest transition-all"
+                             >
+                                <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                Привязать аккаунт Shikimori
+                             </button>
+
+                             <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-3 max-w-xl">
+                               <p className="text-xs text-slate-400">
+                                 <strong>Ошибка Redirect URI?</strong> Убедитесь, что в настройках вашего приложения на Shikimori в поле <strong>Redirect URI</strong> указано: <br/>
+                                 <code className="text-blue-400 block mt-1 p-1 bg-black/50 rounded">{window.location.origin}/profile</code>
+                               </p>
+                               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/10">
+                                 <input 
+                                   type="text" 
+                                   id="manual-code"
+                                   placeholder="Или введите код вручную (oob)" 
+                                   className="bg-black/50 border border-white/10 rounded-lg px-3 flex-1 h-9 text-sm text-white" 
+                                 />
+                                 <button 
+                                   onClick={() => {
+                                     const input = document.getElementById('manual-code') as HTMLInputElement;
+                                     if (input && input.value) {
+                                        window.location.href = window.location.pathname + '?code=' + encodeURIComponent(input.value) + '&manual=1';
+                                     }
+                                   }}
+                                   className="bg-blue-600 hover:bg-blue-500 text-white px-4 h-9 rounded-lg text-xs font-bold"
+                                 >
+                                   Ok
+                                 </button>
+                               </div>
+                             </div>
+                         </div>
                      )}
                  </section>
                ) : activeTab === 'friends' ? (
