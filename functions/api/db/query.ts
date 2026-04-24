@@ -126,6 +126,20 @@ export const onRequestPost = async (context: any) => {
         } catch (e2) {
           throw e; // throw original error if migration fails
         }
+      } else if (e.message && e.message.includes('shikimori')) {
+        try {
+          await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_token TEXT').run();
+          await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_refresh_token TEXT').run();
+          await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_id TEXT').run();
+          result = await stmt.all();
+        } catch (e2) {
+          // If columns already exist or other error, just retry
+          try {
+             result = await stmt.all();
+          } catch(e3) {
+             throw e;
+          }
+        }
       } else {
         throw e;
       }

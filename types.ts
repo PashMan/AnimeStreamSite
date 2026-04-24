@@ -61,6 +61,9 @@ export interface User {
   bannedUntil?: string;
   isMuted?: boolean;
   mutedUntil?: string;
+  shikimoriToken?: string;
+  shikimoriRefreshToken?: string;
+  shikimoriId?: string;
 }
 
 export interface Report {

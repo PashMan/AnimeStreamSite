@@ -409,7 +409,10 @@ class DatabaseService {
       lastSeen: p.last_seen,
       role: p.is_admin ? 'admin' : (p.role || 'user'),
       isBanned: p.is_banned || false,
-      isMuted: p.is_muted || false
+      isMuted: p.is_muted || false,
+      shikimoriId: p.shikimori_id,
+      // shikimoriToken and shikimoriRefreshToken are intentionally omitted 
+      // from the client payload for security reasons.
     };
   }
 
@@ -457,6 +460,9 @@ class DatabaseService {
       if (updates.cardOpacity !== undefined) mapped.card_opacity = updates.cardOpacity;
       if (updates.cardBlur !== undefined) mapped.card_blur = updates.cardBlur;
       if (updates.friends !== undefined) mapped.friends = JSON.stringify(updates.friends);
+      if (updates.shikimoriToken !== undefined) mapped.shikimori_token = updates.shikimoriToken;
+      if (updates.shikimoriRefreshToken !== undefined) mapped.shikimori_refresh_token = updates.shikimoriRefreshToken;
+      if (updates.shikimoriId !== undefined) mapped.shikimori_id = updates.shikimoriId;
 
       console.log('DEBUG: Updating profile with payload:', mapped);
 
@@ -478,6 +484,9 @@ class DatabaseService {
         if (updates.bio !== undefined) basicMapped.bio = updates.bio;
         if (updates.friends !== undefined) basicMapped.friends = JSON.stringify(updates.friends);
         if (updates.watchedAnimeIds) basicMapped.watched_anime_ids = JSON.stringify(updates.watchedAnimeIds);
+        if (updates.shikimoriToken !== undefined) basicMapped.shikimori_token = updates.shikimoriToken;
+        if (updates.shikimoriRefreshToken !== undefined) basicMapped.shikimori_refresh_token = updates.shikimoriRefreshToken;
+        if (updates.shikimoriId !== undefined) basicMapped.shikimori_id = updates.shikimoriId;
 
         // Only include columns that exist in the schema cache or try one by one if needed
         // For now, just try a very basic update if the first one failed
@@ -633,6 +642,17 @@ class DatabaseService {
         watchingAnimeIds: watching,
         droppedAnimeIds: dropped
       });
+
+      // Synchronize with Shikimori (fire-and-forget so it doesn't block UI)
+      if (typeof window !== 'undefined') {
+        fetch('/api/shikimori/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, animeId, status })
+        }).catch(err => {
+          console.error('Shikimori sync failed:', err);
+        });
+      }
       
       return true;
     } catch (e) {

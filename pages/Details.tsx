@@ -324,21 +324,77 @@ const Details: React.FC = () => {
     }
   }, [shouldLoadComments, id]);
 
-  // Listen to Kodik player messages to update URL when episode changes
+  // Listen to Kodik player messages to update URL when episode changes and auto-update list status
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
-        if (event.data && (event.data.key === 'kodik_player_message' || event.data.key === 'kodik_player_api')) {
+        if (!event.data) return;
+
+        let pEpisode: any = null;
+        let isStarted = false;
+        let isEnded = false;
+
+        if (event.data.key === 'kodik_player_message' || event.data.key === 'kodik_player_api') {
           const { value } = event.data;
-          // Kodik sends event: 'kodik_player_current_episode' or 'kodik_player_play'
-          if (value && value.episode) {
-            const currentEpisode = value.episode;
-            const newUrl = `/anime/${id}/episode/${currentEpisode}`;
-            if (window.location.pathname !== newUrl) {
-              window.history.replaceState(null, '', newUrl);
+          if (value) {
+            if (value.episode) pEpisode = value.episode;
+            if (value.kodik_player_play || value.event === 'play') isStarted = true;
+            if (value.kodik_player_time_update || value.event === 'timeupdate') {
+               const time = typeof value.time === 'number' ? value.time : (typeof value.seconds === 'number' ? value.seconds : (typeof value.kodik_player_time_update === 'number' ? value.kodik_player_time_update : 0));
+               if (time > 15) isStarted = true;
             }
           }
+        } else if (typeof event.data.key === 'string' && event.data.key.startsWith('kodik_player')) {
+          if (event.data.key === 'kodik_player_play') isStarted = true;
+          if (event.data.key === 'kodik_player_video_ended') isEnded = true;
+          if (event.data.key === 'kodik_player_time_update' && typeof event.data.value === 'number' && event.data.value > 15) isStarted = true;
+        } else if (typeof event.data === 'string') {
+          try {
+            const parsed = JSON.parse(event.data);
+            if (parsed.event === 'play') isStarted = true;
+            if (parsed.event === 'ended') isEnded = true;
+            if (parsed.event === 'timeupdate' && (typeof parsed.time === 'number' && parsed.time > 15 || typeof parsed.value === 'number' && parsed.value > 15)) isStarted = true;
+          } catch(e) {}
         }
+
+        const currentEpisodeStr = document.location.pathname.split('/episode/')[1] || pEpisode;
+
+        if (pEpisode) {
+          const newUrl = `/anime/${id}/episode/${pEpisode}`;
+          if (window.location.pathname !== newUrl) {
+            window.history.replaceState(null, '', newUrl);
+          }
+        }
+
+        // Automatically update the user lists based on watch activity
+        if (user?.email && anime && id) {
+          const totalEpisodes = anime.episodesAired || anime.episodes || 0;
+          
+          if (isStarted && animeStatus !== 'watching' && animeStatus !== 'watched') {
+             setAnimeStatus('watching');
+             db.setAnimeStatus(user.email, id.toString(), 'watching').catch(console.error);
+          }
+
+          if (isEnded && currentEpisodeStr && totalEpisodes > 0) {
+             const epNum = parseInt(currentEpisodeStr.toString());
+             
+             // Check if it's the final episode
+             if (epNum === totalEpisodes && animeStatus !== 'watched') {
+                setAnimeStatus('watched');
+                setIsWatched(true);
+                db.setAnimeStatus(user.email, id.toString(), 'watched').catch(console.error);
+             } else {
+                // Just finished an intermediate episode
+                // Update Shiki with the new episode count!
+                fetch('/api/shikimori/sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: user.email, animeId: id.toString(), status: 'watching', episodes: epNum })
+                }).catch(e => console.error(e));
+             }
+          }
+        }
+
       } catch (e) {
         // Ignore parsing errors
       }
@@ -346,7 +402,7 @@ const Details: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [id]);
+  }, [id, user?.email, anime, animeStatus]);
 
   const handleFavorite = async () => {
     if (!user?.email) { openAuthModal(); return; }

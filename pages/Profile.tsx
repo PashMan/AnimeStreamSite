@@ -96,6 +96,42 @@ const Profile: React.FC = () => {
   };
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code && user?.email) {
+      const linkShikimori = async () => {
+         setIsActionLoading(true);
+         try {
+           const res = await fetch('/api/shikimori/oauth', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ 
+                code, 
+                email: user.email, 
+                redirectUri: window.location.origin + '/profile' 
+             })
+           });
+           const data = await res.json();
+           if (data.success) {
+               alert(`Успешно привязан аккаунт Shikimori: ${data.username}`);
+               window.history.replaceState({}, document.title, window.location.pathname);
+               window.location.reload();
+           } else {
+               alert(`Ошибка привязки Shikimori: ${data.error}`);
+               window.history.replaceState({}, document.title, window.location.pathname);
+           }
+         } catch(e) {
+           console.error(e);
+           alert('Сетевая ошибка при привязке Shikimori');
+         } finally {
+           setIsActionLoading(false);
+         }
+      };
+      linkShikimori();
+    }
+  }, [user?.email]);
+
+  useEffect(() => {
     if (!user?.email) return;
 
     const loadUserData = async () => {
@@ -572,6 +608,39 @@ const Profile: React.FC = () => {
                       </div>
 
                     </div>
+
+                     <div className="mt-12 pt-12 border-t border-white/10">
+                         <h3 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter mb-4">
+                            Интеграции
+                         </h3>
+                         <p className="text-slate-400 text-sm mb-6 max-w-xl">
+                            Синхронизируйте свои списки (Просмотрено, Смотрю, Брошено) с Shikimori. Оценки и серии будут обновляться автоматически.
+                         </p>
+    
+                         {user.shikimoriId ? (
+                             <div className="flex items-center gap-4 p-5 bg-[#000000] border border-blue-500/30 rounded-2xl w-max">
+                                <div className="bg-blue-500/20 p-3 rounded-xl border border-blue-500/50">
+                                   <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
+                                </div>
+                                <div>
+                                   <p className="text-white font-bold text-sm">Shikimori привязан</p>
+                                   <p className="text-slate-500 text-[10px] uppercase font-black tracking-wider">ID: {user.shikimoriId}</p>
+                                </div>
+                             </div>
+                         ) : (
+                             <button 
+                                type="button"
+                                onClick={() => {
+                                   const shikimoriClientId = "kI3V5SN4EtzP_DaAjykHoXVdJJVCe2XPW-q0qiDcmig";
+                                   window.location.href = `https://shikimori.one/oauth/authorize?client_id=${shikimoriClientId}&redirect_uri=${window.location.origin}/profile&response_type=code`;
+                                }}
+                                className="flex items-center gap-3 px-6 py-4 bg-[#212121] hover:bg-[#323232] border border-[#444] rounded-2xl text-white font-bold text-sm transition-all"
+                             >
+                                <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
+                                Привязать аккаунт Shikimori
+                             </button>
+                         )}
+                     </div>
                  </section>
                ) : activeTab === 'friends' ? (
                  <section className="animate-in fade-in duration-500">
