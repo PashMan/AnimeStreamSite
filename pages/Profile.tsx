@@ -362,6 +362,9 @@ const Profile: React.FC = () => {
                   <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
                   </button>
+                  <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                    <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
+                  </button>
                   {user.isPremium && (
                       <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'text-black' : 'text-yellow-500 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308' } : {}}>
                         <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
@@ -608,39 +611,39 @@ const Profile: React.FC = () => {
                       </div>
 
                     </div>
+                 </section>
+               ) : activeTab === 'integrations' ? (
+                 <section className="p-10 rounded-[2.5rem] border shadow-2xl animate-in fade-in duration-500" style={cardStyle}>
+                     <h3 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter mb-4">
+                        Интеграции
+                     </h3>
+                     <p className="text-slate-400 text-sm mb-6 max-w-xl">
+                        Синхронизируйте свои списки (Просмотрено, Смотрю, Брошено) с Shikimori. Оценки и серии будут обновляться автоматически при просмотре или изменении статуса. Авто-отметка серий работает при просмотре в плеере Kodik (будет обновляться время просмотра и отмечаться новая серия).
+                     </p>
 
-                     <div className="mt-12 pt-12 border-t border-white/10">
-                         <h3 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter mb-4">
-                            Интеграции
-                         </h3>
-                         <p className="text-slate-400 text-sm mb-6 max-w-xl">
-                            Синхронизируйте свои списки (Просмотрено, Смотрю, Брошено) с Shikimori. Оценки и серии будут обновляться автоматически.
-                         </p>
-    
-                         {user.shikimoriId ? (
-                             <div className="flex items-center gap-4 p-5 bg-[#000000] border border-blue-500/30 rounded-2xl w-max">
-                                <div className="bg-blue-500/20 p-3 rounded-xl border border-blue-500/50">
-                                   <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
-                                </div>
-                                <div>
-                                   <p className="text-white font-bold text-sm">Shikimori привязан</p>
-                                   <p className="text-slate-500 text-[10px] uppercase font-black tracking-wider">ID: {user.shikimoriId}</p>
-                                </div>
-                             </div>
-                         ) : (
-                             <button 
-                                type="button"
-                                onClick={() => {
-                                   const shikimoriClientId = "kI3V5SN4EtzP_DaAjykHoXVdJJVCe2XPW-q0qiDcmig";
-                                   window.location.href = `https://shikimori.one/oauth/authorize?client_id=${shikimoriClientId}&redirect_uri=${window.location.origin}/profile&response_type=code`;
-                                }}
-                                className="flex items-center gap-3 px-6 py-4 bg-[#212121] hover:bg-[#323232] border border-[#444] rounded-2xl text-white font-bold text-sm transition-all"
-                             >
-                                <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
-                                Привязать аккаунт Shikimori
-                             </button>
-                         )}
-                     </div>
+                     {user.shikimoriId ? (
+                         <div className="flex items-center gap-4 p-5 bg-[#000000] border border-blue-500/30 rounded-2xl w-max">
+                            <div className="bg-blue-500/20 p-3 rounded-xl border border-blue-500/50">
+                               <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
+                            </div>
+                            <div>
+                               <p className="text-white font-bold text-sm">Shikimori привязан</p>
+                               <p className="text-slate-500 text-[10px] uppercase font-black tracking-wider">ID: {user.shikimoriId}</p>
+                            </div>
+                         </div>
+                     ) : (
+                         <button 
+                            type="button"
+                            onClick={() => {
+                               const shikimoriClientId = "kI3V5SN4EtzP_DaAjykHoXVdJJVCe2XPW-q0qiDcmig";
+                               window.location.href = `https://shikimori.one/oauth/authorize?client_id=${shikimoriClientId}&redirect_uri=${window.location.origin}/profile&response_type=code`;
+                            }}
+                            className="flex items-center gap-3 px-6 py-4 bg-[#212121] hover:bg-blue-600 border border-blue-500/30 rounded-2xl text-white font-black text-[11px] uppercase tracking-widest transition-all"
+                         >
+                            <img src="https://shikimori.one/assets/globals/favicons/favicon.ico" alt="Shi" className="w-5 h-5 rounded" />
+                            Привязать аккаунт Shikimori
+                         </button>
+                     )}
                  </section>
                ) : activeTab === 'friends' ? (
                  <section className="animate-in fade-in duration-500">
