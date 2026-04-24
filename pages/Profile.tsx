@@ -29,6 +29,8 @@ const Profile: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'watching' | 'dropped' | 'history' | 'friends' | 'settings' | 'design' | 'integrations'>('favs');
+  const [limits, setLimits] = useState({ favs: 20, watched: 20, watching: 20, dropped: 20, history: 20 });
+  const [loadingMore, setLoadingMore] = useState(false);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
@@ -181,8 +183,8 @@ const Profile: React.FC = () => {
   // Lazy load tab content
   useEffect(() => {
     const loadTabContent = async () => {
-      if (activeTab === 'favs' && favorites.length === 0 && Array.isArray(allFavIds) && allFavIds.length > 0) {
-         const idsToLoad = allFavIds.filter(Boolean).slice(0, 20);
+      if (activeTab === 'favs' && favorites.length < limits.favs && Array.isArray(allFavIds) && allFavIds.length > 0) {
+         const idsToLoad = allFavIds.filter(Boolean).slice(0, limits.favs);
          if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
@@ -190,8 +192,8 @@ const Profile: React.FC = () => {
          } catch (e) {
             console.error("Error loading favorites", e);
          }
-      } else if (activeTab === 'watched' && watched.length === 0 && Array.isArray(allWatchedIds) && allWatchedIds.length > 0) {
-         const idsToLoad = allWatchedIds.filter(Boolean).slice(0, 20);
+      } else if (activeTab === 'watched' && watched.length < limits.watched && Array.isArray(allWatchedIds) && allWatchedIds.length > 0) {
+         const idsToLoad = allWatchedIds.filter(Boolean).slice(0, limits.watched);
          if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
@@ -199,8 +201,8 @@ const Profile: React.FC = () => {
          } catch (e) {
             console.error("Error loading watched", e);
          }
-      } else if (activeTab === 'watching' && watching.length === 0 && Array.isArray(allWatchingIds) && allWatchingIds.length > 0) {
-         const idsToLoad = allWatchingIds.filter(Boolean).slice(0, 20);
+      } else if (activeTab === 'watching' && watching.length < limits.watching && Array.isArray(allWatchingIds) && allWatchingIds.length > 0) {
+         const idsToLoad = allWatchingIds.filter(Boolean).slice(0, limits.watching);
          if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
@@ -208,8 +210,8 @@ const Profile: React.FC = () => {
          } catch (e) {
             console.error("Error loading watching", e);
          }
-      } else if (activeTab === 'dropped' && dropped.length === 0 && Array.isArray(allDroppedIds) && allDroppedIds.length > 0) {
-         const idsToLoad = allDroppedIds.filter(Boolean).slice(0, 20);
+      } else if (activeTab === 'dropped' && dropped.length < limits.dropped && Array.isArray(allDroppedIds) && allDroppedIds.length > 0) {
+         const idsToLoad = allDroppedIds.filter(Boolean).slice(0, limits.dropped);
          if (idsToLoad.length === 0) return;
          try {
             const data = await fetchAnimes({ ids: idsToLoad.join(','), limit: idsToLoad.length }, true);
@@ -220,7 +222,7 @@ const Profile: React.FC = () => {
       }
     };
     loadTabContent();
-  }, [activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds]);
+  }, [activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds, limits]);
 
   const handleSaveProfile = async () => {
     setIsActionLoading(true);
@@ -734,7 +736,7 @@ const Profile: React.FC = () => {
                     
                     {(activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : activeTab === 'dropped' ? dropped : []).length > 0 || (activeTab === 'history' && history.length > 0) ? (
                         <div className={activeTab === 'history' ? "grid gap-4" : "grid grid-cols-2 sm:grid-cols-4 gap-6"}>
-                            {activeTab === 'history' ? history.map((item: any, idx: number) => (
+                            {activeTab === 'history' ? history.slice(0, limits.history).map((item: any, idx: number) => (
                                 <Link to={`/watch/${item.animeId}?ep=${item.episode}`} key={idx} className="glass p-4 rounded-3xl flex items-center gap-6 group border border-transparent hover:border-white/10 transition-all">
                                     <div className="w-40 h-24 rounded-2xl overflow-hidden shrink-0">
                                       <img 
@@ -770,6 +772,37 @@ const Profile: React.FC = () => {
                         </div>
                     ) : (
                         <div className="p-16 text-center glass rounded-[2rem] border border-white/5"><p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Список пуст</p></div>
+                    )}
+                    {activeTab !== 'history' && activeTab !== 'friends' && activeTab !== 'settings' && activeTab !== 'design' && activeTab !== 'integrations' && (
+                        (() => {
+                           const currentTarget = activeTab === 'favs' ? allFavIds : activeTab === 'watched' ? allWatchedIds : activeTab === 'watching' ? allWatchingIds : allDroppedIds;
+                           const currentLimit = limits[activeTab as keyof typeof limits] || 20;
+                           if (currentTarget.length > currentLimit) {
+                               return (
+                                   <div className="flex justify-center mt-12">
+                                     <button 
+                                        type="button"
+                                        onClick={() => setLimits(prev => ({ ...prev, [activeTab]: prev[activeTab as keyof typeof limits] + 20 }))}
+                                        className="px-8 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-300 transition-colors border border-white/10 flex items-center gap-2"
+                                     >
+                                         Показать еще <ChevronRight className="w-4 h-4" />
+                                     </button>
+                                   </div>
+                               );
+                           }
+                           return null;
+                        })()
+                    )}
+                    {activeTab === 'history' && history.length > limits.history && (
+                        <div className="flex justify-center mt-12">
+                           <button 
+                                type="button"
+                                onClick={() => setLimits(prev => ({ ...prev, history: prev.history + 20 }))}
+                                className="px-8 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-300 transition-colors border border-white/10 flex items-center gap-2"
+                             >
+                                 Показать еще <ChevronRight className="w-4 h-4" />
+                             </button>
+                        </div>
                     )}
                  </section>
                )}
