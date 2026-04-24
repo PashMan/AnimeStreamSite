@@ -341,11 +341,11 @@ const Profile: React.FC = () => {
                <nav className="rounded-3xl p-3 space-y-2 border shadow-xl transition-all duration-500" style={cardStyle}>
                   <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'favs' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><Heart className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Избранное</span></div>
-                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{favorites.length}</span>
+                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allFavIds.length}</span>
                   </button>
                   <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watched' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><CheckCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Просмотрено</span></div>
-                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{watched.length}</span>
+                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchedIds.length}</span>
                   </button>
                   <button onClick={() => setActiveTab('watching')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watching' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watching' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Смотрю</span></div>
@@ -773,7 +773,7 @@ const Profile: React.FC = () => {
                     ) : (
                         <div className="p-16 text-center glass rounded-[2rem] border border-white/5"><p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Список пуст</p></div>
                     )}
-                    {activeTab !== 'history' && activeTab !== 'friends' && activeTab !== 'settings' && activeTab !== 'design' && activeTab !== 'integrations' && (
+                    {['favs', 'watched', 'watching', 'dropped'].includes(activeTab) && (
                         (() => {
                            const currentTarget = activeTab === 'favs' ? allFavIds : activeTab === 'watched' ? allWatchedIds : activeTab === 'watching' ? allWatchingIds : allDroppedIds;
                            const currentLimit = limits[activeTab as keyof typeof limits] || 20;
