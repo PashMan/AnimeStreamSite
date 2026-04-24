@@ -6,7 +6,25 @@ export const onRequestPost = async (context: any) => {
       return Response.json({ error: 'Missing email' }, { status: 400 });
     }
 
-    const { results } = await env.DB.prepare('SELECT shikimori_id, watched_anime_ids, watching_anime_ids, dropped_anime_ids FROM profiles WHERE email = ?').bind(email).all();
+    let results;
+    try {
+      const res = await env.DB.prepare('SELECT shikimori_id, watched_anime_ids, watching_anime_ids, dropped_anime_ids FROM profiles WHERE email = ?').bind(email).all();
+      results = res.results;
+    } catch (e: any) {
+      // Auto-migrate if columns don't exist
+      if (e.message && (e.message.includes('watching_anime_ids') || e.message.includes('watched_anime_ids') || e.message.includes('dropped_anime_ids') || e.message.includes('shikimori_id'))) {
+         try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN watched_anime_ids TEXT').run(); } catch(err) {}
+         try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN watching_anime_ids TEXT').run(); } catch(err) {}
+         try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN dropped_anime_ids TEXT').run(); } catch(err) {}
+         try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN shikimori_id TEXT').run(); } catch(err) {}
+         
+         const res = await env.DB.prepare('SELECT shikimori_id, watched_anime_ids, watching_anime_ids, dropped_anime_ids FROM profiles WHERE email = ?').bind(email).all();
+         results = res.results;
+      } else {
+         throw e;
+      }
+    }
+
     if (!results || results.length === 0) {
       return Response.json({ error: 'User not found' }, { status: 404 });
     }

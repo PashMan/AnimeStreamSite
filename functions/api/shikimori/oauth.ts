@@ -57,9 +57,9 @@ export const onRequestPost = async (context: any) => {
     } catch (dbError: any) {
       // Auto-migrate if columns don't exist
       if (dbError.message && dbError.message.includes('shikimori')) {
-         await env.DB.prepare('ALTER TABLE profiles ADD COLUMN shikimori_token TEXT').run();
-         await env.DB.prepare('ALTER TABLE profiles ADD COLUMN shikimori_refresh_token TEXT').run();
-         await env.DB.prepare('ALTER TABLE profiles ADD COLUMN shikimori_id TEXT').run();
+         try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN shikimori_token TEXT').run(); } catch(e){}
+         try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN shikimori_refresh_token TEXT').run(); } catch(e){}
+         try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN shikimori_id TEXT').run(); } catch(e){}
          
          await env.DB.prepare(
            'UPDATE profiles SET shikimori_token = ?, shikimori_refresh_token = ?, shikimori_id = ? WHERE email = ?'
@@ -79,7 +79,17 @@ export const onRequestPost = async (context: any) => {
 
         if (ratesRes.ok) {
            const userRates = await ratesRes.json() as any[];
-           const { results } = await env.DB.prepare('SELECT watched_anime_ids, watching_anime_ids, dropped_anime_ids FROM profiles WHERE email = ?').bind(email).all();
+           try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN watched_anime_ids TEXT').run(); } catch(err) {}
+           try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN watching_anime_ids TEXT').run(); } catch(err) {}
+           try { await env.DB.prepare('ALTER TABLE profiles ADD COLUMN dropped_anime_ids TEXT').run(); } catch(err) {}
+
+           let results;
+           try {
+             const res = await env.DB.prepare('SELECT watched_anime_ids, watching_anime_ids, dropped_anime_ids FROM profiles WHERE email = ?').bind(email).all();
+             results = res.results;
+           } catch(e) {
+              console.error('Failed to load lists for initial sync', e);
+           }
            
            if (results && results.length > 0) {
                const profile = results[0];

@@ -136,7 +136,11 @@ export const onRequestPost = async (context: any) => {
         try {
           await db.prepare('ALTER TABLE profiles ADD COLUMN dropped_anime_ids TEXT').run();
         } catch(skip) {}
-        result = await stmt.all();
+        try {
+           result = await stmt.all();
+        } catch(lastErr) {
+           throw e;
+        }
       } else if (e.message && e.message.includes('shikimori')) {
         try {
           await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_token TEXT').run();
