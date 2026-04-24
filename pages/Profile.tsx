@@ -623,14 +623,44 @@ const Profile: React.FC = () => {
                      </p>
 
                      {user.shikimoriId ? (
-                         <div className="flex items-center gap-4 p-5 bg-[#000000] border border-blue-500/30 rounded-2xl w-max">
-                            <div className="bg-blue-500/20 p-3 rounded-xl border border-blue-500/50">
-                               <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                            </div>
-                            <div>
-                               <p className="text-white font-bold text-sm">Shikimori привязан</p>
-                               <p className="text-slate-500 text-[10px] uppercase font-black tracking-wider">ID: {user.shikimoriId}</p>
-                            </div>
+                         <div className="space-y-4">
+                             <div className="flex items-center justify-between p-5 bg-[#000000] border border-blue-500/30 rounded-2xl">
+                                <div className="flex items-center gap-4">
+                                  <div className="bg-blue-500/20 p-3 rounded-xl border border-blue-500/50">
+                                     <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                  </div>
+                                  <div>
+                                     <p className="text-white font-bold text-sm">Shikimori привязан</p>
+                                     <p className="text-slate-500 text-[10px] uppercase font-black tracking-wider">ID: {user.shikimoriId}</p>
+                                  </div>
+                                </div>
+                                <button
+                                   onClick={async () => {
+                                      setIsActionLoading(true);
+                                      try {
+                                         const res = await fetch('/api/shikimori/import', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ email: user.email })
+                                         });
+                                         const data = await res.json();
+                                         if (data.success) {
+                                            alert(`Успешно синхронизировано!\nПросмотрено: ${data.watched}\nСмотрю: ${data.watching}\nБрошено: ${data.dropped}`);
+                                            window.location.reload();
+                                         } else {
+                                            alert(`Ошибка синхронизации: ${data.error}`);
+                                         }
+                                      } catch(e) {
+                                         alert('Сетевая ошибка при синхронизации');
+                                      } finally {
+                                         setIsActionLoading(false);
+                                      }
+                                   }}
+                                   className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors"
+                                >
+                                   Синхронизировать списки
+                                </button>
+                             </div>
                          </div>
                      ) : (
                          <div className="space-y-4">
@@ -647,10 +677,6 @@ const Profile: React.FC = () => {
                              </button>
 
                              <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-3 max-w-xl">
-                               <p className="text-xs text-slate-400">
-                                 <strong>Ошибка Redirect URI?</strong> Убедитесь, что в настройках вашего приложения на Shikimori в поле <strong>Redirect URI</strong> указано: <br/>
-                                 <code className="text-blue-400 block mt-1 p-1 bg-black/50 rounded">{window.location.origin}/profile</code>
-                               </p>
                                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/10">
                                  <input 
                                    type="text" 

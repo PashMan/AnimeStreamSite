@@ -71,6 +71,48 @@ export const onRequestPost = async (context: any) => {
       }
     }
 
+    try {
+        // Automatically sync lists on link
+        const ratesRes = await fetch(`https://shikimori.one/api/v2/user_rates?user_id=${userData.id}&target_type=Anime&limit=5000`, {
+           headers: { 'User-Agent': 'KamiAnime Sync' }
+        });
+
+        if (ratesRes.ok) {
+           const userRates = await ratesRes.json() as any[];
+           const { results } = await env.DB.prepare('SELECT watched_anime_ids, watching_anime_ids, dropped_anime_ids FROM profiles WHERE email = ?').bind(email).all();
+           
+           if (results && results.length > 0) {
+               const profile = results[0];
+               let watchedIds: string[] = profile.watched_anime_ids ? JSON.parse(profile.watched_anime_ids) : [];
+               let watchingIds: string[] = profile.watching_anime_ids ? JSON.parse(profile.watching_anime_ids) : [];
+               let droppedIds: string[] = profile.dropped_anime_ids ? JSON.parse(profile.dropped_anime_ids) : [];
+
+               const watchedSet = new Set(watchedIds);
+               const watchingSet = new Set(watchingIds);
+               const droppedSet = new Set(droppedIds);
+
+               for (const rate of userRates) {
+                  const animeId = String(rate.target_id);
+                  const status = rate.status;
+
+                  watchedSet.delete(animeId);
+                  watchingSet.delete(animeId);
+                  droppedSet.delete(animeId);
+
+                  if (status === 'completed') watchedSet.add(animeId);
+                  if (status === 'watching') watchingSet.add(animeId);
+                  if (status === 'dropped') droppedSet.add(animeId);
+               }
+
+               await env.DB.prepare('UPDATE profiles SET watched_anime_ids = ?, watching_anime_ids = ?, dropped_anime_ids = ? WHERE email = ?')
+                 .bind(JSON.stringify(Array.from(watchedSet)), JSON.stringify(Array.from(watchingSet)), JSON.stringify(Array.from(droppedSet)), email)
+                 .run();
+           }
+        }
+    } catch(e) {
+        console.error('Initial sync failed', e);
+    }
+
     return Response.json({ success: true, shikimoriId: userData.id, username: userData.nickname });
 
   } catch (error: any) {
