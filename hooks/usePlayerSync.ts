@@ -7,6 +7,7 @@ interface SyncState {
   isPlaying: boolean;
   time: number;
   episode?: string;
+  kodikVideo?: any;
 }
 
 export const usePlayerSync = (
@@ -23,6 +24,7 @@ export const usePlayerSync = (
   const [isSubscribed, setIsSubscribed] = useState(false);
   const lastTimeRef = useRef(0);
   const isPlayingRef = useRef(false);
+  const viewerKodikHashRef = useRef<string | null>(null);
   const hostStateRef = useRef<SyncState>({ isPlaying: false, time: 0 });
   const ignoreNextEventRef = useRef(false);
   
@@ -93,10 +95,12 @@ export const usePlayerSync = (
             // Only sync if state is different enough
             if (hState.episode !== hostStateRef.current.episode || 
                 hState.isPlaying !== hostStateRef.current.isPlaying || 
-                Math.abs(hState.time - hostStateRef.current.time) > 5) {
+                Math.abs(hState.time - hostStateRef.current.time) > 5 ||
+                hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash) {
               console.log('[SYNC] Syncing from host presence:', hState);
+              const force = hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
               hostStateRef.current = hState;
-              syncToPlayer(hState);
+              syncToPlayer(hState, force);
             }
           }
         }
@@ -184,6 +188,10 @@ export const usePlayerSync = (
         }
       }
 
+      if (data.key === 'kodik_player_current_episode' || data.key === 'kodik_player_video_change') {
+         viewerKodikHashRef.current = data.value?.hash;
+      }
+
       // Update local time state for both host and viewer to calculate diffs correctly
       if (data.key === 'kodik_player_time_update') {
         const newTime = data.value;
@@ -214,6 +222,10 @@ export const usePlayerSync = (
 
       if (roleRef.current === 'host') {
         // Kodik events
+        if (data.key === 'kodik_player_current_episode' || data.key === 'kodik_player_video_change') {
+           updateHostState({ kodikVideo: data.value });
+        }
+        
         if (data.key === 'kodik_player_play') {
           updateHostState({ isPlaying: true });
         } else if (data.key === 'kodik_player_pause') {
@@ -268,7 +280,11 @@ export const usePlayerSync = (
       if (force || state.isPlaying !== isPlayingRef.current) {
         isPlayingRef.current = state.isPlaying;
         if (state.isPlaying) {
-          video.play().catch(e => console.warn('[SYNC] Play prevented by browser:', e));
+          video.play().catch(e => {
+             console.warn('[SYNC] Play prevented by browser:', e);
+             video.muted = true;
+             video.play().catch(console.error);
+          });
         } else {
           video.pause();
         }
@@ -289,6 +305,22 @@ export const usePlayerSync = (
     const target = iframeRef.current.contentWindow;
 
     console.log(`[SYNC] Viewer syncing to player${force ? ' (forced)' : ''}:`, state);
+
+    if (state.kodikVideo) {
+      if (viewerKodikHashRef.current !== state.kodikVideo.hash) {
+         console.log('[SYNC] Translation/video changed, sending change_video API');
+         viewerKodikHashRef.current = state.kodikVideo.hash;
+         
+         target.postMessage({ key: 'kodik_player_api', value: { method: 'change_video', autoplay: true, ...state.kodikVideo } }, '*');
+         
+         // Give it a brief moment to change the video before sending play commands
+         setTimeout(() => {
+           if (state.isPlaying) {
+             target.postMessage({ key: 'kodik_player_api', value: { method: 'play' } }, '*');
+           }
+         }, 1000);
+      }
+    }
 
     // Sync Play/Pause
     if (force || state.isPlaying !== isPlayingRef.current) {
@@ -339,5 +371,14 @@ export const usePlayerSync = (
     }
   };
 
-  return { role, usersCount, myId: clientIdRef.current, sync };
+  const [exposedHostState, setExposedHostState] = useState<SyncState>({ isPlaying: false, time: 0 });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setExposedHostState({ ...hostStateRef.current });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return { role, usersCount, myId: clientIdRef.current, sync, hostState: exposedHostState };
 };

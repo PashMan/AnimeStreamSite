@@ -6,9 +6,10 @@ interface CustomPlayerProps {
   src: string;
   maxAudioTracks?: number;
   audioTrackNames?: string[];
+  autoPlay?: boolean;
 }
 
-export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ src, maxAudioTracks, audioTrackNames }, ref) => {
+export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ src, maxAudioTracks, audioTrackNames, autoPlay }, ref) => {
   const artRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -62,7 +63,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
         type: src.includes('.m3u8') ? 'm3u8' : undefined,
         theme: '#E11D48',
       volume: 0.7,
-      autoplay: false,
+      autoplay: autoPlay || false,
       pip: true,
       autoSize: true,
       autoMini: false,
@@ -205,7 +206,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
         URL.revokeObjectURL(blobUrl);
       }
     };
-  }, [src, ref, maxAudioTracks, audioTrackNames]);
+  }, [src, ref, maxAudioTracks, audioTrackNames, autoPlay]);
 
   return <div ref={artRef} className="w-full aspect-video rounded-xl overflow-hidden bg-black" />;
 });

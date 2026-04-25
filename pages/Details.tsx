@@ -67,7 +67,7 @@ const Details: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const nativeVideoRef = useRef<HTMLVideoElement>(null);
   const isCustomPlayer = players.find(p => p.name === selectedPlayer)?.isCustom || false;
-  const { role, usersCount, myId, sync } = usePlayerSync(roomId, iframeRef, nativeVideoRef, isCustomPlayer);
+  const { role, usersCount, myId, sync, hostState } = usePlayerSync(roomId, iframeRef, nativeVideoRef, isCustomPlayer);
   
   const [isRoomInstructionOpen, setIsRoomInstructionOpen] = useState(false);
 
@@ -835,6 +835,11 @@ const Details: React.FC = () => {
                            Роль: <span className="text-purple-400 font-bold">{role === 'host' ? 'Хост' : 'Зритель'}</span> • Зрителей: {usersCount}
                            {myId && <span className="ml-2 text-[10px] opacity-50 font-mono">({myId.substring(0, 5)})</span>}
                          </p>
+                         {role === 'viewer' && hostState && (
+                            <p className="text-xs text-slate-500 mt-1">
+                               Хост на <span className="text-white font-mono">{Math.floor((hostState.time || 0) / 60).toString().padStart(2, '0')}:{Math.floor((hostState.time || 0) % 60).toString().padStart(2, '0')}</span> • {hostState.isPlaying ? '▶ Играет' : '⏸ Пауза'}
+                            </p>
+                         )}
                        </div>
                      </div>
                      <div className="flex items-center gap-2">
@@ -893,13 +898,15 @@ const Details: React.FC = () => {
                                 const maxTracks = isSuzume ? 5 : undefined;
                                 const audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria', 'Ю. Сербин', 'Netflix КЗ.', 'Оригинал + Субтитры', 'Оригинал'] : undefined;
                                 
-                                return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} audioTrackNames={audioTrackNames} />;
+                                return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} audioTrackNames={audioTrackNames} autoPlay={!!roomId && role === 'viewer'} />;
                               }
                               let finalIframeUrl = player.iframe;
-                              if (paramEpisode && finalIframeUrl && player.name === 'Kodik') {
+                              if (finalIframeUrl && player.name === 'Kodik') {
                                 try {
                                   const url = new URL(finalIframeUrl);
-                                  url.searchParams.set('episode', paramEpisode);
+                                  if (paramEpisode) url.searchParams.set('episode', paramEpisode);
+                                  // Don't auto-reload iframe based on role/translation to avoid flash/interruptions,
+                                  // usePlayerSync specifically handles postMessage 'change_video' instead.
                                   finalIframeUrl = url.toString();
                                 } catch (e) {}
                               }

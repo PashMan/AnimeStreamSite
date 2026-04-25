@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2, Camera, Upload, Palette, Layout, Image as ImageIcon, LayoutTemplate, X, ChevronRight } from 'lucide-react';
+import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2, Camera, Upload, Palette, Layout, Search, Filter, Image as ImageIcon, LayoutTemplate, X, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { fetchAnimes } from '../services/shikimori';
@@ -31,6 +31,11 @@ const Profile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'favs' | 'watched' | 'watching' | 'dropped' | 'history' | 'friends' | 'settings' | 'design' | 'integrations'>('favs');
   const [limits, setLimits] = useState({ favs: 20, watched: 20, watching: 20, dropped: 20, history: 20 });
   const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('popularity');
+  const [searchResults, setSearchResults] = useState<Anime[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<any>(null);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
@@ -179,6 +184,54 @@ const Profile: React.FC = () => {
 
     loadUserData();
   }, [user?.email]);
+
+  // Search and Sort Effect
+  useEffect(() => {
+    if (['history', 'friends', 'settings', 'design', 'integrations'].includes(activeTab)) {
+       setSearchResults(null);
+       setSearchQuery('');
+       return;
+    }
+
+    if (!searchQuery && sortOrder === 'popularity') {
+       setSearchResults(null);
+       return;
+    }
+
+    const allIdsForTab = activeTab === 'favs' ? allFavIds : activeTab === 'watched' ? allWatchedIds : activeTab === 'watching' ? allWatchingIds : allDroppedIds;
+    
+    if (!allIdsForTab || allIdsForTab.length === 0) {
+        setSearchResults([]);
+        return;
+    }
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    
+    searchTimeoutRef.current = setTimeout(async () => {
+        setIsSearching(true);
+        try {
+            const idsToSearch = allIdsForTab.filter(Boolean).slice(0, 500);
+            if (idsToSearch.length === 0) {
+               setSearchResults([]);
+               return;
+            }
+            const params: any = { ids: idsToSearch.join(','), limit: 50, order: sortOrder };
+            if (searchQuery) params.search = searchQuery;
+            
+            const data = await fetchAnimes(params, true);
+            setSearchResults(data || []);
+        } catch (e) {
+            console.error("Search error", e);
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    }, 500);
+
+    return () => {
+       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    }
+  }, [searchQuery, sortOrder, activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds]);
 
   // Lazy load tab content
   useEffect(() => {
@@ -729,16 +782,50 @@ const Profile: React.FC = () => {
                  </section>
                ) : (
                  <section className="animate-in fade-in duration-500">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter mb-8">
-                       {activeTab === 'favs' ? <Heart className="text-primary" /> : activeTab === 'watched' ? <CheckCircle className="text-primary" /> : activeTab === 'watching' ? <PlayCircle className="text-primary" /> : activeTab === 'dropped' ? <X className="text-primary" /> : <History className="text-primary" />} 
-                       {activeTab === 'favs' ? 'Избранное' : activeTab === 'watched' ? 'Просмотрено' : activeTab === 'watching' ? 'Смотрю' : activeTab === 'dropped' ? 'Брошено' : 'История просмотров'}
-                    </h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                      <h3 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter">
+                         {activeTab === 'favs' ? <Heart className="text-primary" /> : activeTab === 'watched' ? <CheckCircle className="text-primary" /> : activeTab === 'watching' ? <PlayCircle className="text-primary" /> : activeTab === 'dropped' ? <X className="text-primary" /> : <History className="text-primary" />} 
+                         {activeTab === 'favs' ? 'Избранное' : activeTab === 'watched' ? 'Просмотрено' : activeTab === 'watching' ? 'Смотрю' : activeTab === 'dropped' ? 'Брошено' : 'История просмотров'}
+                      </h3>
+                      
+                      {['favs', 'watched', 'watching', 'dropped'].includes(activeTab) && (
+                         <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <div className="relative flex-grow sm:w-64">
+                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                               <input 
+                                  type="text" 
+                                  placeholder="Поиск по списку..." 
+                                  value={searchQuery}
+                                  onChange={(e) => setSearchQuery(e.target.value)}
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-10 pr-4 text-sm text-white focus:border-primary outline-none transition-all placeholder:text-slate-500 font-bold"
+                               />
+                            </div>
+                            <div className="relative shrink-0">
+                               <select 
+                                  value={sortOrder}
+                                  onChange={(e) => setSortOrder(e.target.value)}
+                                  className="appearance-none bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-10 pr-8 text-sm text-white font-bold focus:border-primary outline-none transition-all cursor-pointer"
+                               >
+                                  <option value="popularity">Популярные</option>
+                                  <option value="ranked">По рейтингу</option>
+                                  <option value="name">По алфавиту</option>
+                                  <option value="aired_on">По дате выхода</option>
+                               </select>
+                               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                               <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none rotate-90" />
+                            </div>
+                         </div>
+                      )}
+                    </div>
                     
-                    {(activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : activeTab === 'dropped' ? dropped : []).length > 0 || (activeTab === 'history' && history.length > 0) ? (
+                    {(searchResults || (activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : activeTab === 'dropped' ? dropped : [])).length > 0 || (activeTab === 'history' && history.length > 0) ? (
                         <div className={activeTab === 'history' ? "grid gap-4" : "grid grid-cols-2 sm:grid-cols-4 gap-6"}>
-                            {activeTab === 'history' ? history.slice(0, limits.history).map((item: any, idx: number) => (
-                                <Link to={`/watch/${item.animeId}?ep=${item.episode}`} key={idx} className="glass p-4 rounded-3xl flex items-center gap-6 group border border-transparent hover:border-white/10 transition-all">
-                                    <div className="w-40 h-24 rounded-2xl overflow-hidden shrink-0">
+                            {isSearching && <div className="col-span-full py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}
+                            {!isSearching && (
+                              <>
+                                {activeTab === 'history' ? history.slice(0, limits.history).map((item: any, idx: number) => (
+                                    <Link to={`/watch/${item.animeId}?ep=${item.episode}`} key={idx} className="glass p-4 rounded-3xl flex items-center gap-6 group border border-transparent hover:border-white/10 transition-all">
+                                        <div className="w-40 h-24 rounded-2xl overflow-hidden shrink-0">
                                       <img 
                                         src={item.image} 
                                         loading="lazy"
@@ -750,7 +837,7 @@ const Profile: React.FC = () => {
                                     <div className="flex-grow"><h4 className="text-lg font-black text-white truncate uppercase tracking-tighter">{item.title}</h4><p className="text-xs text-slate-400 font-bold mt-1 uppercase">Серия {item.episode}</p></div>
                                     <PlayCircle className="w-10 h-10 text-primary opacity-0 group-hover:opacity-100 transition-all" />
                                 </Link>
-                            )) : (activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : dropped).map((anime: Anime) => {
+                            )) : (searchResults || (activeTab === 'favs' ? favorites : activeTab === 'watched' ? watched : activeTab === 'watching' ? watching : dropped)).map((anime: Anime) => {
                                  const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
                                  const isSlugBlocked = slugBlocks.includes(anime.id.toString());
                                  const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
@@ -769,11 +856,13 @@ const Profile: React.FC = () => {
                                    </div>
                                 </Link>
                             )})}
+                              </>
+                            )}
                         </div>
                     ) : (
                         <div className="p-16 text-center glass rounded-[2rem] border border-white/5"><p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Список пуст</p></div>
                     )}
-                    {['favs', 'watched', 'watching', 'dropped'].includes(activeTab) && (
+                    {['favs', 'watched', 'watching', 'dropped'].includes(activeTab) && searchResults === null && (
                         (() => {
                            const currentTarget = activeTab === 'favs' ? allFavIds : activeTab === 'watched' ? allWatchedIds : activeTab === 'watching' ? allWatchingIds : allDroppedIds;
                            const currentLimit = limits[activeTab as keyof typeof limits] || 20;
