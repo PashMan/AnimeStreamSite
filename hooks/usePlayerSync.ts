@@ -311,7 +311,11 @@ export const usePlayerSync = (
       }
 
       if (data.key === 'kodik_player_current_episode' || data.key === 'kodik_player_video_change') {
-         viewerKodikHashRef.current = data.value?.hash;
+         const v = data.value || {};
+         const tempTrans = typeof v.translation === 'object' ? v.translation?.id : v.translation;
+         const tempSeason = typeof v.season === 'object' ? undefined : v.season;
+         const tempEpisode = typeof v.episode === 'object' ? undefined : v.episode;
+         viewerKodikHashRef.current = v.hash || `${tempTrans}-${tempSeason}-${tempEpisode}`;
       }
 
       // Update local time state for both host and viewer to calculate diffs correctly
@@ -349,11 +353,14 @@ export const usePlayerSync = (
            // We must trim it to only the essentials (hash, translation, episode number) 
            // to prevent Supabase Realtime presence state size limits from dropping the connection.
            const v = data.value || {};
+           const cleanTrans = typeof v.translation === 'object' ? v.translation?.id : v.translation;
+           const cleanSeason = typeof v.season === 'object' ? undefined : v.season;
+           const cleanEp = typeof v.episode === 'object' ? undefined : v.episode;
            const cleanKodikVideo = {
-             hash: typeof v.hash === 'string' ? v.hash.substring(0, 100) : undefined,
-             translation: typeof v.translation === 'object' ? v.translation?.id : v.translation,
-             season: typeof v.season === 'object' ? undefined : v.season,
-             episode: typeof v.episode === 'object' ? undefined : v.episode,
+             hash: v.hash ? String(v.hash).substring(0, 100) : `${cleanTrans}-${cleanSeason}-${cleanEp}`,
+             translation: cleanTrans,
+             season: cleanSeason,
+             episode: cleanEp,
            };
            updateHostState({ kodikVideo: cleanKodikVideo });
         }
