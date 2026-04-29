@@ -162,6 +162,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                   selector: tracks,
                   onSelect: function (item) {
                     hls.audioTrack = item.trackId;
+                    if (artInstance && artInstance.video) {
+                       artInstance.video.dispatchEvent(new CustomEvent('audiotrackchange', { detail: item.trackId }));
+                    }
                     return item.html;
                   },
                 });
@@ -189,8 +192,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
     });
 
       if (typeof ref === 'function') {
+        (art.video as any).art = art;
         ref(art.video);
       } else if (ref) {
+        (art.video as any).art = art;
         ref.current = art.video;
       }
     };

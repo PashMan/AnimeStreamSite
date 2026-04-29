@@ -360,8 +360,12 @@ const Details: React.FC = () => {
         const currentEpisodeStr = document.location.pathname.split('/episode/')[1] || pEpisode;
 
         if (pEpisode) {
-          const newUrl = `/anime/${id}/episode/${pEpisode}`;
-          if (window.location.pathname !== newUrl) {
+          let newUrl = `/anime/${id}/episode/${pEpisode}`;
+          // Preserve query parameters, especially ?room=
+          if (window.location.search) {
+             newUrl += window.location.search;
+          }
+          if (window.location.pathname !== `/anime/${id}/episode/${pEpisode}`) {
             window.history.replaceState(null, '', newUrl);
           }
         }

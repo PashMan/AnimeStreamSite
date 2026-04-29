@@ -8,6 +8,7 @@ interface SyncState {
   time: number;
   episode?: string;
   kodikVideo?: any;
+  nativeAudioTrack?: number;
 }
 
 export const usePlayerSync = (
@@ -118,7 +119,7 @@ export const usePlayerSync = (
       });
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
       channelRef.current = null;
       setIsSubscribed(false);
       setRole(null);
@@ -134,8 +135,8 @@ export const usePlayerSync = (
 
   // Listen to native video events
   useEffect(() => {
-    if (!roomId || !isCustomPlayer || !nativeVideoRef.current) return;
-    const video = nativeVideoRef.current;
+    if (!roomId || !isCustomPlayer) return;
+    let boundVideo: any = null;
 
     const handlePlay = () => {
       isPlayingRef.current = true;
@@ -146,25 +147,53 @@ export const usePlayerSync = (
       if (roleRef.current === 'host') updateHostState({ isPlaying: false });
     };
     const handleSeeked = () => {
-      lastTimeRef.current = video.currentTime;
-      if (roleRef.current === 'host') updateHostState({ time: video.currentTime });
+      if (boundVideo) lastTimeRef.current = boundVideo.currentTime;
+      if (roleRef.current === 'host' && boundVideo) updateHostState({ time: boundVideo.currentTime });
     };
     const handleTimeUpdate = () => {
-      lastTimeRef.current = video.currentTime;
+      if (boundVideo) lastTimeRef.current = boundVideo.currentTime;
+    };
+    const handleAudioTrackChange = (e: any) => {
+      if (roleRef.current === 'host') {
+        const trackId = e.detail;
+        console.log('[SYNC] Host changed audio track to:', trackId);
+        updateHostState({ nativeAudioTrack: trackId });
+      }
     };
 
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-    video.addEventListener('seeked', handleSeeked);
-    video.addEventListener('timeupdate', handleTimeUpdate);
+    const attachListeners = (video: any) => {
+      if (!video) return;
+      video.addEventListener('play', handlePlay);
+      video.addEventListener('pause', handlePause);
+      video.addEventListener('seeked', handleSeeked);
+      video.addEventListener('timeupdate', handleTimeUpdate);
+      video.addEventListener('audiotrackchange', handleAudioTrackChange);
+    };
 
-    return () => {
+    const detachListeners = (video: any) => {
+      if (!video) return;
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('seeked', handleSeeked);
       video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('audiotrackchange', handleAudioTrackChange);
     };
-  }, [roomId, isCustomPlayer, nativeVideoRef, role]);
+
+    // Poll to check if ref changed
+    const interval = setInterval(() => {
+      const currentVideo = nativeVideoRef.current;
+      if (currentVideo !== boundVideo) {
+        detachListeners(boundVideo);
+        boundVideo = currentVideo;
+        attachListeners(boundVideo);
+      }
+    }, 500);
+
+    return () => {
+      clearInterval(interval);
+      detachListeners(boundVideo);
+    };
+  }, [roomId, isCustomPlayer, role]);
 
   // Listen to iframe messages
   useEffect(() => {
@@ -223,7 +252,11 @@ export const usePlayerSync = (
       if (roleRef.current === 'host') {
         // Kodik events
         if (data.key === 'kodik_player_current_episode' || data.key === 'kodik_player_video_change') {
-           updateHostState({ kodikVideo: data.value });
+           // Kodik's video change event can contain huge arrays of seasons and episodes
+           // We must trim it to only the essentials (hash, translation, episode number) 
+           // to prevent Supabase Realtime presence state size limits from dropping the connection.
+           const { hash, translation, season, episode } = data.value || {};
+           updateHostState({ kodikVideo: { hash, translation, season, episode } });
         }
         
         if (data.key === 'kodik_player_play') {
@@ -264,7 +297,7 @@ export const usePlayerSync = (
   const syncToPlayer = (state: SyncState, force = false) => {
     if (state.episode && state.episode !== episode) {
       console.log(`[SYNC] Episode mismatch: ${state.episode} vs ${episode}. Navigating...`);
-      navigate(`/anime/${id}/${state.episode}?room=${roomId}`);
+      navigate(`/anime/${id}/episode/${state.episode}?room=${roomId}`);
       return;
     }
 
@@ -273,18 +306,29 @@ export const usePlayerSync = (
         console.warn('[SYNC] Cannot sync: native video ref not ready');
         return;
       }
-      const video = nativeVideoRef.current;
+      const video = nativeVideoRef.current as HTMLVideoElement;
 
       console.log(`[SYNC] Viewer syncing to NATIVE player${force ? ' (forced)' : ''}:`, state);
+
+      if (state.nativeAudioTrack !== undefined) {
+         const art = (video as any).art;
+         if (art && art.hls && art.hls.audioTrack !== state.nativeAudioTrack) {
+            console.log(`[SYNC] Viewer changing native audio track to ${state.nativeAudioTrack}`);
+            art.hls.audioTrack = state.nativeAudioTrack;
+         }
+      }
 
       if (force || state.isPlaying !== isPlayingRef.current) {
         isPlayingRef.current = state.isPlaying;
         if (state.isPlaying) {
-          video.play().catch(e => {
-             console.warn('[SYNC] Play prevented by browser:', e);
-             video.muted = true;
-             video.play().catch(console.error);
-          });
+          const playPromise = video.play();
+          if (playPromise) {
+            playPromise.catch((e: any) => {
+               console.warn('[SYNC] Play prevented by browser:', e);
+               video.muted = true;
+               video.play().catch(console.error);
+            });
+          }
         } else {
           video.pause();
         }
