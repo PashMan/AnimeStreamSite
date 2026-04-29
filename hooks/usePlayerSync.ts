@@ -35,6 +35,10 @@ export const usePlayerSync = (
   const starParam = params['*'];
   const episode = starParam?.startsWith('episode/') ? starParam.split('episode/')[1]?.split('/')[0] : undefined;
 
+  const lastStateUpdateStrRef = useRef<string>('');
+  const updateTimeoutRef = useRef<any>(null);
+  const pendingStateUpdatesRef = useRef<Partial<SyncState>>({});
+
   useEffect(() => {
     roleRef.current = role;
   }, [role]);
@@ -42,28 +46,50 @@ export const usePlayerSync = (
   const updateHostState = async (state: Partial<SyncState>) => {
     if (roleRef.current !== 'host' || !channelRef.current || !isSubscribed) return;
     
-    // Always use the latest episode from the pathname in case React Router params are stale
-    const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
-    
-    const newState = {
-      isPlaying: isPlayingRef.current,
-      time: lastTimeRef.current,
-      episode: currentEpisodeStr,
-      kodikVideo: hostStateRef.current.kodikVideo,
-      nativeAudioTrack: hostStateRef.current.nativeAudioTrack,
-      ...state
-    };
-    
-    // Update local ref immediately so periodic syncs send the latest merged data
-    hostStateRef.current = { ...hostStateRef.current, ...newState };
+    // Accumulate pending state updates
+    pendingStateUpdatesRef.current = { ...pendingStateUpdatesRef.current, ...state };
 
-    console.log('[SYNC] Host updating presence state:', newState);
-    // Update our presence with the new player state
-    await channelRef.current.track({
-      client_id: clientIdRef.current,
-      joined_at: (channelRef.current as any).joinedAt || Date.now(),
-      state: newState
-    });
+    if (updateTimeoutRef.current) return;
+
+    updateTimeoutRef.current = setTimeout(async () => {
+      updateTimeoutRef.current = null;
+      if (roleRef.current !== 'host' || !channelRef.current || !isSubscribed) return;
+
+      const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
+      
+      const newState = {
+        isPlaying: isPlayingRef.current,
+        time: lastTimeRef.current,
+        episode: currentEpisodeStr,
+        kodikVideo: hostStateRef.current.kodikVideo,
+        nativeAudioTrack: hostStateRef.current.nativeAudioTrack,
+        ...pendingStateUpdatesRef.current
+      };
+      
+      // Clear pending
+      pendingStateUpdatesRef.current = {};
+      
+      // Strict equality check to avoid tracking duplicated states
+      const stateStr = JSON.stringify(newState);
+      if (stateStr === lastStateUpdateStrRef.current) {
+        return; 
+      }
+      lastStateUpdateStrRef.current = stateStr;
+
+      // Update local ref immediately 
+      hostStateRef.current = { ...hostStateRef.current, ...newState };
+
+      console.log('[SYNC] Host updating presence state:', newState);
+      try {
+        await channelRef.current.track({
+          client_id: clientIdRef.current,
+          joined_at: (channelRef.current as any).joinedAt || Date.now(),
+          state: newState
+        });
+      } catch (e: any) {
+        console.warn('[SYNC] Error tracking state:', e.message);
+      }
+    }, 400); // Wait 400ms to batch rapid events
   };
 
   useEffect(() => {
@@ -73,77 +99,104 @@ export const usePlayerSync = (
     const joinedAt = Date.now();
     console.log(`[SYNC] Connecting to room: ${roomId} as client: ${myId}`);
 
-    // Remove any existing channels for this room to prevent duplicate connections
-    const existingChannels = supabase.getChannels().filter((c: any) => c.topic === `realtime:room:${roomId}` || c.topic === `room:${roomId}`);
-    for (const c of existingChannels) {
-       supabase.removeChannel(c);
+    // Find existing channel or create a new one
+    let channel: RealtimeChannel = supabase.getChannels().find((c: any) => c.topic === `realtime:room:${roomId}` || c.topic === `room:${roomId}`) as RealtimeChannel;
+    
+    if (!channel) {
+      channel = supabase.channel(`room:${roomId}`, {
+        config: {
+          presence: { key: myId },
+        },
+      });
     }
-
-    const channel = supabase.channel(`room:${roomId}`, {
-      config: {
-        presence: { key: myId },
-      },
-    });
 
     (channel as any).joinedAt = joinedAt;
     channelRef.current = channel;
 
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const presences = Object.values(state).flat() as any[];
-        setUsersCount(presences.length);
+    const handlePresenceSync = () => {
+      if (!channel) return;
+      const state = channel.presenceState();
+      const presences = Object.values(state).flat() as any[];
+      setUsersCount(presences.length);
 
-        if (presences.length > 0) {
-          const sorted = presences.sort((a, b) => 
-            (a.joined_at || 0) - (b.joined_at || 0) || 
-            (a.client_id || '').localeCompare(b.client_id || '')
-          );
-          
-          const host = sorted[0];
-          const isHost = host?.client_id === myId;
-          const newRole = isHost ? 'host' : 'viewer';
-          
-          if (roleRef.current !== newRole) {
-            console.log(`[SYNC] Role assigned: ${newRole}. Host is: ${host?.client_id}`);
-            setRole(newRole);
+      if (presences.length > 0) {
+        const sorted = presences.sort((a, b) => 
+          (a.joined_at || 0) - (b.joined_at || 0) || 
+          (a.client_id || '').localeCompare(b.client_id || '')
+        );
+        
+        const host = sorted[0];
+        const isHost = host?.client_id === myId;
+        const newRole = isHost ? 'host' : 'viewer';
+        
+        if (roleRef.current !== newRole) {
+          console.log(`[SYNC] Role assigned: ${newRole}. Host is: ${host?.client_id}`);
+          setRole(newRole);
+        }
+
+        // If we are viewer, sync from host's presence data
+        if (newRole === 'viewer' && host?.state) {
+          const hState = host.state as SyncState;
+          // Only sync if state is different enough
+          if (hState.episode !== hostStateRef.current.episode || 
+              hState.isPlaying !== hostStateRef.current.isPlaying || 
+              Math.abs(hState.time - hostStateRef.current.time) > 5 ||
+              hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash) {
+            console.log('[SYNC] Syncing from host presence:', hState);
+            const force = hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
+            hostStateRef.current = hState;
+            syncToPlayer(hState, force);
           }
+        }
+      }
+    };
 
-          // If we are viewer, sync from host's presence data
-          if (newRole === 'viewer' && host?.state) {
-            const hState = host.state as SyncState;
-            // Only sync if state is different enough
-            if (hState.episode !== hostStateRef.current.episode || 
-                hState.isPlaying !== hostStateRef.current.isPlaying || 
-                Math.abs(hState.time - hostStateRef.current.time) > 5 ||
-                hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash) {
-              console.log('[SYNC] Syncing from host presence:', hState);
-              const force = hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
-              hostStateRef.current = hState;
-              syncToPlayer(hState, force);
+    // Before re-subscribing, check if it's already bound
+    const cState = (channel as any).state;
+    if (cState !== 'SUBSCRIBED' && cState !== 'JOINED') {
+      channel
+        .on('presence', { event: 'sync' }, handlePresenceSync)
+        .subscribe(async (status: string) => {
+          console.log(`[SYNC] Channel status: ${status}`);
+          if (status === 'SUBSCRIBED') {
+            setIsSubscribed(true);
+            const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
+            try {
+              await channel.track({
+                client_id: myId,
+                joined_at: joinedAt,
+                state: { isPlaying: false, time: 0, episode: currentEpisodeStr }
+              });
+            } catch (e: any) {
+              console.warn("Failed to initially track presence:", e.message);
             }
           }
-        }
-      })
-      .subscribe(async (status: string) => {
-        console.log(`[SYNC] Channel status: ${status}`);
-        if (status === 'SUBSCRIBED') {
-          setIsSubscribed(true);
-          const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
-          await channel.track({
-            client_id: myId,
-            joined_at: joinedAt,
-            state: { isPlaying: false, time: 0, episode: currentEpisodeStr }
-          });
-        }
-      });
+        });
+    } else {
+       // Already subscribed (e.g. from Strict Mode), just apply listeners and trigger sync
+       setIsSubscribed(true);
+       channel.on('presence', { event: 'sync' }, handlePresenceSync);
+       handlePresenceSync(); // trigger manually once
+    }
 
     return () => {
       console.log(`[SYNC] Cleanup called for room: ${roomId}`);
-      supabase.removeChannel(channel);
-      channelRef.current = null;
+      // Only remove if this was a true unmount of the page, but in React 18 
+      // strict mode this removes the channel prematurely.
+      // So we leave it to be picked up by the next mount instantly, or it naturally 
+      // times out when the component actually unmounts.
+      // We will actually just untrack presence so we don't pollute.
+      if (channelRef.current) {
+         channelRef.current.untrack().catch(() => {});
+         // Delay channel removal slightly to allow strict-mode to reconnect instead of killing the socket
+         const c = channelRef.current;
+         setTimeout(() => {
+           if (channelRef.current !== c) {
+             supabase.removeChannel(c).catch(() => {});
+           }
+         }, 1000);
+      }
       setIsSubscribed(false);
-      setRole(null);
     };
   }, [roomId]);
 
