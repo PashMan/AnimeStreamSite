@@ -68,6 +68,45 @@ export const onRequest = async (context: any) => {
       return missResponse;
     }
 
+    // Fallback to Jikan API if Shikimori returns error (404, 403, etc.)
+    const animeIdMatch = path.match(/\/(\d+)\.jpg$/);
+    if (animeIdMatch) {
+      const animeId = animeIdMatch[1];
+      try {
+        const jikanRes = await fetch(`https://api.jikan.moe/v4/anime/${animeId}`);
+        if (jikanRes.ok) {
+          const jikanData = await jikanRes.json();
+          const imageUrl = jikanData?.data?.images?.jpg?.large_image_url || jikanData?.data?.images?.jpg?.image_url;
+          if (imageUrl) {
+            const fallbackImageRes = await fetch(imageUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+              }
+            });
+            if (fallbackImageRes.ok) {
+              const newHeaders = new Headers(fallbackImageRes.headers);
+              newHeaders.set('Access-Control-Allow-Origin', '*');
+              newHeaders.set('Cache-Control', 'public, max-age=2592000, s-maxage=2592000');
+              
+              response = new Response(fallbackImageRes.body, {
+                status: fallbackImageRes.status,
+                statusText: fallbackImageRes.statusText,
+                headers: newHeaders,
+              });
+              
+              context.waitUntil(cache.put(cacheKey, response.clone()));
+              
+              const missResponse = new Response(response.body, response);
+              missResponse.headers.set('X-Image-Cache', 'JIKAN-FALLBACK');
+              return missResponse;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Jikan fallback error:", err);
+      }
+    }
+
     // If Shikimori returned an error (like 404 or 429), don't cache it for long
     return new Response(fetchResponse.body, {
       status: fetchResponse.status,

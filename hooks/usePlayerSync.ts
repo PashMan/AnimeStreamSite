@@ -42,7 +42,10 @@ export const usePlayerSync = (
   const updateHostState = async (state: Partial<SyncState>) => {
     if (roleRef.current !== 'host' || !channelRef.current || !isSubscribed) return;
     
-    console.log('[SYNC] Host updating presence state:', { isPlaying: isPlayingRef.current, time: lastTimeRef.current, ...state });
+    // Always use the latest episode from the pathname in case React Router params are stale
+    const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
+    
+    console.log('[SYNC] Host updating presence state:', { isPlaying: isPlayingRef.current, time: lastTimeRef.current, episode: currentEpisodeStr, ...state });
     // Update our presence with the new player state
     await channelRef.current.track({
       client_id: clientIdRef.current,
@@ -50,7 +53,7 @@ export const usePlayerSync = (
       state: {
         isPlaying: isPlayingRef.current,
         time: lastTimeRef.current,
-        episode,
+        episode: currentEpisodeStr,
         ...state
       }
     });
@@ -113,10 +116,11 @@ export const usePlayerSync = (
         console.log(`[SYNC] Channel status: ${status}`);
         if (status === 'SUBSCRIBED') {
           setIsSubscribed(true);
+          const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
           await channel.track({
             client_id: myId,
             joined_at: joinedAt,
-            state: { isPlaying: false, time: 0, episode }
+            state: { isPlaying: false, time: 0, episode: currentEpisodeStr }
           });
         }
       });
@@ -216,7 +220,7 @@ export const usePlayerSync = (
         console.log('[SYNC] Player ready event received');
         if (roleRef.current === 'viewer' && hostStateRef.current) {
           console.log('[SYNC] Viewer player ready, syncing to host state');
-          syncToPlayer(hostStateRef.current);
+          syncToPlayer(hostStateRef.current, true);
         }
       }
 
@@ -298,8 +302,10 @@ export const usePlayerSync = (
   }, [roomId, iframeRef, role, episode, isSubscribed]);
 
   const syncToPlayer = (state: SyncState, force = false) => {
-    if (state.episode && state.episode !== episode) {
-      console.log(`[SYNC] Episode mismatch: ${state.episode} vs ${episode}. Navigating...`);
+    const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
+    
+    if (state.episode && state.episode !== currentEpisodeStr) {
+      console.log(`[SYNC] Episode mismatch: ${state.episode} vs ${currentEpisodeStr}. Navigating...`);
       navigate(`/anime/${id}/episode/${state.episode}?room=${roomId}`);
       return;
     }
@@ -360,10 +366,15 @@ export const usePlayerSync = (
          
          target.postMessage({ key: 'kodik_player_api', value: { method: 'change_video', autoplay: true, ...state.kodikVideo } }, '*');
          
-         // Give it a brief moment to change the video before sending play commands
+         // If we changed video, we should delay play/seek slightly to let it load
          setTimeout(() => {
            if (state.isPlaying) {
              target.postMessage({ key: 'kodik_player_api', value: { method: 'play' } }, '*');
+           }
+           if (state.time > 0) {
+             console.log(`[SYNC] Delayed seek after video change to ${state.time}`);
+             target.postMessage({ key: 'kodik_player_api', value: { method: 'seek', seconds: state.time } }, '*');
+             target.postMessage({ key: 'kodik_player_api', value: { method: 'seek', time: state.time } }, '*');
            }
          }, 1000);
       }
