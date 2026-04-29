@@ -35,6 +35,11 @@ export const usePlayerSync = (
   const starParam = params['*'];
   const episode = starParam?.startsWith('episode/') ? starParam.split('episode/')[1]?.split('/')[0] : undefined;
 
+  const currentContextRef = useRef({ id, episode, isCustomPlayer });
+  useEffect(() => {
+    currentContextRef.current = { id, episode, isCustomPlayer };
+  }, [id, episode, isCustomPlayer]);
+
   const lastStateUpdateStrRef = useRef<string>('');
   const updateTimeoutRef = useRef<any>(null);
   const pendingStateUpdatesRef = useRef<Partial<SyncState>>({});
@@ -177,6 +182,14 @@ export const usePlayerSync = (
        setIsSubscribed(true);
        channel.on('presence', { event: 'sync' }, handlePresenceSync);
        handlePresenceSync(); // trigger manually once
+       
+       // Re-track presence because unmount might have untracked it
+       const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
+       channel.track({
+         client_id: myId,
+         joined_at: joinedAt,
+         state: { isPlaying: false, time: 0, episode: currentEpisodeStr }
+       }).catch((e: any) => console.warn("Failed to implicitly track presence:", e.message));
     }
 
     return () => {
@@ -375,15 +388,16 @@ export const usePlayerSync = (
   }, [roomId, iframeRef, role, episode, isSubscribed]);
 
   const syncToPlayer = (state: SyncState, force = false) => {
+    const { id: refId, isCustomPlayer: refIsCustomPlayer } = currentContextRef.current;
     const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
     
     if (state.episode && state.episode !== currentEpisodeStr) {
       console.log(`[SYNC] Episode mismatch: ${state.episode} vs ${currentEpisodeStr}. Navigating...`);
-      navigate(`/anime/${id}/episode/${state.episode}?room=${roomId}`);
+      navigate(`/anime/${refId}/episode/${state.episode}?room=${roomId}`);
       return;
     }
 
-    if (isCustomPlayer) {
+    if (refIsCustomPlayer) {
       if (!nativeVideoRef.current) {
         console.warn('[SYNC] Cannot sync: native video ref not ready');
         return;
