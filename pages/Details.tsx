@@ -19,7 +19,10 @@ import { useDmcaBlocks } from '../store/dmcaBlocks';
 import { filterProfanity } from '../utils/profanity';
 
 const Details: React.FC = () => {
-  const { id: paramId, episode: paramEpisode } = useParams<{ id: string, episode?: string }>();
+  const params = useParams<{ id: string, '*': string }>();
+  const paramId = params.id;
+  const starParam = params['*'];
+  const paramEpisode = starParam?.startsWith('episode/') ? starParam.split('episode/')[1]?.split('/')[0] : undefined;
   // Extract numeric ID from the start of the string (e.g. "123-anime-slug" -> "123")
   const id = paramId ? parseInt(paramId).toString() : undefined;
 

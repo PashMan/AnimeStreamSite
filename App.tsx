@@ -75,8 +75,7 @@ const App: React.FC = () => {
             <Route path="collections/community/:id" element={<CommunityCollectionDetail />} />
             <Route path="news" element={<News />} />
             <Route path="news/:id" element={<NewsDetails />} />
-            <Route path="anime/:id" element={<Details />} />
-            <Route path="anime/:id/episode/:episode" element={<Details />} />
+            <Route path="anime/:id/*" element={<Details />} />
             <Route path="profile" element={<Profile />} />
             <Route path="user/:id" element={<UserProfile />} />
             <Route path="favorites" element={<Navigate to="/profile" replace />} />

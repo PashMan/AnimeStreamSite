@@ -30,7 +30,10 @@ export const usePlayerSync = (
   const ignoreNextEventRef = useRef(false);
   
   const navigate = useNavigate();
-  const { id, episode } = useParams();
+  const params = useParams();
+  const id = params.id;
+  const starParam = params['*'];
+  const episode = starParam?.startsWith('episode/') ? starParam.split('episode/')[1]?.split('/')[0] : undefined;
 
   useEffect(() => {
     roleRef.current = role;
@@ -62,7 +65,7 @@ export const usePlayerSync = (
 
     const channel = supabase.channel(`room:${roomId}`, {
       config: {
-        presence: { key: 'user' },
+        presence: { key: myId },
       },
     });
 
