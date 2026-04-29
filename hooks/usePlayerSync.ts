@@ -18,7 +18,7 @@ export const usePlayerSync = (
   isCustomPlayer: boolean
 ) => {
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const clientIdRef = useRef(Math.random().toString(36).substring(7));
+  const clientIdRef = useRef(Math.random().toString(36).substring(2, 9));
   const [role, setRole] = useState<'host' | 'viewer' | null>(null);
   const roleRef = useRef<'host' | 'viewer' | null>(null);
   const [usersCount, setUsersCount] = useState(0);
@@ -45,17 +45,24 @@ export const usePlayerSync = (
     // Always use the latest episode from the pathname in case React Router params are stale
     const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
     
-    console.log('[SYNC] Host updating presence state:', { isPlaying: isPlayingRef.current, time: lastTimeRef.current, episode: currentEpisodeStr, ...state });
+    const newState = {
+      isPlaying: isPlayingRef.current,
+      time: lastTimeRef.current,
+      episode: currentEpisodeStr,
+      kodikVideo: hostStateRef.current.kodikVideo,
+      nativeAudioTrack: hostStateRef.current.nativeAudioTrack,
+      ...state
+    };
+    
+    // Update local ref immediately so periodic syncs send the latest merged data
+    hostStateRef.current = { ...hostStateRef.current, ...newState };
+
+    console.log('[SYNC] Host updating presence state:', newState);
     // Update our presence with the new player state
     await channelRef.current.track({
       client_id: clientIdRef.current,
       joined_at: (channelRef.current as any).joinedAt || Date.now(),
-      state: {
-        isPlaying: isPlayingRef.current,
-        time: lastTimeRef.current,
-        episode: currentEpisodeStr,
-        ...state
-      }
+      state: newState
     });
   };
 
@@ -65,6 +72,12 @@ export const usePlayerSync = (
     const myId = clientIdRef.current;
     const joinedAt = Date.now();
     console.log(`[SYNC] Connecting to room: ${roomId} as client: ${myId}`);
+
+    // Remove any existing channels for this room to prevent duplicate connections
+    const existingChannels = supabase.getChannels().filter((c: any) => c.topic === `realtime:room:${roomId}` || c.topic === `room:${roomId}`);
+    for (const c of existingChannels) {
+       supabase.removeChannel(c);
+    }
 
     const channel = supabase.channel(`room:${roomId}`, {
       config: {
@@ -126,6 +139,7 @@ export const usePlayerSync = (
       });
 
     return () => {
+      console.log(`[SYNC] Cleanup called for room: ${roomId}`);
       supabase.removeChannel(channel);
       channelRef.current = null;
       setIsSubscribed(false);
@@ -321,7 +335,7 @@ export const usePlayerSync = (
 
       if (state.nativeAudioTrack !== undefined) {
          const art = (video as any).art;
-         if (art && art.hls && art.hls.audioTrack !== state.nativeAudioTrack) {
+         if (art?.hls && art.hls.audioTrack !== state.nativeAudioTrack) {
             console.log(`[SYNC] Viewer changing native audio track to ${state.nativeAudioTrack}`);
             art.hls.audioTrack = state.nativeAudioTrack;
          }

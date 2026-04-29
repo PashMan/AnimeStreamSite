@@ -248,7 +248,13 @@ app.get('/api/image/*', async (c) => {
   try {
     let response = await fetch(targetUrl, { headers });
     
-    // Fallback to Jikan API if Shikimori returns error (404, 403, etc.)
+    // First fallback: desu.shikimori.one (often where images actually live now)
+    if (!response.ok) {
+      const desuUrl = `https://desu.shikimori.one/${imagePath}${c.req.url.includes('?') ? c.req.url.substring(c.req.url.indexOf('?')) : ''}`;
+      response = await fetch(desuUrl, { headers });
+    }
+
+    // Second Fallback to Jikan API if Shikimori returns error (404, 403, etc.)
     if (!response.ok) {
       const animeIdMatch = imagePath.match(/\/(\d+)\.jpg$/);
       if (animeIdMatch) {

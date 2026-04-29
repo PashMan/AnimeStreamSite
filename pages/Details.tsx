@@ -29,7 +29,7 @@ const Details: React.FC = () => {
   const { slugBlocks } = useSlugBlocks();
   const { dmcaBlocks } = useDmcaBlocks();
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { openAuthModal, user } = useAuth();
   const relatedRef = useRef<HTMLDivElement>(null);
@@ -87,9 +87,10 @@ const Details: React.FC = () => {
   const handleCreateRoom = () => {
     const newRoomId = Math.random().toString(36).substring(2, 10);
     setRoomId(newRoomId);
-    const newUrl = new URL(window.location.href);
-    newUrl.searchParams.set('room', newRoomId);
-    window.history.pushState({}, '', newUrl);
+    setSearchParams(prev => {
+      prev.set('room', newRoomId);
+      return prev;
+    }, { replace: true });
   };
 
   // Lazy loading states
@@ -862,9 +863,10 @@ const Details: React.FC = () => {
                        <button 
                          onClick={() => {
                            setRoomId(null);
-                           const newUrl = new URL(window.location.href);
-                           newUrl.searchParams.delete('room');
-                           window.history.pushState({}, '', newUrl);
+                           setSearchParams(prev => {
+                             prev.delete('room');
+                             return prev;
+                           }, { replace: true });
                          }}
                          className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
                        >
