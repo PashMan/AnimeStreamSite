@@ -276,8 +276,14 @@ export const usePlayerSync = (
            // Kodik's video change event can contain huge arrays of seasons and episodes
            // We must trim it to only the essentials (hash, translation, episode number) 
            // to prevent Supabase Realtime presence state size limits from dropping the connection.
-           const { hash, translation, season, episode } = data.value || {};
-           updateHostState({ kodikVideo: { hash, translation, season, episode } });
+           const v = data.value || {};
+           const cleanKodikVideo = {
+             hash: typeof v.hash === 'string' ? v.hash.substring(0, 100) : undefined,
+             translation: typeof v.translation === 'object' ? v.translation?.id : v.translation,
+             season: typeof v.season === 'object' ? undefined : v.season,
+             episode: typeof v.episode === 'object' ? undefined : v.episode,
+           };
+           updateHostState({ kodikVideo: cleanKodikVideo });
         }
         
         if (data.key === 'kodik_player_play') {

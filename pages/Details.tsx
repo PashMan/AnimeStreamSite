@@ -907,7 +907,7 @@ const Details: React.FC = () => {
                                 const maxTracks = isSuzume ? 5 : undefined;
                                 const audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria', 'Ю. Сербин', 'Netflix КЗ.', 'Оригинал + Субтитры', 'Оригинал'] : undefined;
                                 
-                                return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} audioTrackNames={audioTrackNames} autoPlay={!!roomId && role === 'viewer'} />;
+                                return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} audioTrackNames={audioTrackNames} />;
                               }
                               let finalIframeUrl = player.iframe;
                               if (finalIframeUrl && player.name === 'Kodik') {
