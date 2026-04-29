@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../services/db';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+const activeRoomsCount: Record<string, number> = {};
+
 interface SyncState {
   isPlaying: boolean;
   time: number;
@@ -100,6 +102,8 @@ export const usePlayerSync = (
   useEffect(() => {
     if (!roomId || !supabase) return;
 
+    activeRoomsCount[roomId] = (activeRoomsCount[roomId] || 0) + 1;
+
     const myId = clientIdRef.current;
     const joinedAt = Date.now();
     console.log(`[SYNC] Connecting to room: ${roomId} as client: ${myId}`);
@@ -194,6 +198,8 @@ export const usePlayerSync = (
 
     return () => {
       console.log(`[SYNC] Cleanup called for room: ${roomId}`);
+      activeRoomsCount[roomId] = Math.max(0, (activeRoomsCount[roomId] || 0) - 1);
+      
       // Only remove if this was a true unmount of the page, but in React 18 
       // strict mode this removes the channel prematurely.
       // So we leave it to be picked up by the next mount instantly, or it naturally 
@@ -204,7 +210,7 @@ export const usePlayerSync = (
          // Delay channel removal slightly to allow strict-mode to reconnect instead of killing the socket
          const c = channelRef.current;
          setTimeout(() => {
-           if (channelRef.current !== c) {
+           if (activeRoomsCount[roomId] === 0) {
              supabase.removeChannel(c).catch(() => {});
            }
          }, 1000);
