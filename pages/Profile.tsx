@@ -528,11 +528,11 @@ const Profile: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 pb-10 xl:px-0">
-         <div className={`flex flex-col ${user.profileLayout === 'reversed' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-8 items-start`}>
+         <div className={`flex flex-col ${user.profileLayout === 'reversed' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-8 items-start -mt-16 md:-mt-24 lg:-mt-32`}>
             
             {/* Sidebar Left */}
             <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 mx-auto lg:mx-0`}>
-               <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl -mt-16 md:-mt-24 lg:-mt-32 mb-6" id="profile-card" style={{ borderColor: user.themeColor ? `${user.themeColor}40` : undefined }}>
+               <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl mb-6" id="profile-card" style={{ borderColor: user.themeColor ? `${user.themeColor}40` : undefined }}>
                   
                   {/* Avatar */}
                   <div className="relative group mx-auto w-fit mb-6">
@@ -615,16 +615,14 @@ const Profile: React.FC = () => {
                   <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
                     <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
                   </button>
-                  {user.isPremium && (
-                      <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'text-black' : 'text-yellow-500 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308' } : {}}>
-                        <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
-                      </button>
-                  )}
+                  <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'text-black' : 'text-yellow-500 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308' } : {}}>
+                    <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
+                  </button>
                </nav>
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-grow space-y-12 pt-16 lg:pt-24">
+            <div className="flex-grow space-y-12 relative z-10 w-full min-w-0 pt-4 md:pt-6">
                {isLoading ? (
                  <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin" style={{ color: user.themeColor || '#8b5cf6' }} /></div>
                ) : activeTab === 'settings' ? (
@@ -810,7 +808,7 @@ const Profile: React.FC = () => {
                       </div>
                     </div>
                  </section>
-               ) : activeTab === 'design' && user.isPremium ? (
+               ) : activeTab === 'design' ? (
                  <section className="p-10 rounded-[2.5rem] border shadow-2xl animate-in fade-in duration-500" style={cardStyle}>
                     <div className="flex items-center justify-between mb-10">
                       <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Дизайн профиля</h3>
