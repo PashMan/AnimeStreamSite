@@ -386,9 +386,31 @@ const Profile: React.FC = () => {
                      <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`}>
                         {user.isPremium ? 'Premium Member' : 'Пользователь'}
                      </span>
-                     {/* Email hidden from public view as requested */}
                   </div>
                   {user.bio && <p className="mt-6 text-slate-400 text-xs font-medium leading-relaxed italic">"{user.bio}"</p>}
+                  
+                  {/* --- STATS BLOCK --- */}
+                  <div className="flex flex-col w-full gap-3 mt-8 pt-4 border-t border-white/10 text-left">
+                     <div className="flex items-center gap-3 text-slate-300">
+                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                            <CheckCircle className="w-4 h-4 text-primary" />
+                         </div>
+                         <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Просмотрено</span>
+                            <span className="font-black text-sm">{watched.length > 0 ? watched.reduce((acc, anime) => acc + (anime.episodesAired || anime.episodes || 0), 0) : user.episodesWatched || 0} серий</span>
+                         </div>
+                     </div>
+                     <div className="flex items-center gap-3 text-slate-300">
+                         <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                            <History className="w-4 h-4 text-green-500" />
+                         </div>
+                         <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Потрачено</span>
+                            <span className="font-black text-sm">{watched.length > 0 ? Math.round((watched.reduce((acc, anime) => acc + (anime.episodesAired || anime.episodes || 0), 0) * 24) / 60) + ' часов' : (user.watchedTime || '0ч 0м')}</span>
+                         </div>
+                     </div>
+                  </div>
+                  {/* --- END STATS BLOCK --- */}
                </div>
 
                <nav className="rounded-3xl p-3 space-y-2 border shadow-xl transition-all duration-500" style={cardStyle}>
@@ -804,12 +826,12 @@ const Profile: React.FC = () => {
                                <select 
                                   value={sortOrder}
                                   onChange={(e) => setSortOrder(e.target.value)}
-                                  className="appearance-none bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-10 pr-8 text-sm text-white font-bold focus:border-primary outline-none transition-all cursor-pointer"
+                                  className="appearance-none bg-black/50 border border-white/10 rounded-2xl py-2.5 pl-10 pr-8 text-sm text-white font-bold focus:border-primary outline-none transition-all cursor-pointer"
                                >
-                                  <option value="popularity">Популярные</option>
-                                  <option value="ranked">По рейтингу</option>
-                                  <option value="name">По алфавиту</option>
-                                  <option value="aired_on">По дате выхода</option>
+                                  <option value="popularity" className="bg-[#1a1a1a] text-white">Популярные</option>
+                                  <option value="ranked" className="bg-[#1a1a1a] text-white">По рейтингу</option>
+                                  <option value="name" className="bg-[#1a1a1a] text-white">По алфавиту</option>
+                                  <option value="aired_on" className="bg-[#1a1a1a] text-white">По дате выхода</option>
                                </select>
                                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                                <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none rotate-90" />

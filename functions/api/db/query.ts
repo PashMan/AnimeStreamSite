@@ -155,6 +155,22 @@ export const onRequestPost = async (context: any) => {
              throw e;
           }
         }
+      } else if (e.message && (e.message.includes('from_email') || e.message.includes('to_email') || e.message.includes('text'))) {
+        try {
+          // Rename sender_id and receiver_id if they exist, or just add the columns
+          await db.prepare('ALTER TABLE private_messages ADD COLUMN from_email TEXT').run();
+        } catch(skip) {}
+        try {
+          await db.prepare('ALTER TABLE private_messages ADD COLUMN to_email TEXT').run();
+        } catch(skip) {}
+        try {
+          await db.prepare('ALTER TABLE private_messages ADD COLUMN text TEXT').run();
+        } catch(skip) {}
+        try {
+          result = await stmt.all();
+        } catch(lastErr) {
+          throw e; // throw original
+        }
       } else {
         throw e;
       }

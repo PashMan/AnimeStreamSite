@@ -177,6 +177,19 @@ const UserProfile: React.FC = () => {
       }
   };
 
+  const handleRemoveFriend = async () => {
+      if (!currentUser || !profile) return;
+      setIsAddingFriend(true);
+      try {
+          const success = await db.removeFriend(currentUser.email, profile.email);
+          if (success) setIsFriend(false);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setIsAddingFriend(false);
+      }
+  };
+
   const isOwnProfile = currentUser?.email === profile?.email;
 
   const watchStats = {
@@ -264,8 +277,12 @@ const UserProfile: React.FC = () => {
                 {!isOwnProfile && (
                     <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
                         {isFriend ? (
-                            <button disabled className="w-full py-3 bg-green-500/20 text-green-500 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 cursor-default">
-                                <Check className="w-4 h-4" /> В друзьях
+                            <button 
+                                onClick={handleRemoveFriend}
+                                disabled={isAddingFriend || !currentUser}
+                                className="w-full py-3 bg-red-500/20 text-red-500 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 cursor-pointer hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                            >
+                                {isAddingFriend ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} Удалить из друзей
                             </button>
                         ) : (
                             <button 
@@ -291,7 +308,7 @@ const UserProfile: React.FC = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 w-full">
+          <div className="flex-1 w-full md:pt-32">
              {/* Tabs */}
              <div className="flex gap-4 border-b border-white/5 mb-8 overflow-x-auto pb-2">
                 <button 
