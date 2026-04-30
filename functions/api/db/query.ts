@@ -93,7 +93,10 @@ export const onRequestPost = async (context: any) => {
       params = values.flat();
       
     } else if (action === 'update') {
-      const keys = Object.keys(payload);
+      const keys = Object.keys(payload || {});
+      if (keys.length === 0) {
+        return Response.json({ data: [] });
+      }
       const setClause = keys.map(k => `${k} = ?`).join(', ');
       params.unshift(...keys.map(k => payload[k] === undefined ? null : payload[k])); // Add update values before where values
       query = `UPDATE ${table} SET ${setClause}${whereClause} RETURNING *`;
@@ -118,6 +121,7 @@ export const onRequestPost = async (context: any) => {
       stmt = db.prepare(query).bind(...params);
       result = await stmt.all();
     } catch (e: any) {
+      console.error("DB Query error: " + e.message + ' | query: ' + query);
       // Auto-migrate if column is missing
       if (e.message && e.message.includes('cover_image')) {
         try {

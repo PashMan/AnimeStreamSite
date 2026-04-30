@@ -449,6 +449,8 @@ class DatabaseService {
       if (updates.avatar) mapped.avatar = updates.avatar;
       if (updates.bio !== undefined) mapped.bio = updates.bio;
       if (updates.isPremium !== undefined) mapped.is_premium = updates.isPremium;
+      if (updates.episodesWatched !== undefined) mapped.episodes_watched = updates.episodesWatched;
+      if (updates.watchedTime !== undefined) mapped.watched_time = updates.watchedTime;
       if (updates.watchedAnimeIds) mapped.watched_anime_ids = JSON.stringify(updates.watchedAnimeIds);
       if (updates.watchingAnimeIds) mapped.watching_anime_ids = JSON.stringify(updates.watchingAnimeIds);
       if (updates.droppedAnimeIds) mapped.dropped_anime_ids = JSON.stringify(updates.droppedAnimeIds);
@@ -1249,20 +1251,21 @@ class DatabaseService {
     try {
       const { data, error } = await supabaseClient
         .from('private_messages')
-        .insert([{ from_email: from, to_email: to, text, is_read: false }])
+        .insert([{ from_email: from, to_email: to, text, content: text, is_read: false }])
         .select()
         .single();
       
       if (error || !data) throw error;
       return {
         id: data.id,
-        from: data.from_email,
-        to: data.to_email,
-        text: data.text,
+        from: data.from_email || from,
+        to: data.to_email || to,
+        text: data.text || data.content,
         timestamp: new Date(data.created_at).getTime(),
         isRead: data.is_read
       };
     } catch (e) {
+      console.error(e);
       throw e;
     }
   }

@@ -604,9 +604,12 @@ const Profile: React.FC = () => {
                {isLoading ? (
                  <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin" style={{ color: user.themeColor || '#8b5cf6' }} /></div>
                ) : activeTab === 'settings' ? (
-                 <section className="p-10 rounded-[2.5rem] border shadow-2xl animate-in fade-in duration-500" style={cardStyle}>
-                    <div className="flex items-center justify-between mb-10">
-                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Настройки профиля</h3>
+                 <section className="space-y-8 animate-in fade-in duration-500">
+                    <div className="flex items-center justify-between">
+                      <div>
+                          <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Настройки профиля</h3>
+                          <p className="text-sm text-slate-400 mt-1">Управляйте своими личными данными и внешним видом профиля.</p>
+                      </div>
                       <div className="flex items-center gap-4">
                         {isEditing ? (
                           <>
@@ -617,15 +620,15 @@ const Profile: React.FC = () => {
                                 setEditBio(user.bio || '');
                                 setEditAvatar(user.avatar);
                               }}
-                              className="px-6 py-3 bg-white/10 text-slate-300 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-white/20 hover:text-white transition-colors"
+                              className="px-5 py-2.5 bg-surface text-slate-300 rounded-xl font-bold text-sm hover:text-white transition-colors"
                             >
                               Отмена
                             </button>
                             <button 
                               onClick={handleSaveProfile}
                               disabled={isActionLoading}
-                              className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 10px 15px -3px ${user.themeColor}40` : undefined }}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                              style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 4px 14px 0 ${user.themeColor}40` : undefined }}
                             >
                               {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                               Сохранить
@@ -634,8 +637,8 @@ const Profile: React.FC = () => {
                         ) : (
                           <button 
                             onClick={() => setIsEditing(true)}
-                            className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:opacity-90 transition-opacity"
-                            style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 10px 15px -3px ${user.themeColor}40` : undefined }}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg hover:opacity-90 transition-opacity"
+                            style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 4px 14px 0 ${user.themeColor}40` : undefined }}
                           >
                             <Edit2 className="w-4 h-4" /> Редактировать
                           </button>
@@ -643,27 +646,35 @@ const Profile: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div className="grid gap-8 max-w-2xl">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Имя пользователя</label>
-                        <input 
-                          type="text" 
-                          disabled={!isEditing}
-                          value={editName}
-                          onChange={e => setEditName(e.target.value)}
-                          className="w-full h-14 px-6 bg-white/5 border border-white/10 rounded-2xl text-white focus:border-primary outline-none disabled:opacity-50 transition-all"
-                        />
-                      </div>
-                      
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Аватар</label>
-                        <div className="flex items-center gap-6">
-                            <img src={editAvatar} loading="lazy" alt="Avatar Preview" className="w-20 h-20 rounded-2xl object-cover border border-white/10" />
+                    <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-[2rem] p-8 md:p-10 shadow-xl relative overflow-hidden" style={cardStyle}>
+                      <div className="grid gap-12 max-w-3xl">
+                        
+                        {/* Avatar Settings */}
+                        <div className="flex flex-col md:flex-row gap-8 items-start md:items-center">
+                          <div className="relative group shrink-0">
+                            <img src={editAvatar} loading="lazy" alt="Avatar Preview" className="w-28 h-28 rounded-full object-cover border-4 border-surface shadow-xl" />
                             {isEditing && (
-                                <div className="flex flex-col gap-2">
-                    <button aria-label="Upload avatar" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all">
-                                        {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                        Загрузить изображение
+                              <button 
+                                onClick={() => fileInputRef.current?.click()} 
+                                disabled={isUploading} 
+                                className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm cursor-pointer"
+                              >
+                                {isUploading ? <Loader2 className="w-6 h-6 text-white animate-spin mb-1" /> : <Camera className="w-6 h-6 text-white mb-1" />}
+                                <span className="text-[10px] font-bold text-white uppercase">Изменить</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex-1 space-y-2">
+                            <h4 className="text-base font-bold text-white">Аватар профиля</h4>
+                            <p className="text-sm text-slate-400 leading-relaxed md:max-w-md">Рекомендуемый размер 256x256 пикселей. Форматы: JPG, PNG, GIF. Максимальный размер файла — 10MB.</p>
+                            {isEditing && (
+                                <div className="pt-2">
+                                    <button 
+                                      onClick={() => fileInputRef.current?.click()} 
+                                      disabled={isUploading} 
+                                      className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium border border-white/10 transition-all flex items-center gap-2"
+                                    >
+                                        <Upload className="w-4 h-4" /> Загрузить
                                     </button>
                                     <input 
                                         ref={fileInputRef}
@@ -672,20 +683,43 @@ const Profile: React.FC = () => {
                                         accept="image/*" 
                                         onChange={handleAvatarUpload} 
                                     />
-                                    <p className="text-[10px] text-slate-500">JPG, PNG, GIF до 10MB</p>
                                 </div>
                             )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">О себе</label>
-                        <textarea 
-                          disabled={!isEditing}
-                          value={editBio}
-                          onChange={e => setEditBio(e.target.value)}
-                          className="w-full h-32 p-6 bg-white/5 border border-white/10 rounded-2xl text-white focus:border-primary outline-none disabled:opacity-50 transition-all resize-none"
-                        />
+                        <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+                        {/* Name Setting */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-bold text-white mb-1 block">Имя пользователя</label>
+                            <p className="text-[13px] text-slate-400">Отображается в вашем профиле, друзьях и чатах.</p>
+                          </div>
+                          <input 
+                            type="text" 
+                            disabled={!isEditing}
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            className="w-full h-14 px-5 bg-black/20 border border-white/10 rounded-2xl text-white focus:border-primary focus:bg-black/40 outline-none disabled:opacity-50 transition-all font-medium"
+                          />
+                        </div>
+                        
+                        {/* Bio Setting */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-bold text-white mb-1 block">О себе</label>
+                            <p className="text-[13px] text-slate-400">Напишите пару слов о себе, своих любимых жанрах или любимом аниме.</p>
+                          </div>
+                          <textarea 
+                            disabled={!isEditing}
+                            value={editBio}
+                            onChange={e => setEditBio(e.target.value)}
+                            placeholder="Расскажите о себе..."
+                            className="w-full p-5 min-h-[120px] bg-black/20 border border-white/10 rounded-2xl text-white focus:border-primary focus:bg-black/40 outline-none disabled:opacity-50 transition-all font-medium resize-y"
+                          />
+                        </div>
+
                       </div>
                     </div>
                  </section>
