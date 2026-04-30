@@ -112,9 +112,10 @@ export const onRequestPost = async (context: any) => {
       }
     }
 
-    const stmt = db.prepare(query).bind(...params);
+    let stmt;
     let result;
     try {
+      stmt = db.prepare(query).bind(...params);
       result = await stmt.all();
     } catch (e: any) {
       // Auto-migrate if column is missing
@@ -168,8 +169,8 @@ export const onRequestPost = async (context: any) => {
         } catch(skip) {}
         try {
           result = await db.prepare(query).bind(...params).all();
-        } catch(lastErr) {
-          throw e; // throw original
+        } catch(lastErr: any) {
+          throw new Error('Fallback insert failed: ' + lastErr?.message + ' || Original: ' + e.message);
         }
       } else {
         throw e;

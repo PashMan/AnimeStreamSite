@@ -1110,7 +1110,7 @@ class DatabaseService {
       if (!user) return false;
       
       const currentFriends = user.friends || [];
-      if (currentFriends.includes(friendEmail)) return true; // Already friends
+      if (currentFriends.some((f: string) => f.toLowerCase() === friendEmail.toLowerCase())) return true; // Already friends
       
       const newFriends = [...currentFriends, friendEmail];
       
@@ -1121,7 +1121,7 @@ class DatabaseService {
       const friend = await this.getProfile(friendEmail);
       if (friend) {
           const friendFriends = friend.friends || [];
-          if (!friendFriends.includes(userEmail)) {
+          if (!friendFriends.some((f: string) => f.toLowerCase() === userEmail.toLowerCase())) {
               await this.updateProfile(friendEmail, { friends: [...friendFriends, userEmail] });
           }
       }
@@ -1138,13 +1138,13 @@ class DatabaseService {
       const user = await this.getProfile(userEmail);
       if (!user) return false;
       
-      const newFriends = (user.friends || []).filter(f => f !== friendEmail);
+      const newFriends = (user.friends || []).filter((f: string) => f.toLowerCase() !== friendEmail.toLowerCase());
       await this.updateProfile(userEmail, { friends: newFriends });
       
       // Remove from friend's list too
       const friend = await this.getProfile(friendEmail);
       if (friend) {
-          const friendFriends = (friend.friends || []).filter(f => f !== userEmail);
+          const friendFriends = (friend.friends || []).filter((f: string) => f.toLowerCase() !== userEmail.toLowerCase());
           await this.updateProfile(friendEmail, { friends: friendFriends });
       }
       
@@ -1292,7 +1292,7 @@ class DatabaseService {
       // Fetch all profiles at once
       const { data: profiles } = await supabaseClient
         .from('profiles')
-        .select('id, email, name, avatar')
+        .select('id, email, name, avatar, last_seen')
         .in('email', threadEmailsArray);
 
       const profileMap = new Map<string, any>(profiles?.map((p: any) => [p.email, p]) || []);
@@ -1318,6 +1318,7 @@ class DatabaseService {
           name: (u as any)?.name || 'Unknown',
           avatar: (u as any)?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${tEmail}`,
           lastText: cleanText,
+          lastSeen: (u as any)?.last_seen,
           hasUnread
         };
       });

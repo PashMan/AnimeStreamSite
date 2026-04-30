@@ -52,8 +52,10 @@ const Profile: React.FC = () => {
   const [editCardBlur, setEditCardBlur] = useState(user?.cardBlur ?? 10);
 
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -99,6 +101,76 @@ const Profile: React.FC = () => {
       setUploadError('Произошла ошибка при обработке изображения');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validation
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Неподдерживаемый формат файла. Разрешены: JPG, PNG, WEBP, GIF');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { 
+      setUploadError('Файл слишком большой. Максимум 10МБ');
+      return;
+    }
+
+    setIsUploadingBanner(true);
+    setUploadError(null);
+
+    try {
+      // Compress
+      const img = new window.Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const reader = new FileReader();
+
+      await new Promise((resolve, reject) => {
+        reader.onload = e => { img.src = e.target?.result as string; };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+        img.onload = () => {
+          let { width, height } = img;
+          const MAX_SIZE = 1920; 
+          if (width > MAX_SIZE || height > MAX_SIZE) {
+            if (width > height) {
+              height = Math.round((height * MAX_SIZE) / width);
+              width = MAX_SIZE;
+            } else {
+              width = Math.round((width * MAX_SIZE) / height);
+              height = MAX_SIZE;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(null);
+        };
+      });
+
+      const compressedBase64 = canvas.toDataURL('image/webp', 0.85);
+      const res = await fetch(compressedBase64);
+      const blob = await res.blob();
+      const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", { type: 'image/webp' });
+
+      // Pass user.id + '_banner' so it doesn't overwrite avatar
+      const url = await db.uploadAvatar(compressedFile, (user.id || user.email) + '_banner');
+      
+      if (url) {
+        setEditBanner(url);
+      } else {
+        setUploadError('Не удалось загрузить баннер');
+      }
+    } catch (e) {
+      console.error(e);
+      setUploadError('Ошибка при загрузке баннера');
+    } finally {
+      setIsUploadingBanner(false);
     }
   };
 
@@ -277,6 +349,47 @@ const Profile: React.FC = () => {
     loadTabContent();
   }, [activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds, limits]);
 
+  const [watchStats, setWatchStats] = useState({ episodes: user?.episodesWatched || 0, hours: user?.watchedTime || 0 });
+
+  // Calculate real stats in background
+  useEffect(() => {
+      let isCancelled = false;
+      const calculateStats = async () => {
+         if (!Array.isArray(allWatchedIds) || allWatchedIds.length === 0) return;
+         
+         const uniqueIds = Array.from(new Set(allWatchedIds.filter(Boolean)));
+         const chunkSize = 50;
+         let totalEps = 0;
+         
+         // Prioritize fast calculation
+         for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+            if (isCancelled) break;
+            const chunk = uniqueIds.slice(i, i + chunkSize);
+            try {
+               const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, false, 2);
+               if (Array.isArray(data)) {
+                   data.forEach(anime => {
+                       totalEps += (anime.episodesAired || anime.episodes || 0);
+                   });
+               }
+            } catch (e) {}
+         }
+         
+         if (!isCancelled) {
+             const hours = Math.round((totalEps * 24) / 60);
+             setWatchStats({ episodes: totalEps, hours });
+             
+             // Opportunistically update DB if stats changed
+             if (user && (user.episodesWatched !== totalEps || user.watchedTime !== hours)) {
+                 db.updateProfile(user.email, { episodesWatched: totalEps, watchedTime: hours });
+             }
+         }
+      };
+      
+      calculateStats();
+      return () => { isCancelled = true; };
+  }, [allWatchedIds, user?.email]);
+
   // We need to fetch 'watched' anime details to compute watch stats correctly even if we aren't on the watched tab
   useEffect(() => {
     let isCancelled = false;
@@ -379,56 +492,60 @@ const Profile: React.FC = () => {
         description={`Личный кабинет пользователя ${user.name} на KamiAnime. История просмотров, избранное и настройки.`}
         image={user.avatar}
       />
-      <div className="w-full h-full min-h-screen transition-all duration-500" style={overlayStyle}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className={`flex gap-10 ${user.profileLayout === 'reversed' ? 'flex-col-reverse lg:flex-row-reverse' : user.profileLayout === 'centered' ? 'flex-col items-center lg:items-center' : 'flex-col lg:flex-row'}`}>
+      
+      {/* Top Banner (New Design) */}
+      <div className="h-64 md:h-80 relative overflow-hidden bg-surface">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface/95 z-10 pointer-events-none"></div>
+        {user.profileBanner ? (
+          <img src={user.profileBanner} alt="Banner" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full" style={{ backgroundColor: user.themeColor ? `${user.themeColor}33` : '#8b5cf633' }}></div>
+        )}
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-20 pb-10">
+         <div className={`flex flex-col ${user.profileLayout === 'reversed' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-8 items-start`}>
             
-            {/* Sidebar / Profile Card */}
-            <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6`}>
-               <div className="p-10 rounded-[2.5rem] flex flex-col items-center text-center border shadow-2xl relative overflow-hidden transition-all duration-500" style={cardStyle}>
-                  <div 
-                    className="absolute top-0 left-0 w-full h-48 bg-cover bg-center"
-                    style={{ 
-                        backgroundImage: user.profileBanner ? `url(${user.profileBanner})` : undefined,
-                        backgroundColor: user.themeColor ? `${user.themeColor}33` : undefined // 20% opacity fallback
-                    }}
-                  >
-                    {!user.profileBanner && <div className={`w-full h-full ${user.isPremium ? 'bg-gradient-to-b from-yellow-500/20 to-transparent' : 'bg-gradient-to-b from-primary/20 to-transparent'}`}></div>}
+            {/* Sidebar Left */}
+            <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6 mx-auto lg:mx-0`}>
+               <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl" id="profile-card" style={{ borderColor: user.themeColor ? `${user.themeColor}40` : undefined }}>
+                  
+                  {/* Avatar */}
+                  <div className="relative group mx-auto w-fit mb-6">
+                    <div className={`relative w-40 h-40 md:w-48 md:h-48 ${avatarClass} overflow-hidden border-4 border-surface shadow-2xl z-10`} style={{ borderColor: user.themeColor || '#8b5cf6' }}>
+                      <img 
+                         src={editAvatar || user.avatar} 
+                         alt={user.name} 
+                         className="w-full h-full object-cover" 
+                      />
+                      {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-500 fill-current drop-shadow-lg" />}
+                      
+                      <label className={`absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${avatarClass}`}>
+                        {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
+                        <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
+                      </label>
+                    </div>
                   </div>
                   
-                  <div className="relative mb-6 group">
-                    <img 
-                        src={editAvatar || user.avatar} 
-                        alt="Profile" 
-                        loading="lazy"
-                        className={`w-28 h-28 border-4 border-dark outline outline-2 object-cover transition-all duration-300 ${avatarClass}`}
-                        style={{ outlineColor: user.themeColor || '#8b5cf6' }}
-                    />
-                    {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-400 fill-current drop-shadow-lg" />}
-                    
-                    <label className={`absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${avatarClass}`}>
-                      {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
-                      <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
-                    </label>
-                  </div>
-                  {uploadError && <p className="text-[10px] text-red-400 font-bold uppercase mb-4">{uploadError}</p>}
-                  <h2 className="text-2xl font-black text-white uppercase tracking-tighter">{user.name}</h2>
-                  <div className="flex flex-col items-center gap-3 mt-4">
-                     <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`}>
-                        {user.isPremium ? 'Premium Member' : 'Пользователь'}
+                  {uploadError && <p className="text-[10px] text-red-500 font-bold uppercase mb-4 text-center z-10 relative">{uploadError}</p>}
+                  
+                  <h1 className="text-2xl font-black text-white uppercase tracking-tight text-center z-10 relative">{user.name}</h1>
+                  <div className="flex flex-col items-center gap-3 mt-3 z-10 relative">
+                     <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`} style={{ color: user.themeColor, borderColor: user.themeColor, backgroundColor: user.themeColor ? `${user.themeColor}33` : undefined }}>
+                        {user.isPremium ? 'Premium ' : 'Пользователь'}
                      </span>
                   </div>
-                  {user.bio && <p className="mt-6 text-slate-400 text-xs font-medium leading-relaxed italic">"{user.bio}"</p>}
+                  {user.bio && <p className="mt-5 text-slate-400 text-sm leading-relaxed text-center z-10 relative">"{user.bio}"</p>}
                   
                   {/* --- STATS BLOCK --- */}
-                  <div className="flex flex-col w-full gap-3 mt-8 pt-4 border-t border-white/10 text-left">
+                  <div className="flex flex-col w-full gap-3 mt-6 pt-6 border-t border-white/5 text-left z-10 relative">
                      <div className="flex items-center gap-3 text-slate-300">
-                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                            <CheckCircle className="w-4 h-4 text-primary" />
+                         <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: user.themeColor ? `${user.themeColor}33` : '#8b5cf633' }}>
+                            <CheckCircle className="w-4 h-4" style={{ color: user.themeColor || '#8b5cf6' }} />
                          </div>
                          <div className="flex flex-col">
                             <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Просмотрено</span>
-                            <span className="font-black text-sm">{watched.length > 0 ? watched.reduce((acc, anime) => acc + (anime.episodesAired || anime.episodes || 0), 0) : user.episodesWatched || 0} серий</span>
+                            <span className="font-black text-sm">{watchStats.episodes} серий</span>
                          </div>
                      </div>
                      <div className="flex items-center gap-3 text-slate-300">
@@ -437,7 +554,7 @@ const Profile: React.FC = () => {
                          </div>
                          <div className="flex flex-col">
                             <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Потрачено</span>
-                            <span className="font-black text-sm">{watched.length > 0 ? Math.round((watched.reduce((acc, anime) => acc + (anime.episodesAired || anime.episodes || 0), 0) * 24) / 60) + ' часов' : (user.watchedTime || '0ч 0м')}</span>
+                            <span className="font-black text-sm">{watchStats.hours} часов</span>
                          </div>
                      </div>
                   </div>
@@ -603,18 +720,39 @@ const Profile: React.FC = () => {
 
                       {/* Banner Image */}
                       <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Баннер профиля (URL)</label>
-                        <div className="relative">
-                          <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-                          <input 
-                            type="text" 
-                            value={editBanner} 
-                            onChange={(e) => setEditBanner(e.target.value)} 
-                            placeholder="https://example.com/banner.jpg" 
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-yellow-500 outline-none transition-all" 
-                          />
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Баннер профиля</label>
+                        <div className="flex items-center gap-4">
+                          <div className="w-32 h-16 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group">
+                            {editBanner ? (
+                              <img src={editBanner} alt="Banner Preview" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <ImageIcon className="w-6 h-6 text-slate-500" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              {isUploadingBanner ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
+                            </div>
+                            <input 
+                              type="file" 
+                              className="absolute inset-0 opacity-0 cursor-pointer" 
+                              accept="image/*" 
+                              onChange={handleBannerUpload}
+                              disabled={isUploadingBanner || !isEditing}
+                            />
+                          </div>
+                          <div className="flex-1 relative">
+                            <input 
+                              type="text" 
+                              value={editBanner} 
+                              onChange={(e) => setEditBanner(e.target.value)} 
+                              placeholder="URL или загрузите фото" 
+                              disabled={!isEditing}
+                              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-4 text-sm text-white focus:border-primary outline-none transition-all disabled:opacity-50" 
+                            />
+                          </div>
                         </div>
-                        <p className="text-[10px] text-slate-500 ml-2">Ссылка на изображение для шапки карточки профиля.</p>
+                        <p className="text-[10px] text-slate-500 ml-2">Изображение для шапки профиля (рекомендуется 1920x1080).</p>
                       </div>
 
                       {/* Theme Color */}
@@ -949,8 +1087,7 @@ const Profile: React.FC = () => {
                  </section>
                )}
             </div>
-          </div>
-        </div>
+         </div>
       </div>
     </div>
   );
