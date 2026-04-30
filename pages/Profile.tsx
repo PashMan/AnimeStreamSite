@@ -503,11 +503,11 @@ const Profile: React.FC = () => {
         )}
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-20 pb-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 pb-10 xl:px-0">
          <div className={`flex flex-col ${user.profileLayout === 'reversed' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-8 items-start`}>
             
             {/* Sidebar Left */}
-            <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6 mx-auto lg:mx-0`}>
+            <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6 mx-auto lg:mx-0 -mt-24 lg:-mt-32`}>
                <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl" id="profile-card" style={{ borderColor: user.themeColor ? `${user.themeColor}40` : undefined }}>
                   
                   {/* Avatar */}
@@ -720,6 +720,69 @@ const Profile: React.FC = () => {
                           />
                         </div>
 
+                        {/* Banner Setting */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-bold text-white mb-1 block">Баннер профиля</label>
+                            <p className="text-[13px] text-slate-400">Изображение для шапки профиля (рекомендуется 1920x1080).</p>
+                          </div>
+                          <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                            <div className="w-full md:w-64 h-32 bg-black/20 rounded-2xl border border-white/10 overflow-hidden relative group shrink-0">
+                              {editBanner ? (
+                                <img src={editBanner} alt="Banner Preview" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageIcon className="w-8 h-8 text-slate-600" />
+                                </div>
+                              )}
+                              
+                              {isEditing && (
+                                <button 
+                                  onClick={() => bannerInputRef.current?.click()} 
+                                  disabled={isUploadingBanner} 
+                                  className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm cursor-pointer"
+                                >
+                                  {isUploadingBanner ? <Loader2 className="w-6 h-6 text-white animate-spin mb-1" /> : <Camera className="w-6 h-6 text-white mb-1" />}
+                                  <span className="text-[10px] font-bold text-white uppercase">Изменить баннер</span>
+                                </button>
+                              )}
+                            </div>
+                            
+                            <div className="flex-1 space-y-3 w-full">
+                              <p className="text-sm text-slate-400 font-medium leading-relaxed">Вы можете загрузить файл или указать прямую ссылку на изображение.</p>
+                              <div className="relative">
+                                <input 
+                                  type="text" 
+                                  value={editBanner} 
+                                  onChange={(e) => setEditBanner(e.target.value)} 
+                                  placeholder="URL изображения" 
+                                  disabled={!isEditing}
+                                  className="w-full px-5 py-3.5 bg-black/20 border border-white/10 rounded-xl text-sm text-white focus:border-primary outline-none transition-all disabled:opacity-50" 
+                                />
+                              </div>
+                              {isEditing && (
+                                  <div>
+                                      <input 
+                                        type="file" 
+                                        ref={bannerInputRef}
+                                        className="hidden" 
+                                        accept="image/*" 
+                                        onChange={handleBannerUpload}
+                                        disabled={isUploadingBanner}
+                                      />
+                                      <button 
+                                        onClick={() => bannerInputRef.current?.click()} 
+                                        disabled={isUploadingBanner} 
+                                        className="px-4 py-2 mt-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium border border-white/10 transition-all flex items-center gap-2"
+                                      >
+                                          <Upload className="w-4 h-4" /> Загрузить файл
+                                      </button>
+                                  </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
                       </div>
                     </div>
                  </section>
@@ -750,43 +813,6 @@ const Profile: React.FC = () => {
                           />
                         </div>
                         <p className="text-[10px] text-slate-500 ml-2">Ссылка на изображение для фона всего профиля.</p>
-                      </div>
-
-                      {/* Banner Image */}
-                      <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Баннер профиля</label>
-                        <div className="flex items-center gap-4">
-                          <div className="w-32 h-16 bg-white/5 rounded-xl border border-white/10 overflow-hidden relative group">
-                            {editBanner ? (
-                              <img src={editBanner} alt="Banner Preview" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <ImageIcon className="w-6 h-6 text-slate-500" />
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              {isUploadingBanner ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
-                            </div>
-                            <input 
-                              type="file" 
-                              className="absolute inset-0 opacity-0 cursor-pointer" 
-                              accept="image/*" 
-                              onChange={handleBannerUpload}
-                              disabled={isUploadingBanner || !isEditing}
-                            />
-                          </div>
-                          <div className="flex-1 relative">
-                            <input 
-                              type="text" 
-                              value={editBanner} 
-                              onChange={(e) => setEditBanner(e.target.value)} 
-                              placeholder="URL или загрузите фото" 
-                              disabled={!isEditing}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-4 text-sm text-white focus:border-primary outline-none transition-all disabled:opacity-50" 
-                            />
-                          </div>
-                        </div>
-                        <p className="text-[10px] text-slate-500 ml-2">Изображение для шапки профиля (рекомендуется 1920x1080).</p>
                       </div>
 
                       {/* Theme Color */}

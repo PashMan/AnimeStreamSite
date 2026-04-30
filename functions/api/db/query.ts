@@ -131,20 +131,23 @@ export const onRequestPost = async (context: any) => {
         } catch (e2) {
           throw e; // throw original error if migration fails
         }
-      } else if (e.message && e.message.includes('watching_anime_ids') || e.message.includes('dropped_anime_ids') || e.message.includes('watched_anime_ids')) {
+      } else if (e.message && (e.message.includes('watching_anime_ids') || e.message.includes('dropped_anime_ids') || e.message.includes('watched_anime_ids') || e.message.includes('friends'))) {
         try {
-          await db.prepare('ALTER TABLE profiles ADD COLUMN watched_anime_ids TEXT').run();
+          await db.prepare('ALTER TABLE profiles ADD COLUMN watched_anime_ids TEXT DEFAULT "[]"').run();
         } catch(skip) {}
         try {
-          await db.prepare('ALTER TABLE profiles ADD COLUMN watching_anime_ids TEXT').run();
+          await db.prepare('ALTER TABLE profiles ADD COLUMN watching_anime_ids TEXT DEFAULT "[]"').run();
         } catch(skip) {}
         try {
-          await db.prepare('ALTER TABLE profiles ADD COLUMN dropped_anime_ids TEXT').run();
+          await db.prepare('ALTER TABLE profiles ADD COLUMN dropped_anime_ids TEXT DEFAULT "[]"').run();
+        } catch(skip) {}
+        try {
+          await db.prepare('ALTER TABLE profiles ADD COLUMN friends TEXT DEFAULT "[]"').run();
         } catch(skip) {}
         try {
            result = await db.prepare(query).bind(...params).all();
-        } catch(lastErr) {
-           throw e;
+        } catch(lastErr: any) {
+           throw new Error('Auto-migrate failed: ' + lastErr.message + ' | Original: ' + e.message);
         }
       } else if (e.message && e.message.includes('shikimori')) {
         try {
