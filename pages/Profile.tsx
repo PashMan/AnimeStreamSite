@@ -474,7 +474,8 @@ const Profile: React.FC = () => {
   }
 
   // Styles based on customization
-  const currentBg = (isEditing && editBg !== user.profileBg) ? editBg : user.profileBg;
+  const currentBg = editBg;
+  const currentTheme = editTheme;
   const containerStyle = currentBg ? {
       backgroundImage: `url(${currentBg})`,
       backgroundSize: 'cover',
@@ -482,17 +483,10 @@ const Profile: React.FC = () => {
       backgroundAttachment: 'fixed'
   } : {};
 
-  const overlayStyle = currentBg ? {
-      backgroundColor: `rgba(0,0,0,${1 - (editCardOpacity) / 100})`,
-      backdropFilter: `blur(${editCardBlur}px)`
-  } : {
-      backgroundColor: `rgba(0,0,0,${1 - (editCardOpacity) / 100})`,
-      backdropFilter: `blur(${editCardBlur}px)`
-  };
-
-  const currentCardBg = (isEditing && editCardBg !== user.cardBg) ? editCardBg : user.cardBg;
-  const currentCardOpacity = isEditing ? editCardOpacity : (user.cardOpacity ?? 80);
-  const currentCardBlur = isEditing ? editCardBlur : (user.cardBlur ?? 10);
+  const currentCardOpacity = editCardOpacity;
+  const currentCardBlur = editCardBlur;
+  
+  const currentCardBg = editCardBg;
   
   const cardStyle = {
       backgroundColor: currentCardBg 
@@ -504,10 +498,13 @@ const Profile: React.FC = () => {
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backdropFilter: `blur(${currentCardBlur}px)`,
-      borderColor: editTheme ? `${editTheme}40` : undefined
+      borderColor: currentTheme ? `${currentTheme}40` : undefined
   };
 
-  const avatarClass = user.avatarShape === 'square' ? 'rounded-none' : user.avatarShape === 'rounded' ? 'rounded-2xl' : 'rounded-full';
+  const currentAvatarShape = editAvatarShape;
+  const avatarClass = currentAvatarShape === 'square' ? 'rounded-none' : currentAvatarShape === 'rounded' ? 'rounded-2xl' : 'rounded-full';
+  const currentBanner = editBanner;
+  const currentLayout = editLayout;
 
   return (
     <div className="min-h-screen transition-all duration-500" style={containerStyle}>
@@ -518,25 +515,25 @@ const Profile: React.FC = () => {
       />
       
       {/* Top Banner (New Design) */}
-      <div className="h-64 md:h-80 relative overflow-hidden bg-surface">
+      <div className="h-64 md:h-80 relative overflow-hidden bg-surface" style={{ maskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)' }}>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface/95 z-10 pointer-events-none"></div>
-        {user.profileBanner ? (
-          <img src={user.profileBanner} alt="Banner" className="w-full h-full object-cover" />
+        {currentBanner ? (
+          <img src={currentBanner} alt="Banner" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full" style={{ backgroundColor: user.themeColor ? `${user.themeColor}33` : '#8b5cf633' }}></div>
+          <div className="w-full h-full" style={{ backgroundColor: currentTheme ? `${currentTheme}33` : '#8b5cf633' }}></div>
         )}
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 pb-10 xl:px-0">
-         <div className={`flex flex-col ${user.profileLayout === 'reversed' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-8 items-start -mt-16 md:-mt-24 lg:-mt-32`}>
+         <div className={`flex ${currentLayout === 'centered' ? 'flex-col items-center max-w-4xl mx-auto' : currentLayout === 'reversed' ? 'flex-col lg:flex-row-reverse items-start' : 'flex-col lg:flex-row items-start'} gap-8 -mt-8 md:-mt-12 lg:-mt-16`}>
             
             {/* Sidebar Left */}
-            <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 mx-auto lg:mx-0`}>
-               <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl mb-6" id="profile-card" style={{ borderColor: user.themeColor ? `${user.themeColor}40` : undefined }}>
+            <aside className={`w-full ${currentLayout === 'centered' ? 'lg:mx-auto lg:max-w-md' : 'lg:w-80'} flex-shrink-0 mx-auto lg:mx-0`}>
+               <div className="border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl mb-6" id="profile-card" style={cardStyle}>
                   
                   {/* Avatar */}
                   <div className="relative group mx-auto w-fit mb-6">
-                    <div className={`relative w-40 h-40 md:w-48 md:h-48 ${avatarClass} overflow-hidden border-4 border-surface shadow-2xl z-10`} style={{ borderColor: user.themeColor || '#8b5cf6' }}>
+                    <div className={`relative w-40 h-40 md:w-48 md:h-48 ${avatarClass} overflow-hidden border-4 border-surface shadow-2xl z-10`} style={{ borderColor: currentTheme || '#8b5cf6' }}>
                       <img 
                          src={editAvatar || user.avatar} 
                          alt={user.name} 
@@ -555,7 +552,7 @@ const Profile: React.FC = () => {
                   
                   <h1 className="text-2xl font-black text-white uppercase tracking-tight text-center z-10 relative">{user.name}</h1>
                   <div className="flex flex-col items-center gap-3 mt-3 z-10 relative">
-                     <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`} style={{ color: user.themeColor, borderColor: user.themeColor, backgroundColor: user.themeColor ? `${user.themeColor}33` : undefined }}>
+                     <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`} style={{ color: currentTheme, borderColor: currentTheme, backgroundColor: currentTheme ? `${currentTheme}33` : undefined }}>
                         {user.isPremium ? 'Premium ' : 'Пользователь'}
                      </span>
                   </div>
@@ -564,8 +561,8 @@ const Profile: React.FC = () => {
                   {/* --- STATS BLOCK --- */}
                   <div className="flex flex-col w-full gap-3 mt-6 pt-6 border-t border-white/5 text-left z-10 relative">
                      <div className="flex items-center gap-3 text-slate-300">
-                         <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: user.themeColor ? `${user.themeColor}33` : '#8b5cf633' }}>
-                            <CheckCircle className="w-4 h-4" style={{ color: user.themeColor || '#8b5cf6' }} />
+                         <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: currentTheme ? `${currentTheme}33` : '#8b5cf633' }}>
+                            <CheckCircle className="w-4 h-4" style={{ color: currentTheme || '#8b5cf6' }} />
                          </div>
                          <div className="flex flex-col">
                             <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Просмотрено</span>
@@ -586,33 +583,33 @@ const Profile: React.FC = () => {
                </div>
 
                <nav className="rounded-3xl p-3 space-y-2 border shadow-xl transition-all duration-500" style={cardStyle}>
-                  <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'favs' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'favs' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><Heart className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Избранное</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allFavIds.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watched' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watched' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><CheckCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Просмотрено</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchedIds.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('watching')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watching' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watching' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('watching')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watching' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watching' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Смотрю</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchingIds.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('dropped')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'dropped' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'dropped' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('dropped')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'dropped' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'dropped' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><X className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Брошено</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allDroppedIds.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'history' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'history' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'history' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'history' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <History className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">История</span>
                   </button>
-                  <button onClick={() => setActiveTab('friends')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'friends' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'friends' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('friends')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'friends' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'friends' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <div className="flex items-center gap-3"><Users className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Друзья</span></div>
                     <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{friends.length}</span>
                   </button>
-                  <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
                   </button>
-                  <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: user.themeColor || '#8b5cf6' } : {}}>
+                  <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
                     <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
                   </button>
                   <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'text-black' : 'text-yellow-500 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308' } : {}}>
@@ -622,15 +619,15 @@ const Profile: React.FC = () => {
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-grow space-y-12 relative z-10 w-full min-w-0 pt-4 md:pt-6">
+            <div className="flex-grow space-y-12 relative z-10 w-full min-w-0 pt-0">
                {isLoading ? (
-                 <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin" style={{ color: user.themeColor || '#8b5cf6' }} /></div>
+                 <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin" style={{ color: currentTheme || '#8b5cf6' }} /></div>
                ) : activeTab === 'settings' ? (
                  <section className="space-y-8 animate-in fade-in duration-500">
                     <div className="flex items-center justify-between">
                       <div>
                           <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Настройки профиля</h3>
-                          <p className="text-sm text-slate-400 mt-1">Управляйте своими личными данными и внешним видом профиля.</p>
+                          <p className="text-sm text-slate-400 mt-1">Управляйте своими личными данными.</p>
                       </div>
                       <div className="flex items-center gap-4">
                         {isEditing ? (
@@ -650,7 +647,7 @@ const Profile: React.FC = () => {
                               onClick={handleSaveProfile}
                               disabled={isActionLoading}
                               className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 4px 14px 0 ${user.themeColor}40` : undefined }}
+                              style={{ backgroundColor: currentTheme || undefined, boxShadow: currentTheme ? `0 4px 14px 0 ${currentTheme}40` : undefined }}
                             >
                               {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                               Сохранить
@@ -660,7 +657,7 @@ const Profile: React.FC = () => {
                           <button 
                             onClick={() => setIsEditing(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg hover:opacity-90 transition-opacity"
-                            style={{ backgroundColor: user.themeColor || undefined, boxShadow: user.themeColor ? `0 4px 14px 0 ${user.themeColor}40` : undefined }}
+                            style={{ backgroundColor: currentTheme || undefined, boxShadow: currentTheme ? `0 4px 14px 0 ${currentTheme}40` : undefined }}
                           >
                             <Edit2 className="w-4 h-4" /> Редактировать
                           </button>
@@ -742,69 +739,6 @@ const Profile: React.FC = () => {
                           />
                         </div>
 
-                        {/* Banner Setting */}
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-sm font-bold text-white mb-1 block">Баннер профиля</label>
-                            <p className="text-[13px] text-slate-400">Изображение для шапки профиля (рекомендуется 1920x1080).</p>
-                          </div>
-                          <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                            <div className="w-full md:w-64 h-32 bg-black/20 rounded-2xl border border-white/10 overflow-hidden relative group shrink-0">
-                              {editBanner ? (
-                                <img src={editBanner} alt="Banner Preview" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <ImageIcon className="w-8 h-8 text-slate-600" />
-                                </div>
-                              )}
-                              
-                              {isEditing && (
-                                <button 
-                                  onClick={() => bannerInputRef.current?.click()} 
-                                  disabled={isUploadingBanner} 
-                                  className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm cursor-pointer"
-                                >
-                                  {isUploadingBanner ? <Loader2 className="w-6 h-6 text-white animate-spin mb-1" /> : <Camera className="w-6 h-6 text-white mb-1" />}
-                                  <span className="text-[10px] font-bold text-white uppercase">Изменить баннер</span>
-                                </button>
-                              )}
-                            </div>
-                            
-                            <div className="flex-1 space-y-3 w-full">
-                              <p className="text-sm text-slate-400 font-medium leading-relaxed">Вы можете загрузить файл или указать прямую ссылку на изображение.</p>
-                              <div className="relative">
-                                <input 
-                                  type="text" 
-                                  value={editBanner} 
-                                  onChange={(e) => setEditBanner(e.target.value)} 
-                                  placeholder="URL изображения" 
-                                  disabled={!isEditing}
-                                  className="w-full px-5 py-3.5 bg-black/20 border border-white/10 rounded-xl text-sm text-white focus:border-primary outline-none transition-all disabled:opacity-50" 
-                                />
-                              </div>
-                              {isEditing && (
-                                  <div>
-                                      <input 
-                                        type="file" 
-                                        ref={bannerInputRef}
-                                        className="hidden" 
-                                        accept="image/*" 
-                                        onChange={handleBannerUpload}
-                                        disabled={isUploadingBanner}
-                                      />
-                                      <button 
-                                        onClick={() => bannerInputRef.current?.click()} 
-                                        disabled={isUploadingBanner} 
-                                        className="px-4 py-2 mt-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium border border-white/10 transition-all flex items-center gap-2"
-                                      >
-                                          <Upload className="w-4 h-4" /> Загрузить файл
-                                      </button>
-                                  </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
                       </div>
                     </div>
                  </section>
@@ -814,13 +748,49 @@ const Profile: React.FC = () => {
                       <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Дизайн профиля</h3>
                       <button 
                         onClick={handleSaveProfile}
-                        className="flex items-center gap-2 px-6 py-3 bg-yellow-500 text-black rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-yellow-500/20 hover:bg-yellow-400 transition-colors"
+                        disabled={isActionLoading}
+                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:opacity-90 transition-opacity border"
+                        style={{ backgroundColor: currentTheme || '#8b5cf6', borderColor: currentTheme ? `${currentTheme}40` : '#8b5cf640', boxShadow: currentTheme ? `0 4px 14px 0 ${currentTheme}40` : undefined }}
                       >
-                        <Save className="w-4 h-4" /> Сохранить изменения
+                        {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Сохранить изменения
                       </button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      {/* Banner Setting */}
+                      <div className="space-y-4 md:col-span-2">
+                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Баннер профиля (URL или Файл)</label>
+                         <div className="flex flex-col md:flex-row items-center gap-6">
+                           <div className="w-full md:w-64 h-32 bg-black/20 rounded-2xl border border-white/10 overflow-hidden relative group shrink-0">
+                             {editBanner ? (
+                               <img src={editBanner} alt="Banner Preview" className="w-full h-full object-cover" />
+                             ) : (
+                               <div className="w-full h-full flex items-center justify-center">
+                                 <ImageIcon className="w-8 h-8 text-slate-600" />
+                               </div>
+                             )}
+                           </div>
+                           <div className="flex-1 space-y-3 w-full">
+                              <div className="relative">
+                                <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                                <input 
+                                  type="text" 
+                                  value={editBanner} 
+                                  onChange={(e) => setEditBanner(e.target.value)} 
+                                  placeholder="https://example.com/banner.jpg" 
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:outline-none transition-all" 
+                                />
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <button onClick={() => bannerInputRef.current?.click()} disabled={isUploadingBanner} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
+                                   {isUploadingBanner ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
+                                </button>
+                                <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={handleBannerUpload} />
+                              </div>
+                           </div>
+                         </div>
+                      </div>
+
                       {/* Background Image */}
                       <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Фоновое изображение (URL или Файл)</label>
@@ -831,7 +801,8 @@ const Profile: React.FC = () => {
                             value={editBg} 
                             onChange={(e) => setEditBg(e.target.value)} 
                             placeholder="https://example.com/background.jpg" 
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-yellow-500 outline-none transition-all" 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:outline-none transition-all" 
+                            style={{ focus: { borderColor: currentTheme || '#8b5cf6' } } as React.CSSProperties}
                           />
                         </div>
                         <div className="flex items-center gap-4">
@@ -858,7 +829,8 @@ const Profile: React.FC = () => {
                                 type="text" 
                                 value={editTheme} 
                                 onChange={(e) => setEditTheme(e.target.value)} 
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white font-mono uppercase focus:border-yellow-500 outline-none transition-all"
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white font-mono uppercase focus:outline-none transition-all"
+                                style={{ focus: { borderColor: currentTheme || '#8b5cf6' } } as React.CSSProperties}
                              />
                           </div>
                         </div>
@@ -867,18 +839,27 @@ const Profile: React.FC = () => {
                       {/* Card Bg */}
                       <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Фон карточек (Цвет или URL)</label>
-                        <div className="relative">
-                          <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
-                          <input 
-                            type="text" 
-                            value={editCardBg} 
-                            onChange={(e) => setEditCardBg(e.target.value)} 
-                            placeholder="#000000 или URL картинки" 
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-yellow-500 outline-none transition-all" 
-                          />
+                        <div className="flex items-center gap-4">
+                           <input 
+                              type="color" 
+                              value={editCardBg && editCardBg.startsWith('#') ? editCardBg : '#141414'} 
+                              onChange={(e) => setEditCardBg(e.target.value)}
+                              className="w-12 h-12 rounded-xl cursor-pointer border-0 p-0 bg-transparent shrink-0"
+                            />
+                            <div className="relative flex-1">
+                              <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                              <input 
+                                type="text" 
+                                value={editCardBg} 
+                                onChange={(e) => setEditCardBg(e.target.value)} 
+                                placeholder="#000000 или URL картинки" 
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:outline-none transition-all" 
+                                style={{ focus: { borderColor: currentTheme || '#8b5cf6' } } as React.CSSProperties}
+                              />
+                            </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            <p className="text-[10px] text-slate-500 ml-2 flex-1">Изображение или цвет для фона карточек профиля.</p>
+                            <p className="text-[10px] text-slate-500 ml-2 flex-1">Цвет или картинка для фона.</p>
                             <button onClick={() => cardBgInputRef.current?.click()} disabled={isUploadingCardBg} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
                                {isUploadingCardBg ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
                            </button>
@@ -892,21 +873,24 @@ const Profile: React.FC = () => {
                         <div className="grid grid-cols-3 gap-3">
                           <button 
                             onClick={() => setEditLayout('standard')}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'standard' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'standard' ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            style={editLayout === 'standard' ? { color: currentTheme || undefined, borderColor: currentTheme || undefined, backgroundColor: currentTheme ? `${currentTheme}1A` : undefined } : {}}
                           >
                             <LayoutTemplate className="w-6 h-6" />
                             <span className="text-[10px] font-bold uppercase">Стандарт</span>
                           </button>
                           <button 
                             onClick={() => setEditLayout('reversed')}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'reversed' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'reversed' ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            style={editLayout === 'reversed' ? { color: currentTheme || undefined, borderColor: currentTheme || undefined, backgroundColor: currentTheme ? `${currentTheme}1A` : undefined } : {}}
                           >
                             <LayoutTemplate className="w-6 h-6 rotate-180" />
                             <span className="text-[10px] font-bold uppercase">Реверс</span>
                           </button>
                           <button 
                             onClick={() => setEditLayout('centered')}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'centered' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'centered' ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            style={editLayout === 'centered' ? { color: currentTheme || undefined, borderColor: currentTheme || undefined, backgroundColor: currentTheme ? `${currentTheme}1A` : undefined } : {}}
                           >
                             <LayoutTemplate className="w-6 h-6" />
                             <span className="text-[10px] font-bold uppercase">Центр</span>
@@ -920,21 +904,24 @@ const Profile: React.FC = () => {
                         <div className="grid grid-cols-3 gap-3">
                           <button 
                             onClick={() => setEditAvatarShape('round')}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'round' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'round' ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            style={editAvatarShape === 'round' ? { color: currentTheme || undefined, borderColor: currentTheme || undefined, backgroundColor: currentTheme ? `${currentTheme}1A` : undefined } : {}}
                           >
                             <div className="w-6 h-6 rounded-full bg-current opacity-50"></div>
                             <span className="text-[10px] font-bold uppercase">Круг</span>
                           </button>
                           <button 
                             onClick={() => setEditAvatarShape('rounded')}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'rounded' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'rounded' ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            style={editAvatarShape === 'rounded' ? { color: currentTheme || undefined, borderColor: currentTheme || undefined, backgroundColor: currentTheme ? `${currentTheme}1A` : undefined } : {}}
                           >
                             <div className="w-6 h-6 rounded-lg bg-current opacity-50"></div>
                             <span className="text-[10px] font-bold uppercase">Скругленный</span>
                           </button>
                           <button 
                             onClick={() => setEditAvatarShape('square')}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'square' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editAvatarShape === 'square' ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                            style={editAvatarShape === 'square' ? { color: currentTheme || undefined, borderColor: currentTheme || undefined, backgroundColor: currentTheme ? `${currentTheme}1A` : undefined } : {}}
                           >
                             <div className="w-6 h-6 rounded-none bg-current opacity-50"></div>
                             <span className="text-[10px] font-bold uppercase">Квадрат</span>
