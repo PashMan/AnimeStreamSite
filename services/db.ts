@@ -406,6 +406,7 @@ class DatabaseService {
       avatarShape: p.avatar_shape as any,
       cardOpacity: p.card_opacity,
       cardBlur: p.card_blur,
+      cardBg: p.card_bg,
       lastSeen: p.last_seen,
       role: p.is_admin ? 'admin' : (p.role || 'user'),
       isBanned: p.is_banned || false,
@@ -461,6 +462,7 @@ class DatabaseService {
       if (updates.avatarShape !== undefined) mapped.avatar_shape = updates.avatarShape;
       if (updates.cardOpacity !== undefined) mapped.card_opacity = updates.cardOpacity;
       if (updates.cardBlur !== undefined) mapped.card_blur = updates.cardBlur;
+      if (updates.cardBg !== undefined) mapped.card_bg = updates.cardBg;
       if (updates.friends !== undefined) mapped.friends = JSON.stringify(updates.friends);
       if (updates.shikimoriToken !== undefined) mapped.shikimori_token = updates.shikimoriToken;
       if (updates.shikimoriRefreshToken !== undefined) mapped.shikimori_refresh_token = updates.shikimoriRefreshToken;

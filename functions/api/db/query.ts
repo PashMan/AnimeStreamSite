@@ -97,10 +97,10 @@ export const onRequestPost = async (context: any) => {
       if (keys.length === 0) {
         return Response.json({ data: [] });
       }
-      const setClause = keys.map(k => `${k} = ?`).join(', ');
+      const setClause = keys.map(k => `"${k}" = ?`).join(', ');
       params.unshift(...keys.map(k => payload[k] === undefined ? null : payload[k])); // Add update values before where values
       query = `UPDATE ${table} SET ${setClause}${whereClause} RETURNING *`;
-      
+      console.log('D1_DEBUG_UPDATE: ', query, params);
     } else if (action === 'delete') {
       query = `DELETE FROM ${table}${whereClause} RETURNING *`;
     } else if (action === 'rpc') {
@@ -149,6 +149,11 @@ export const onRequestPost = async (context: any) => {
         } catch(lastErr: any) {
            throw new Error('Auto-migrate failed: ' + lastErr.message + ' | Original: ' + e.message);
         }
+      } else if (e.message && e.message.includes('card_bg')) {
+         try {
+            await db.prepare('ALTER TABLE profiles ADD COLUMN card_bg TEXT').run();
+            result = await db.prepare(query).bind(...params).all();
+         } catch(e2) { throw e; }
       } else if (e.message && e.message.includes('shikimori')) {
         try {
           await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_token TEXT').run();

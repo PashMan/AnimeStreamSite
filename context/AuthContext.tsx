@@ -41,13 +41,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Check for existing session
     const checkSession = async () => {
-      const { data: { session } } = await db.getSession();
-      if (session?.user?.email) {
-        await fetchUserProfile(session.user.email);
+      // First try to use the stored session's email to fetch the latest profile
+      if (user?.email) {
+         await fetchUserProfile(user.email);
+      } else {
+          // If no local user, check backend auth session
+          const { data: { session } } = await db.getSession();
+          if (session?.user?.email) {
+            await fetchUserProfile(session.user.email);
+          }
       }
     };
     
     checkSession();
+
+    // Listen for custom profile updates
+    const handleProfileUpdate = () => {
+      checkSession();
+    };
+    window.addEventListener('profileUpdated', handleProfileUpdate);
 
     // Listen for auth changes
     const { data: { subscription: authSubscription } } = db.onAuthStateChange(async (event: string, session: any) => {
@@ -60,6 +72,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     return () => {
       authSubscription.unsubscribe();
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
     };
   }, []);
 

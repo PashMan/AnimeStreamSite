@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   profile_bg TEXT,
   card_blur TEXT,
   card_opacity TEXT,
+  card_bg TEXT,
   avatar_shape TEXT,
   watched_anime_ids TEXT DEFAULT '[]',
   watching_anime_ids TEXT DEFAULT '[]',

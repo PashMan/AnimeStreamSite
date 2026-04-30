@@ -50,12 +50,17 @@ const Profile: React.FC = () => {
   const [editAvatarShape, setEditAvatarShape] = useState<'round' | 'rounded' | 'square'>(user?.avatarShape || 'round');
   const [editCardOpacity, setEditCardOpacity] = useState(user?.cardOpacity ?? 80);
   const [editCardBlur, setEditCardBlur] = useState(user?.cardBlur ?? 10);
+  const [editCardBg, setEditCardBg] = useState(user?.cardBg || '');
 
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [isUploadingBg, setIsUploadingBg] = useState(false);
+  const [isUploadingCardBg, setIsUploadingCardBg] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const bgInputRef = useRef<HTMLInputElement>(null);
+  const cardBgInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,14 +109,14 @@ const Profile: React.FC = () => {
     }
   };
 
-  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const createUploadHandler = (setState: any, setUploading: any, suffix: string) => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
     // Validation
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
-      setUploadError('Неподдерживаемый формат файла. Разрешены: JPG, PNG, WEBP, GIF');
+      setUploadError('Неподдерживаемый формат файла.');
       return;
     }
 
@@ -120,11 +125,10 @@ const Profile: React.FC = () => {
       return;
     }
 
-    setIsUploadingBanner(true);
+    setUploading(true);
     setUploadError(null);
 
     try {
-      // Compress
       const img = new window.Image();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -158,21 +162,24 @@ const Profile: React.FC = () => {
       const blob = await res.blob();
       const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", { type: 'image/webp' });
 
-      // Pass user.id + '_banner' so it doesn't overwrite avatar
-      const url = await db.uploadAvatar(compressedFile, (user.id || user.email) + '_banner');
+      const url = await db.uploadAvatar(compressedFile, (user.id || user.email) + '_' + suffix);
       
       if (url) {
-        setEditBanner(url);
+        setState(url);
       } else {
-        setUploadError('Не удалось загрузить баннер');
+        setUploadError('Не удалось загрузить картинку');
       }
     } catch (e) {
       console.error(e);
-      setUploadError('Ошибка при загрузке баннера');
+      setUploadError('Ошибка при загрузке');
     } finally {
-      setIsUploadingBanner(false);
+      setUploading(false);
     }
   };
+
+  const handleBannerUpload = createUploadHandler(setEditBanner, setIsUploadingBanner, 'banner');
+  const handleBgUpload = createUploadHandler(setEditBg, setIsUploadingBg, 'bg');
+  const handleCardBgUpload = createUploadHandler(setEditCardBg, setIsUploadingCardBg, 'card_bg');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -246,6 +253,7 @@ const Profile: React.FC = () => {
         setEditAvatarShape(user.avatarShape || 'round');
         setEditCardOpacity(user.cardOpacity ?? 80);
         setEditCardBlur(user.cardBlur ?? 10);
+        setEditCardBg(user.cardBg || '');
 
       } catch (err) {
         console.error(err);
@@ -380,8 +388,8 @@ const Profile: React.FC = () => {
              setWatchStats({ episodes: totalEps, hours });
              
              // Opportunistically update DB if stats changed
-             if (user && (user.episodesWatched !== totalEps || user.watchedTime !== hours)) {
-                 db.updateProfile(user.email, { episodesWatched: totalEps, watchedTime: hours });
+             if (user && (user.episodesWatched !== totalEps || user.watchedTime !== String(hours))) {
+                 db.updateProfile(user.email, { episodesWatched: totalEps, watchedTime: String(hours) });
              }
          }
       };
@@ -434,7 +442,8 @@ const Profile: React.FC = () => {
         themeColor: editTheme,
         avatarShape: editAvatarShape,
         cardOpacity: editCardOpacity,
-        cardBlur: editCardBlur
+        cardBlur: editCardBlur,
+        cardBg: editCardBg
       });
       if (success) {
         setIsEditing(false);
@@ -465,22 +474,37 @@ const Profile: React.FC = () => {
   }
 
   // Styles based on customization
-  const containerStyle = user.profileBg ? {
-      backgroundImage: `url(${user.profileBg})`,
+  const currentBg = (isEditing && editBg !== user.profileBg) ? editBg : user.profileBg;
+  const containerStyle = currentBg ? {
+      backgroundImage: `url(${currentBg})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundAttachment: 'fixed'
   } : {};
 
-  const overlayStyle = user.profileBg ? {
-      backgroundColor: `rgba(0,0,0,${1 - (user.cardOpacity ?? 80) / 100})`,
-      backdropFilter: 'blur(10px)'
-  } : {};
+  const overlayStyle = currentBg ? {
+      backgroundColor: `rgba(0,0,0,${1 - (editCardOpacity) / 100})`,
+      backdropFilter: `blur(${editCardBlur}px)`
+  } : {
+      backgroundColor: `rgba(0,0,0,${1 - (editCardOpacity) / 100})`,
+      backdropFilter: `blur(${editCardBlur}px)`
+  };
 
+  const currentCardBg = (isEditing && editCardBg !== user.cardBg) ? editCardBg : user.cardBg;
+  const currentCardOpacity = isEditing ? editCardOpacity : (user.cardOpacity ?? 80);
+  const currentCardBlur = isEditing ? editCardBlur : (user.cardBlur ?? 10);
+  
   const cardStyle = {
-      backgroundColor: `rgba(20, 20, 20, ${(user.cardOpacity ?? 80) / 100})`,
-      backdropFilter: `blur(${user.cardBlur ?? 10}px)`,
-      borderColor: user.themeColor || 'rgba(255,255,255,0.1)'
+      backgroundColor: currentCardBg 
+          ? (currentCardBg.startsWith('#') || currentCardBg.startsWith('rgb') ? currentCardBg : undefined)
+          : `rgba(20, 20, 20, ${currentCardOpacity / 100})`,
+      backgroundImage: currentCardBg && !currentCardBg.startsWith('#') && !currentCardBg.startsWith('rgb') 
+          ? `url(${currentCardBg})` 
+          : undefined,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backdropFilter: `blur(${currentCardBlur}px)`,
+      borderColor: editTheme ? `${editTheme}40` : undefined
   };
 
   const avatarClass = user.avatarShape === 'square' ? 'rounded-none' : user.avatarShape === 'rounded' ? 'rounded-2xl' : 'rounded-full';
@@ -507,8 +531,8 @@ const Profile: React.FC = () => {
          <div className={`flex flex-col ${user.profileLayout === 'reversed' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-8 items-start`}>
             
             {/* Sidebar Left */}
-            <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6 mx-auto lg:mx-0 -mt-24 lg:-mt-32`}>
-               <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl" id="profile-card" style={{ borderColor: user.themeColor ? `${user.themeColor}40` : undefined }}>
+            <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 mx-auto lg:mx-0`}>
+               <div className="bg-surface/50 backdrop-blur-md border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl -mt-16 md:-mt-24 lg:-mt-32 mb-6" id="profile-card" style={{ borderColor: user.themeColor ? `${user.themeColor}40` : undefined }}>
                   
                   {/* Avatar */}
                   <div className="relative group mx-auto w-fit mb-6">
@@ -600,7 +624,7 @@ const Profile: React.FC = () => {
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-grow space-y-12">
+            <div className="flex-grow space-y-12 pt-16 lg:pt-24">
                {isLoading ? (
                  <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin" style={{ color: user.themeColor || '#8b5cf6' }} /></div>
                ) : activeTab === 'settings' ? (
@@ -801,7 +825,7 @@ const Profile: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                       {/* Background Image */}
                       <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Фоновое изображение (URL)</label>
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Фоновое изображение (URL или Файл)</label>
                         <div className="relative">
                           <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
                           <input 
@@ -812,7 +836,13 @@ const Profile: React.FC = () => {
                             className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-yellow-500 outline-none transition-all" 
                           />
                         </div>
-                        <p className="text-[10px] text-slate-500 ml-2">Ссылка на изображение для фона всего профиля.</p>
+                        <div className="flex items-center gap-4">
+                           <p className="text-[10px] text-slate-500 ml-2 flex-1">Ссылка на изображение для фона всего профиля.</p>
+                           <button onClick={() => bgInputRef.current?.click()} disabled={isUploadingBg} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
+                               {isUploadingBg ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
+                           </button>
+                           <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
+                        </div>
                       </div>
 
                       {/* Theme Color */}
@@ -833,6 +863,28 @@ const Profile: React.FC = () => {
                                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white font-mono uppercase focus:border-yellow-500 outline-none transition-all"
                              />
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Card Bg */}
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Фон карточек (Цвет или URL)</label>
+                        <div className="relative">
+                          <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                          <input 
+                            type="text" 
+                            value={editCardBg} 
+                            onChange={(e) => setEditCardBg(e.target.value)} 
+                            placeholder="#000000 или URL картинки" 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-yellow-500 outline-none transition-all" 
+                          />
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <p className="text-[10px] text-slate-500 ml-2 flex-1">Изображение или цвет для фона карточек профиля.</p>
+                            <button onClick={() => cardBgInputRef.current?.click()} disabled={isUploadingCardBg} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
+                               {isUploadingCardBg ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
+                           </button>
+                           <input type="file" ref={cardBgInputRef} className="hidden" accept="image/*" onChange={handleCardBgUpload} />
                         </div>
                       </div>
 

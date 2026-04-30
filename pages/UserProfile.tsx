@@ -169,7 +169,10 @@ const UserProfile: React.FC = () => {
       setIsAddingFriend(true);
       try {
           const success = await db.addFriend(currentUser.email, profile.email);
-          if (success) setIsFriend(true);
+          if (success) {
+             setIsFriend(true);
+             window.dispatchEvent(new Event('profileUpdated'));
+          }
       } catch (e) {
           console.error(e);
       } finally {
@@ -182,7 +185,11 @@ const UserProfile: React.FC = () => {
       setIsAddingFriend(true);
       try {
           const success = await db.removeFriend(currentUser.email, profile.email);
-          if (success) setIsFriend(false);
+          if (success) {
+             setIsFriend(false);
+             // Dispatch a custom event to tell AuthContext to refresh session
+             window.dispatchEvent(new Event('profileUpdated'));
+          }
       } catch (e) {
           console.error(e);
       } finally {
