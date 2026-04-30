@@ -122,7 +122,7 @@ export const onRequestPost = async (context: any) => {
         try {
           await db.prepare('ALTER TABLE community_collections ADD COLUMN cover_image TEXT').run();
           // Retry the original query
-          result = await stmt.all();
+          result = await db.prepare(query).bind(...params).all();
         } catch (e2) {
           throw e; // throw original error if migration fails
         }
@@ -137,7 +137,7 @@ export const onRequestPost = async (context: any) => {
           await db.prepare('ALTER TABLE profiles ADD COLUMN dropped_anime_ids TEXT').run();
         } catch(skip) {}
         try {
-           result = await stmt.all();
+           result = await db.prepare(query).bind(...params).all();
         } catch(lastErr) {
            throw e;
         }
@@ -146,11 +146,11 @@ export const onRequestPost = async (context: any) => {
           await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_token TEXT').run();
           await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_refresh_token TEXT').run();
           await db.prepare('ALTER TABLE profiles ADD COLUMN shikimori_id TEXT').run();
-          result = await stmt.all();
+          result = await db.prepare(query).bind(...params).all();
         } catch (e2) {
           // If columns already exist or other error, just retry
           try {
-             result = await stmt.all();
+             result = await db.prepare(query).bind(...params).all();
           } catch(e3) {
              throw e;
           }
@@ -167,7 +167,7 @@ export const onRequestPost = async (context: any) => {
           await db.prepare('ALTER TABLE private_messages ADD COLUMN text TEXT').run();
         } catch(skip) {}
         try {
-          result = await stmt.all();
+          result = await db.prepare(query).bind(...params).all();
         } catch(lastErr) {
           throw e; // throw original
         }

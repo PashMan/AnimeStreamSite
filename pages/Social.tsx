@@ -165,7 +165,9 @@ const Social: React.FC = () => {
                                       </Link>
                                       <div className="min-w-0">
                                           <Link to={`/user/${friend.name || friend.id || friend.email}`} className="font-bold text-sm text-white truncate hover:text-primary transition-colors">{friend.name}</Link>
-                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider truncate">Online</div>
+                                          <div className={`text-[10px] uppercase tracking-wider truncate ${friend.lastSeen && (new Date().getTime() - new Date(friend.lastSeen).getTime() < 5 * 60 * 1000) ? 'text-green-500' : 'text-slate-500'}`}>
+                                              {friend.lastSeen && (new Date().getTime() - new Date(friend.lastSeen).getTime() < 5 * 60 * 1000) ? 'Online' : 'Offline'}
+                                          </div>
                                       </div>
                                   </div>
                                   <Link to={`/messages?user=${friend.email}`} className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors shrink-0">

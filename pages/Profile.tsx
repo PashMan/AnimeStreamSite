@@ -277,6 +277,37 @@ const Profile: React.FC = () => {
     loadTabContent();
   }, [activeTab, allFavIds, allWatchedIds, allWatchingIds, allDroppedIds, limits]);
 
+  // We need to fetch 'watched' anime details to compute watch stats correctly even if we aren't on the watched tab
+  useEffect(() => {
+    let isCancelled = false;
+    const prefetchWatchedForStats = async () => {
+        if (!allWatchedIds || allWatchedIds.length === 0) return;
+        
+        let allLoaded: any[] = [];
+        const chunkSize = 50; 
+        for (let i = 0; i < allWatchedIds.length; i += chunkSize) {
+           if (isCancelled) break;
+           const chunk = allWatchedIds.filter(Boolean).slice(i, i + chunkSize);
+           if (chunk.length === 0) continue;
+           try {
+              const data = await fetchAnimes({ ids: chunk.join(','), limit: chunk.length }, true);
+              if (Array.isArray(data)) {
+                 allLoaded = [...allLoaded, ...data];
+              }
+           } catch (e) {}
+        }
+        if (!isCancelled && allLoaded.length > 0) {
+           setWatched(allLoaded);
+        }
+    };
+    
+    if (activeTab !== 'watched' && allWatchedIds.length > 0 && watched.length === 0) {
+       prefetchWatchedForStats();
+    }
+    
+    return () => { isCancelled = true; };
+  }, [allWatchedIds, activeTab]);
+
   const handleSaveProfile = async () => {
     setIsActionLoading(true);
     try {
@@ -356,7 +387,7 @@ const Profile: React.FC = () => {
             <aside className={`w-full ${user.profileLayout === 'centered' ? 'lg:w-2/3' : 'lg:w-80'} flex-shrink-0 space-y-6`}>
                <div className="p-10 rounded-[2.5rem] flex flex-col items-center text-center border shadow-2xl relative overflow-hidden transition-all duration-500" style={cardStyle}>
                   <div 
-                    className="absolute top-0 left-0 w-full h-32 bg-cover bg-center"
+                    className="absolute top-0 left-0 w-full h-48 bg-cover bg-center"
                     style={{ 
                         backgroundImage: user.profileBanner ? `url(${user.profileBanner})` : undefined,
                         backgroundColor: user.themeColor ? `${user.themeColor}33` : undefined // 20% opacity fallback

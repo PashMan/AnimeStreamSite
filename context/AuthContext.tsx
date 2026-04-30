@@ -33,16 +33,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     // Function to fetch and set user profile
     const fetchUserProfile = async (email: string, force = false) => {
-      // Check if profile was updated recently (within 5 minutes)
-      const lastUpdate = localStorage.getItem('as_profile_updated');
-      if (!force && lastUpdate && Date.now() - parseInt(lastUpdate) < 5 * 60 * 1000 && user?.email === email) {
-        return;
-      }
-
       const profile = await db.getProfile(email);
       if (profile) {
         setUser(profile);
-        localStorage.setItem('as_profile_updated', Date.now().toString());
       }
     };
 

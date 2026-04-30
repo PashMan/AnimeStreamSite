@@ -308,7 +308,7 @@ const UserProfile: React.FC = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 w-full md:pt-32">
+          <div className="flex-1 w-full md:pt-[216px]">
              {/* Tabs */}
              <div className="flex gap-4 border-b border-white/5 mb-8 overflow-x-auto pb-2">
                 <button 

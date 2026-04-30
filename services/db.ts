@@ -1024,7 +1024,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('profiles')
-        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time, created_at')
+        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time, created_at, last_seen')
         .limit(limit); // Removed order to avoid full table scan on large tables
       
       return data?.map((p: any) => this.mapProfileToUser(p)) || [];
@@ -1038,7 +1038,7 @@ class DatabaseService {
     try {
       const { data } = await supabaseClient
         .from('profiles')
-        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
+        .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time, last_seen')
         .ilike('name', `%${query}%`)
         .limit(10);
       
@@ -1066,7 +1066,7 @@ class DatabaseService {
         promises.push(
           supabaseClient
             .from('profiles')
-            .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
+            .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time, last_seen')
             .in('id', uuids)
         );
       }
@@ -1075,7 +1075,7 @@ class DatabaseService {
         promises.push(
           supabaseClient
             .from('profiles')
-            .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time')
+            .select('id, name, email, avatar, bio, is_premium, episodes_watched, watched_time, last_seen')
             .in('email', emails)
         );
       }
