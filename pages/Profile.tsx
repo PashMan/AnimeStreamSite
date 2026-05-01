@@ -11,6 +11,7 @@ import imageCompression from 'browser-image-compression';
 import SEO from '../components/SEO';
 import { useSlugBlocks } from '../store/slugBlocks';
 import { useDmcaBlocks } from '../store/dmcaBlocks';
+import { motion, PanInfo } from 'motion/react';
 
 const Profile: React.FC = () => {
   const { user, openAuthModal, updateProfile } = useAuth();
@@ -52,10 +53,9 @@ const Profile: React.FC = () => {
   const [editCardBlur, setEditCardBlur] = useState(user?.cardBlur ?? 10);
   const [editCardBg, setEditCardBg] = useState(user?.cardBg || '');
   const [editTextColor, setEditTextColor] = useState(user?.textColor || '#ffffff');
-  const [editBlocks, setEditBlocks] = useState(user?.profileBlocks || ['info', 'stats', 'nav']);
-  const [isConstructorOpen, setIsConstructorOpen] = useState(false);
-  const dragItemParams = useRef<number | null>(null);
-  const dragOverItemParams = useRef<number | null>(null);
+  const [editBlocks, setEditBlocks] = useState<string[]>(user?.profileBlocks || ['info', 'stats', 'nav']);
+  const [blockPositions, setBlockPositions] = useState<Record<string, {x: number, y: number}>>(user?.profilePositions || {});
+  const [isVisualEditMode, setIsVisualEditMode] = useState(false);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
@@ -452,7 +452,8 @@ const Profile: React.FC = () => {
         cardBlur: typeof editCardBlur === 'number' ? editCardBlur : 10,
         cardBg: editCardBg,
         textColor: editTextColor,
-        profileBlocks: editBlocks
+        profileBlocks: editBlocks,
+        profilePositions: blockPositions
       });
       if (success) {
         setIsEditing(false);
@@ -517,16 +518,12 @@ const Profile: React.FC = () => {
 
   const isHex = currentCardBg?.startsWith('#');
   const isImage = currentCardBg && !isHex && !currentCardBg.startsWith('rgb') && !currentCardBg.startsWith('rgba');
-  
+  const cardAlpha = currentCardOpacity / 100;
+
   const cardStyle = {
       backgroundColor: isHex 
-          ? hexToRgba(currentCardBg, currentCardOpacity / 100)
-          : (isImage ? `rgba(20, 20, 20, ${currentCardOpacity / 100})` : (currentCardBg || `rgba(20, 20, 20, ${currentCardOpacity / 100})`)),
-      backgroundImage: isImage 
-          ? `linear-gradient(rgba(0,0,0,${1 - currentCardOpacity / 100}), rgba(0,0,0,${1 - currentCardOpacity / 100})), url(${currentCardBg})` 
-          : undefined,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
+          ? hexToRgba(currentCardBg, cardAlpha)
+          : (isImage ? 'transparent' : (currentCardBg || `rgba(20, 20, 20, ${cardAlpha})`)),
       backdropFilter: `blur(${currentCardBlur}px)`,
       WebkitBackdropFilter: `blur(${currentCardBlur}px)`,
       borderColor: currentTheme ? `${currentTheme}40` : undefined,
@@ -537,6 +534,56 @@ const Profile: React.FC = () => {
   const avatarClass = currentAvatarShape === 'square' ? 'rounded-none' : currentAvatarShape === 'rounded' ? 'rounded-2xl' : 'rounded-full';
   const currentBanner = editBanner;
   const currentLayout = editLayout;
+
+  const renderDraggableBlock = (blockId: string, content: React.ReactNode) => {
+      const pos = isVisualEditMode ? blockPositions[blockId] : user?.profilePositions?.[blockId];
+      return (
+         <motion.div
+           key={blockId}
+           drag={isVisualEditMode}
+           dragMomentum={false}
+           animate={{ x: pos?.x || 0, y: pos?.y || 0 }}
+           onDragEnd={(e, info) => {
+              if (isVisualEditMode) {
+                 setBlockPositions(prev => ({
+                    ...prev,
+                    [blockId]: {
+                       x: (prev[blockId]?.x || 0) + info.offset.x,
+                       y: (prev[blockId]?.y || 0) + info.offset.y
+                    }
+                 }));
+              }
+           }}
+           style={{ zIndex: isVisualEditMode ? 50 : 10, position: 'relative' }}
+           className={isVisualEditMode ? "cursor-grab active:cursor-grabbing hover:ring-2 ring-primary transition-shadow rounded-3xl" : ""}
+         >
+           {isImage && (
+             <div 
+               className="absolute inset-0 rounded-3xl pointer-events-none -z-10" 
+               style={{ 
+                  backgroundImage: `url(${currentCardBg})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  opacity: cardAlpha,
+                  borderRadius: 'inherit'
+               }} 
+             />
+           )}
+           {isVisualEditMode && (
+              <button 
+                onClick={(e) => {
+                   e.stopPropagation();
+                   setEditBlocks(editBlocks.map(b => b === blockId ? `hidden:${blockId}` : b));
+                }}
+                className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl z-50 cursor-pointer transition-transform hover:scale-110"
+              >
+                 <X className="w-4 h-4" />
+              </button>
+           )}
+           {content}
+         </motion.div>
+      );
+  };
 
   return (
     <div className="min-h-screen transition-all duration-500" style={containerStyle}>
@@ -565,7 +612,7 @@ const Profile: React.FC = () => {
                  if (blockIdFull.startsWith('hidden:')) return null;
                  const blockId = blockIdFull;
                  
-                 if (blockId === 'info') return (
+                 if (blockId === 'info') return renderDraggableBlock('info', (
                    <div key="info" className="border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl" id="profile-card-info" style={cardStyle}>
                       {/* Avatar */}
                       <div className="relative group mx-auto w-fit mb-6">
@@ -586,7 +633,7 @@ const Profile: React.FC = () => {
                       
                       {uploadError && <p className="text-[10px] text-red-500 font-bold uppercase mb-4 text-center z-10 relative">{uploadError}</p>}
                       
-                      <h1 className="text-2xl font-black text-white uppercase tracking-tight text-center z-10 relative">{user.name}</h1>
+                      <h1 className="text-2xl font-black uppercase tracking-tight text-center z-10 relative">{user.name}</h1>
                       <div className="flex flex-col items-center gap-3 mt-3 z-10 relative">
                          <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`} style={{ color: currentTheme, borderColor: currentTheme, backgroundColor: currentTheme ? `${currentTheme}33` : undefined }}>
                             {user.isPremium ? 'Premium ' : 'Пользователь'}
@@ -594,9 +641,9 @@ const Profile: React.FC = () => {
                       </div>
                       {user.bio && <p className="mt-5 opacity-80 text-sm leading-relaxed text-center z-10 relative">"{user.bio}"</p>}
                    </div>
-                 );
+                 ));
                  
-                 if (blockId === 'stats') return (
+                 if (blockId === 'stats') return renderDraggableBlock('stats', (
                    <div key="stats" className="border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl flex flex-col gap-3 text-left" id="profile-card-stats" style={cardStyle}>
                        <div className="flex items-center gap-3 opacity-90">
                            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: currentTheme ? `${currentTheme}33` : '#8b5cf633' }}>
@@ -617,9 +664,9 @@ const Profile: React.FC = () => {
                            </div>
                        </div>
                    </div>
-                 );
+                 ));
                  
-                 if (blockId === 'nav') return (
+                 if (blockId === 'nav') return renderDraggableBlock('nav', (
                    <nav key="nav" className="rounded-3xl p-3 space-y-2 border shadow-xl transition-all duration-500" style={cardStyle}>
                       <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'favs' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
                         <div className="flex items-center gap-3"><Heart className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Избранное</span></div>
@@ -654,7 +701,7 @@ const Profile: React.FC = () => {
                         <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
                       </button>
                    </nav>
-                 );
+                 ));
                  return null;
                })}
             </aside>
@@ -968,69 +1015,6 @@ const Profile: React.FC = () => {
                             <span className="text-[10px] font-bold uppercase">Центр</span>
                           </button>
                         </div>
-                        <button
-                          onClick={() => setIsConstructorOpen(!isConstructorOpen)}
-                          className="w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-sm font-bold text-white transition-all"
-                        >
-                          <Layout className="w-4 h-4" /> Конструктор
-                        </button>
-                        {isConstructorOpen && (
-                          <div className="p-4 rounded-xl border border-white/10 bg-black/20 space-y-3 mt-2">
-                            <p className="text-xs text-slate-400 mb-2">Нажмите на блоки, чтобы скрыть/показать или перетащите для изменения порядка.</p>
-                            {editBlocks.map((blockIdFull, index) => {
-                              const isHidden = blockIdFull.startsWith('hidden:');
-                              const blockId = isHidden ? blockIdFull.replace('hidden:', '') : blockIdFull;
-                              return (
-                                <div 
-                                  key={blockId} 
-                                  draggable
-                                  onDragStart={(e) => {
-                                      dragItemParams.current = index;
-                                      e.currentTarget.style.opacity = '0.5';
-                                  }}
-                                  onDragEnter={(e) => {
-                                      dragOverItemParams.current = index;
-                                      e.preventDefault();
-                                  }}
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDragEnd={(e) => {
-                                      e.currentTarget.style.opacity = '1';
-                                      if (dragItemParams.current !== null && dragOverItemParams.current !== null) {
-                                          if (dragItemParams.current !== dragOverItemParams.current) {
-                                              const newBlocks = [...editBlocks];
-                                              const draggedBlock = newBlocks[dragItemParams.current];
-                                              newBlocks.splice(dragItemParams.current, 1);
-                                              newBlocks.splice(dragOverItemParams.current, 0, draggedBlock);
-                                              setEditBlocks(newBlocks);
-                                          }
-                                      }
-                                      dragItemParams.current = null;
-                                      dragOverItemParams.current = null;
-                                  }}
-                                  className={`cursor-grab active:cursor-grabbing flex items-center justify-between p-3 rounded-lg border transition-all ${isHidden ? 'bg-white/5 border-white/5 opacity-50' : 'bg-primary/20 border-primary/20'}`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className="cursor-grab text-slate-500">
-                                      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 3C4.67157 3 4 3.67157 4 4.5C4 5.32843 4.67157 6 5.5 6C6.32843 6 7 5.32843 7 4.5C7 3.67157 6.32843 3 5.5 3ZM5.5 5C5.22386 5 5 4.77614 5 4.5C5 4.22386 5.22386 4 5.5 4C5.77614 4 6 4.22386 6 4.5C6 4.77614 5.77614 5 5.5 5ZM5.5 7.5C4.67157 7.5 4 8.17157 4 9C4 9.82843 4.67157 10.5 5.5 10.5C6.32843 10.5 7 9.82843 7 9C7 8.17157 6.32843 7.5 5.5 7.5ZM5.5 9.5C5.22386 9.5 5 9.27614 5 9C5 8.72386 5.22386 8.5 5.5 8.5C5.77614 8.5 6 8.72386 6 9C6 9.27614 5.77614 9.5 5.5 9.5ZM4 13.5C4 12.6716 4.67157 12 5.5 12C6.32843 12 7 12.6716 7 13.5C7 14.3284 6.32843 15 5.5 15C4.67157 15 4 14.3284 4 13.5ZM5.5 14C5.22386 14 5 13.7761 5 13.5C5 13.2239 5.22386 13 5.5 13C5.77614 13 6 13.2239 6 13.5C6 13.7761 5.77614 14 5.5 14ZM8.5 4.5C8.5 3.67157 9.17157 3 10 3C10.8284 3 11.5 3.67157 11.5 4.5C11.5 5.32843 10.8284 6 10 6C9.17157 6 8.5 5.32843 8.5 4.5ZM10 5C9.72386 5 9.5 4.77614 9.5 4.5C9.5 4.22386 9.72386 4 10 4C10.2761 4 10.5 4.22386 10.5 4.5C10.5 4.77614 10.2761 5 10 5ZM8.5 9C8.5 8.17157 9.17157 7.5 10 7.5C10.8284 7.5 11.5 8.17157 11.5 9C11.5 9.82843 10.8284 10.5 10 10.5C9.17157 10.5 8.5 9.82843 8.5 9ZM10 9.5C9.72386 9.5 9.5 9.27614 9.5 9C9.5 8.72386 9.72386 8.5 10 8.5C10.2761 8.5 10.5 8.72386 10.5 9C10.5 9.27614 10.2761 9.5 10 9.5ZM8.5 13.5C8.5 12.6716 9.17157 12 10 12C10.8284 12 11.5 12.6716 11.5 13.5C11.5 14.3284 10.8284 15 10 15C9.17157 15 8.5 14.3284 8.5 13.5ZM10 14C9.72386 14 9.5 13.7761 9.5 13.5C9.5 13.2239 9.72386 13 10 13C10.2761 13 10.5 13.2239 10.5 13.5C10.5 13.7761 10.2761 14 10 14Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
-                                    </div>
-                                    <span className={`text-sm font-medium ${isHidden ? 'text-slate-400 line-through' : 'text-primary'} capitalize`}>
-                                       {blockId === 'info' ? 'Инфо' : blockId === 'stats' ? 'Статистика' : blockId === 'nav' ? 'Навигация' : blockId}
-                                    </span>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button onClick={() => {
-                                        const newBlocks = [...editBlocks];
-                                        newBlocks[index] = isHidden ? blockId : `hidden:${blockId}`;
-                                        setEditBlocks(newBlocks);
-                                    }} className={`p-1.5 rounded-md transition-all text-xs ${isHidden ? 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/20' : 'bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
-                                       <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
                       </div>
 
                       {/* Avatar Shape */}
@@ -1321,6 +1305,53 @@ const Profile: React.FC = () => {
             </div>
          </div>
       </div>
+      
+      {/* Floating Layout Edit Contols */}
+      {user && (
+         <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 items-end">
+            {isVisualEditMode && (
+               <div className="bg-surface border border-white/10 p-4 rounded-3xl shadow-2xl backdrop-blur-xl mb-4 w-72">
+                  <h3 className="text-white font-black uppercase text-sm mb-3">Скрытые блоки</h3>
+                  <div className="flex flex-wrap gap-2">
+                     {['info', 'stats', 'nav'].filter(id => editBlocks.includes(`hidden:${id}`)).map(id => (
+                        <button key={id} onClick={() => {
+                           setEditBlocks(editBlocks.map(b => b === `hidden:${id}` ? id : b));
+                        }} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all capitalize">
+                           + {id === 'info' ? 'Инфо' : id === 'stats' ? 'Статистика' : id === 'nav' ? 'Навигация' : id}
+                        </button>
+                     ))}
+                     {['info', 'stats', 'nav'].filter(id => editBlocks.includes(`hidden:${id}`)).length === 0 && (
+                        <p className="text-xs text-slate-500 italic">Нет скрытых блоков</p>
+                     )}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+                     <button onClick={async () => {
+                         await updateProfile({ profileBlocks: editBlocks, profilePositions: blockPositions });
+                         setIsVisualEditMode(false);
+                     }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2">
+                        <Save className="w-4 h-4" /> Сохранить макет
+                     </button>
+                     <button onClick={() => {
+                         setEditBlocks(user?.profileBlocks || ['info', 'stats', 'nav']);
+                         setBlockPositions(user?.profilePositions || {});
+                         setIsVisualEditMode(false);
+                     }} className="w-full py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold transition-all">
+                        Отменить
+                     </button>
+                  </div>
+               </div>
+            )}
+            
+            {!isVisualEditMode && !isEditing && (
+               <button onClick={() => setIsVisualEditMode(true)} className="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all outline-none focus:ring-4 focus:ring-primary/50 relative group">
+                  <Layout className="w-6 h-6" />
+                  <span className="absolute right-full mr-4 bg-black/80 px-3 py-1.5 rounded-lg text-xs font-bold uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                     Свой макет
+                  </span>
+               </button>
+            )}
+         </div>
+      )}
     </div>
   );
 };

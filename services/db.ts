@@ -359,6 +359,17 @@ class DatabaseService {
     }
   }
 
+  private safeParseObject(val: any): Record<string, any> {
+    if (val !== null && typeof val === 'object' && !Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+        try {
+            const parsed = JSON.parse(val);
+            return (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+        } catch { return {}; }
+    }
+    return {};
+  }
+
   private safeParseArray(val: any): any[] {
     if (Array.isArray(val)) return val;
     if (typeof val === 'string') {
@@ -402,6 +413,9 @@ class DatabaseService {
       profileBg: p.profile_bg,
       profileBanner: p.profile_banner,
       profileLayout: p.profile_layout as any,
+      profileBlocks: this.safeParseArray(p.profile_blocks),
+      profilePositions: this.safeParseObject(p.profile_positions),
+      textColor: p.text_color,
       themeColor: p.theme_color,
       avatarShape: p.avatar_shape as any,
       cardOpacity: p.card_opacity,
@@ -463,6 +477,9 @@ class DatabaseService {
       if (updates.cardOpacity !== undefined) mapped.card_opacity = updates.cardOpacity;
       if (updates.cardBlur !== undefined) mapped.card_blur = updates.cardBlur;
       if (updates.cardBg !== undefined) mapped.card_bg = updates.cardBg;
+      if (updates.textColor !== undefined) mapped.text_color = updates.textColor;
+      if (updates.profileBlocks !== undefined) mapped.profile_blocks = JSON.stringify(updates.profileBlocks);
+      if (updates.profilePositions !== undefined) mapped.profile_positions = JSON.stringify(updates.profilePositions);
       if (updates.friends !== undefined) mapped.friends = JSON.stringify(updates.friends);
       if (updates.shikimoriToken !== undefined) mapped.shikimori_token = updates.shikimoriToken;
       if (updates.shikimoriRefreshToken !== undefined) mapped.shikimori_refresh_token = updates.shikimoriRefreshToken;
