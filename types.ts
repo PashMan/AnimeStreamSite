@@ -56,6 +56,8 @@ export interface User {
   cardOpacity?: number; // 0-100
   cardBlur?: number; // 0-20
   cardBg?: string; // Hex color or image URL
+  textColor?: string;
+  profileBlocks?: string[]; // Array of block IDs: 'info', 'stats', 'details', 'nav'
   lastSeen?: string; // ISO date string
   role?: 'user' | 'admin' | 'moderator';
   isBanned?: boolean;

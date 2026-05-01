@@ -51,6 +51,9 @@ const Profile: React.FC = () => {
   const [editCardOpacity, setEditCardOpacity] = useState(user?.cardOpacity ?? 80);
   const [editCardBlur, setEditCardBlur] = useState(user?.cardBlur ?? 10);
   const [editCardBg, setEditCardBg] = useState(user?.cardBg || '');
+  const [editTextColor, setEditTextColor] = useState(user?.textColor || '#ffffff');
+  const [editBlocks, setEditBlocks] = useState(user?.profileBlocks || ['info', 'stats', 'nav']);
+  const [isConstructorOpen, setIsConstructorOpen] = useState(false);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
@@ -254,6 +257,8 @@ const Profile: React.FC = () => {
         setEditCardOpacity(user.cardOpacity ?? 80);
         setEditCardBlur(user.cardBlur ?? 10);
         setEditCardBg(user.cardBg || '');
+        setEditTextColor(user.textColor || '#ffffff');
+        setEditBlocks(user.profileBlocks || ['info', 'stats', 'nav']);
 
       } catch (err) {
         console.error(err);
@@ -441,9 +446,11 @@ const Profile: React.FC = () => {
         profileLayout: editLayout,
         themeColor: editTheme,
         avatarShape: editAvatarShape,
-        cardOpacity: editCardOpacity,
-        cardBlur: editCardBlur,
-        cardBg: editCardBg
+        cardOpacity: typeof editCardOpacity === 'number' ? editCardOpacity : 80,
+        cardBlur: typeof editCardBlur === 'number' ? editCardBlur : 10,
+        cardBg: editCardBg,
+        textColor: editTextColor,
+        profileBlocks: editBlocks
       });
       if (success) {
         setIsEditing(false);
@@ -483,22 +490,45 @@ const Profile: React.FC = () => {
       backgroundAttachment: 'fixed'
   } : {};
 
-  const currentCardOpacity = editCardOpacity;
-  const currentCardBlur = editCardBlur;
+  const currentCardOpacity = typeof editCardOpacity === 'number' ? editCardOpacity : 80;
+  const currentCardBlur = typeof editCardBlur === 'number' ? editCardBlur : 10;
   
   const currentCardBg = editCardBg;
+  const currentTextColor = editTextColor || '#ffffff';
+  const currentBlocks = editBlocks || ['info', 'stats', 'nav'];
+
+  const hexToRgba = (hex: string, alpha: number) => {
+      let r = 0, g = 0, b = 0;
+      if (hex.length === 4) {
+        r = parseInt(hex[1] + hex[1], 16);
+        g = parseInt(hex[2] + hex[2], 16);
+        b = parseInt(hex[3] + hex[3], 16);
+      } else if (hex.length >= 7) {
+        r = parseInt(hex[1] + hex[2], 16);
+        g = parseInt(hex[3] + hex[4], 16);
+        b = parseInt(hex[5] + hex[6], 16);
+      } else {
+        return `rgba(20, 20, 20, ${alpha})`;
+      }
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const isHex = currentCardBg?.startsWith('#');
+  const isImage = currentCardBg && !isHex && !currentCardBg.startsWith('rgb') && !currentCardBg.startsWith('rgba');
   
   const cardStyle = {
-      backgroundColor: currentCardBg 
-          ? (currentCardBg.startsWith('#') || currentCardBg.startsWith('rgb') ? currentCardBg : undefined)
-          : `rgba(20, 20, 20, ${currentCardOpacity / 100})`,
-      backgroundImage: currentCardBg && !currentCardBg.startsWith('#') && !currentCardBg.startsWith('rgb') 
-          ? `url(${currentCardBg})` 
+      backgroundColor: isHex 
+          ? hexToRgba(currentCardBg, currentCardOpacity / 100)
+          : (isImage ? `rgba(20, 20, 20, ${currentCardOpacity / 100})` : (currentCardBg || `rgba(20, 20, 20, ${currentCardOpacity / 100})`)),
+      backgroundImage: isImage 
+          ? `linear-gradient(rgba(0,0,0,${1 - currentCardOpacity / 100}), rgba(0,0,0,${1 - currentCardOpacity / 100})), url(${currentCardBg})` 
           : undefined,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backdropFilter: `blur(${currentCardBlur}px)`,
-      borderColor: currentTheme ? `${currentTheme}40` : undefined
+      WebkitBackdropFilter: `blur(${currentCardBlur}px)`,
+      borderColor: currentTheme ? `${currentTheme}40` : undefined,
+      color: currentTextColor
   };
 
   const currentAvatarShape = editAvatarShape;
@@ -528,94 +558,103 @@ const Profile: React.FC = () => {
          <div className={`flex ${currentLayout === 'centered' ? 'flex-col items-center max-w-4xl mx-auto' : currentLayout === 'reversed' ? 'flex-col lg:flex-row-reverse items-start' : 'flex-col lg:flex-row items-start'} gap-8 -mt-8 md:-mt-12 lg:-mt-16`}>
             
             {/* Sidebar Left */}
-            <aside className={`w-full ${currentLayout === 'centered' ? 'lg:mx-auto lg:max-w-md' : 'lg:w-80'} flex-shrink-0 mx-auto lg:mx-0`}>
-               <div className="border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl mb-6" id="profile-card" style={cardStyle}>
-                  
-                  {/* Avatar */}
-                  <div className="relative group mx-auto w-fit mb-6">
-                    <div className={`relative w-40 h-40 md:w-48 md:h-48 ${avatarClass} overflow-hidden border-4 border-surface shadow-2xl z-10`} style={{ borderColor: currentTheme || '#8b5cf6' }}>
-                      <img 
-                         src={editAvatar || user.avatar} 
-                         alt={user.name} 
-                         className="w-full h-full object-cover" 
-                      />
-                      {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-500 fill-current drop-shadow-lg" />}
+            <aside className={`w-full ${currentLayout === 'centered' ? 'lg:mx-auto lg:max-w-md' : 'lg:w-80'} flex-shrink-0 mx-auto lg:mx-0 flex flex-col gap-6`}>
+               {currentBlocks.map((blockIdFull) => {
+                 if (blockIdFull.startsWith('hidden:')) return null;
+                 const blockId = blockIdFull;
+                 
+                 if (blockId === 'info') return (
+                   <div key="info" className="border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl" id="profile-card-info" style={cardStyle}>
+                      {/* Avatar */}
+                      <div className="relative group mx-auto w-fit mb-6">
+                        <div className={`relative w-40 h-40 md:w-48 md:h-48 ${avatarClass} overflow-hidden border-4 border-surface shadow-2xl z-10`} style={{ borderColor: currentTheme || '#8b5cf6' }}>
+                          <img 
+                             src={editAvatar || user.avatar} 
+                             alt={user.name} 
+                             className="w-full h-full object-cover" 
+                          />
+                          {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-500 fill-current drop-shadow-lg" />}
+                          
+                          <label className={`absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${avatarClass}`}>
+                            {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
+                            <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
+                          </label>
+                        </div>
+                      </div>
                       
-                      <label className={`absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${avatarClass}`}>
-                        {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
-                        <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {uploadError && <p className="text-[10px] text-red-500 font-bold uppercase mb-4 text-center z-10 relative">{uploadError}</p>}
-                  
-                  <h1 className="text-2xl font-black text-white uppercase tracking-tight text-center z-10 relative">{user.name}</h1>
-                  <div className="flex flex-col items-center gap-3 mt-3 z-10 relative">
-                     <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`} style={{ color: currentTheme, borderColor: currentTheme, backgroundColor: currentTheme ? `${currentTheme}33` : undefined }}>
-                        {user.isPremium ? 'Premium ' : 'Пользователь'}
-                     </span>
-                  </div>
-                  {user.bio && <p className="mt-5 text-slate-400 text-sm leading-relaxed text-center z-10 relative">"{user.bio}"</p>}
-                  
-                  {/* --- STATS BLOCK --- */}
-                  <div className="flex flex-col w-full gap-3 mt-6 pt-6 border-t border-white/5 text-left z-10 relative">
-                     <div className="flex items-center gap-3 text-slate-300">
-                         <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: currentTheme ? `${currentTheme}33` : '#8b5cf633' }}>
-                            <CheckCircle className="w-4 h-4" style={{ color: currentTheme || '#8b5cf6' }} />
-                         </div>
-                         <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Просмотрено</span>
-                            <span className="font-black text-sm">{watchStats.episodes} серий</span>
-                         </div>
-                     </div>
-                     <div className="flex items-center gap-3 text-slate-300">
-                         <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-                            <History className="w-4 h-4 text-green-500" />
-                         </div>
-                         <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Потрачено</span>
-                            <span className="font-black text-sm">{watchStats.hours} часов</span>
-                         </div>
-                     </div>
-                  </div>
-                  {/* --- END STATS BLOCK --- */}
-               </div>
-
-               <nav className="rounded-3xl p-3 space-y-2 border shadow-xl transition-all duration-500" style={cardStyle}>
-                  <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'favs' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <div className="flex items-center gap-3"><Heart className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Избранное</span></div>
-                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allFavIds.length}</span>
-                  </button>
-                  <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watched' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <div className="flex items-center gap-3"><CheckCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Просмотрено</span></div>
-                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchedIds.length}</span>
-                  </button>
-                  <button onClick={() => setActiveTab('watching')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watching' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'watching' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Смотрю</span></div>
-                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchingIds.length}</span>
-                  </button>
-                  <button onClick={() => setActiveTab('dropped')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'dropped' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'dropped' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <div className="flex items-center gap-3"><X className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Брошено</span></div>
-                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allDroppedIds.length}</span>
-                  </button>
-                  <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'history' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'history' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <History className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">История</span>
-                  </button>
-                  <button onClick={() => setActiveTab('friends')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'friends' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'friends' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <div className="flex items-center gap-3"><Users className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Друзья</span></div>
-                    <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{friends.length}</span>
-                  </button>
-                  <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
-                  </button>
-                  <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'text-white' : 'text-slate-500 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: currentTheme || '#8b5cf6' } : {}}>
-                    <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
-                  </button>
-                  <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'text-black' : 'text-yellow-500 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308' } : {}}>
-                    <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
-                  </button>
-               </nav>
+                      {uploadError && <p className="text-[10px] text-red-500 font-bold uppercase mb-4 text-center z-10 relative">{uploadError}</p>}
+                      
+                      <h1 className="text-2xl font-black text-white uppercase tracking-tight text-center z-10 relative">{user.name}</h1>
+                      <div className="flex flex-col items-center gap-3 mt-3 z-10 relative">
+                         <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`} style={{ color: currentTheme, borderColor: currentTheme, backgroundColor: currentTheme ? `${currentTheme}33` : undefined }}>
+                            {user.isPremium ? 'Premium ' : 'Пользователь'}
+                         </span>
+                      </div>
+                      {user.bio && <p className="mt-5 opacity-80 text-sm leading-relaxed text-center z-10 relative">"{user.bio}"</p>}
+                   </div>
+                 );
+                 
+                 if (blockId === 'stats') return (
+                   <div key="stats" className="border border-white/5 rounded-3xl p-6 relative overflow-hidden transition-all duration-500 shadow-2xl flex flex-col gap-3 text-left" id="profile-card-stats" style={cardStyle}>
+                       <div className="flex items-center gap-3 opacity-90">
+                           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: currentTheme ? `${currentTheme}33` : '#8b5cf633' }}>
+                              <CheckCircle className="w-4 h-4" style={{ color: currentTheme || '#8b5cf6' }} />
+                           </div>
+                           <div className="flex flex-col">
+                              <span className="text-[10px] uppercase font-bold tracking-widest opacity-70">Просмотрено</span>
+                              <span className="font-black text-sm">{watchStats.episodes} серий</span>
+                           </div>
+                       </div>
+                       <div className="flex items-center gap-3 opacity-90">
+                           <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                              <History className="w-4 h-4 text-green-500" />
+                           </div>
+                           <div className="flex flex-col">
+                              <span className="text-[10px] uppercase font-bold tracking-widest opacity-70">Потрачено</span>
+                              <span className="font-black text-sm">{watchStats.hours} часов</span>
+                           </div>
+                       </div>
+                   </div>
+                 );
+                 
+                 if (blockId === 'nav') return (
+                   <nav key="nav" className="rounded-3xl p-3 space-y-2 border shadow-xl transition-all duration-500" style={cardStyle}>
+                      <button onClick={() => setActiveTab('favs')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'favs' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'favs' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <div className="flex items-center gap-3"><Heart className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Избранное</span></div>
+                        <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allFavIds.length}</span>
+                      </button>
+                      <button onClick={() => setActiveTab('watched')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watched' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'watched' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <div className="flex items-center gap-3"><CheckCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Просмотрено</span></div>
+                        <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchedIds.length}</span>
+                      </button>
+                      <button onClick={() => setActiveTab('watching')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'watching' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'watching' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <div className="flex items-center gap-3"><PlayCircle className="w-5 h-5 fill-current" /><span className="font-black text-[10px] uppercase tracking-widest">Смотрю</span></div>
+                        <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allWatchingIds.length}</span>
+                      </button>
+                      <button onClick={() => setActiveTab('dropped')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'dropped' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'dropped' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <div className="flex items-center gap-3"><X className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Брошено</span></div>
+                        <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{allDroppedIds.length}</span>
+                      </button>
+                      <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'history' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'history' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <History className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">История</span>
+                      </button>
+                      <button onClick={() => setActiveTab('friends')} className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all ${activeTab === 'friends' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'friends' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <div className="flex items-center gap-3"><Users className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Друзья</span></div>
+                        <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{friends.length}</span>
+                      </button>
+                      <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
+                      </button>
+                      <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                        <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
+                      </button>
+                      <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'opacity-100' : 'text-yellow-500 opacity-80 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308', color: '#000' } : {}}>
+                        <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
+                      </button>
+                   </nav>
+                 );
+                 return null;
+               })}
             </aside>
 
             {/* Main Content Area */}
@@ -785,6 +824,9 @@ const Profile: React.FC = () => {
                                 <button onClick={() => bannerInputRef.current?.click()} disabled={isUploadingBanner} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
                                    {isUploadingBanner ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
                                 </button>
+                                <button onClick={() => setEditBanner('')} className="px-4 py-2 bg-white/5 hover:bg-red-500/20 text-red-400 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0">
+                                   <X className="w-3 h-3" /> Очистить
+                                </button>
                                 <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={handleBannerUpload} />
                               </div>
                            </div>
@@ -810,6 +852,9 @@ const Profile: React.FC = () => {
                            <button onClick={() => bgInputRef.current?.click()} disabled={isUploadingBg} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
                                {isUploadingBg ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
                            </button>
+                           <button onClick={() => setEditBg('')} className="px-4 py-2 bg-white/5 hover:bg-red-500/20 text-red-400 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0">
+                               <X className="w-3 h-3" /> Очистить
+                           </button>
                            <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
                         </div>
                       </div>
@@ -829,6 +874,28 @@ const Profile: React.FC = () => {
                                 type="text" 
                                 value={editTheme} 
                                 onChange={(e) => setEditTheme(e.target.value)} 
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white font-mono uppercase focus:outline-none transition-all"
+                                style={{ focus: { borderColor: currentTheme || '#8b5cf6' } } as React.CSSProperties}
+                             />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Text Color */}
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Цвет текста</label>
+                        <div className="flex items-center gap-4">
+                          <input 
+                            type="color" 
+                            value={editTextColor} 
+                            onChange={(e) => setEditTextColor(e.target.value)}
+                            className="w-12 h-12 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                          />
+                          <div className="flex-1">
+                             <input 
+                                type="text" 
+                                value={editTextColor} 
+                                onChange={(e) => setEditTextColor(e.target.value)} 
                                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white font-mono uppercase focus:outline-none transition-all"
                                 style={{ focus: { borderColor: currentTheme || '#8b5cf6' } } as React.CSSProperties}
                              />
@@ -863,6 +930,9 @@ const Profile: React.FC = () => {
                             <button onClick={() => cardBgInputRef.current?.click()} disabled={isUploadingCardBg} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
                                {isUploadingCardBg ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
                            </button>
+                           <button onClick={() => setEditCardBg('')} className="px-4 py-2 bg-white/5 hover:bg-red-500/20 text-red-400 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0">
+                               <X className="w-3 h-3" /> Очистить
+                           </button>
                            <input type="file" ref={cardBgInputRef} className="hidden" accept="image/*" onChange={handleCardBgUpload} />
                         </div>
                       </div>
@@ -896,6 +966,51 @@ const Profile: React.FC = () => {
                             <span className="text-[10px] font-bold uppercase">Центр</span>
                           </button>
                         </div>
+                        <button
+                          onClick={() => setIsConstructorOpen(!isConstructorOpen)}
+                          className="w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-sm font-bold text-white transition-all"
+                        >
+                          <Layout className="w-4 h-4" /> Конструктор
+                        </button>
+                        {isConstructorOpen && (
+                          <div className="p-4 rounded-xl border border-white/10 bg-black/20 space-y-3 mt-2">
+                            <p className="text-xs text-slate-400 mb-2">Нажмите на блоки, чтобы скрыть/показать или перетащите для изменения порядка.</p>
+                            {editBlocks.map((blockIdFull, index) => {
+                              const isHidden = blockIdFull.startsWith('hidden:');
+                              const blockId = isHidden ? blockIdFull.replace('hidden:', '') : blockIdFull;
+                              return (
+                                <div key={blockId} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${isHidden ? 'bg-white/5 border-white/5 opacity-50' : 'bg-primary/20 border-primary/20'}`}>
+                                  <span className={`text-sm font-medium ${isHidden ? 'text-slate-400 line-through' : 'text-primary'} capitalize`}>
+                                     {blockId === 'info' ? 'Инфо' : blockId === 'stats' ? 'Статистика' : blockId === 'nav' ? 'Навигация' : blockId}
+                                  </span>
+                                  <div className="flex gap-2">
+                                    <button onClick={() => {
+                                        if (index > 0) {
+                                            const newBlocks = [...editBlocks];
+                                            [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]];
+                                            setEditBlocks(newBlocks);
+                                        }
+                                    }} className="p-1.5 text-slate-400 hover:text-white bg-white/5 rounded-md hover:bg-white/20 transition-all text-xs">&uarr;</button>
+                                    <button onClick={() => {
+                                        if (index < editBlocks.length - 1) {
+                                            const newBlocks = [...editBlocks];
+                                            [newBlocks[index + 1], newBlocks[index]] = [newBlocks[index], newBlocks[index + 1]];
+                                            setEditBlocks(newBlocks);
+                                        }
+                                    }} className="p-1.5 text-slate-400 hover:text-white bg-white/5 rounded-md hover:bg-white/20 transition-all text-xs">&darr;</button>
+                                    <button onClick={() => {
+                                        const newBlocks = [...editBlocks];
+                                        newBlocks[index] = isHidden ? blockId : `hidden:${blockId}`;
+                                        setEditBlocks(newBlocks);
+                                    }} className={`p-1.5 rounded-md transition-all text-xs ${isHidden ? 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/20' : 'bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
+                                       <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       {/* Avatar Shape */}
