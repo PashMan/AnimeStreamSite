@@ -149,9 +149,26 @@ export const onRequestPost = async (context: any) => {
         } catch(lastErr: any) {
            throw new Error('Auto-migrate failed: ' + lastErr.message + ' | Original: ' + e.message);
         }
-      } else if (e.message && e.message.includes('card_bg')) {
+      } else if (e.message && (e.message.includes('card_bg') || e.message.includes('profile_blocks') || e.message.includes('profile_positions') || e.message.includes('theme_color') || e.message.includes('text_color') || e.message.includes('profile_layout'))) {
          try {
             await db.prepare('ALTER TABLE profiles ADD COLUMN card_bg TEXT').run();
+         } catch(e2) {}
+         try {
+            await db.prepare('ALTER TABLE profiles ADD COLUMN profile_blocks TEXT').run();
+         } catch(e2) {}
+         try {
+            await db.prepare('ALTER TABLE profiles ADD COLUMN profile_positions TEXT').run();
+         } catch(e2) {}
+         try {
+            await db.prepare('ALTER TABLE profiles ADD COLUMN theme_color TEXT').run();
+         } catch(e2) {}
+         try {
+            await db.prepare('ALTER TABLE profiles ADD COLUMN text_color TEXT').run();
+         } catch(e2) {}
+         try {
+            await db.prepare('ALTER TABLE profiles ADD COLUMN profile_layout TEXT').run();
+         } catch(e2) {}
+         try {
             result = await db.prepare(query).bind(...params).all();
          } catch(e2) { throw e; }
       } else if (e.message && e.message.includes('shikimori')) {

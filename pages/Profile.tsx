@@ -53,8 +53,8 @@ const Profile: React.FC = () => {
   const [editCardBlur, setEditCardBlur] = useState(user?.cardBlur ?? 10);
   const [editCardBg, setEditCardBg] = useState(user?.cardBg || '');
   const [editTextColor, setEditTextColor] = useState(user?.textColor || '#ffffff');
-  const [editBlocks, setEditBlocks] = useState<string[]>(user?.profileBlocks || ['info', 'stats', 'nav']);
-  const [blockPositions, setBlockPositions] = useState<Record<string, {x: number, y: number}>>(user?.profilePositions || {});
+  const [editBlocks, setEditBlocks] = useState<string[]>(user?.profileBlocks?.length ? user.profileBlocks : ['info', 'stats', 'nav']);
+  const [blockPositions, setBlockPositions] = useState<Record<string, {x: number, y: number}>>(user?.profilePositions && Object.keys(user.profilePositions).length ? user.profilePositions : {});
   const [isVisualEditMode, setIsVisualEditMode] = useState(false);
 
   const [isUploading, setIsUploading] = useState(false);
@@ -498,7 +498,7 @@ const Profile: React.FC = () => {
   
   const currentCardBg = editCardBg;
   const currentTextColor = editTextColor || '#ffffff';
-  const currentBlocks = editBlocks || ['info', 'stats', 'nav'];
+  const currentBlocks = editBlocks?.length ? editBlocks : ['info', 'stats', 'nav'];
 
   const hexToRgba = (hex: string, alpha: number) => {
       let r = 0, g = 0, b = 0;
