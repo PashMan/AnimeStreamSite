@@ -260,7 +260,7 @@ const Profile: React.FC = () => {
         setEditCardBlur(user.cardBlur ?? 10);
         setEditCardBg(user.cardBg || '');
         setEditTextColor(user.textColor || '#ffffff');
-        setEditBlocks(user.profileBlocks || ['info', 'stats', 'nav']);
+        setEditBlocks(user.profileBlocks?.length ? user.profileBlocks : ['info', 'stats', 'nav']);
 
       } catch (err) {
         console.error(err);
@@ -1474,7 +1474,7 @@ const Profile: React.FC = () => {
                         <Save className="w-4 h-4" /> Сохранить макет
                      </button>
                      <button onClick={() => {
-                         setEditBlocks(user?.profileBlocks || ['info', 'stats', 'nav']);
+                         setEditBlocks(user?.profileBlocks?.length ? user.profileBlocks : ['info', 'stats', 'nav']);
                          setBlockPositions(user?.profilePositions || {});
                          setIsVisualEditMode(false);
                      }} className="w-full py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold transition-all">
