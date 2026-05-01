@@ -523,7 +523,12 @@ const Profile: React.FC = () => {
   const cardStyle = {
       backgroundColor: isHex 
           ? hexToRgba(currentCardBg, cardAlpha)
-          : (isImage ? 'transparent' : (currentCardBg || `rgba(20, 20, 20, ${cardAlpha})`)),
+          : (isImage ? `rgba(20, 20, 20, ${1 - cardAlpha})` : (currentCardBg || `rgba(20, 20, 20, ${cardAlpha})`)),
+      backgroundImage: isImage 
+          ? `linear-gradient(rgba(20,20,20,${1 - cardAlpha}), rgba(20,20,20,${1 - cardAlpha})), url(${currentCardBg})` 
+          : undefined,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
       backdropFilter: `blur(${currentCardBlur}px)`,
       WebkitBackdropFilter: `blur(${currentCardBlur}px)`,
       borderColor: currentTheme ? `${currentTheme}40` : undefined,
@@ -557,18 +562,6 @@ const Profile: React.FC = () => {
            style={{ zIndex: isVisualEditMode ? 50 : 10, position: 'relative' }}
            className={isVisualEditMode ? "cursor-grab active:cursor-grabbing hover:ring-2 ring-primary transition-shadow rounded-3xl" : ""}
          >
-           {isImage && (
-             <div 
-               className="absolute inset-0 rounded-3xl pointer-events-none -z-10" 
-               style={{ 
-                  backgroundImage: `url(${currentCardBg})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  opacity: cardAlpha,
-                  borderRadius: 'inherit'
-               }} 
-             />
-           )}
            {isVisualEditMode && (
               <button 
                 onClick={(e) => {
