@@ -54,7 +54,7 @@ const Profile: React.FC = () => {
   const [editCardBg, setEditCardBg] = useState(user?.cardBg || '');
   const [editTextColor, setEditTextColor] = useState(user?.textColor || '#ffffff');
   const [editBlocks, setEditBlocks] = useState<string[]>(user?.profileBlocks?.length ? user.profileBlocks : ['info', 'stats', 'nav']);
-  const [blockPositions, setBlockPositions] = useState<Record<string, {x: number, y: number}>>(user?.profilePositions && Object.keys(user.profilePositions).length ? user.profilePositions : {});
+  const [blockPositions, setBlockPositions] = useState<Record<string, {x: number, y: number, scale?: number}>>(user?.profilePositions && Object.keys(user.profilePositions).length ? user.profilePositions : {});
   const [isVisualEditMode, setIsVisualEditMode] = useState(false);
 
   const [isUploading, setIsUploading] = useState(false);
@@ -542,17 +542,22 @@ const Profile: React.FC = () => {
 
   const renderDraggableBlock = (blockId: string, content: React.ReactNode, isHidable: boolean = true, extraClass: string = "") => {
       const pos = isVisualEditMode ? blockPositions[blockId] : user?.profilePositions?.[blockId];
+      
+      // Hide content block if it's explicitly marked as hidden
+      if (blockId === 'content' && editBlocks.includes('hidden:content')) return null;
+
       return (
          <motion.div
            key={blockId}
            drag={isVisualEditMode}
            dragMomentum={false}
-           animate={{ x: pos?.x || 0, y: pos?.y || 0 }}
+           animate={{ x: pos?.x || 0, y: pos?.y || 0, scale: pos?.scale || 1 }}
            onDragEnd={(e, info) => {
               if (isVisualEditMode) {
                  setBlockPositions(prev => ({
                     ...prev,
                     [blockId]: {
+                       ...prev[blockId],
                        x: (prev[blockId]?.x || 0) + info.offset.x,
                        y: (prev[blockId]?.y || 0) + info.offset.y
                     }
@@ -560,18 +565,67 @@ const Profile: React.FC = () => {
               }
            }}
            style={{ zIndex: isVisualEditMode ? 50 : 10, position: 'relative' }}
-           className={`${extraClass} ${isVisualEditMode ? "cursor-grab active:cursor-grabbing hover:ring-2 ring-primary transition-shadow rounded-3xl" : ""}`}
+           className={`${extraClass} ${isVisualEditMode ? "cursor-grab active:cursor-grabbing hover:ring-2 ring-primary transition-shadow rounded-3xl group" : ""}`}
          >
-           {isVisualEditMode && isHidable && (
-              <button 
-                onClick={(e) => {
-                   e.stopPropagation();
-                   setEditBlocks(editBlocks.map(b => b === blockId ? `hidden:${blockId}` : b));
-                }}
-                className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl z-50 cursor-pointer transition-transform hover:scale-110"
-              >
-                 <X className="w-4 h-4" />
-              </button>
+           {isVisualEditMode && (
+              <>
+                {isHidable && (
+                  <button 
+                    onClick={(e) => {
+                       e.stopPropagation();
+                       const isBlockInList = editBlocks.some(b => b === blockId || b === `hidden:${blockId}`);
+                       if (isBlockInList) {
+                           setEditBlocks(editBlocks.map(b => b === blockId ? `hidden:${blockId}` : b));
+                       } else {
+                           setEditBlocks([...editBlocks, `hidden:${blockId}`]);
+                       }
+                    }}
+                    className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl z-50 cursor-pointer transition-transform hover:scale-110 opacity-0 group-hover:opacity-100"
+                  >
+                     <X className="w-4 h-4" />
+                  </button>
+                )}
+                
+                <div className="absolute -bottom-4 right-4 flex gap-1 z-50 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 p-1 rounded-xl shadow-2xl backdrop-blur-md border border-white/10">
+                   <button
+                      onClick={(e) => {
+                         e.stopPropagation();
+                         setBlockPositions(prev => ({
+                            ...prev,
+                            [blockId]: {
+                               ...prev[blockId],
+                               x: prev[blockId]?.x || 0,
+                               y: prev[blockId]?.y || 0,
+                               scale: Math.max(0.5, (prev[blockId]?.scale || 1) - 0.05)
+                            }
+                         }));
+                      }}
+                      className="w-8 h-8 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+                   >
+                      -
+                   </button>
+                   <div className="flex items-center justify-center px-2 text-[10px] font-black text-white/70 w-12 text-center">
+                     {Math.round((pos?.scale || 1) * 100)}%
+                   </div>
+                   <button
+                      onClick={(e) => {
+                         e.stopPropagation();
+                         setBlockPositions(prev => ({
+                            ...prev,
+                            [blockId]: {
+                               ...prev[blockId],
+                               x: prev[blockId]?.x || 0,
+                               y: prev[blockId]?.y || 0,
+                               scale: Math.min(2, (prev[blockId]?.scale || 1) + 0.05)
+                            }
+                         }));
+                      }}
+                      className="w-8 h-8 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+                   >
+                      +
+                   </button>
+                </div>
+              </>
            )}
            {content}
          </motion.div>
@@ -1401,14 +1455,14 @@ const Profile: React.FC = () => {
                <div className="bg-surface border border-white/10 p-4 rounded-3xl shadow-2xl backdrop-blur-xl mb-4 w-72">
                   <h3 className="text-white font-black uppercase text-sm mb-3">Скрытые блоки</h3>
                   <div className="flex flex-wrap gap-2">
-                     {['info', 'stats', 'nav'].filter(id => editBlocks.includes(`hidden:${id}`)).map(id => (
+                     {['info', 'stats', 'nav', 'content'].filter(id => editBlocks.includes(`hidden:${id}`)).map(id => (
                         <button key={id} onClick={() => {
                            setEditBlocks(editBlocks.map(b => b === `hidden:${id}` ? id : b));
                         }} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all capitalize">
-                           + {id === 'info' ? 'Инфо' : id === 'stats' ? 'Статистика' : id === 'nav' ? 'Навигация' : id}
+                           + {id === 'info' ? 'Инфо' : id === 'stats' ? 'Статистика' : id === 'nav' ? 'Навигация' : id === 'content' ? 'Основной Контент' : id}
                         </button>
                      ))}
-                     {['info', 'stats', 'nav'].filter(id => editBlocks.includes(`hidden:${id}`)).length === 0 && (
+                     {['info', 'stats', 'nav', 'content'].filter(id => editBlocks.includes(`hidden:${id}`)).length === 0 && (
                         <p className="text-xs text-slate-500 italic">Нет скрытых блоков</p>
                      )}
                   </div>
