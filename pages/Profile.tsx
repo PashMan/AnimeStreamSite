@@ -54,6 +54,8 @@ const Profile: React.FC = () => {
   const [editTextColor, setEditTextColor] = useState(user?.textColor || '#ffffff');
   const [editBlocks, setEditBlocks] = useState(user?.profileBlocks || ['info', 'stats', 'nav']);
   const [isConstructorOpen, setIsConstructorOpen] = useState(false);
+  const dragItemParams = useRef<number | null>(null);
+  const dragOverItemParams = useRef<number | null>(null);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
@@ -979,25 +981,43 @@ const Profile: React.FC = () => {
                               const isHidden = blockIdFull.startsWith('hidden:');
                               const blockId = isHidden ? blockIdFull.replace('hidden:', '') : blockIdFull;
                               return (
-                                <div key={blockId} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${isHidden ? 'bg-white/5 border-white/5 opacity-50' : 'bg-primary/20 border-primary/20'}`}>
-                                  <span className={`text-sm font-medium ${isHidden ? 'text-slate-400 line-through' : 'text-primary'} capitalize`}>
-                                     {blockId === 'info' ? 'Инфо' : blockId === 'stats' ? 'Статистика' : blockId === 'nav' ? 'Навигация' : blockId}
-                                  </span>
+                                <div 
+                                  key={blockId} 
+                                  draggable
+                                  onDragStart={(e) => {
+                                      dragItemParams.current = index;
+                                      e.currentTarget.style.opacity = '0.5';
+                                  }}
+                                  onDragEnter={(e) => {
+                                      dragOverItemParams.current = index;
+                                      e.preventDefault();
+                                  }}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDragEnd={(e) => {
+                                      e.currentTarget.style.opacity = '1';
+                                      if (dragItemParams.current !== null && dragOverItemParams.current !== null) {
+                                          if (dragItemParams.current !== dragOverItemParams.current) {
+                                              const newBlocks = [...editBlocks];
+                                              const draggedBlock = newBlocks[dragItemParams.current];
+                                              newBlocks.splice(dragItemParams.current, 1);
+                                              newBlocks.splice(dragOverItemParams.current, 0, draggedBlock);
+                                              setEditBlocks(newBlocks);
+                                          }
+                                      }
+                                      dragItemParams.current = null;
+                                      dragOverItemParams.current = null;
+                                  }}
+                                  className={`cursor-grab active:cursor-grabbing flex items-center justify-between p-3 rounded-lg border transition-all ${isHidden ? 'bg-white/5 border-white/5 opacity-50' : 'bg-primary/20 border-primary/20'}`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="cursor-grab text-slate-500">
+                                      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 3C4.67157 3 4 3.67157 4 4.5C4 5.32843 4.67157 6 5.5 6C6.32843 6 7 5.32843 7 4.5C7 3.67157 6.32843 3 5.5 3ZM5.5 5C5.22386 5 5 4.77614 5 4.5C5 4.22386 5.22386 4 5.5 4C5.77614 4 6 4.22386 6 4.5C6 4.77614 5.77614 5 5.5 5ZM5.5 7.5C4.67157 7.5 4 8.17157 4 9C4 9.82843 4.67157 10.5 5.5 10.5C6.32843 10.5 7 9.82843 7 9C7 8.17157 6.32843 7.5 5.5 7.5ZM5.5 9.5C5.22386 9.5 5 9.27614 5 9C5 8.72386 5.22386 8.5 5.5 8.5C5.77614 8.5 6 8.72386 6 9C6 9.27614 5.77614 9.5 5.5 9.5ZM4 13.5C4 12.6716 4.67157 12 5.5 12C6.32843 12 7 12.6716 7 13.5C7 14.3284 6.32843 15 5.5 15C4.67157 15 4 14.3284 4 13.5ZM5.5 14C5.22386 14 5 13.7761 5 13.5C5 13.2239 5.22386 13 5.5 13C5.77614 13 6 13.2239 6 13.5C6 13.7761 5.77614 14 5.5 14ZM8.5 4.5C8.5 3.67157 9.17157 3 10 3C10.8284 3 11.5 3.67157 11.5 4.5C11.5 5.32843 10.8284 6 10 6C9.17157 6 8.5 5.32843 8.5 4.5ZM10 5C9.72386 5 9.5 4.77614 9.5 4.5C9.5 4.22386 9.72386 4 10 4C10.2761 4 10.5 4.22386 10.5 4.5C10.5 4.77614 10.2761 5 10 5ZM8.5 9C8.5 8.17157 9.17157 7.5 10 7.5C10.8284 7.5 11.5 8.17157 11.5 9C11.5 9.82843 10.8284 10.5 10 10.5C9.17157 10.5 8.5 9.82843 8.5 9ZM10 9.5C9.72386 9.5 9.5 9.27614 9.5 9C9.5 8.72386 9.72386 8.5 10 8.5C10.2761 8.5 10.5 8.72386 10.5 9C10.5 9.27614 10.2761 9.5 10 9.5ZM8.5 13.5C8.5 12.6716 9.17157 12 10 12C10.8284 12 11.5 12.6716 11.5 13.5C11.5 14.3284 10.8284 15 10 15C9.17157 15 8.5 14.3284 8.5 13.5ZM10 14C9.72386 14 9.5 13.7761 9.5 13.5C9.5 13.2239 9.72386 13 10 13C10.2761 13 10.5 13.2239 10.5 13.5C10.5 13.7761 10.2761 14 10 14Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
+                                    </div>
+                                    <span className={`text-sm font-medium ${isHidden ? 'text-slate-400 line-through' : 'text-primary'} capitalize`}>
+                                       {blockId === 'info' ? 'Инфо' : blockId === 'stats' ? 'Статистика' : blockId === 'nav' ? 'Навигация' : blockId}
+                                    </span>
+                                  </div>
                                   <div className="flex gap-2">
-                                    <button onClick={() => {
-                                        if (index > 0) {
-                                            const newBlocks = [...editBlocks];
-                                            [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]];
-                                            setEditBlocks(newBlocks);
-                                        }
-                                    }} className="p-1.5 text-slate-400 hover:text-white bg-white/5 rounded-md hover:bg-white/20 transition-all text-xs">&uarr;</button>
-                                    <button onClick={() => {
-                                        if (index < editBlocks.length - 1) {
-                                            const newBlocks = [...editBlocks];
-                                            [newBlocks[index + 1], newBlocks[index]] = [newBlocks[index], newBlocks[index + 1]];
-                                            setEditBlocks(newBlocks);
-                                        }
-                                    }} className="p-1.5 text-slate-400 hover:text-white bg-white/5 rounded-md hover:bg-white/20 transition-all text-xs">&darr;</button>
                                     <button onClick={() => {
                                         const newBlocks = [...editBlocks];
                                         newBlocks[index] = isHidden ? blockId : `hidden:${blockId}`;
