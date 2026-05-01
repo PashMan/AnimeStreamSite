@@ -540,7 +540,7 @@ const Profile: React.FC = () => {
   const currentBanner = editBanner;
   const currentLayout = editLayout;
 
-  const renderDraggableBlock = (blockId: string, content: React.ReactNode) => {
+  const renderDraggableBlock = (blockId: string, content: React.ReactNode, isHidable: boolean = true, extraClass: string = "") => {
       const pos = isVisualEditMode ? blockPositions[blockId] : user?.profilePositions?.[blockId];
       return (
          <motion.div
@@ -560,9 +560,9 @@ const Profile: React.FC = () => {
               }
            }}
            style={{ zIndex: isVisualEditMode ? 50 : 10, position: 'relative' }}
-           className={isVisualEditMode ? "cursor-grab active:cursor-grabbing hover:ring-2 ring-primary transition-shadow rounded-3xl" : ""}
+           className={`${extraClass} ${isVisualEditMode ? "cursor-grab active:cursor-grabbing hover:ring-2 ring-primary transition-shadow rounded-3xl" : ""}`}
          >
-           {isVisualEditMode && (
+           {isVisualEditMode && isHidable && (
               <button 
                 onClick={(e) => {
                    e.stopPropagation();
@@ -587,17 +587,19 @@ const Profile: React.FC = () => {
       />
       
       {/* Top Banner (New Design) */}
-      <div className="h-64 md:h-80 relative overflow-hidden bg-surface" style={{ maskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)' }}>
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface/95 z-10 pointer-events-none"></div>
-        {currentBanner ? (
-          <img src={currentBanner} alt="Banner" className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full" style={{ backgroundColor: currentTheme ? `${currentTheme}33` : '#8b5cf633' }}></div>
-        )}
-      </div>
+      {currentBanner !== 'none' && (
+        <div className="h-64 md:h-80 relative overflow-hidden bg-surface" style={{ maskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 50%, transparent 100%)' }}>
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface/95 z-10 pointer-events-none"></div>
+          {currentBanner ? (
+            <img src={currentBanner} alt="Banner" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full" style={{ backgroundColor: currentTheme ? `${currentTheme}33` : '#8b5cf633' }}></div>
+          )}
+        </div>
+      )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 pb-10 xl:px-0">
-         <div className={`flex ${currentLayout === 'centered' ? 'flex-col items-center max-w-4xl mx-auto' : currentLayout === 'reversed' ? 'flex-col lg:flex-row-reverse items-start' : 'flex-col lg:flex-row items-start'} gap-8 -mt-8 md:-mt-12 lg:-mt-16`}>
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 pb-10 xl:px-0 ${currentBanner === 'none' ? 'pt-24 md:pt-32' : ''}`}>
+         <div className={`flex ${currentLayout === 'centered' ? 'flex-col items-center max-w-4xl mx-auto' : currentLayout === 'reversed' ? 'flex-col lg:flex-row-reverse items-start' : 'flex-col lg:flex-row items-start'} gap-8 ${currentBanner !== 'none' ? '-mt-8 md:-mt-12 lg:-mt-16' : ''}`}>
             
             {/* Sidebar Left */}
             <aside className={`w-full ${currentLayout === 'centered' ? 'lg:mx-auto lg:max-w-md' : 'lg:w-80'} flex-shrink-0 mx-auto lg:mx-0 flex flex-col gap-6`}>
@@ -704,7 +706,8 @@ const Profile: React.FC = () => {
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-grow space-y-12 relative z-10 w-full min-w-0 pt-0">
+            {renderDraggableBlock('content', (
+               <div className="space-y-12 w-full min-w-0 pt-0">
                {isLoading ? (
                  <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin" style={{ color: currentTheme || '#8b5cf6' }} /></div>
                ) : activeTab === 'settings' ? (
@@ -829,16 +832,24 @@ const Profile: React.FC = () => {
                  </section>
                ) : activeTab === 'design' ? (
                  <section className="p-10 rounded-[2.5rem] border shadow-2xl animate-in fade-in duration-500" style={cardStyle}>
-                    <div className="flex items-center justify-between mb-10">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
                       <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Дизайн профиля</h3>
-                      <button 
-                        onClick={handleSaveProfile}
-                        disabled={isActionLoading}
-                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:opacity-90 transition-opacity border"
-                        style={{ backgroundColor: currentTheme || '#8b5cf6', borderColor: currentTheme ? `${currentTheme}40` : '#8b5cf640', boxShadow: currentTheme ? `0 4px 14px 0 ${currentTheme}40` : undefined }}
-                      >
-                        {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Сохранить изменения
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={handleSaveProfile}
+                          disabled={isActionLoading}
+                          className="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:opacity-90 transition-opacity border flex-grow md:flex-grow-0"
+                          style={{ backgroundColor: currentTheme || '#8b5cf6', borderColor: currentTheme ? `${currentTheme}40` : '#8b5cf640', boxShadow: currentTheme ? `0 4px 14px 0 ${currentTheme}40` : undefined }}
+                        >
+                          {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Сохранить изменения
+                        </button>
+                        <button 
+                          onClick={() => setActiveTab('favs')} 
+                          className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/10 text-slate-300 hover:text-white shrink-0"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -847,8 +858,13 @@ const Profile: React.FC = () => {
                          <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Баннер профиля (URL или Файл)</label>
                          <div className="flex flex-col md:flex-row items-center gap-6">
                            <div className="w-full md:w-64 h-32 bg-black/20 rounded-2xl border border-white/10 overflow-hidden relative group shrink-0">
-                             {editBanner ? (
+                             {editBanner && editBanner !== 'none' ? (
                                <img src={editBanner} alt="Banner Preview" className="w-full h-full object-cover" />
+                             ) : editBanner === 'none' ? (
+                               <div className="w-full h-full flex flex-col items-center justify-center bg-black/40">
+                                 <X className="w-8 h-8 text-red-500 mb-2" />
+                                 <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Баннер скрыт</span>
+                               </div>
                              ) : (
                                <div className="w-full h-full flex items-center justify-center">
                                  <ImageIcon className="w-8 h-8 text-slate-600" />
@@ -860,18 +876,22 @@ const Profile: React.FC = () => {
                                 <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
                                 <input 
                                   type="text" 
-                                  value={editBanner} 
+                                  value={editBanner === 'none' ? '' : editBanner} 
                                   onChange={(e) => setEditBanner(e.target.value)} 
                                   placeholder="https://example.com/banner.jpg" 
-                                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:outline-none transition-all" 
+                                  disabled={editBanner === 'none'}
+                                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:outline-none transition-all disabled:opacity-50" 
                                 />
                               </div>
-                              <div className="flex items-center gap-4">
-                                <button onClick={() => bannerInputRef.current?.click()} disabled={isUploadingBanner} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0">
+                              <div className="flex flex-wrap items-center gap-4">
+                                <button onClick={() => bannerInputRef.current?.click()} disabled={isUploadingBanner || editBanner === 'none'} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-2 shrink-0 disabled:opacity-50">
                                    {isUploadingBanner ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3" />} Загрузить
                                 </button>
-                                <button onClick={() => setEditBanner('')} className="px-4 py-2 bg-white/5 hover:bg-red-500/20 text-red-400 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0">
+                                <button onClick={() => setEditBanner('')} disabled={editBanner === 'none'} className="px-4 py-2 bg-white/5 hover:bg-red-500/20 text-red-400 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 disabled:opacity-50">
                                    <X className="w-3 h-3" /> Очистить
+                                </button>
+                                <button onClick={() => setEditBanner(editBanner === 'none' ? '' : 'none')} className="px-4 py-2 bg-white/5 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0">
+                                   {editBanner === 'none' ? 'Показать баннер' : <><X className="w-3 h-3" /> Скрыть баннер</>}
                                 </button>
                                 <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={handleBannerUpload} />
                               </div>
@@ -1369,7 +1389,8 @@ const Profile: React.FC = () => {
                     )}
                  </section>
                )}
-            </div>
+               </div>
+            ), false, "flex-grow relative z-10 w-full min-w-0")}
          </div>
       </div>
       
