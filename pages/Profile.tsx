@@ -684,15 +684,19 @@ const Profile: React.FC = () => {
                         <div className="flex items-center gap-3"><Users className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Друзья</span></div>
                         <span className="text-[10px] font-black bg-black/20 px-2 py-0.5 rounded-lg">{friends.length}</span>
                       </button>
-                      <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
-                        <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
-                      </button>
-                      <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
-                        <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
-                      </button>
-                      <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'opacity-100' : 'text-yellow-500 opacity-80 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308', color: '#000' } : {}}>
-                        <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
-                      </button>
+                      {!isVisualEditMode && (
+                         <>
+                            <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'settings' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                              <Settings className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Настройки</span>
+                            </button>
+                            <button onClick={() => setActiveTab('integrations')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'integrations' ? 'opacity-100' : 'opacity-60 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'integrations' ? { backgroundColor: currentTheme || '#8b5cf6', color: '#fff' } : {}}>
+                              <img src="https://shikimori.one/favicon.ico" alt="Shi" className="w-5 h-5 rounded grayscale opacity-50" style={activeTab === 'integrations' ? { filter: 'none', opacity: 1 } : {}} onError={(e) => { e.currentTarget.style.display = 'none'; }} /><span className="font-black text-[10px] uppercase tracking-widest">Интеграции</span>
+                            </button>
+                            <button onClick={() => setActiveTab('design')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl transition-all ${activeTab === 'design' ? 'opacity-100' : 'text-yellow-500 opacity-80 hover:opacity-100 hover:bg-white/5'}`} style={activeTab === 'design' ? { backgroundColor: '#eab308', color: '#000' } : {}}>
+                              <Palette className="w-5 h-5" /><span className="font-black text-[10px] uppercase tracking-widest">Дизайн</span>
+                            </button>
+                         </>
+                      )}
                    </nav>
                  ));
                  return null;
@@ -1070,6 +1074,9 @@ const Profile: React.FC = () => {
                              e.preventDefault();
                              setIsEditing(false);
                              setIsVisualEditMode(true);
+                             if (['settings', 'design', 'integrations'].includes(activeTab)) {
+                               setActiveTab('favs');
+                             }
                           }}
                           className="w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-sm font-bold text-white transition-all"
                         >
@@ -1403,7 +1410,12 @@ const Profile: React.FC = () => {
             )}
             
             {!isVisualEditMode && !isEditing && (
-               <button onClick={() => setIsVisualEditMode(true)} className="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all outline-none focus:ring-4 focus:ring-primary/50 relative group">
+               <button onClick={() => {
+                  setIsVisualEditMode(true);
+                  if (['settings', 'design', 'integrations'].includes(activeTab)) {
+                     setActiveTab('favs');
+                  }
+               }} className="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all outline-none focus:ring-4 focus:ring-primary/50 relative group">
                   <Layout className="w-6 h-6" />
                   <span className="absolute right-full mr-4 bg-black/80 px-3 py-1.5 rounded-lg text-xs font-bold uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                      Свой макет
