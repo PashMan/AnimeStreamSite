@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2, Camera, Upload, Palette, Layout, Search, Filter, Image as ImageIcon, LayoutTemplate, X, ChevronRight } from 'lucide-react';
+import { History, Heart, Settings, Clock, PlayCircle, LogIn, Loader2, Mail, CheckCircle, User as UserIcon, Crown, Users, Save, Edit2, Camera, Upload, Palette, Layout, Search, Filter, Image as ImageIcon, LayoutTemplate, X, ChevronRight, ChevronUp, ChevronDown, Grid } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { fetchAnimes } from '../services/shikimori';
@@ -1004,10 +1004,77 @@ const Profile: React.FC = () => {
                             className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${editLayout === 'centered' ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                             style={editLayout === 'centered' ? { color: currentTheme || undefined, borderColor: currentTheme || undefined, backgroundColor: currentTheme ? `${currentTheme}1A` : undefined } : {}}
                           >
-                            <LayoutTemplate className="w-6 h-6" />
+                            <Grid className="w-6 h-6" />
                             <span className="text-[10px] font-bold uppercase">Центр</span>
                           </button>
                         </div>
+                        <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/20 space-y-3">
+                          <p className="text-xs text-slate-400 mb-2">Управление блоками сайдбара (порядок и видимость):</p>
+                          {editBlocks.map((blockIdFull, index) => {
+                             const isHidden = blockIdFull.startsWith('hidden:');
+                             const blockId = isHidden ? blockIdFull.replace('hidden:', '') : blockIdFull;
+                             const blockName = blockId === 'info' ? 'Инфо (Аватар)' : blockId === 'stats' ? 'Статистика' : blockId === 'nav' ? 'Навигация' : blockId;
+                             
+                             return (
+                               <div key={blockId} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                                 <div className="flex items-center gap-3">
+                                   <button 
+                                     onClick={(e) => {
+                                        e.preventDefault();
+                                        const newBlocks = [...editBlocks];
+                                        newBlocks[index] = isHidden ? blockId : `hidden:${blockId}`;
+                                        setEditBlocks(newBlocks);
+                                     }}
+                                     className={`p-1.5 rounded-md ${isHidden ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}
+                                   >
+                                     {isHidden ? <X className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                                   </button>
+                                   <span className={`text-sm font-bold ${isHidden ? 'text-slate-500 line-through' : 'text-white'}`}>{blockName}</span>
+                                 </div>
+                                 <div className="flex items-center gap-1">
+                                    <button 
+                                      disabled={index === 0}
+                                      onClick={(e) => {
+                                         e.preventDefault();
+                                         const newBlocks = [...editBlocks];
+                                         const temp = newBlocks[index];
+                                         newBlocks[index] = newBlocks[index - 1];
+                                         newBlocks[index - 1] = temp;
+                                         setEditBlocks(newBlocks);
+                                      }}
+                                      className="p-1.5 bg-white/5 hover:bg-white/10 text-white rounded disabled:opacity-30"
+                                    >
+                                      <ChevronUp className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      disabled={index === editBlocks.length - 1}
+                                      onClick={(e) => {
+                                         e.preventDefault();
+                                         const newBlocks = [...editBlocks];
+                                         const temp = newBlocks[index];
+                                         newBlocks[index] = newBlocks[index + 1];
+                                         newBlocks[index + 1] = temp;
+                                         setEditBlocks(newBlocks);
+                                      }}
+                                      className="p-1.5 bg-white/5 hover:bg-white/10 text-white rounded disabled:opacity-30"
+                                    >
+                                      <ChevronDown className="w-4 h-4" />
+                                    </button>
+                                 </div>
+                               </div>
+                             );
+                          })}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                             e.preventDefault();
+                             setIsEditing(false);
+                             setIsVisualEditMode(true);
+                          }}
+                          className="w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-sm font-bold text-white transition-all"
+                        >
+                          <Layout className="w-4 h-4" /> Визуальный конструктор
+                        </button>
                       </div>
 
                       {/* Avatar Shape */}
