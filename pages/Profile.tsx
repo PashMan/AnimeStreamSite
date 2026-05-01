@@ -564,7 +564,7 @@ const Profile: React.FC = () => {
                  }));
               }
            }}
-           style={{ zIndex: isVisualEditMode ? 50 : 10, position: 'relative' }}
+           style={{ zIndex: isVisualEditMode ? 50 : 10, position: 'relative', transformOrigin: 'top center', width: '100%' }}
            className={`${extraClass} ${isVisualEditMode ? "cursor-grab active:cursor-grabbing hover:ring-2 ring-primary transition-shadow rounded-3xl group" : ""}`}
          >
            {isVisualEditMode && (
