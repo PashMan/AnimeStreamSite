@@ -42,6 +42,86 @@ app.get('/api/test-log', (c) => {
   return c.json({ status: 'ok', message: 'Test log added' });
 });
 
+// API Route for AI Anime Recommendation (Supports DeepSeek and Gemini API)
+app.post('/api/ai/recommend', async (c) => {
+  try {
+    const { messages } = await c.req.json();
+    
+    const deepseekKey = process.env.DEEPSEEK_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
+    
+    if (!deepseekKey && !geminiKey) {
+      return c.json({ error: 'AI API keys not configured. Please define DEEPSEEK_API_KEY or GEMINI_API_KEY in Settings/Secrets.' }, 400);
+    }
+    
+    const systemPrompt = "Вы — дружелюбный искусственный интеллект-ассистент KamiAnime, эксперт по аниме. " +
+      "Ваша цель — рекомендовать пользователю подходящие под его запрос тайтлы, отвечать на вопросы об аниме и помогать с выбором. " +
+      "Пишите кратко, живо, структурировано. Используйте разметку markdown. Рекомендации должны содержать русские и оригинальные названия. " +
+      "Отвечайте ВСЕГДА на русском языке. " +
+      "ОБЯЗАТЕЛЬНОЕ ТРЕБОВАНИЕ: Для каждого рекомендуемого аниме вы должны добавить ссылку в чат в формате markdown: `[Русское название](/anime/ID)`, где ID — это реальный Shikimori ID этого аниме. " +
+      "Пожалуйста, вспомните правильный Shikimori ID для рекомендуемого тайтла из вашей базы знаний (например: Атака титанов ID: 16498, Тетрадь смерти ID: 1535, Клинок рассекающий демонов ID: 38000, Ван-Пис ID: 21, Наруто ID: 20, Магическая битва ID: 40748, Токийский гуль ID: 22319, Евангелион ID: 30, Твоё имя ID: 32281, Унесённые призраками ID: 199, Код Гиас ID: 1575, Сага о Винланде ID: 37521, Хантер х Хантер 2011 ID: 11061, Госпожа Кагуя ID: 37999, Человек-бензопила ID: 44511, Твое апрельское вранье ID: 23273, Созданный в Бездне ID: 34599, Бездомный бог ID: 20507, Моб Психо 100 ID: 32182). " +
+      "Никогда не указывайте внешние ссылки типа shikimori.one или другие домены, используйте только относительный путь `/anime/ID`.";
+    
+    if (deepseekKey) {
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deepseekKey}`
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('DeepSeek API error:', errorText);
+        throw new Error(`DeepSeek API returned error ${response.status}`);
+      }
+      
+      const data = await response.json() as any;
+      const text = data.choices?.[0]?.message?.content || 'Извините, произошла ошибка.';
+      return c.json({ text });
+    } else {
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({
+        apiKey: geminiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
+      
+      const formattedContents = messages.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: formattedContents,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7
+        }
+      });
+      
+      return c.json({ text: response.text || 'Извините, произошла ошибка.' });
+    }
+  } catch (err: any) {
+    console.error('AI Recommend API Error:', err);
+    return c.json({ error: err.message || 'Ошибка сервера при получении рекомендаций.' }, 500);
+  }
+});
+
 // API Route for Anilibria v3 (Proxy to bypass CORS)
 app.get('/api/anilibria/title', async (c) => {
   const shikimori = c.req.query('shikimori');

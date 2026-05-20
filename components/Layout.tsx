@@ -7,6 +7,7 @@ import { db } from '../services/db';
 import AuthModal from './AuthModal';
 import { fetchAnimes } from '../services/shikimori';
 import { FALLBACK_IMAGE } from '../constants';
+import { AIChatBot } from './AIChatBot';
 
 import { useSlugBlocks } from '../store/slugBlocks';
 import { useDmcaBlocks } from '../store/dmcaBlocks';
@@ -431,6 +432,7 @@ const Layout: React.FC = () => {
           </div>
         </div>
       </footer>
+      <AIChatBot />
     </div>
   );
 };
