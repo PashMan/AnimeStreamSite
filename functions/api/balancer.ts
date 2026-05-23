@@ -38,6 +38,8 @@ export async function onRequest(context: any) {
     world_art_id: null as string | null
   };
 
+  let kodik_translations: any[] = [];
+
   // 1. Kodik
   try {
     const kodikUrl = `https://kodik-api.com/search?token=17cc4ee691bc251131a9041e6e89e78e&${shikimori_id ? `shikimori_id=${shikimori_id}` : `title=${encodeURIComponent(String(title))}`}&with_material_data=true`;
@@ -54,6 +56,24 @@ export async function onRequest(context: any) {
         ids.world_art_id = world_art_id;
       }
 
+      // Group and collect unique translations from Kodik results
+      const translationsMap = new Map();
+      kodikData.results.forEach((res: any) => {
+        if (res.translation && res.translation.title) {
+          const tName = res.translation.title;
+          const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+          if (!translationsMap.has(tName)) {
+            translationsMap.set(tName, {
+              id: res.translation.id,
+              title: tName,
+              type: res.translation.type,
+              iframe: iframe
+            });
+          }
+        }
+      });
+      kodik_translations = Array.from(translationsMap.values());
+
       const res = kodikData.results[0];
       const kodikPlayer = players.find(p => p.name === 'Kodik');
       if (kodikPlayer) {
@@ -62,7 +82,7 @@ export async function onRequest(context: any) {
     }
   } catch (e) {}
 
-  return new Response(JSON.stringify({ players, ids }), {
+  return new Response(JSON.stringify({ players, ids, kodik_translations }), {
     status: 200,
     headers: { 
       'Content-Type': 'application/json',

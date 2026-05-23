@@ -408,21 +408,70 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                 };
 
                 const levels = data.levels || hls.levels;
-                const qualities = levels.map((l: any, index: number) => ({
+                const standardQualities = levels.map((l: any, index: number) => ({
                   html: getQualityName(l),
                   level: index,
+                  isUpscale: false,
                   default: index === levels.length - 1
-                })).reverse();
+                }));
 
-                if (qualities.length > 0) {
+                const maxLevelIdx = levels.length - 1;
+                const qualitiesList = [...standardQualities];
+
+                const hasNative1080 = standardQualities.some(q => q.html.includes('1080'));
+                const hasNative4K = standardQualities.some(q => q.html.includes('4K'));
+
+                if (!hasNative1080) {
+                  qualitiesList.push({
+                    html: '1080p (AI Upscale)',
+                    level: maxLevelIdx,
+                    isUpscale: true,
+                    default: false
+                  });
+                }
+
+                if (!hasNative4K) {
+                  qualitiesList.push({
+                    html: '4K (AI Upscale)',
+                    level: maxLevelIdx,
+                    isUpscale: true,
+                    default: false
+                  });
+                }
+
+                // Show highest qualities first
+                qualitiesList.reverse();
+
+                if (qualitiesList.length > 0) {
                   artInstance.setting.add({
                     name: 'quality',
                     html: 'Качество',
-                    width: 200,
-                    tooltip: qualities[0].html,
-                    selector: qualities,
+                    width: 220,
+                    tooltip: qualitiesList[0].html,
+                    selector: qualitiesList,
                     onSelect: function (item) {
                       hls.nextLevel = item.level;
+                      
+                      if (item.isUpscale) {
+                        if (webglInstance) {
+                          webglInstance.start();
+                          const ind = document.querySelector('.anime4k-indicator');
+                          const btn = document.querySelector('.art-btn-anime4k');
+                          if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;');
+                          if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #22c55e; height: 100%;');
+                        }
+                      } else {
+                        // Optimize performance: Disable upscaler on lower qualities (360p/480p) unless forced via buttons
+                        if (item.html.includes('360') || item.html.includes('480')) {
+                          if (webglInstance) {
+                            webglInstance.stop();
+                            const ind = document.querySelector('.anime4k-indicator');
+                            const btn = document.querySelector('.art-btn-anime4k');
+                            if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%;');
+                            if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #94a3b8; height: 100%;');
+                          }
+                        }
+                      }
                       return item.html;
                     },
                   });

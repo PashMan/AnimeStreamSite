@@ -120,7 +120,8 @@ export async function onRequest(context: any) {
       });
     }
 
-    return new Response(res.body, {
+    const buffer = await res.arrayBuffer();
+    return new Response(buffer, {
       status: 200,
       headers: {
         'Content-Type': contentType || 'video/mp2t',

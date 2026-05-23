@@ -40,6 +40,8 @@ const Details: React.FC = () => {
   const [players, setPlayers] = useState<{ name: string; iframe: string | null; isCustom?: boolean }[]>([
     { name: 'Kodik', iframe: null }
   ]);
+  const [translations, setTranslations] = useState<{ id: number; title: string; type: string; iframe: string }[]>([]);
+  const [selectedTranslation, setSelectedTranslation] = useState<{ id: number; title: string; type: string; iframe: string } | null>(null);
   const [hasFetchedPlayers, setHasFetchedPlayers] = useState(false);
   const [isPlayersLoading, setIsPlayersLoading] = useState(false);
   const [playersError, setPlayersError] = useState<string | null>(null);
@@ -184,6 +186,8 @@ const Details: React.FC = () => {
       setPlayers([
         { name: 'Kodik', iframe: null }
       ]);
+      setTranslations([]);
+      setSelectedTranslation(null);
       setHasFetchedPlayers(false);
       setSelectedPlayer('Kodik');
 
@@ -491,21 +495,34 @@ const Details: React.FC = () => {
           const { fetchPlayersClientSide } = await import('../services/balancer');
           const data = await fetchPlayersClientSide(anime.id, title, year.toString());
           
-          if (Array.isArray(data) && data.length > 0) {
+          const playersList = data?.players || [];
+          const translationsList = data?.kodik_translations || [];
+
+          if (playersList.length > 0) {
             // Append episode to iframe URLs if paramEpisode exists
             if (paramEpisode) {
-              data.forEach(p => {
+              playersList.forEach(p => {
                 if (p.iframe) {
                   const separator = p.iframe.includes('?') ? '&' : '?';
                   p.iframe = `${p.iframe}${separator}episode=${paramEpisode}`;
                 }
               });
+              translationsList.forEach(t => {
+                if (t.iframe) {
+                  const separator = t.iframe.includes('?') ? '&' : '?';
+                  t.iframe = `${t.iframe}${separator}episode=${paramEpisode}`;
+                }
+              });
             }
-            setPlayers(data);
+            setPlayers(playersList);
+            setTranslations(translationsList);
+            if (translationsList.length > 0) {
+              setSelectedTranslation(translationsList[0]);
+            }
             setHasFetchedPlayers(true);
             // Default to custom player, then first player with an iframe, or Kodik
-            const customPlayer = data.find(p => p.isCustom);
-            const playerWithIframe = data.find(p => p.iframe);
+            const customPlayer = playersList.find(p => p.isCustom);
+            const playerWithIframe = playersList.find(p => p.iframe);
             if (customPlayer) {
               setSelectedPlayer(customPlayer.name);
             } else if (playerWithIframe) {
@@ -915,12 +932,12 @@ const Details: React.FC = () => {
                                   maxTracks = isSuzume ? 5 : undefined;
                                   audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria', 'Ю. Сербин', 'Netflix КЗ.', 'Оригинал + Субтитры', 'Оригинал'] : undefined;
                                 } else {
-                                  // For general anime, extract from Kodik stream!
-                                  const kodikPlayer = players.find(p => p.name === 'Kodik');
-                                  if (kodikPlayer && kodikPlayer.iframe) {
-                                    let kodikIframeWithEpisode = kodikPlayer.iframe;
+                                  // For general anime, extract from Kodik stream! Prefer the selectedTranslation's iframe URL
+                                  const baseIframe = selectedTranslation?.iframe || players.find(p => p.name === 'Kodik')?.iframe;
+                                  if (baseIframe) {
+                                    let kodikIframeWithEpisode = baseIframe;
                                     try {
-                                      const url = new URL(kodikIframeWithEpisode);
+                                      const url = new URL(kodikIframeWithEpisode.startsWith('//') ? `https:${kodikIframeWithEpisode}` : kodikIframeWithEpisode);
                                       if (paramEpisode) {
                                         url.searchParams.set('episode', paramEpisode);
                                       }
@@ -966,6 +983,30 @@ const Details: React.FC = () => {
                          </>
                        )}
                    </div>
+
+                   {/* Visual list of translations for Custom Player */}
+                   {selectedPlayer === 'KamiPlayer (4K)' && translations.length > 0 && (
+                     <div className="mt-6 bg-white/5 border border-white/10 p-6 rounded-[2rem] shadow-xl backdrop-blur-sm">
+                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                         <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Выбор озвучки
+                       </h4>
+                       <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                         {translations.map((t, index) => (
+                           <button
+                             key={t.id || index}
+                             onClick={() => setSelectedTranslation(t)}
+                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                               selectedTranslation?.title === t.title
+                                 ? 'bg-primary text-white shadow-lg scale-105 border border-primary/20'
+                                 : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-transparent'
+                             }`}
+                           >
+                             {t.title}
+                           </button>
+                         ))}
+                       </div>
+                     </div>
+                   )}
                  </div>
                </section>
              </div>

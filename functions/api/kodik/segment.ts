@@ -41,7 +41,9 @@ export async function onRequest(context: any) {
        });
     }
 
-    return new Response(response.body, {
+    const arrayBuffer = await response.arrayBuffer();
+
+    return new Response(arrayBuffer, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('content-type') || 'video/mp2t',

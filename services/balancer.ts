@@ -6,13 +6,26 @@ export interface PlayerInfo {
   isCustom?: boolean;
 }
 
-export const fetchPlayersClientSide = async (shikimoriId: string, title: string, year: string): Promise<PlayerInfo[]> => {
+export interface KodikTranslation {
+  id: number;
+  title: string;
+  type: string;
+  iframe: string;
+}
+
+export interface BalancerData {
+  players: PlayerInfo[];
+  kodik_translations: KodikTranslation[];
+}
+
+export const fetchPlayersClientSide = async (shikimoriId: string, title: string, year: string): Promise<BalancerData> => {
   try {
     const res = await fetch(`/api/balancer?title=${encodeURIComponent(title)}&year=${year}&shikimori_id=${shikimoriId}`);
     if (res.ok) {
       const data = await res.json();
       
       let playersList: PlayerInfo[] = [];
+      let translationsList: KodikTranslation[] = data.kodik_translations || [];
 
       // Handle the new response format: { players: [], ids: {} }
       if (data && data.players && Array.isArray(data.players)) {
@@ -42,10 +55,13 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
         }
       }
 
-      return playersList;
+      return {
+        players: playersList,
+        kodik_translations: translationsList
+      };
     }
   } catch (e) {
     console.error('Balancer fetch failed', e);
   }
-  return [];
+  return { players: [], kodik_translations: [] };
 };
