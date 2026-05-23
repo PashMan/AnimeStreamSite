@@ -219,15 +219,18 @@ class Anime4KWebGL {
 
   private onSeeking = () => {
     this.canvas.style.opacity = '0';
+    this.video.style.opacity = '1';
   };
 
   private onWaiting = () => {
     this.canvas.style.opacity = '0';
+    this.video.style.opacity = '1';
   };
 
   private onPlaying = () => {
     if (this.isActive) {
       this.canvas.style.opacity = '1';
+      this.video.style.opacity = '0';
     }
   };
 
@@ -235,21 +238,25 @@ class Anime4KWebGL {
     if (this.isActive && this.video.readyState >= this.video.HAVE_CURRENT_DATA) {
       if (!this.video.seeking) {
         this.canvas.style.opacity = '1';
+        this.video.style.opacity = '0';
       }
     }
   };
 
   public resize() {
-    // Легковесный 2K Апскейл (до 2560x1440), который мы позиционируем как 4K AI.
+    // Высокопроизводительный апскейл до 2K (2560x1440), который мы позиционируем как 4K AI.
     // Позволяет получить ультра-четкую картинку без перегрузки GPU/памяти на средних девайсах.
     const width = this.video.videoWidth || 1280;
     const height = this.video.videoHeight || 720;
+    const aspectRatio = width / height;
     
-    let targetWidth = width * 1.5;
-    let targetHeight = height * 1.5;
+    // Целимся ровно в 2K (высота 1440) сохраняя пропорции
+    let targetHeight = 1440;
+    let targetWidth = Math.round(targetHeight * aspectRatio);
+
     if (targetWidth > 2560) {
       targetWidth = 2560;
-      targetHeight = 1440;
+      targetHeight = Math.round(2560 / aspectRatio);
     }
     
     this.canvas.width = targetWidth;
@@ -269,8 +276,10 @@ class Anime4KWebGL {
 
     if (this.video.readyState >= this.video.HAVE_CURRENT_DATA && !this.video.seeking) {
       this.canvas.style.opacity = '1';
+      this.video.style.opacity = '0';
     } else {
       this.canvas.style.opacity = '0';
+      this.video.style.opacity = '1';
     }
     
     this.loop();
@@ -289,6 +298,7 @@ class Anime4KWebGL {
     this.video.removeEventListener('seeked', this.onSeeked);
     
     this.canvas.style.opacity = '0';
+    this.video.style.opacity = '1';
   }
 
   private loop = () => {
