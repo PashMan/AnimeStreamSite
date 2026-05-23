@@ -9,7 +9,7 @@ interface CustomPlayerProps {
   autoPlay?: boolean;
 }
 
-// Anime4K WebGL Shader Restoration and Upscalor Engine
+// WebGL pristine-sampling upscaler
 class Anime4KWebGL {
   private gl: WebGLRenderingContext;
   private program: WebGLProgram;
@@ -19,7 +19,7 @@ class Anime4KWebGL {
   private canvas: HTMLCanvasElement;
   private animId: number | null = null;
   public isActive = false;
-  private mode: number = 0; // 0 = Anime4K, 1 = AMD CAS, 2 = LumaSharpen
+  private targetHeight: number = 1440; // Default: 2K (2560x1440)
 
   constructor(canvas: HTMLCanvasElement, video: HTMLVideoElement) {
     this.canvas = canvas;
@@ -47,140 +47,62 @@ class Anime4KWebGL {
       }
     `;
 
-    // Advanced, clean, multi-mode filter selection
+    // High-Fidelity 16-sample Bicubic Catmull-Rom upscaling shader
     const fsSource = `
       precision mediump float;
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
       uniform vec2 u_textureSize;
-      uniform int u_mode;
+
+      vec4 bicubicSample(sampler2D image, vec2 uv, vec2 texSize) {
+        vec2 texel = vec2(1.0) / texSize;
+        vec2 st = uv * texSize - 0.5;
+        vec2 i_st = floor(st);
+        vec2 f_st = fract(st);
+
+        // Catmull-Rom cubic weights
+        vec2 w0 = f_st * (-0.5 + f_st * (1.0 - 0.5 * f_st));
+        vec2 w1 = 1.0 + f_st * f_st * (-2.5 + 1.5 * f_st);
+        vec2 w2 = f_st * (0.5 + f_st * (2.0 - 1.5 * f_st));
+        vec2 w3 = f_st * f_st * (-0.5 + 0.5 * f_st);
+
+        // Grid coordinates of the 4x4 texel block
+        vec2 p0 = (i_st - vec2(0.5)) * texel;
+        vec2 p1 = (i_st + vec2(0.5)) * texel;
+        vec2 p2 = (i_st + vec2(1.5)) * texel;
+        vec2 p3 = (i_st + vec2(2.5)) * texel;
+
+        vec4 col = vec4(0.0);
+
+        // Row 0
+        col += texture2D(image, vec2(p0.x, p0.y)) * w0.x * w0.y;
+        col += texture2D(image, vec2(p1.x, p0.y)) * w1.x * w0.y;
+        col += texture2D(image, vec2(p2.x, p0.y)) * w2.x * w0.y;
+        col += texture2D(image, vec2(p3.x, p0.y)) * w3.x * w0.y;
+
+        // Row 1
+        col += texture2D(image, vec2(p0.x, p1.y)) * w0.x * w1.y;
+        col += texture2D(image, vec2(p1.x, p1.y)) * w1.x * w1.y;
+        col += texture2D(image, vec2(p2.x, p1.y)) * w2.x * w1.y;
+        col += texture2D(image, vec2(p3.x, p1.y)) * w3.x * w1.y;
+
+        // Row 2
+        col += texture2D(image, vec2(p0.x, p2.y)) * w0.x * w2.y;
+        col += texture2D(image, vec2(p1.x, p2.y)) * w1.x * w2.y;
+        col += texture2D(image, vec2(p2.x, p2.y)) * w2.x * w2.y;
+        col += texture2D(image, vec2(p3.x, p2.y)) * w3.x * w2.y;
+
+        // Row 3
+        col += texture2D(image, vec2(p0.x, p3.y)) * w0.x * w3.y;
+        col += texture2D(image, vec2(p1.x, p3.y)) * w1.x * w3.y;
+        col += texture2D(image, vec2(p2.x, p3.y)) * w2.x * w3.y;
+        col += texture2D(image, vec2(p3.x, p3.y)) * w3.x * w3.y;
+
+        return col;
+      }
 
       void main() {
-        vec2 texel = vec2(1.0) / u_textureSize;
-        vec2 tc = v_texCoord;
-
-        if (u_mode == 0) {
-          // --- ANIME4K BILATERAL EDGE THINNER + CONTRAST ADAPTIVE SHARPENING (CAS) ---
-          vec4 c = texture2D(u_image, tc);
-          vec4 t = texture2D(u_image, tc + vec2(0.0, -texel.y));
-          vec4 b = texture2D(u_image, tc + vec2(0.0, texel.y));
-          vec4 l = texture2D(u_image, tc + vec2(-texel.x, 0.0));
-          vec4 r = texture2D(u_image, tc + vec2(texel.x, 0.0));
-
-          vec4 tl = texture2D(u_image, tc + vec2(-texel.x, -texel.y));
-          vec4 tr = texture2D(u_image, tc + vec2(texel.x, -texel.y));
-          vec4 bl = texture2D(u_image, tc + vec2(-texel.x, texel.y));
-          vec4 br = texture2D(u_image, tc + vec2(texel.x, texel.y));
-
-          // Relative luminance coefficients (Rec. 709)
-          vec3 lumaWeight = vec3(0.2126, 0.7152, 0.0722);
-          float c_y = dot(c.rgb, lumaWeight);
-          float t_y = dot(t.rgb, lumaWeight);
-          float b_y = dot(b.rgb, lumaWeight);
-          float l_y = dot(l.rgb, lumaWeight);
-          float r_y = dot(r.rgb, lumaWeight);
-          float tl_y = dot(tl.rgb, lumaWeight);
-          float tr_y = dot(tr.rgb, lumaWeight);
-          float bl_y = dot(bl.rgb, lumaWeight);
-          float br_y = dot(br.rgb, lumaWeight);
-
-          // 3x3 Sobel kernels for horizontal & vertical gradients
-          float g_x = tl_y + 2.0 * l_y + bl_y - tr_y - 2.0 * r_y - br_y;
-          float g_y = tl_y + 2.0 * t_y + tr_y - bl_y - 2.0 * b_y - br_y;
-          float grad = sqrt(g_x * g_x + g_y * g_y);
-
-          // Prepare Contrast Adaptive Sharpening (CAS) on full RGB spectrum
-          vec3 min_rgb = min(c.rgb, min(min(t.rgb, b.rgb), min(l.rgb, r.rgb)));
-          vec3 max_rgb = max(c.rgb, max(max(t.rgb, b.rgb), max(l.rgb, r.rgb)));
-          min_rgb = min(min_rgb, min(min(tl.rgb, tr.rgb), min(bl.rgb, br.rgb)));
-          max_rgb = max(max_rgb, max(max(tl.rgb, tr.rgb), max(bl.rgb, br.rgb)));
-
-          // High-pass CAS sharpening: Peak control (negative means sharper)
-          float peak = -3.2; 
-          vec3 w = max_rgb - min_rgb;
-          vec3 min_l = min_rgb;
-          vec3 max_l = 1.0 - max_rgb;
-          vec3 weight = sqrt(min(min_l, max_l) / (w + 0.0001));
-          vec3 clp = weight / peak;
-          vec3 cas_color = (t.rgb * clp + b.rgb * clp + l.rgb * clp + r.rgb * clp + c.rgb) / (1.0 + 4.0 * clp);
-          cas_color = clamp(cas_color, 0.0, 1.0);
-
-          // Edge threshold limit for cartoon/anime boundary restoration
-          if (grad > 0.035) {
-            vec2 dir = vec2(g_x, g_y) / grad;
-            
-            // Re-sample slightly towards the edge normal to thin and smooth out pixel grids
-            vec2 tc_sharp = tc - dir * texel * 0.75;
-            vec4 c_sharp = texture2D(u_image, tc_sharp);
-
-            // Compute high-frequency local detail for target edge contrast boosting
-            vec4 blurred = (t + b + l + r) * 0.25;
-            vec3 detail = c_sharp.rgb - blurred.rgb;
-            vec3 edge_boosted = c_sharp.rgb + detail * 1.8;
-
-            // Blend high-definition sharpened contours with standard color matching the local contrast
-            vec3 final_edge = mix(c.rgb, clamp(edge_boosted, 0.0, 1.0), clamp(grad * 2.8, 0.0, 0.95));
-            
-            // Fuse edge refinement with ultra-sharp CAS textures for crystalline fidelity
-            gl_FragColor = vec4(mix(cas_color, final_edge, clamp(grad * 1.5, 0.0, 1.0)), c.a);
-          } else {
-            // No more blur! Flat and detailed areas get high-fidelity CAS sharpening to maximize 2K/4K clarity
-            gl_FragColor = vec4(cas_color, c.a);
-          }
-        }
-        else if (u_mode == 1) {
-          // --- AMD CONTRAST ADAPTIVE SHARPENING (CAS) ---
-          vec3 c = texture2D(u_image, tc).rgb;
-          vec3 t = texture2D(u_image, tc + vec2(0.0, -texel.y)).rgb;
-          vec3 b = texture2D(u_image, tc + vec2(0.0, texel.y)).rgb;
-          vec3 l = texture2D(u_image, tc + vec2(-texel.x, 0.0)).rgb;
-          vec3 r = texture2D(u_image, tc + vec2(texel.x, 0.0)).rgb;
-
-          vec3 tl = texture2D(u_image, tc + vec2(-texel.x, -texel.y)).rgb;
-          vec3 tr = texture2D(u_image, tc + vec2(texel.x, -texel.y)).rgb;
-          vec3 bl = texture2D(u_image, tc + vec2(-texel.x, texel.y)).rgb;
-          vec3 br = texture2D(u_image, tc + vec2(texel.x, texel.y)).rgb;
-
-          vec3 min_rgb = min(c, min(min(t, b), min(l, r)));
-          vec3 max_rgb = max(c, max(max(t, b), max(l, r)));
-
-          min_rgb = min(min_rgb, min(min(tl, tr), min(bl, br)));
-          max_rgb = max(max_rgb, max(max(tl, tr), max(bl, br)));
-
-          float peak = -3.0; // Sharpness peak limit scale
-          vec3 w = max_rgb - min_rgb;
-          vec3 min_l = min_rgb;
-          vec3 max_l = 1.0 - max_rgb;
-          vec3 weight = sqrt(min(min_l, max_l) / (w + 0.0001));
-          vec3 clp = weight * (1.0 / peak);
-
-          vec3 final_rgb = (t * clp + b * clp + l * clp + r * clp + c) / (1.0 + 4.0 * clp);
-          gl_FragColor = vec4(clamp(final_rgb, 0.0, 1.0), 1.0);
-        }
-        else if (u_mode == 2) {
-          // --- LUMASHARPEN (Luma high-pass filter) ---
-          vec4 color = texture2D(u_image, tc);
-          vec3 lumaWeight = vec3(0.2126, 0.7152, 0.0722);
-
-          float c_y = dot(color.rgb, lumaWeight);
-          float t_y = dot(texture2D(u_image, tc + vec2(0.0, -texel.y)).rgb, lumaWeight);
-          float b_y = dot(texture2D(u_image, tc + vec2(0.0, texel.y)).rgb, lumaWeight);
-          float l_y = dot(texture2D(u_image, tc + vec2(-texel.x, 0.0)).rgb, lumaWeight);
-          float r_y = dot(texture2D(u_image, tc + vec2(texel.x, 0.0)).rgb, lumaWeight);
-
-          float blur = (t_y + b_y + l_y + r_y) * 0.25;
-          float diff = c_y - blur;
-
-          float sharp_strength = 1.6;
-          float sharp_clamp = 0.04;
-          float diff_clamped = clamp(diff * sharp_strength, -sharp_clamp, sharp_clamp);
-
-          vec3 final_color = color.rgb + vec3(diff_clamped);
-          gl_FragColor = vec4(clamp(final_color, 0.0, 1.0), color.a);
-        }
-        else {
-          gl_FragColor = texture2D(u_image, tc);
-        }
+        gl_FragColor = clamp(bicubicSample(u_image, v_texCoord, u_textureSize), 0.0, 1.0);
       }
     `;
 
@@ -223,8 +145,11 @@ class Anime4KWebGL {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   }
 
-  public setMode(mode: number) {
-    this.mode = mode;
+  public setTargetHeight(h: number) {
+    this.targetHeight = h;
+    if (this.isActive) {
+      this.resize();
+    }
   }
 
   private compileShader(type: number, source: string): WebGLShader {
@@ -268,20 +193,12 @@ class Anime4KWebGL {
   };
 
   public resize() {
-    // Высокопроизводительный апскейл до 2K (2560x1440), который мы позиционируем как 4K AI.
-    // Позволяет получить ультра-четкую картинку без перегрузки GPU/памяти на средних девайсах.
     const width = this.video.videoWidth || 1280;
     const height = this.video.videoHeight || 720;
     const aspectRatio = width / height;
     
-    // Целимся ровно в 2K (высота 1440) сохраняя пропорции
-    let targetHeight = 1440;
+    let targetHeight = this.targetHeight;
     let targetWidth = Math.round(targetHeight * aspectRatio);
-
-    if (targetWidth > 2560) {
-      targetWidth = 2560;
-      targetHeight = Math.round(2560 / aspectRatio);
-    }
     
     this.canvas.width = targetWidth;
     this.canvas.height = targetHeight;
@@ -351,9 +268,6 @@ class Anime4KWebGL {
     const uSize = gl.getUniformLocation(this.program, "u_textureSize");
     gl.uniform2f(uSize, this.video.videoWidth || 1280, this.video.videoHeight || 720);
 
-    const uMode = gl.getUniformLocation(this.program, "u_mode");
-    gl.uniform1i(uMode, this.mode);
-
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
@@ -397,11 +311,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
             }
             if (line.includes('URI="')) {
               return line.replace(/URI="([^"]+)"/, (match, uri) => {
-                if (!uri.startsWith('http')) return `URI="${baseUrl}${uri}"`;
+                if (!uri.startsWith('http') && !uri.startsWith('/')) return `URI="${baseUrl}${uri}"`;
                 return match;
               });
             }
-            if (line && !line.startsWith('#') && !line.startsWith('http')) {
+            if (line && !line.startsWith('#') && !line.startsWith('http') && !line.startsWith('/')) {
               return baseUrl + line;
             }
             return line;
@@ -538,6 +452,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                       const isTargetUpscale = item.html.includes('1080') || item.html.includes('4K');
                       if (isTargetUpscale) {
                         if (webglInstance) {
+                          if (item.html.includes('1080')) {
+                            webglInstance.setTargetHeight(1080);
+                          } else {
+                            webglInstance.setTargetHeight(1440); // 2K Real Quality
+                          }
                           webglInstance.start();
                         }
                       } else {
