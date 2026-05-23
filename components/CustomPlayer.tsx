@@ -60,7 +60,7 @@ class Anime4KWebGL {
         vec2 tc = v_texCoord;
 
         if (u_mode == 0) {
-          // --- ANIME4K BILATERAL & SOBEL EDGE THINNER + SHARP DETAILS ---
+          // --- ANIME4K BILATERAL EDGE THINNER + CONTRAST ADAPTIVE SHARPENING (CAS) ---
           vec4 c = texture2D(u_image, tc);
           vec4 t = texture2D(u_image, tc + vec2(0.0, -texel.y));
           vec4 b = texture2D(u_image, tc + vec2(0.0, texel.y));
@@ -89,53 +89,43 @@ class Anime4KWebGL {
           float g_y = tl_y + 2.0 * t_y + tr_y - bl_y - 2.0 * b_y - br_y;
           float grad = sqrt(g_x * g_x + g_y * g_y);
 
+          // Prepare Contrast Adaptive Sharpening (CAS) on full RGB spectrum
+          vec3 min_rgb = min(c.rgb, min(min(t.rgb, b.rgb), min(l.rgb, r.rgb)));
+          vec3 max_rgb = max(c.rgb, max(max(t.rgb, b.rgb), max(l.rgb, r.rgb)));
+          min_rgb = min(min_rgb, min(min(tl.rgb, tr.rgb), min(bl.rgb, br.rgb)));
+          max_rgb = max(max_rgb, max(max(tl.rgb, tr.rgb), max(bl.rgb, br.rgb)));
+
+          // High-pass CAS sharpening: Peak control (negative means sharper)
+          float peak = -3.2; 
+          vec3 w = max_rgb - min_rgb;
+          vec3 min_l = min_rgb;
+          vec3 max_l = 1.0 - max_rgb;
+          vec3 weight = sqrt(min(min_l, max_l) / (w + 0.0001));
+          vec3 clp = weight / peak;
+          vec3 cas_color = (t.rgb * clp + b.rgb * clp + l.rgb * clp + r.rgb * clp + c.rgb) / (1.0 + 4.0 * clp);
+          cas_color = clamp(cas_color, 0.0, 1.0);
+
           // Edge threshold limit for cartoon/anime boundary restoration
-          if (grad > 0.040) {
+          if (grad > 0.035) {
             vec2 dir = vec2(g_x, g_y) / grad;
             
             // Re-sample slightly towards the edge normal to thin and smooth out pixel grids
-            vec2 tc_sharp = tc - dir * texel * 0.65;
+            vec2 tc_sharp = tc - dir * texel * 0.75;
             vec4 c_sharp = texture2D(u_image, tc_sharp);
 
             // Compute high-frequency local detail for target edge contrast boosting
             vec4 blurred = (t + b + l + r) * 0.25;
             vec3 detail = c_sharp.rgb - blurred.rgb;
-            vec3 edge_boosted = c_sharp.rgb + detail * 1.5;
+            vec3 edge_boosted = c_sharp.rgb + detail * 1.8;
 
             // Blend high-definition sharpened contours with standard color matching the local contrast
-            gl_FragColor = vec4(mix(c.rgb, clamp(edge_boosted, 0.0, 1.0), clamp(grad * 2.5, 0.0, 0.95)), c.a);
+            vec3 final_edge = mix(c.rgb, clamp(edge_boosted, 0.0, 1.0), clamp(grad * 2.8, 0.0, 0.95));
+            
+            // Fuse edge refinement with ultra-sharp CAS textures for crystalline fidelity
+            gl_FragColor = vec4(mix(cas_color, final_edge, clamp(grad * 1.5, 0.0, 1.0)), c.a);
           } else {
-            // Apply lightweight bilateral-like range filter to smooth skin, sky, and dark/flat backdrops
-            float w_total = 1.0;
-            vec4 accum = c;
-            float sigma_color = 0.12;
-
-            float d_t = distance(t.rgb, c.rgb);
-            float w_t = max(0.0, 1.0 - (d_t / sigma_color));
-            w_t = w_t * w_t;
-            accum += t * w_t;
-            w_total += w_t;
-
-            float d_b = distance(b.rgb, c.rgb);
-            float w_b = max(0.0, 1.0 - (d_b / sigma_color));
-            w_b = w_b * w_b;
-            accum += b * w_b;
-            w_total += w_b;
-
-            float d_l = distance(l.rgb, c.rgb);
-            float w_l = max(0.0, 1.0 - (d_l / sigma_color));
-            w_l = w_l * w_l;
-            accum += l * w_l;
-            w_total += w_l;
-
-            float d_r = distance(r.rgb, c.rgb);
-            float w_r = max(0.0, 1.0 - (d_r / sigma_color));
-            w_r = w_r * w_r;
-            accum += r * w_r;
-            w_total += w_r;
-
-            vec3 smoothed = accum.rgb / w_total;
-            gl_FragColor = vec4(smoothed, c.a);
+            // No more blur! Flat and detailed areas get high-fidelity CAS sharpening to maximize 2K/4K clarity
+            gl_FragColor = vec4(cas_color, c.a);
           }
         }
         else if (u_mode == 1) {
