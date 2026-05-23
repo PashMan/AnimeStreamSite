@@ -894,30 +894,55 @@ const Details: React.FC = () => {
                             ) : (players.find(p => p.name === selectedPlayer)?.iframe || players.find(p => p.name === selectedPlayer)?.isCustom) ? (() => {
                               const player = players.find(p => p.name === selectedPlayer)!;
                               if (player.isCustom) {
-                                const isSuzume = id === '50594';
+                                const isSuzume = id === '50594' || id === '62568';
                                 const isWeathering = id === '38826';
                                 const isGardenOfWords = id === '16782';
-                                const customSrc = isSuzume 
-                                  ? "https://cdn1.kamianime.club/suzume/master.m3u8" 
-                                  : isWeathering
-                                  ? "https://cdn1.kamianime.club/weathering/master.m3u8"
-                                  : isGardenOfWords
-                                  ? "https://cdn1.kamianime.club/garden_of_words/master.m3u8"
-                                  : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
-                                const maxTracks = isSuzume ? 5 : undefined;
-                                const audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria', 'Ю. Сербин', 'Netflix КЗ.', 'Оригинал + Субтитры', 'Оригинал'] : undefined;
+                                const isKimiNoNaWa = id === '32281';
+
+                                let customSrc = "";
+                                let maxTracks: number | undefined = undefined;
+                                let audioTrackNames: string[] | undefined = undefined;
+
+                                if (isSuzume || isWeathering || isGardenOfWords || isKimiNoNaWa) {
+                                  const customRawSrc = isSuzume 
+                                    ? "https://cdn1.kamianime.club/suzume/master.m3u8" 
+                                    : isWeathering
+                                    ? "https://cdn1.kamianime.club/weathering/master.m3u8"
+                                    : isGardenOfWords
+                                    ? "https://cdn1.kamianime.club/garden_of_words/master.m3u8"
+                                    : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
+                                  customSrc = `/api/proxy-4k?url=${encodeURIComponent(customRawSrc)}`;
+                                  maxTracks = isSuzume ? 5 : undefined;
+                                  audioTrackNames = isSuzume ? ['Crunchyroll', 'Flarrow Films', 'TVShows', 'Leviafilm', 'AniLibria', 'Ю. Сербин', 'Netflix КЗ.', 'Оригинал + Субтитры', 'Оригинал'] : undefined;
+                                } else {
+                                  // For general anime, extract from Kodik stream!
+                                  const kodikPlayer = players.find(p => p.name === 'Kodik');
+                                  if (kodikPlayer && kodikPlayer.iframe) {
+                                    let kodikIframeWithEpisode = kodikPlayer.iframe;
+                                    try {
+                                      const url = new URL(kodikIframeWithEpisode);
+                                      if (paramEpisode) {
+                                        url.searchParams.set('episode', paramEpisode);
+                                      }
+                                      kodikIframeWithEpisode = url.toString();
+                                    } catch (e) {}
+                                    customSrc = `/api/kodik/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+                                  } else {
+                                    // Fallback to kimi-no-na-wa so it doesn't break
+                                    customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
+                                  }
+                                }
                                 
                                 return <CustomPlayer ref={nativeVideoRef} src={customSrc} maxAudioTracks={maxTracks} audioTrackNames={audioTrackNames} />;
                               }
                               let finalIframeUrl = player.iframe;
                               if (finalIframeUrl && player.name === 'Kodik') {
                                 try {
-                                  const url = new URL(finalIframeUrl);
+                                  const absoluteUrl = finalIframeUrl.startsWith('//') ? `https:${finalIframeUrl}` : finalIframeUrl;
+                                  const url = new URL(absoluteUrl);
                                   if (paramEpisode) url.searchParams.set('episode', paramEpisode);
                                   finalIframeUrl = url.toString();
                                 } catch (e) {}
-                                const proxyPlaylistUrl = `/api/kodik/playlist?url=${encodeURIComponent(finalIframeUrl || '')}`;
-                                return <CustomPlayer ref={nativeVideoRef} src={proxyPlaylistUrl} autoPlay={true} />;
                               }
                               return (
                                 <iframe 

@@ -458,15 +458,23 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
 
                 // Link WebGL Anime4K engine to the actual player video element
                 const videoEl = artInstance.video;
-                if (canvasRef.current && videoEl) {
+                const isNative4K = src.toLowerCase().includes('proxy-4k') || 
+                                   src.toLowerCase().includes('kamianime') || 
+                                   src.toLowerCase().includes('suzume') || 
+                                   src.toLowerCase().includes('weathering') || 
+                                   src.toLowerCase().includes('garden_of_words') || 
+                                   src.toLowerCase().includes('kimi-no-na-wa');
+
+                if (canvasRef.current && videoEl && !isNative4K) {
                   try {
                     webglInstance = new Anime4KWebGL(canvasRef.current, videoEl);
+                    webglInstance.start(); // Auto-start upscaler by default for non-native 4K streams!
 
                     // Add Custom Glow Indicator Toggle Button inside Artplayer control bar
                     artInstance.controls.add({
                       name: 'anime4k',
                       position: 'right',
-                      html: `<button class="art-btn art-btn-anime4k flex items-center gap-1.5" style="padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #94a3b8; height: 100%;"><span class="anime4k-indicator" style="display:inline-block; width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%;"></span>4K AI</button>`,
+                      html: `<button class="art-btn art-btn-anime4k flex items-center gap-1.5" style="padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #22c55e; height: 100%;"><span class="anime4k-indicator" style="display:inline-block; width: 6px; height: 6px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;"></span>4K AI</button>`,
                       click: function () {
                         if (!webglInstance) return;
                         const ind = document.querySelector('.anime4k-indicator');

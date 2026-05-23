@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { serveStatic } from 'hono/cloudflare-workers';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { serve } from '@hono/node-server';
 
 type Bindings = {
   DB: D1Database;
@@ -9,12 +10,6 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('/*', cors());
-
-// ... API routes ...
-
-export default {
-  fetch: app.fetch,
-};
 
   // Simple in-memory log buffer for debugging
   const debugLogs: any[] = [];
@@ -429,6 +424,60 @@ function decodeKodikUrl(encoded: string, rotNum?: number): string {
   throw new Error('Decryption of Kodik stream URL failed');
 }
 
+app.get('/api/proxy-4k', async (c) => {
+  const targetUrl = c.req.query('url');
+  if (!targetUrl) return c.text('Missing url parameter', 400);
+
+  try {
+    const res = await fetch(targetUrl);
+    if (!res.ok) {
+      return c.text(`Proxy failed with status ${res.status}`, res.status as any);
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    
+    if (contentType.includes('mpegurl') || contentType.includes('m3u8') || targetUrl.includes('.m3u8')) {
+      const text = await res.text();
+      const parentUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
+      
+      const lines = text.split('\n');
+      const rewrittenLines = lines.map(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return line;
+        
+        let absUrl = trimmed;
+        if (!trimmed.startsWith('http')) {
+          absUrl = trimmed.startsWith('/')
+            ? new URL(trimmed, targetUrl).toString()
+            : parentUrl + trimmed;
+        }
+        return `${new URL(c.req.url).origin}/api/proxy-4k?url=${encodeURIComponent(absUrl)}`;
+      });
+      
+      return new Response(rewrittenLines.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.apple.mpegurl',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache'
+        }
+      });
+    }
+
+    return new Response(res.body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType || 'video/mp2t',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400'
+      }
+    });
+
+  } catch (err: any) {
+    return c.text(`Proxy Exception: ${err.message}`, 500);
+  }
+});
+
 app.get('/api/kodik/playlist', async (c) => {
   const urlParam = c.req.query('url');
   if (!urlParam) {
@@ -639,6 +688,16 @@ app.get('/api/kodik/segment', async (c) => {
 
 // SPA Fallback
 app.get('*', serveStatic({ root: './dist' }));
+
+const isProd = process.env.NODE_ENV === 'production';
+const port = isProd ? 3000 : 3001;
+
+console.log(`[HONO NODE SERVER] Starting backend listener on port ${port}...`);
+serve({
+  fetch: app.fetch,
+  port,
+  hostname: '0.0.0.0'
+});
 
 export default {
   fetch: app.fetch,
