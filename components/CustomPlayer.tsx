@@ -217,18 +217,62 @@ class Anime4KWebGL {
     return shader;
   }
 
+  private onSeeking = () => {
+    this.canvas.style.opacity = '0';
+  };
+
+  private onWaiting = () => {
+    this.canvas.style.opacity = '0';
+  };
+
+  private onPlaying = () => {
+    if (this.isActive) {
+      this.canvas.style.opacity = '1';
+    }
+  };
+
+  private onSeeked = () => {
+    if (this.isActive && this.video.readyState >= this.video.HAVE_CURRENT_DATA) {
+      if (!this.video.seeking) {
+        this.canvas.style.opacity = '1';
+      }
+    }
+  };
+
   public resize() {
-    // Rigid up-sampling upscale directly to true 4K frame size
-    this.canvas.width = 3840;
-    this.canvas.height = 2160;
-    this.gl.viewport(0, 0, 3840, 2160);
+    // Dynamic UPSCALE targeting 1.5x input up to max 1920x1080 (HD/Ultra settings)
+    // Avoids excessive memory crashes or blank viewports caused by forcing 3840x2160 on low-end WebGL devices
+    const width = this.video.videoWidth || 1280;
+    const height = this.video.videoHeight || 720;
+    
+    let targetWidth = width * 1.5;
+    let targetHeight = height * 1.5;
+    if (targetWidth > 1920) {
+      targetWidth = 1920;
+      targetHeight = 1080;
+    }
+    
+    this.canvas.width = targetWidth;
+    this.canvas.height = targetHeight;
+    this.gl.viewport(0, 0, targetWidth, targetHeight);
   }
 
   public start() {
+    if (this.isActive) return;
     this.isActive = true;
-    this.video.style.opacity = '0';
-    this.canvas.style.opacity = '1';
     this.resize();
+    
+    this.video.addEventListener('seeking', this.onSeeking);
+    this.video.addEventListener('waiting', this.onWaiting);
+    this.video.addEventListener('playing', this.onPlaying);
+    this.video.addEventListener('seeked', this.onSeeked);
+
+    if (this.video.readyState >= this.video.HAVE_CURRENT_DATA && !this.video.seeking) {
+      this.canvas.style.opacity = '1';
+    } else {
+      this.canvas.style.opacity = '0';
+    }
+    
     this.loop();
   }
 
@@ -238,7 +282,12 @@ class Anime4KWebGL {
       cancelAnimationFrame(this.animId);
       this.animId = null;
     }
-    this.video.style.opacity = '1';
+    
+    this.video.removeEventListener('seeking', this.onSeeking);
+    this.video.removeEventListener('waiting', this.onWaiting);
+    this.video.removeEventListener('playing', this.onPlaying);
+    this.video.removeEventListener('seeked', this.onSeeked);
+    
     this.canvas.style.opacity = '0';
   }
 
@@ -524,18 +573,23 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                                    src.toLowerCase().includes('suzume') || 
                                    src.toLowerCase().includes('weathering') || 
                                    src.toLowerCase().includes('garden_of_words') || 
-                                   src.toLowerCase().includes('kimi-no-na-wa');
+                                                  src.toLowerCase().includes('kimi-no-na-wa');
 
-                if (canvasRef.current && videoEl && !isNative4K) {
+                 if (canvasRef.current && videoEl && !isNative4K) {
                   try {
+                    if (videoContainer) {
+                      videoContainer.appendChild(canvasRef.current);
+                      canvasRef.current.setAttribute('style', 'position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 0; z-index: 5;');
+                    }
+
                     webglInstance = new Anime4KWebGL(canvasRef.current, videoEl);
-                    webglInstance.start(); // Auto-start upscaler by default for non-native 4K streams!
+                    webglInstance.stop(); // Safe default
 
                     // Add Custom Glow Indicator Toggle Button inside Artplayer control bar
                     artInstance.controls.add({
                       name: 'anime4k',
                       position: 'right',
-                      html: `<button class="art-btn art-btn-anime4k flex items-center gap-1.5" style="padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #22c55e; height: 100%;"><span class="anime4k-indicator" style="display:inline-block; width: 6px; height: 6px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;"></span>4K AI</button>`,
+                      html: `<button class="art-btn art-btn-anime4k flex items-center gap-1.5" style="padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #94a3b8; height: 100%;"><span class="anime4k-indicator" style="display:inline-block; width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%;"></span>4K AI</button>`,
                       click: function () {
                         if (!webglInstance) return;
                         const ind = document.querySelector('.anime4k-indicator');
@@ -558,10 +612,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                       name: 'upscaleMode',
                       html: 'Масштабирование (4K)',
                       width: 250,
-                      tooltip: 'Anime4K Bilateral (AI)',
+                      tooltip: 'ВЫКЛЮЧЕНО',
                       selector: [
-                        { html: 'ВЫКЛЮЧЕНО', value: -1 },
-                        { html: 'Anime4K Bilateral (AI)', value: 0, default: true },
+                        { html: 'ВЫКЛЮЧЕНО', value: -1, default: true },
+                        { html: 'Anime4K Bilateral (AI)', value: 0 },
                         { html: 'AMD CAS (Адаптивный)', value: 1 },
                         { html: 'LumaSharpen (Контрастный)', value: 2 },
                       ],
@@ -578,7 +632,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                         } else {
                           webglInstance.setMode(val);
                           if (!webglInstance.isActive) {
-                            webglInstance.start();
+                             webglInstance.start();
                           }
                           if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;');
                           if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #22c55e; height: 100%;');

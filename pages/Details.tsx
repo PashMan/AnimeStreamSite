@@ -484,6 +484,10 @@ const Details: React.FC = () => {
   };
 
   useEffect(() => {
+    setHasFetchedPlayers(false);
+  }, [paramEpisode]);
+
+  useEffect(() => {
     if (!hasFetchedPlayers && !isPlayersLoading && !playersError && anime) {
       const fetchPlayers = async () => {
         setIsPlayersLoading(true);
@@ -546,7 +550,7 @@ const Details: React.FC = () => {
       
       fetchPlayers();
     }
-  }, [anime, hasFetchedPlayers, isPlayersLoading, playersError]);
+  }, [anime, hasFetchedPlayers, isPlayersLoading, playersError, paramEpisode]);
 
   if (isMainLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>;
   if (error || !anime) return (
@@ -983,6 +987,40 @@ const Details: React.FC = () => {
                          </>
                        )}
                    </div>
+
+                   {/* Visual list of episodes for Custom Player */}
+                   {selectedPlayer === 'KamiPlayer (4K)' && anime && (anime.episodesAired > 1 || anime.episodes > 1) && (
+                     <div className="mt-6 bg-white/5 border border-white/10 p-6 rounded-[2rem] shadow-xl backdrop-blur-sm">
+                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                         <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Выбор серии
+                       </h4>
+                       <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                         {Array.from({ length: anime.episodesAired || anime.episodes || 1 }).map((_, i) => {
+                           const epNum = i + 1;
+                           const isCurrent = paramEpisode ? parseInt(paramEpisode) === epNum : epNum === 1;
+                           return (
+                             <button
+                               key={epNum}
+                               onClick={() => {
+                                 let newUrl = `/anime/${paramId}/episode/${epNum}`;
+                                 if (window.location.search) {
+                                   newUrl += window.location.search;
+                                 }
+                                 navigate(newUrl);
+                               }}
+                               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                 isCurrent
+                                   ? 'bg-primary text-white shadow-lg scale-105 border border-primary/20'
+                                   : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-transparent'
+                               }`}
+                             >
+                               Серия {epNum}
+                             </button>
+                           );
+                         })}
+                       </div>
+                     </div>
+                   )}
 
                    {/* Visual list of translations for Custom Player */}
                    {selectedPlayer === 'KamiPlayer (4K)' && translations.length > 0 && (
