@@ -240,16 +240,16 @@ class Anime4KWebGL {
   };
 
   public resize() {
-    // Dynamic UPSCALE targeting 1.5x input up to max 1920x1080 (HD/Ultra settings)
-    // Avoids excessive memory crashes or blank viewports caused by forcing 3840x2160 on low-end WebGL devices
+    // Легковесный 2K Апскейл (до 2560x1440), который мы позиционируем как 4K AI.
+    // Позволяет получить ультра-четкую картинку без перегрузки GPU/памяти на средних девайсах.
     const width = this.video.videoWidth || 1280;
     const height = this.video.videoHeight || 720;
     
     let targetWidth = width * 1.5;
     let targetHeight = height * 1.5;
-    if (targetWidth > 1920) {
-      targetWidth = 1920;
-      targetHeight = 1080;
+    if (targetWidth > 2560) {
+      targetWidth = 2560;
+      targetHeight = 1440;
     }
     
     this.canvas.width = targetWidth;
@@ -577,6 +577,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
 
                  if (canvasRef.current && videoEl && !isNative4K) {
                   try {
+                    const videoContainer = videoEl.parentElement;
                     if (videoContainer) {
                       videoContainer.appendChild(canvasRef.current);
                       canvasRef.current.setAttribute('style', 'position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 0; z-index: 5;');
