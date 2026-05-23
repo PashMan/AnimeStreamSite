@@ -20,6 +20,8 @@ class Anime4KWebGL {
   private animId: number | null = null;
   public isActive = false;
   private targetHeight: number = 1440; // Default: 2K (2560x1440)
+  private sharpStrength: number = 1.5;
+  private edgeStrength: number = 3.0;
 
   constructor(canvas: HTMLCanvasElement, video: HTMLVideoElement) {
     this.canvas = canvas;
@@ -53,6 +55,8 @@ class Anime4KWebGL {
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
       uniform vec2 u_textureSize;
+      uniform float u_sharpStrength;
+      uniform float u_edgeStrength;
 
       vec4 bicubicSample(sampler2D image, vec2 uv, vec2 texSize) {
         vec2 texel = vec2(1.0) / texSize;
@@ -142,9 +146,10 @@ class Anime4KWebGL {
         min_color = min(min_color, min(min(tl.rgb, tr.rgb), min(bl.rgb, br.rgb)));
         max_color = max(max_color, max(max(tl.rgb, tr.rgb), max(bl.rgb, br.rgb)));
 
-        // Adaptive High-Pass Sharpening
+        // Edge-Guided Adaptive High-Pass Sharpening (keeps flat backgrounds clear of noise)
         vec3 blurred = (t.rgb + b.rgb + l.rgb + r.rgb) * 0.25;
-        vec3 sharp_color = c.rgb + (c.rgb - blurred) * 1.5;
+        float local_var = clamp(grad * 8.0, 0.0, 1.0);
+        vec3 sharp_color = c.rgb + (c.rgb - blurred) * u_sharpStrength * local_var;
 
         // Strictly clamp to local min/max to completely prevent white/black halos and overexposure
         vec3 final_sharpened = clamp(sharp_color, min_color, max_color);
@@ -154,12 +159,12 @@ class Anime4KWebGL {
         if (grad > 0.04) {
           vec2 dir = vec2(g_x, g_y) / grad;
           // Sample offset along gradient direction for edge reconstruction
-          vec2 tc_shifted = tc - dir * texel * 0.50;
+          vec2 tc_shifted = tc - dir * texel * (0.35 + 0.05 * u_edgeStrength);
           vec4 shifted_sample = bicubicSample(u_image, tc_shifted, u_textureSize);
           
           // Clamp and blend to preserve natural contours and skin tones
           vec3 thinned_color = clamp(shifted_sample.rgb, min_color, max_color);
-          float edge_mix = clamp(grad * 3.0, 0.0, 0.90);
+          float edge_mix = clamp(grad * u_edgeStrength, 0.0, 0.90);
           final_color = mix(final_sharpened, thinned_color, edge_mix);
         }
 
@@ -211,6 +216,11 @@ class Anime4KWebGL {
     if (this.isActive) {
       this.resize();
     }
+  }
+
+  public setStrength(sharp: number, edge: number) {
+    this.sharpStrength = sharp;
+    this.edgeStrength = edge;
   }
 
   private compileShader(type: number, source: string): WebGLShader {
@@ -328,6 +338,12 @@ class Anime4KWebGL {
 
     const uSize = gl.getUniformLocation(this.program, "u_textureSize");
     gl.uniform2f(uSize, this.video.videoWidth || 1280, this.video.videoHeight || 720);
+
+    const uSharp = gl.getUniformLocation(this.program, "u_sharpStrength");
+    gl.uniform1f(uSharp, this.sharpStrength);
+
+    const uEdge = gl.getUniformLocation(this.program, "u_edgeStrength");
+    gl.uniform1f(uEdge, this.edgeStrength);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
@@ -550,8 +566,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                         if (webglInstance) {
                           if (item.html.includes('1080')) {
                             webglInstance.setTargetHeight(1080);
+                            webglInstance.setStrength(1.5, 3.0);
                           } else {
-                            webglInstance.setTargetHeight(1440); // 2K Real Quality
+                            webglInstance.setTargetHeight(2160); // 4K resolution
+                            webglInstance.setStrength(2.8, 4.5); // Extra crisp line refinement
                           }
                           webglInstance.start();
                         }
@@ -568,8 +586,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                   if (webglInstance && (selectedQualityHtml.includes('1080') || selectedQualityHtml.includes('4K'))) {
                     if (selectedQualityHtml.includes('1080')) {
                       webglInstance.setTargetHeight(1080);
+                      webglInstance.setStrength(1.5, 3.0);
                     } else {
-                      webglInstance.setTargetHeight(1440);
+                      webglInstance.setTargetHeight(2160);
+                      webglInstance.setStrength(2.8, 4.5);
                     }
                     webglInstance.start();
                   }
@@ -646,8 +666,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                     if (selectedQualityHtml && (selectedQualityHtml.includes('1080') || selectedQualityHtml.includes('4K'))) {
                       if (selectedQualityHtml.includes('1080')) {
                         webglInstance.setTargetHeight(1080);
+                        webglInstance.setStrength(1.5, 3.0);
                       } else {
-                        webglInstance.setTargetHeight(1440);
+                        webglInstance.setTargetHeight(2160);
+                        webglInstance.setStrength(2.8, 4.5);
                       }
                       webglInstance.start();
                     } else {
