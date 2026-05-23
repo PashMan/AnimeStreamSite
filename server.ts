@@ -424,6 +424,27 @@ function decodeKodikUrl(encoded: string, rotNum?: number): string {
   throw new Error('Decryption of Kodik stream URL failed');
 }
 
+function getProxyOrigin(c: any): string {
+  const proto = c.req.header('x-forwarded-proto') || 'http';
+  const host = c.req.header('x-forwarded-host') || c.req.header('host') || 'localhost:3000';
+  if (host.startsWith('http://') || host.startsWith('https://')) {
+    return host;
+  }
+  return `${proto}://${host}`;
+}
+
+app.options('/api/proxy-4k', (c) => {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Max-Age': '86400',
+    }
+  });
+});
+
 app.get('/api/proxy-4k', async (c) => {
   const targetUrl = c.req.query('url');
   if (!targetUrl) return c.text('Missing url parameter', 400);
@@ -438,9 +459,25 @@ app.get('/api/proxy-4k', async (c) => {
     
     if (contentType.includes('mpegurl') || contentType.includes('m3u8') || targetUrl.includes('.m3u8')) {
       const text = await res.text();
+      
+      // Validation: Ensure the playlist starts with #EXTM3U (not HTML error or blank page)
+      if (!text || !text.trim().startsWith('#EXTM3U')) {
+        console.error(`[PROXY-4K] Invalid M3U8 payload from target: ${targetUrl}. Res length: ${text?.length || 0}. Starts with:`, text ? text.slice(0, 500) : "empty");
+        return new Response('Error: Proxy loaded an invalid M3U8 manifest. The source might be blocking or offline.', {
+          status: 502,
+          headers: {
+            'Content-Type': 'text/plain',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': '*'
+          }
+        });
+      }
+
       const parentUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
       
-      const lines = text.split('\n');
+      // Clean CRLF and split cleanly to avoid breaking tags
+      const lines = text.replace(/\r/g, '').split('\n');
       const rewrittenLines = lines.map(line => {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) return line;
@@ -451,14 +488,16 @@ app.get('/api/proxy-4k', async (c) => {
             ? new URL(trimmed, targetUrl).toString()
             : parentUrl + trimmed;
         }
-        return `${new URL(c.req.url).origin}/api/proxy-4k?url=${encodeURIComponent(absUrl)}`;
+        return `${getProxyOrigin(c)}/api/proxy-4k?url=${encodeURIComponent(absUrl)}`;
       });
       
       return new Response(rewrittenLines.join('\n'), {
         status: 200,
         headers: {
-          'Content-Type': 'application/vnd.apple.mpegurl',
+          'Content-Type': 'application/x-mpegURL',
           'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
           'Cache-Control': 'no-cache'
         }
       });
@@ -469,6 +508,8 @@ app.get('/api/proxy-4k', async (c) => {
       headers: {
         'Content-Type': contentType || 'video/mp2t',
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
         'Cache-Control': 'public, max-age=86400'
       }
     });
@@ -476,6 +517,30 @@ app.get('/api/proxy-4k', async (c) => {
   } catch (err: any) {
     return c.text(`Proxy Exception: ${err.message}`, 500);
   }
+});
+
+app.options('/api/kodik/playlist', (c) => {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Max-Age': '86400',
+    }
+  });
+});
+
+app.options('/api/kodik/segment', (c) => {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Max-Age': '86400',
+    }
+  });
 });
 
 app.get('/api/kodik/playlist', async (c) => {
@@ -590,7 +655,13 @@ app.get('/api/kodik/playlist', async (c) => {
     const gboxData = await gboxRes.json() as any;
     if (!gboxData || !gboxData.links) {
       console.error('[KODIK PROXY] Gbox returned no links', gboxData);
-      return c.json({ error: 'Failed to retrieve stream links from Kodik' }, 500);
+      return new Response('Error: Failed to retrieve stream links from Kodik', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
     }
 
     // 5. Select maximum quality and get stream m3u8 url
@@ -598,7 +669,13 @@ app.get('/api/kodik/playlist', async (c) => {
     const bestQual = qualities[0] || 720;
     const listSources = gboxData.links[String(bestQual)];
     if (!listSources || listSources.length === 0) {
-      return c.json({ error: 'No video stream matches found for highest quality' }, 500);
+      return new Response('Error: No video stream matches found for highest quality', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
     }
 
     const rawSrc = listSources[0].src;
@@ -618,15 +695,37 @@ app.get('/api/kodik/playlist', async (c) => {
 
     if (!m3u8Res.ok) {
       console.error(`[KODIK PROXY] Failed to fetch M3U8, status: ${m3u8Res.status}`);
-      return c.json({ error: 'Kodik manifest loading failed' }, m3u8Res.status as any);
+      return new Response(`Error: Kodik manifest loading failed with status ${m3u8Res.status}`, {
+        status: m3u8Res.status,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
     }
 
     const m3u8Text = await m3u8Res.text();
 
+    // Validation: Ensure the playlist starts with #EXTM3U (not HTML error or blank page)
+    if (!m3u8Text || !m3u8Text.trim().startsWith('#EXTM3U')) {
+      console.error(`[KODIK PROXY ERROR] Manifest from Kodik is empty or invalid. Res length: ${m3u8Text?.length || 0}. Starts with:`, m3u8Text ? m3u8Text.slice(0, 500) : "empty");
+      return new Response('Error: Proxy loaded an invalid M3U8 manifest from Kodik. The source might be blocking or offline.', {
+        status: 502,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': '*'
+        }
+      });
+    }
+
     // 7. Rewrite chunk entries in M3U8
     const m3u8Base = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
-    const lines = m3u8Text.split('\n');
-    const proxyUrlBase = `${new URL(c.req.url).origin}/api/kodik/segment?url=`;
+    
+    // Clean CRLF and split cleanly to avoid breaking tags
+    const lines = m3u8Text.replace(/\r/g, '').split('\n');
+    const proxyUrlBase = `${getProxyOrigin(c)}/api/kodik/segment?url=`;
 
     const rewrittenLines = lines.map(line => {
       const trimmed = line.trim();
@@ -651,15 +750,25 @@ app.get('/api/kodik/playlist', async (c) => {
     return new Response(rewrittenText, {
        status: 200,
        headers: {
-         'Content-Type': 'application/vnd.apple.mpegurl',
+         'Content-Type': 'application/x-mpegURL',
          'Access-Control-Allow-Origin': '*',
+         'Access-Control-Allow-Methods': 'GET, OPTIONS',
+         'Access-Control-Allow-Headers': '*',
          'Cache-Control': 'no-cache, no-store, must-revalidate',
        }
     });
 
   } catch (error: any) {
     console.error('[KODIK PROXY ERROR]', error);
-    return c.json({ error: 'Failed to compile streaming proxy playlist: ' + error.message }, 500);
+    return new Response('Error: Failed to compile streaming proxy playlist. ' + error.message, {
+      status: 500,
+      headers: {
+        'Content-Type': 'text/plain',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
+      }
+    });
   }
 });
 
@@ -687,7 +796,9 @@ app.get('/api/kodik/segment', async (c) => {
       headers: {
         'Content-Type': response.headers.get('content-type') || 'video/mp2t',
         'Cache-Control': 'public, max-age=86400',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
       }
     });
   } catch (e: any) {

@@ -376,6 +376,18 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
               hls.on(Hls.Events.ERROR, function (event, data) {
                 if (data.fatal) {
                   console.error('HLS.js fatal error:', data.type, data.details);
+                  if (data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR || (data.details && data.details.toLowerCase().includes('parsing'))) {
+                    console.warn('[HLS DIAGNOSTIC] manifestParsingError detected. Attempting to fetch raw manifest from:', url);
+                    fetch(url)
+                      .then(r => r.text())
+                      .then(txt => {
+                        console.error('[HLS DIAGNOSTIC] RAW MANIFEST BODY:');
+                        console.error(txt);
+                      })
+                      .catch(err => {
+                        console.error('[HLS DIAGNOSTIC] Failed to fetch raw manifest text:', err);
+                      });
+                  }
                 }
               });
 
