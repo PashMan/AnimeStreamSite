@@ -989,7 +989,7 @@ const Details: React.FC = () => {
                    </div>
 
                    {/* Visual list of episodes for Custom Player */}
-                   {selectedPlayer === 'KamiPlayer (4K)' && anime && (anime.episodesAired > 1 || anime.episodes > 1) && (
+                   {selectedPlayer === 'KamiPlayer (4K)' && anime && ((anime.episodesAired || 0) > 1 || (anime.episodes || 0) > 1) && (
                      <div className="mt-6 bg-white/5 border border-white/10 p-6 rounded-[2rem] shadow-xl backdrop-blur-sm">
                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                          <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Выбор серии

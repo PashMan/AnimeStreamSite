@@ -60,7 +60,7 @@ class Anime4KWebGL {
         vec2 tc = v_texCoord;
 
         if (u_mode == 0) {
-          // --- ANIME4K BILATERAL & SOBEL EDGE THINNER ---
+          // --- ANIME4K BILATERAL & SOBEL EDGE THINNER + SHARP DETAILS ---
           vec4 c = texture2D(u_image, tc);
           vec4 t = texture2D(u_image, tc + vec2(0.0, -texel.y));
           vec4 b = texture2D(u_image, tc + vec2(0.0, texel.y));
@@ -90,18 +90,52 @@ class Anime4KWebGL {
           float grad = sqrt(g_x * g_x + g_y * g_y);
 
           // Edge threshold limit for cartoon/anime boundary restoration
-          if (grad > 0.045) {
+          if (grad > 0.040) {
             vec2 dir = vec2(g_x, g_y) / grad;
             
             // Re-sample slightly towards the edge normal to thin and smooth out pixel grids
-            vec2 tc_sharp = tc - dir * texel * 0.55;
+            vec2 tc_sharp = tc - dir * texel * 0.65;
             vec4 c_sharp = texture2D(u_image, tc_sharp);
 
+            // Compute high-frequency local detail for target edge contrast boosting
+            vec4 blurred = (t + b + l + r) * 0.25;
+            vec3 detail = c_sharp.rgb - blurred.rgb;
+            vec3 edge_boosted = c_sharp.rgb + detail * 1.5;
+
             // Blend high-definition sharpened contours with standard color matching the local contrast
-            gl_FragColor = mix(c, c_sharp, clamp(grad * 1.8, 0.0, 0.85));
+            gl_FragColor = vec4(mix(c.rgb, clamp(edge_boosted, 0.0, 1.0), clamp(grad * 2.5, 0.0, 0.95)), c.a);
           } else {
-            // Flatten standard background texture gradient to clear visual noise
-            gl_FragColor = c;
+            // Apply lightweight bilateral-like range filter to smooth skin, sky, and dark/flat backdrops
+            float w_total = 1.0;
+            vec4 accum = c;
+            float sigma_color = 0.12;
+
+            float d_t = distance(t.rgb, c.rgb);
+            float w_t = max(0.0, 1.0 - (d_t / sigma_color));
+            w_t = w_t * w_t;
+            accum += t * w_t;
+            w_total += w_t;
+
+            float d_b = distance(b.rgb, c.rgb);
+            float w_b = max(0.0, 1.0 - (d_b / sigma_color));
+            w_b = w_b * w_b;
+            accum += b * w_b;
+            w_total += w_b;
+
+            float d_l = distance(l.rgb, c.rgb);
+            float w_l = max(0.0, 1.0 - (d_l / sigma_color));
+            w_l = w_l * w_l;
+            accum += l * w_l;
+            w_total += w_l;
+
+            float d_r = distance(r.rgb, c.rgb);
+            float w_r = max(0.0, 1.0 - (d_r / sigma_color));
+            w_r = w_r * w_r;
+            accum += r * w_r;
+            w_total += w_r;
+
+            vec3 smoothed = accum.rgb / w_total;
+            gl_FragColor = vec4(smoothed, c.a);
           }
         }
         else if (u_mode == 1) {
@@ -482,7 +516,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
 
                 if (!hasNative1080) {
                   qualitiesList.push({
-                    html: '1080p (AI Upscale)',
+                    html: '1080p',
                     level: maxLevelIdx,
                     isUpscale: true,
                     default: false
@@ -491,7 +525,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
 
                 if (!hasNative4K) {
                   qualitiesList.push({
-                    html: '4K (AI Upscale)',
+                    html: '4K',
                     level: maxLevelIdx,
                     isUpscale: true,
                     default: false
@@ -511,24 +545,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                     onSelect: function (item) {
                       hls.nextLevel = item.level;
                       
-                      if (item.isUpscale) {
+                      const isTargetUpscale = item.html.includes('1080') || item.html.includes('4K');
+                      if (isTargetUpscale) {
                         if (webglInstance) {
                           webglInstance.start();
-                          const ind = document.querySelector('.anime4k-indicator');
-                          const btn = document.querySelector('.art-btn-anime4k');
-                          if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;');
-                          if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #22c55e; height: 100%;');
                         }
                       } else {
-                        // Optimize performance: Disable upscaler on lower qualities (360p/480p) unless forced via buttons
-                        if (item.html.includes('360') || item.html.includes('480')) {
-                          if (webglInstance) {
-                            webglInstance.stop();
-                            const ind = document.querySelector('.anime4k-indicator');
-                            const btn = document.querySelector('.art-btn-anime4k');
-                            if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%;');
-                            if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #94a3b8; height: 100%;');
-                          }
+                        if (webglInstance) {
+                          webglInstance.stop();
                         }
                       }
                       return item.html;
@@ -595,63 +619,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
 
                     webglInstance = new Anime4KWebGL(canvasRef.current, videoEl);
                     webglInstance.stop(); // Safe default
-
-                    // Add Custom Glow Indicator Toggle Button inside Artplayer control bar
-                    artInstance.controls.add({
-                      name: 'anime4k',
-                      position: 'right',
-                      html: `<button class="art-btn art-btn-anime4k flex items-center gap-1.5" style="padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #94a3b8; height: 100%;"><span class="anime4k-indicator" style="display:inline-block; width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%;"></span>4K AI</button>`,
-                      click: function () {
-                        if (!webglInstance) return;
-                        const ind = document.querySelector('.anime4k-indicator');
-                        const btn = document.querySelector('.art-btn-anime4k');
-                        
-                        if (webglInstance.isActive) {
-                          webglInstance.stop();
-                          if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%;');
-                          if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #94a3b8; height: 100%;');
-                        } else {
-                          webglInstance.start();
-                          if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;');
-                          if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #22c55e; height: 100%;');
-                        }
-                      }
-                    });
-
-                    // Add Interactive 4K Shader Selection Selector inside the Settings Panel
-                    artInstance.setting.add({
-                      name: 'upscaleMode',
-                      html: 'Масштабирование (4K)',
-                      width: 250,
-                      tooltip: 'ВЫКЛЮЧЕНО',
-                      selector: [
-                        { html: 'ВЫКЛЮЧЕНО', value: -1, default: true },
-                        { html: 'Anime4K Bilateral (AI)', value: 0 },
-                        { html: 'AMD CAS (Адаптивный)', value: 1 },
-                        { html: 'LumaSharpen (Контрастный)', value: 2 },
-                      ],
-                      onSelect: function (item) {
-                        if (!webglInstance) return item.html;
-                        const val = item.value;
-                        const ind = document.querySelector('.anime4k-indicator');
-                        const btn = document.querySelector('.art-btn-anime4k');
-                        
-                        if (val === -1) {
-                          webglInstance.stop();
-                          if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%;');
-                          if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #94a3b8; height: 100%;');
-                        } else {
-                          webglInstance.setMode(val);
-                          if (!webglInstance.isActive) {
-                             webglInstance.start();
-                          }
-                          if (ind) ind.setAttribute('style', 'display:inline-block; width: 6px; height: 6px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e;');
-                          if (btn) btn.setAttribute('style', 'padding: 0 10px; font-weight: bold; font-size: 11px; cursor: pointer; color: #22c55e; height: 100%;');
-                        }
-                        return item.html;
-                      },
-                    });
-
                   } catch (e) {
                     console.error("Anime4K WebGL Initialization Error:", e);
                   }

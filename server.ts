@@ -664,12 +664,44 @@ app.get('/api/kodik/playlist', async (c) => {
       });
     }
 
-    // 5. Select maximum quality and get stream m3u8 url
+    // 5. Build dynamic Master Playlist or yield single-quality playlist based on query parameters
+    const targetQuality = c.req.query('quality');
     const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 480, 360
-    const bestQual = qualities[0] || 720;
-    const listSources = gboxData.links[String(bestQual)];
+
+    if (!targetQuality && qualities.length > 1) {
+      console.log(`[KODIK PROXY] Building Master Playlist for available qualities: ${qualities.join(', ')}`);
+      const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
+      
+      qualities.forEach(q => {
+        let width = 1280, height = 720, bandwidth = 2200000;
+        if (q === 480) {
+          width = 854; height = 480; bandwidth = 1100000;
+        } else if (q === 360) {
+          width = 640; height = 360; bandwidth = 600000;
+        } else if (q === 1080) {
+          width = 1920; height = 1080; bandwidth = 4500000;
+        }
+        
+        masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height},NAME="${q}p"`);
+        masterLines.push(`/api/kodik/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}`);
+      });
+
+      return new Response(masterLines.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/x-mpegURL',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        }
+      });
+    }
+
+    const selectedQual = targetQuality || String(qualities[0] || 720);
+    const listSources = gboxData.links[selectedQual] || gboxData.links[String(qualities[0] || 720)];
     if (!listSources || listSources.length === 0) {
-      return new Response('Error: No video stream matches found for highest quality', {
+      return new Response('Error: No video stream matches found for target quality', {
         status: 500,
         headers: {
           'Content-Type': 'text/plain',
