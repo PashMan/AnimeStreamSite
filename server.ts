@@ -395,6 +395,248 @@ app.get('/api/image/*', async (c) => {
   }
 });
 
+// Kodik direct stream decryptor and proxy
+function convertChar(char: string, num: number): string {
+  const alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const upper = char.toUpperCase();
+  if (alph.includes(upper)) {
+    const idx = (alph.indexOf(upper) + num) % alph.length;
+    const ch = alph[idx];
+    return char === char.toLowerCase() ? ch.toLowerCase() : ch;
+  }
+  return char;
+}
+
+function decodeKodikUrl(encoded: string, rotNum?: number): string {
+  if (rotNum !== undefined) {
+    const crypted = encoded.split('').map(c => convertChar(c, rotNum)).join('');
+    const padding = (4 - (crypted.length % 4)) % 4;
+    try {
+      const decoded = atob(crypted + '='.repeat(padding));
+      if (decoded.includes('mp4:hls:manifest')) return decoded;
+    } catch {}
+  }
+  for (let rot = 0; rot < 26; rot++) {
+    const crypted = encoded.split('').map(c => convertChar(c, rot)).join('');
+    const padding = (4 - (crypted.length % 4)) % 4;
+    try {
+      const decoded = atob(crypted + '='.repeat(padding));
+      if (decoded.includes('mp4:hls:manifest')) {
+         return decoded;
+      }
+    } catch {}
+  }
+  throw new Error('Decryption of Kodik stream URL failed');
+}
+
+app.get('/api/kodik/playlist', async (c) => {
+  const urlParam = c.req.query('url');
+  if (!urlParam) {
+    return c.json({ error: 'url parameter is required' }, 400);
+  }
+
+  try {
+    const iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    console.log(`[KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
+
+    // 1. Fetch iframe page
+    const iframeRes = await fetch(iframeUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': 'https://shikimori.one/'
+      }
+    });
+    const html = await iframeRes.text();
+
+    // 2. Extract parameters
+    const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*({[^;]+})/);
+    const hashMatch = html.match(/\.hash\s*=\s*'([^']+)'/);
+    const idMatch = html.match(/\.id\s*=\s*'([^']+)'/);
+    const typeMatch = html.match(/\.type\s*=\s*'([^']+)'/);
+
+    if (!urlParamsMatch || !hashMatch || !idMatch || !typeMatch) {
+      console.error('[KODIK PROXY] Failed to parse iframe params');
+      return c.json({ error: 'Failed to parse iframe parameters. Stream might be offline.' }, 500);
+    }
+
+    const urlParams = JSON.parse(urlParamsMatch[1]);
+    const videoHash = hashMatch[1];
+    const videoId = idMatch[1];
+    const videoType = typeMatch[1];
+
+    // Find script url ending with .js (usually the player's minified js)
+    const scriptMatches = html.match(/<script\s+src="([^"]+\.js)"/g) || [];
+    let scriptUrl = '';
+    for (const match of scriptMatches) {
+      const srcAttr = match.match(/src="([^"]+)"/);
+      if (srcAttr && srcAttr[1] && srcAttr[1].includes('/assets/')) {
+        scriptUrl = srcAttr[1];
+        break;
+      }
+    }
+    if (!scriptUrl && scriptMatches[1]) {
+      const srcAttr = scriptMatches[1].match(/src="([^"]+)"/);
+      if (srcAttr) scriptUrl = srcAttr[1];
+    }
+    if (!scriptUrl) {
+      scriptUrl = '/assets/seria.js'; // fallback
+    }
+
+    const baseUrlObj = new URL(iframeUrl);
+    const scriptAbsoluteUrl = scriptUrl.startsWith('http') ? scriptUrl : `${baseUrlObj.protocol}//${baseUrlObj.host}${scriptUrl}`;
+
+    // 3. Request script to get Gbox Ajax link
+    const scriptRes = await fetch(scriptAbsoluteUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': iframeUrl
+      }
+    });
+    const scriptHtml = await scriptRes.text();
+
+    const ajaxMatch = scriptHtml.match(/\$.ajax\(\{[^}]+url:\s*atob\("([^"]+)"\)/) || scriptHtml.match(/atob\("([^"]+)"\)/);
+    if (!ajaxMatch) {
+      console.error('[KODIK PROXY] Gbox ajax match failed');
+      return c.json({ error: 'Could not extract player API script' }, 500);
+    }
+
+    const gboxPath = atob(ajaxMatch[1]);
+    const gboxUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}${gboxPath}`;
+
+    // 4. Request video links from gbox
+    const payload = new URLSearchParams({
+      hash: videoHash,
+      id: videoId,
+      type: videoType,
+      d: urlParams.d || 'kodik.info',
+      d_sign: urlParams.d_sign || '',
+      pd: urlParams.pd || '',
+      pd_sign: urlParams.pd_sign || '',
+      ref: '',
+      ref_sign: urlParams.ref_sign || '',
+      bad_user: 'true',
+      cdn_is_working: 'true'
+    });
+
+    const gboxRes = await fetch(gboxUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': iframeUrl
+      },
+      body: payload.toString()
+    });
+
+    const gboxData = await gboxRes.json() as any;
+    if (!gboxData || !gboxData.links) {
+      console.error('[KODIK PROXY] Gbox returned no links', gboxData);
+      return c.json({ error: 'Failed to retrieve stream links from Kodik' }, 500);
+    }
+
+    // 5. Select maximum quality and get stream m3u8 url
+    const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 480, 360
+    const bestQual = qualities[0] || 720;
+    const listSources = gboxData.links[String(bestQual)];
+    if (!listSources || listSources.length === 0) {
+      return c.json({ error: 'No video stream matches found for highest quality' }, 500);
+    }
+
+    const rawSrc = listSources[0].src;
+    // Decrypt the URL if it doesn't already contain manifest
+    const decryptedUrl = rawSrc.includes('mp4:hls:manifest') ? rawSrc : decodeKodikUrl(rawSrc);
+    const playlistUrl = decryptedUrl.startsWith('//') ? `https:${decryptedUrl}` : decryptedUrl;
+
+    console.log(`[KODIK PROXY] Fetched decrypted stream. Base HLS: ${playlistUrl}`);
+
+    // 6. Fetch the actual M3U8 file contents
+    const m3u8Res = await fetch(playlistUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://kodik.info/'
+      }
+    });
+
+    if (!m3u8Res.ok) {
+      console.error(`[KODIK PROXY] Failed to fetch M3U8, status: ${m3u8Res.status}`);
+      return c.json({ error: 'Kodik manifest loading failed' }, m3u8Res.status as any);
+    }
+
+    const m3u8Text = await m3u8Res.text();
+
+    // 7. Rewrite chunk entries in M3U8
+    const m3u8Base = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
+    const lines = m3u8Text.split('\n');
+    const proxyUrlBase = `${new URL(c.req.url).origin}/api/kodik/segment?url=`;
+
+    const rewrittenLines = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        return line;
+      }
+      
+      // Resolve path
+      let absSegmentUrl = trimmed;
+      if (!trimmed.startsWith('http')) {
+        absSegmentUrl = trimmed.startsWith('/') 
+          ? new URL(trimmed, playlistUrl).toString()
+          : m3u8Base + trimmed;
+      }
+
+      // Add segment proxy URL
+      return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}`;
+    });
+
+    const rewrittenText = rewrittenLines.join('\n');
+
+    return new Response(rewrittenText, {
+       status: 200,
+       headers: {
+         'Content-Type': 'application/vnd.apple.mpegurl',
+         'Access-Control-Allow-Origin': '*',
+         'Cache-Control': 'no-cache, no-store, must-revalidate',
+       }
+    });
+
+  } catch (error: any) {
+    console.error('[KODIK PROXY ERROR]', error);
+    return c.json({ error: 'Failed to compile streaming proxy playlist: ' + error.message }, 500);
+  }
+});
+
+app.get('/api/kodik/segment', async (c) => {
+  const segmentUrl = c.req.query('url');
+  if (!segmentUrl) {
+    return c.json({ error: 'No segment URL provided' }, 400);
+  }
+
+  try {
+    const response = await fetch(segmentUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://kodik.info/',
+        'Accept': '*/*'
+      }
+    });
+
+    if (!response.ok) {
+       return new Response(`Error fetching segment: ${response.status}`, { status: response.status });
+    }
+
+    return new Response(response.body, {
+      status: 200,
+      headers: {
+        'Content-Type': response.headers.get('content-type') || 'video/mp2t',
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  } catch (e: any) {
+    console.error('[KODIK SEGMENT PROXY EXCEPTION]', e);
+    return c.json({ error: 'Segment proxy fetch failed: ' + e.message }, 500);
+  }
+});
+
 // SPA Fallback
 app.get('*', serveStatic({ root: './dist' }));
 

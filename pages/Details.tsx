@@ -914,10 +914,10 @@ const Details: React.FC = () => {
                                 try {
                                   const url = new URL(finalIframeUrl);
                                   if (paramEpisode) url.searchParams.set('episode', paramEpisode);
-                                  // Don't auto-reload iframe based on role/translation to avoid flash/interruptions,
-                                  // usePlayerSync specifically handles postMessage 'change_video' instead.
                                   finalIframeUrl = url.toString();
                                 } catch (e) {}
+                                const proxyPlaylistUrl = `/api/kodik/playlist?url=${encodeURIComponent(finalIframeUrl || '')}`;
+                                return <CustomPlayer ref={nativeVideoRef} src={proxyPlaylistUrl} autoPlay={true} />;
                               }
                               return (
                                 <iframe 
