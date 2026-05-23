@@ -86,6 +86,20 @@ const Details: React.FC = () => {
     }
   }, [roomId]);
 
+  // Redirect to episode 1 if no episode is selected in URL to keep visual match across players
+  useEffect(() => {
+    if (!paramEpisode && id && anime) {
+      const totalEpisodes = anime.episodesAired || anime.episodes || 1;
+      if (totalEpisodes > 0) {
+        let newUrl = `/anime/${paramId}/episode/1`;
+        if (window.location.search) {
+          newUrl += window.location.search;
+        }
+        navigate(newUrl, { replace: true });
+      }
+    }
+  }, [paramEpisode, id, paramId, anime, navigate]);
+
   const handleCreateRoom = () => {
     const newRoomId = Math.random().toString(36).substring(2, 10);
     setRoomId(newRoomId);

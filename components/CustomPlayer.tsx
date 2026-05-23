@@ -352,6 +352,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
     let blobUrl: string | null = null;
     let isCancelled = false;
     let webglInstance: Anime4KWebGL | null = null;
+    let selectedQualityHtml = '4K';
 
     const initPlayer = async () => {
       let finalUrl = src;
@@ -410,6 +411,28 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
         fullscreenWeb: true,
         miniProgressBar: true,
         lang: 'ru',
+        i18n: {
+          'ru': {
+            'Play Speed': 'Скорость воспроизведения',
+            'Aspect Ratio': 'Соотношение сторон',
+            'Default': 'По умолчанию',
+            'Normal': 'Обычная',
+            'Settings': 'Настройки',
+            'Play': 'Запуск',
+            'Pause': 'Пауза',
+            'Volume': 'Громкость',
+            'Mute': 'Заглушить',
+            'Screenshot': 'Скриншот',
+            'Fullscreen': 'Во весь экран',
+            'Exit Fullscreen': 'Выйти из полноэкранного режима',
+            'Web Fullscreen': 'В окне браузера',
+            'Exit Web Fullscreen': 'Выйти из режима окна',
+            'PIP Mode': 'Картинка в картинке',
+            'Exit PIP Mode': 'Закрыть картинку в картинке',
+            'Flip': 'Поворот',
+            'Video Info': 'Служебная информация',
+          }
+        } as any,
         layers: [
           {
             name: 'play-pause-layer',
@@ -462,7 +485,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                   if (width >= 1200 || height >= 500) return '720p';
                   if (width >= 800 || height >= 400) return '480p';
                   if (width >= 600 || height >= 300) return '360p';
-                  return height ? height + 'p' : 'Unknown';
+                  return height ? height + 'p' : 'Неизвестно';
                 };
 
                 const levels = data.levels || hls.levels;
@@ -470,7 +493,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                   html: getQualityName(l),
                   level: index,
                   isUpscale: false,
-                  default: index === levels.length - 1
+                  default: false
                 }));
 
                 const maxLevelIdx = levels.length - 1;
@@ -497,18 +520,30 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                   });
                 }
 
+                // Determine the upscale or best quality to set as initial default
+                const defaultItem = qualitiesList.find(q => q.html === '4K') || 
+                                    qualitiesList.find(q => q.html === '1080p') || 
+                                    qualitiesList[qualitiesList.length - 1]; // Highest standard available
+
+                if (defaultItem) {
+                  defaultItem.default = true;
+                  selectedQualityHtml = defaultItem.html;
+                }
+
                 // Show highest qualities first
                 qualitiesList.reverse();
 
                 if (qualitiesList.length > 0) {
+                  const defaultItemInReversed = qualitiesList.find(q => q.default) || qualitiesList[0];
                   artInstance.setting.add({
                     name: 'quality',
                     html: 'Качество',
                     width: 220,
-                    tooltip: qualitiesList[0].html,
+                    tooltip: defaultItemInReversed.html,
                     selector: qualitiesList,
                     onSelect: function (item) {
                       hls.nextLevel = item.level;
+                      selectedQualityHtml = item.html;
                       
                       const isTargetUpscale = item.html.includes('1080') || item.html.includes('4K');
                       if (isTargetUpscale) {
@@ -528,6 +563,16 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                       return item.html;
                     },
                   });
+
+                  // Trigger initial WebGL upscaling immediately if webglInstance is already initialized
+                  if (webglInstance && (selectedQualityHtml.includes('1080') || selectedQualityHtml.includes('4K'))) {
+                    if (selectedQualityHtml.includes('1080')) {
+                      webglInstance.setTargetHeight(1080);
+                    } else {
+                      webglInstance.setTargetHeight(1440);
+                    }
+                    webglInstance.start();
+                  }
                 }
               });
 
@@ -561,11 +606,21 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
               });
 
               artInstance.on('ready', () => {
-                const playbackRateSetting = (artInstance.setting as any).get ? (artInstance.setting as any).get('playbackRate') : (artInstance.setting as any).find('playbackRate');
+                const findSetting = (names: string[]) => {
+                  for (const n of names) {
+                    const found = (artInstance.setting as any).get?.(n) || 
+                                  (artInstance.setting as any).find?.(n) ||
+                                  (artInstance.setting as any).get?.(n.toLowerCase());
+                    if (found) return found;
+                  }
+                  return null;
+                };
+
+                const playbackRateSetting = findSetting(['playbackRate', 'playback-rate', 'rate']);
                 if (playbackRateSetting) {
                   playbackRateSetting.html = 'Скорость';
                 }
-                const aspectRatioSetting = (artInstance.setting as any).get ? (artInstance.setting as any).get('aspectRatio') : (artInstance.setting as any).find('aspectRatio');
+                const aspectRatioSetting = findSetting(['aspectRatio', 'aspect-ratio', 'ratio']);
                 if (aspectRatioSetting) {
                   aspectRatioSetting.html = 'Соотношение сторон';
                 }
@@ -588,7 +643,16 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(({ s
                     }
 
                     webglInstance = new Anime4KWebGL(canvasRef.current, videoEl);
-                    webglInstance.stop(); // Safe default
+                    if (selectedQualityHtml && (selectedQualityHtml.includes('1080') || selectedQualityHtml.includes('4K'))) {
+                      if (selectedQualityHtml.includes('1080')) {
+                        webglInstance.setTargetHeight(1080);
+                      } else {
+                        webglInstance.setTargetHeight(1440);
+                      }
+                      webglInstance.start();
+                    } else {
+                      webglInstance.stop();
+                    }
                   } catch (e) {
                     console.error("Anime4K WebGL Initialization Error:", e);
                   }
