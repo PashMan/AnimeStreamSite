@@ -102,7 +102,68 @@ class Anime4KWebGL {
       }
 
       void main() {
-        gl_FragColor = clamp(bicubicSample(u_image, v_texCoord, u_textureSize), 0.0, 1.0);
+        vec2 texel = vec2(1.0) / u_textureSize;
+        vec2 tc = v_texCoord;
+
+        // Pristine Catmull-Rom upscaled center pixel
+        vec4 c = bicubicSample(u_image, tc, u_textureSize);
+
+        // Hardware-accelerated bilinear samples for neighboring pixels
+        vec4 t = texture2D(u_image, tc + vec2(0.0, -texel.y));
+        vec4 b = texture2D(u_image, tc + vec2(0.0, texel.y));
+        vec4 l = texture2D(u_image, tc + vec2(-texel.x, 0.0));
+        vec4 r = texture2D(u_image, tc + vec2(texel.x, 0.0));
+
+        vec4 tl = texture2D(u_image, tc + vec2(-texel.x, -texel.y));
+        vec4 tr = texture2D(u_image, tc + vec2(texel.x, -texel.y));
+        vec4 bl = texture2D(u_image, tc + vec2(-texel.x, texel.y));
+        vec4 br = texture2D(u_image, tc + vec2(texel.x, texel.y));
+
+        // Get relative luma values for Sobel edge detection
+        vec3 lumaWeight = vec3(0.299, 0.587, 0.114);
+        float c_y = dot(c.rgb, lumaWeight);
+        float t_y = dot(t.rgb, lumaWeight);
+        float b_y = dot(b.rgb, lumaWeight);
+        float l_y = dot(l.rgb, lumaWeight);
+        float r_y = dot(r.rgb, lumaWeight);
+        float tl_y = dot(tl.rgb, lumaWeight);
+        float tr_y = dot(tr.rgb, lumaWeight);
+        float bl_y = dot(bl.rgb, lumaWeight);
+        float br_y = dot(br.rgb, lumaWeight);
+
+        // Compute Sobel gradients
+        float g_x = tl_y + 2.0 * l_y + bl_y - tr_y - 2.0 * r_y - br_y;
+        float g_y = tl_y + 2.0 * t_y + tr_y - bl_y - 2.0 * b_y - br_y;
+        float grad = sqrt(g_x * g_x + g_y * g_y);
+
+        // Halo-Free Limits: compute min and max values in the 3x3 neighborhood
+        vec3 min_color = min(c.rgb, min(min(t.rgb, b.rgb), min(l.rgb, r.rgb)));
+        vec3 max_color = max(c.rgb, max(max(t.rgb, b.rgb), max(l.rgb, r.rgb)));
+        min_color = min(min_color, min(min(tl.rgb, tr.rgb), min(bl.rgb, br.rgb)));
+        max_color = max(max_color, max(max(tl.rgb, tr.rgb), max(bl.rgb, br.rgb)));
+
+        // Adaptive High-Pass Sharpening
+        vec3 blurred = (t.rgb + b.rgb + l.rgb + r.rgb) * 0.25;
+        vec3 sharp_color = c.rgb + (c.rgb - blurred) * 1.5;
+
+        // Strictly clamp to local min/max to completely prevent white/black halos and overexposure
+        vec3 final_sharpened = clamp(sharp_color, min_color, max_color);
+
+        // Outline contour detection and thinning/sharpening
+        vec3 final_color = final_sharpened;
+        if (grad > 0.04) {
+          vec2 dir = vec2(g_x, g_y) / grad;
+          // Sample offset along gradient direction for edge reconstruction
+          vec2 tc_shifted = tc - dir * texel * 0.50;
+          vec4 shifted_sample = bicubicSample(u_image, tc_shifted, u_textureSize);
+          
+          // Clamp and blend to preserve natural contours and skin tones
+          vec3 thinned_color = clamp(shifted_sample.rgb, min_color, max_color);
+          float edge_mix = clamp(grad * 3.0, 0.0, 0.90);
+          final_color = mix(final_sharpened, thinned_color, edge_mix);
+        }
+
+        gl_FragColor = vec4(final_color, c.a);
       }
     `;
 
