@@ -811,7 +811,7 @@ app.get('/api/kodik/segment', async (c) => {
 app.get('*', serveStatic({ root: './dist' }));
 
 const isProd = process.env.NODE_ENV === 'production';
-const port = isProd ? 3000 : 3001;
+const port = 3000;
 
 console.log(`[HONO NODE SERVER] Starting backend listener on port ${port}...`);
 serve({
