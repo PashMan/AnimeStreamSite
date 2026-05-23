@@ -513,22 +513,31 @@ app.get('/api/kodik/playlist', async (c) => {
     const videoId = idMatch[1];
     const videoType = typeMatch[1];
 
-    // Find script url ending with .js (usually the player's minified js)
-    const scriptMatches = html.match(/<script\s+src="([^"]+\.js)"/g) || [];
+    // Find script url (preferring serial/player minified js in assets)
     let scriptUrl = '';
-    for (const match of scriptMatches) {
-      const srcAttr = match.match(/src="([^"]+)"/);
-      if (srcAttr && srcAttr[1] && srcAttr[1].includes('/assets/')) {
-        scriptUrl = srcAttr[1];
-        break;
+    const scriptTagRegex = /<script\b[^>]*?\bsrc\s*=\s*["']([^"']+\.js[^"']*)["']/gi;
+    let match;
+    const candidateScripts: string[] = [];
+    while ((match = scriptTagRegex.exec(html)) !== null) {
+      candidateScripts.push(match[1]);
+    }
+
+    const assetScript = candidateScripts.find(s => s.includes('/assets/'));
+    if (assetScript) {
+      scriptUrl = assetScript;
+    } else if (candidateScripts.length > 0) {
+      scriptUrl = candidateScripts[0];
+    }
+
+    if (!scriptUrl) {
+      const inlineJsMatch = html.match(/["'](\/assets\/js\/app\.[^"']+\.js)["']/);
+      if (inlineJsMatch) {
+        scriptUrl = inlineJsMatch[1];
       }
     }
-    if (!scriptUrl && scriptMatches[1]) {
-      const srcAttr = scriptMatches[1].match(/src="([^"]+)"/);
-      if (srcAttr) scriptUrl = srcAttr[1];
-    }
+
     if (!scriptUrl) {
-      scriptUrl = '/assets/seria.js'; // fallback
+      scriptUrl = '/assets/js/app.serial.js'; // fallback
     }
 
     const baseUrlObj = new URL(iframeUrl);
@@ -543,7 +552,8 @@ app.get('/api/kodik/playlist', async (c) => {
     });
     const scriptHtml = await scriptRes.text();
 
-    const ajaxMatch = scriptHtml.match(/\$.ajax\(\{[^}]+url:\s*atob\("([^"]+)"\)/) || scriptHtml.match(/atob\("([^"]+)"\)/);
+    const ajaxMatch = scriptHtml.match(/\$.ajax\([\s\S]*?url:\s*atob\("([^"]+)"\)/) || 
+                      scriptHtml.match(/atob\("([^"'\(\)]+)"\)/);
     if (!ajaxMatch) {
       console.error('[KODIK PROXY] Gbox ajax match failed');
       return c.json({ error: 'Could not extract player API script' }, 500);
@@ -561,7 +571,7 @@ app.get('/api/kodik/playlist', async (c) => {
       d_sign: urlParams.d_sign || '',
       pd: urlParams.pd || '',
       pd_sign: urlParams.pd_sign || '',
-      ref: '',
+      ref: decodeURIComponent(urlParams.ref || ''),
       ref_sign: urlParams.ref_sign || '',
       bad_user: 'true',
       cdn_is_working: 'true'
