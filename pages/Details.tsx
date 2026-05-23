@@ -36,9 +36,9 @@ const Details: React.FC = () => {
   const similarRef = useRef<HTMLDivElement>(null);
   
   const [anime, setAnime] = useState<Anime | null>(null);
-  const [selectedPlayer, setSelectedPlayer] = useState<string>('Kodik');
+  const [selectedPlayer, setSelectedPlayer] = useState<string>('KamiPlayer (4K)');
   const [players, setPlayers] = useState<{ name: string; iframe: string | null; isCustom?: boolean }[]>([
-    { name: 'Kodik', iframe: null }
+    { name: 'KamiPlayer (4K)', iframe: null, isCustom: true }
   ]);
   const [translations, setTranslations] = useState<{ id: number; title: string; type: string; iframe: string }[]>([]);
   const [selectedTranslation, setSelectedTranslation] = useState<{ id: number; title: string; type: string; iframe: string } | null>(null);
@@ -538,15 +538,12 @@ const Details: React.FC = () => {
               setSelectedTranslation(translationsList[0]);
             }
             setHasFetchedPlayers(true);
-            // Default to custom player, then first player with an iframe, or Kodik
+            // Default directly to KamiPlayer (4K)
             const customPlayer = playersList.find(p => p.isCustom);
-            const playerWithIframe = playersList.find(p => p.iframe);
             if (customPlayer) {
               setSelectedPlayer(customPlayer.name);
-            } else if (playerWithIframe) {
-              setSelectedPlayer(playerWithIframe.name);
             } else {
-              setSelectedPlayer('Kodik');
+              setSelectedPlayer('KamiPlayer (4K)');
             }
           } else {
             setHasFetchedPlayers(true);
@@ -852,7 +849,7 @@ const Details: React.FC = () => {
                          <Bell className="w-4 h-4" /> Уведомлять о сериях
                        </button>
                      )}
-                     <div className="flex gap-2 bg-white/5 p-1 rounded-xl overflow-x-auto w-full sm:w-auto">
+                     <div className="hidden gap-2 bg-white/5 p-1 rounded-xl overflow-x-auto w-full sm:w-auto">
                        {players.map(player => (
                          <button 
                            key={player.name}
