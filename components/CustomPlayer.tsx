@@ -209,14 +209,15 @@ class Anime4KWebGL {
 
         // Edge push / Line Thinning along the gradient vector
         vec3 final_color = local_sharpened;
-        if (grad > 0.015) {
+        if (grad > 0.01) {
+          vec2 texSource = vec2(1.0) / u_sourceSize;
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
-          // Shift coordinates towards the center of the line (pixel push)
-          vec2 tc_shifted = tc - dir * texTarget * (u_edgeStrength * 0.75);
+          // Shift coordinates towards the center of the line relative to original source pixel size
+          vec2 tc_shifted = tc - dir * texSource * (u_edgeStrength * 0.15);
           vec4 shifted_sample = texture2D(u_image, tc_shifted);
           vec3 thinned_color = clamp(shifted_sample.rgb, min_color, max_color);
 
-          float edge_mix = clamp(grad * u_edgeStrength * 1.5, 0.0, 0.92);
+          float edge_mix = clamp(grad * u_edgeStrength * 1.8, 0.0, 0.95);
           final_color = mix(local_sharpened, thinned_color, edge_mix);
         }
 
@@ -224,7 +225,7 @@ class Anime4KWebGL {
         vec3 lumaWeight = vec3(0.299, 0.587, 0.114);
         float final_y = dot(final_color, lumaWeight);
         if (final_y < 0.45) {
-          float contrast_factor = 1.0 - (0.45 - final_y) * 0.25;
+          float contrast_factor = 1.0 - (0.45 - final_y) * 0.35;
           final_color = final_color * contrast_factor;
         }
 
@@ -337,8 +338,21 @@ class Anime4KWebGL {
     const height = this.video.videoHeight || 720;
     const aspectRatio = width / height;
 
-    let targetHeight = this.targetHeight;
-    let targetWidth = Math.round(targetHeight * aspectRatio);
+    // Get actual player dimensions in screen pixels for absolute pixel-perfect output (prevents browser downscale blur)
+    const rect = this.video.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    let displayWidth = rect.width > 0 ? rect.width : (width / dpr);
+    let displayHeight = rect.height > 0 ? rect.height : (height / dpr);
+
+    let targetWidth = Math.round(displayWidth * dpr);
+    let targetHeight = Math.round(displayHeight * dpr);
+
+    // Limit target size up to user-selected quality target max (e.g. 1080 or 2160)
+    if (targetHeight > this.targetHeight) {
+      targetHeight = this.targetHeight;
+      targetWidth = Math.round(targetHeight * aspectRatio);
+    }
 
     this.canvas.width = targetWidth;
     this.canvas.height = targetHeight;
