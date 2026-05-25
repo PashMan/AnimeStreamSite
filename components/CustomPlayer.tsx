@@ -170,75 +170,61 @@ class Anime4KWebGL {
 
       void main() {
         vec2 texTarget = vec2(1.0) / u_textureSize;
-        vec2 texSource = vec2(1.0) / u_sourceSize;
         vec2 tc = v_texCoord;
 
-        // Current upscaled pixel color
+        // Base upscaled color
         vec4 c = texture2D(u_image, tc);
 
-        // 1. Compute true boundaries/gradients using coarse step sizes aligning with Source Pixels
-        float t_y  = dot(texture2D(u_image, tc + vec2(0.0, -texSource.y)).rgb, vec3(0.299, 0.587, 0.114));
-        float b_y  = dot(texture2D(u_image, tc + vec2(0.0, texSource.y)).rgb,  vec3(0.299, 0.587, 0.114));
-        float l_y  = dot(texture2D(u_image, tc + vec2(-texSource.x, 0.0)).rgb,  vec3(0.299, 0.587, 0.114));
-        float r_y  = dot(texture2D(u_image, tc + vec2(texSource.x, 0.0)).rgb,   vec3(0.299, 0.587, 0.114));
+        // Compute local gradient at high resolution with a 1.5-texel step for optimal sensitivity
+        vec2 stepSize = texTarget * 1.5;
+
+        float t_y  = dot(texture2D(u_image, tc + vec2(0.0, -stepSize.y)).rgb, vec3(0.299, 0.587, 0.114));
+        float b_y  = dot(texture2D(u_image, tc + vec2(0.0, stepSize.y)).rgb,  vec3(0.299, 0.587, 0.114));
+        float l_y  = dot(texture2D(u_image, tc + vec2(-stepSize.x, 0.0)).rgb,  vec3(0.299, 0.587, 0.114));
+        float r_y  = dot(texture2D(u_image, tc + vec2(stepSize.x, 0.0)).rgb,   vec3(0.299, 0.587, 0.114));
         
-        float tl_y = dot(texture2D(u_image, tc + vec2(-texSource.x, -texSource.y)).rgb, vec3(0.299, 0.587, 0.114));
-        float tr_y = dot(texture2D(u_image, tc + vec2(texSource.x, -texSource.y)).rgb,  vec3(0.299, 0.587, 0.114));
-        float bl_y = dot(texture2D(u_image, tc + vec2(-texSource.x, texSource.y)).rgb,  vec3(0.299, 0.587, 0.114));
-        float br_y = dot(texture2D(u_image, tc + vec2(texSource.x, texSource.y)).rgb,   vec3(0.299, 0.587, 0.114));
+        float tl_y = dot(texture2D(u_image, tc + vec2(-stepSize.x, -stepSize.y)).rgb, vec3(0.299, 0.587, 0.114));
+        float tr_y = dot(texture2D(u_image, tc + vec2(stepSize.x, -stepSize.y)).rgb,  vec3(0.299, 0.587, 0.114));
+        float bl_y = dot(texture2D(u_image, tc + vec2(-stepSize.x, stepSize.y)).rgb,  vec3(0.299, 0.587, 0.114));
+        float br_y = dot(texture2D(u_image, tc + vec2(stepSize.x, stepSize.y)).rgb,   vec3(0.299, 0.587, 0.114));
 
         float g_x = tl_y + 2.0 * l_y + bl_y - tr_y - 2.0 * r_y - br_y;
         float g_y = tl_y + 2.0 * t_y + tr_y - bl_y - 2.0 * b_y - br_y;
         float grad = sqrt(g_x * g_x + g_y * g_y);
 
-        // 2. Source-Scale clamping envelope for artifact-free warp limits
-        vec3 src_t  = texture2D(u_image, tc + vec2(0.0, -texSource.y)).rgb;
-        vec3 src_b  = texture2D(u_image, tc + vec2(0.0, texSource.y)).rgb;
-        vec3 src_l  = texture2D(u_image, tc + vec2(-texSource.x, 0.0)).rgb;
-        vec3 src_r  = texture2D(u_image, tc + vec2(texSource.x, 0.0)).rgb;
-        vec3 src_tl = texture2D(u_image, tc + vec2(-texSource.x, -texSource.y)).rgb;
-        vec3 src_tr = texture2D(u_image, tc + vec2(texSource.x, -texSource.y)).rgb;
-        vec3 src_bl = texture2D(u_image, tc + vec2(-texSource.x, texSource.y)).rgb;
-        vec3 src_br = texture2D(u_image, tc + vec2(texSource.x, texSource.y)).rgb;
+        // Clamping envelope from direct neighbors to avoid ringing/halos
+        vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, -stepSize.y)).rgb;
+        vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, stepSize.y)).rgb;
+        vec3 l_rgb = texture2D(u_image, tc + vec2(-stepSize.x, 0.0)).rgb;
+        vec3 r_rgb = texture2D(u_image, tc + vec2(stepSize.x, 0.0)).rgb;
 
-        vec3 min_src_color = min(c.rgb, min(min(src_t, src_b), min(src_l, src_r)));
-        vec3 max_src_color = max(c.rgb, max(max(src_t, src_b), max(src_l, src_r)));
-        min_src_color = min(min_src_color, min(min(src_tl, src_tr), min(src_bl, src_br)));
-        max_src_color = max(max_src_color, max(max(src_tl, src_tr), max(src_bl, src_br)));
+        vec3 min_color = min(c.rgb, min(min(t_rgb, b_rgb), min(l_rgb, r_rgb)));
+        vec3 max_color = max(c.rgb, max(max(t_rgb, b_rgb), max(l_rgb, r_rgb)));
 
-        // 3. Subpixel Target-Scale clamping envelope for adaptive unsharp mask
-        vec3 tgt_t  = texture2D(u_image, tc + vec2(0.0, -texTarget.y)).rgb;
-        vec3 tgt_b  = texture2D(u_image, tc + vec2(0.0, texTarget.y)).rgb;
-        vec3 tgt_l  = texture2D(u_image, tc + vec2(-texTarget.x, 0.0)).rgb;
-        vec3 tgt_r  = texture2D(u_image, tc + vec2(texTarget.x, 0.0)).rgb;
+        // Unsharp Masking using local high-frequency difference
+        vec3 blurred = (t_rgb + b_rgb + l_rgb + r_rgb) * 0.25;
+        float sharp_activity = clamp(grad * 12.0, 0.01, 1.0);
+        vec3 sharp_color = c.rgb + (c.rgb - blurred) * u_sharpStrength * sharp_activity;
+        vec3 local_sharpened = clamp(sharp_color, min_color, max_color);
 
-        vec3 min_tgt_color = min(c.rgb, min(min(tgt_t, tgt_b), min(tgt_l, tgt_r)));
-        vec3 max_tgt_color = max(c.rgb, max(max(tgt_t, tgt_b), max(tgt_l, tgt_r)));
-
-        // 4. Line Thinning (Vector warp) along gradient lines
-        vec3 thinned_color = c.rgb;
-        if (grad > 0.02) {
+        // Edge push / Line Thinning along the gradient vector
+        vec3 final_color = local_sharpened;
+        if (grad > 0.015) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
-          vec2 tc_shifted = tc - dir * texSource * (0.45 * u_edgeStrength);
+          // Shift coordinates towards the center of the line (pixel push)
+          vec2 tc_shifted = tc - dir * texTarget * (u_edgeStrength * 0.75);
           vec4 shifted_sample = texture2D(u_image, tc_shifted);
-          thinned_color = clamp(shifted_sample.rgb, min_src_color, max_src_color);
+          vec3 thinned_color = clamp(shifted_sample.rgb, min_color, max_color);
+
+          float edge_mix = clamp(grad * u_edgeStrength * 1.5, 0.0, 0.92);
+          final_color = mix(local_sharpened, thinned_color, edge_mix);
         }
 
-        // 5. Adaptive High-Pass Subpixel Sharpening
-        vec3 blurred = (tgt_t + tgt_b + tgt_l + tgt_r) * 0.25;
-        float sharp_activity = clamp(grad * 15.0, 0.0, 1.0);
-        vec3 sharp_color = c.rgb + (c.rgb - blurred) * u_sharpStrength * sharp_activity;
-        vec3 local_sharpened = clamp(sharp_color, min_tgt_color, max_tgt_color);
-
-        // 6. Blending thinned contour lines with sharp high-frequency elements
-        float edge_mix = clamp(grad * u_edgeStrength * 1.8, 0.0, 0.96);
-        vec3 final_color = mix(local_sharpened, thinned_color, edge_mix);
-
-        // 7. Cinematic Contrast Scaling for lines (enhances anime features beautifully)
+        // Cinematic contrast adjustment on dark lines (perfect for anime contours)
         vec3 lumaWeight = vec3(0.299, 0.587, 0.114);
         float final_y = dot(final_color, lumaWeight);
         if (final_y < 0.45) {
-          float contrast_factor = 1.0 - (0.45 - final_y) * 0.28;
+          float contrast_factor = 1.0 - (0.45 - final_y) * 0.25;
           final_color = final_color * contrast_factor;
         }
 
