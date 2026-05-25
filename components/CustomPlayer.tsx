@@ -24,6 +24,7 @@ class Anime4KWebGL {
   private targetHeight: number = 1440; // Default: 2K (2560x1440)
   private sharpStrength: number = 1.5;
   private edgeStrength: number = 3.0;
+  private denoiseStrength: number = 0.5;
 
   // Framebuffers and textures for the 3-pass pipeline
   private fbo1: WebGLFramebuffer | null = null;
@@ -68,11 +69,16 @@ class Anime4KWebGL {
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
       uniform vec2 u_textureSize;
+      uniform float u_denoiseStrength;
 
       void main() {
-        vec2 texel = vec2(1.0) / u_textureSize;
         vec4 center = texture2D(u_image, v_texCoord);
-        
+        if (u_denoiseStrength <= 0.01) {
+          gl_FragColor = center;
+          return;
+        }
+
+        vec2 texel = vec2(1.0) / u_textureSize;
         vec3 sumColor = center.rgb;
         float sumWeight = 1.0;
         
@@ -86,15 +92,18 @@ class Anime4KWebGL {
         offsets[6] = vec2(0.0, 1.0);
         offsets[7] = vec2(1.0, 1.0);
 
+        // Control edge preservation: higher u_denoiseStrength means gentler, more selective smoothing (preserves detail)
+        float rangeSigma = 1.0 / (0.01 + u_denoiseStrength * u_denoiseStrength * 0.15);
+
         for(int i = 0; i < 8; i++) {
           vec2 tc = v_texCoord + offsets[i] * texel;
           vec4 sampleCol = texture2D(u_image, tc);
           
           float d_color = length(sampleCol.rgb - center.rgb);
-          float w_color = exp(-d_color * d_color * 18.0);
+          float w_color = exp(-d_color * d_color * rangeSigma);
           
           float d_spatial = length(offsets[i]);
-          float w_spatial = exp(-d_spatial * d_spatial * 0.4);
+          float w_spatial = exp(-d_spatial * d_spatial * 0.5);
           
           float w = w_color * w_spatial;
           sumColor += sampleCol.rgb * w;
@@ -170,13 +179,15 @@ class Anime4KWebGL {
 
       void main() {
         vec2 texTarget = vec2(1.0) / u_textureSize;
+        vec2 texSource = vec2(1.0) / u_sourceSize;
         vec2 tc = v_texCoord;
 
         // Base upscaled color
         vec4 c = texture2D(u_image, tc);
 
-        // Compute local gradient at high resolution with a 1.5-texel step for optimal sensitivity
-        vec2 stepSize = texTarget * 1.5;
+        // Scale sampling step size to the original source pixels.
+        // This ensures the Sobel filter captures the true edge boundaries of the low-res video.
+        vec2 stepSize = texSource * 0.75;
 
         float t_y  = dot(texture2D(u_image, tc + vec2(0.0, -stepSize.y)).rgb, vec3(0.299, 0.587, 0.114));
         float b_y  = dot(texture2D(u_image, tc + vec2(0.0, stepSize.y)).rgb,  vec3(0.299, 0.587, 0.114));
@@ -192,7 +203,7 @@ class Anime4KWebGL {
         float g_y = tl_y + 2.0 * t_y + tr_y - bl_y - 2.0 * b_y - br_y;
         float grad = sqrt(g_x * g_x + g_y * g_y);
 
-        // Clamping envelope from direct neighbors to avoid ringing/halos
+        // Clamping envelope from source-scale neighbors to prevent ringing/halos
         vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, -stepSize.y)).rgb;
         vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, stepSize.y)).rgb;
         vec3 l_rgb = texture2D(u_image, tc + vec2(-stepSize.x, 0.0)).rgb;
@@ -201,23 +212,23 @@ class Anime4KWebGL {
         vec3 min_color = min(c.rgb, min(min(t_rgb, b_rgb), min(l_rgb, r_rgb)));
         vec3 max_color = max(c.rgb, max(max(t_rgb, b_rgb), max(l_rgb, r_rgb)));
 
-        // Unsharp Masking using local high-frequency difference
+        // Unsharp Masking using local high-frequency difference on the source-pixel scale
+        // This acts as a high-quality bandpass filter that offsets the upscaling blur.
         vec3 blurred = (t_rgb + b_rgb + l_rgb + r_rgb) * 0.25;
-        float sharp_activity = clamp(grad * 12.0, 0.01, 1.0);
+        float sharp_activity = clamp(grad * 8.0, 0.0, 1.0);
         vec3 sharp_color = c.rgb + (c.rgb - blurred) * u_sharpStrength * sharp_activity;
         vec3 local_sharpened = clamp(sharp_color, min_color, max_color);
 
         // Edge push / Line Thinning along the gradient vector
         vec3 final_color = local_sharpened;
-        if (grad > 0.01) {
-          vec2 texSource = vec2(1.0) / u_sourceSize;
+        if (grad > 0.01 && u_edgeStrength > 0.01) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
-          // Shift coordinates towards the center of the line relative to original source pixel size
-          vec2 tc_shifted = tc - dir * texSource * (u_edgeStrength * 0.15);
+          // Shift coordinates towards the center of the line (pixel push)
+          vec2 tc_shifted = tc - dir * texSource * (u_edgeStrength * 0.12);
           vec4 shifted_sample = texture2D(u_image, tc_shifted);
           vec3 thinned_color = clamp(shifted_sample.rgb, min_color, max_color);
 
-          float edge_mix = clamp(grad * u_edgeStrength * 1.8, 0.0, 0.95);
+          float edge_mix = clamp(grad * u_edgeStrength * 1.5, 0.0, 0.90);
           final_color = mix(local_sharpened, thinned_color, edge_mix);
         }
 
@@ -225,7 +236,7 @@ class Anime4KWebGL {
         vec3 lumaWeight = vec3(0.299, 0.587, 0.114);
         float final_y = dot(final_color, lumaWeight);
         if (final_y < 0.45) {
-          float contrast_factor = 1.0 - (0.45 - final_y) * 0.35;
+          float contrast_factor = 1.0 - (0.45 - final_y) * 0.25;
           final_color = final_color * contrast_factor;
         }
 
@@ -288,6 +299,10 @@ class Anime4KWebGL {
   public setStrength(sharp: number, edge: number) {
     this.sharpStrength = sharp;
     this.edgeStrength = edge;
+  }
+
+  public setDenoiseStrength(d: number) {
+    this.denoiseStrength = d;
   }
 
   private compileShader(type: number, source: string): WebGLShader {
@@ -515,6 +530,10 @@ class Anime4KWebGL {
       vWidth,
       vHeight
     );
+    gl.uniform1f(
+      gl.getUniformLocation(this.denoiseProgram, "u_denoiseStrength"),
+      this.denoiseStrength
+    );
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -593,6 +612,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       let isCancelled = false;
       let webglInstance: Anime4KWebGL | null = null;
       let selectedQualityHtml = "4K";
+      let currentDenoise = 0.5;
+      let currentEdge = 3.0;
+      let currentSharp = 1.5;
 
       const initPlayer = async () => {
         let finalUrl = src;
@@ -829,17 +851,80 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                           if (webglInstance) {
                             if (item.html.includes("1080")) {
                               webglInstance.setTargetHeight(1080);
-                              webglInstance.setStrength(1.5, 3.0);
                             } else {
                               webglInstance.setTargetHeight(2160); // 4K resolution
-                              webglInstance.setStrength(2.8, 4.5); // Extra crisp line refinement
                             }
+                            webglInstance.setDenoiseStrength(currentDenoise);
+                            webglInstance.setStrength(currentSharp, currentEdge);
                             webglInstance.start();
                           }
                         } else {
                           if (webglInstance) {
                             webglInstance.stop();
                           }
+                        }
+                        return item.html;
+                      },
+                    });
+
+                    // Anime4K custom controllers
+                    artInstance.setting.add({
+                      name: "anime4k_denoise",
+                      html: "Шумоподавление",
+                      width: 220,
+                      tooltip: currentDenoise === 0 ? "Выкл" : currentDenoise === 0.5 ? "Легкое" : currentDenoise === 1.0 ? "Среднее" : "Сильное",
+                      selector: [
+                        { html: "Выкл", value: 0.0, default: currentDenoise === 0.0 },
+                        { html: "Легкое (Рекомендация)", value: 0.5, default: currentDenoise === 0.5 },
+                        { html: "Среднее", value: 1.0, default: currentDenoise === 1.0 },
+                        { html: "Сильное", value: 2.0, default: currentDenoise === 2.0 },
+                      ],
+                      onSelect: function (item) {
+                        currentDenoise = item.value;
+                        if (webglInstance) {
+                          webglInstance.setDenoiseStrength(currentDenoise);
+                        }
+                        return item.html;
+                      },
+                    });
+
+                    artInstance.setting.add({
+                      name: "anime4k_edges",
+                      html: "Толщина контуров",
+                      width: 220,
+                      tooltip: currentEdge === 0 ? "Выкл" : currentEdge === 1.5 ? "Мягкие" : currentEdge === 3.0 ? "Стандарт" : currentEdge === 4.5 ? "Четкие" : "Ультра",
+                      selector: [
+                        { html: "Выкл", value: 0.0, default: currentEdge === 0.0 },
+                        { html: "Мягкие", value: 1.5, default: currentEdge === 1.5 },
+                        { html: "Стандарт (Рекомендация)", value: 3.0, default: currentEdge === 3.0 },
+                        { html: "Четкие", value: 4.5, default: currentEdge === 4.5 },
+                        { html: "Ультра", value: 6.0, default: currentEdge === 6.0 },
+                      ],
+                      onSelect: function (item) {
+                        currentEdge = item.value;
+                        if (webglInstance) {
+                          webglInstance.setStrength(currentSharp, currentEdge);
+                        }
+                        return item.html;
+                      },
+                    });
+
+                    artInstance.setting.add({
+                      name: "anime4k_sharpen",
+                      html: "Резкость линий",
+                      width: 220,
+                      tooltip: currentSharp === 0 ? "Выкл" : currentSharp === 0.8 ? "Слабая" : currentSharp === 1.5 ? "Средняя" : currentSharp === 2.5 ? "Сильная" : "Экстремальная",
+                      selector: [
+                        { html: "Выкл", value: 0.0, default: currentSharp === 0.0 },
+                        { html: "Слабая", value: 0.8, default: currentSharp === 0.8 },
+                        { html: "Средняя (Рекомендация)", value: 1.5, default: currentSharp === 1.5 },
+                        { html: "Сильная", value: 2.5, default: currentSharp === 2.5 },
+                        { html: "Экстремальная", value: 4.0, default: currentSharp === 4.0 },
+                      ],
+                      onSelect: function (item) {
+                        currentSharp = item.value;
+                        if (webglInstance) {
+                          webglInstance.setStrength(currentSharp, currentEdge);
                         }
                         return item.html;
                       },
@@ -853,11 +938,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     ) {
                       if (selectedQualityHtml.includes("1080")) {
                         webglInstance.setTargetHeight(1080);
-                        webglInstance.setStrength(1.5, 3.0);
                       } else {
                         webglInstance.setTargetHeight(2160);
-                        webglInstance.setStrength(2.8, 4.5);
                       }
+                      webglInstance.setDenoiseStrength(currentDenoise);
+                      webglInstance.setStrength(currentSharp, currentEdge);
                       webglInstance.start();
                     }
                   }
