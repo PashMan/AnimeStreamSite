@@ -12,7 +12,6 @@ interface CustomPlayerProps {
 // WebGL pristine-sampling upscaler
 class Anime4KWebGL {
   private gl: WebGLRenderingContext;
-  private denoiseProgram: WebGLProgram;
   private upscaleProgram: WebGLProgram;
   private refineProgram: WebGLProgram;
   private texture: WebGLTexture;
@@ -22,18 +21,13 @@ class Anime4KWebGL {
   private animId: number | null = null;
   public isActive = false;
   private targetHeight: number = 1440; // Default: 2K (2560x1440)
-  private sharpStrength: number = 1.5;
-  private edgeStrength: number = 3.0;
-  private denoiseStrength: number = 0.5;
+  private sharpStrength: number = 2.0;
+  private edgeStrength: number = 2.5;
 
-  // Framebuffers and textures for the 3-pass pipeline
+  // Framebuffer and texture for the 2-pass pipeline
   private fbo1: WebGLFramebuffer | null = null;
   private fbo1Texture: WebGLTexture | null = null;
-  private fbo2: WebGLFramebuffer | null = null;
-  private fbo2Texture: WebGLTexture | null = null;
 
-  private lastVideoWidth = 0;
-  private lastVideoHeight = 0;
   private lastTargetWidth = 0;
   private lastTargetHeight = 0;
 
@@ -63,58 +57,7 @@ class Anime4KWebGL {
       }
     `;
 
-    // PASS 1: Low-overhead edge-preserving bilateral denoise (runs at source video resolution)
-    const fsDenoiseSource = `
-      precision mediump float;
-      varying vec2 v_texCoord;
-      uniform sampler2D u_image;
-      uniform vec2 u_textureSize;
-      uniform float u_denoiseStrength;
-
-      void main() {
-        vec4 center = texture2D(u_image, v_texCoord);
-        if (u_denoiseStrength <= 0.01) {
-          gl_FragColor = center;
-          return;
-        }
-
-        vec2 texel = vec2(1.0) / u_textureSize;
-        vec3 sumColor = center.rgb;
-        float sumWeight = 1.0;
-        
-        vec2 offsets[8];
-        offsets[0] = vec2(-1.0, -1.0);
-        offsets[1] = vec2(0.0, -1.0);
-        offsets[2] = vec2(1.0, -1.0);
-        offsets[3] = vec2(-1.0, 0.0);
-        offsets[4] = vec2(1.0, 0.0);
-        offsets[5] = vec2(-1.0, 1.0);
-        offsets[6] = vec2(0.0, 1.0);
-        offsets[7] = vec2(1.0, 1.0);
-
-        // Control edge preservation: higher u_denoiseStrength means gentler, more selective smoothing (preserves detail)
-        float rangeSigma = 1.0 / (0.01 + u_denoiseStrength * u_denoiseStrength * 0.15);
-
-        for(int i = 0; i < 8; i++) {
-          vec2 tc = v_texCoord + offsets[i] * texel;
-          vec4 sampleCol = texture2D(u_image, tc);
-          
-          float d_color = length(sampleCol.rgb - center.rgb);
-          float w_color = exp(-d_color * d_color * rangeSigma);
-          
-          float d_spatial = length(offsets[i]);
-          float w_spatial = exp(-d_spatial * d_spatial * 0.5);
-          
-          float w = w_color * w_spatial;
-          sumColor += sampleCol.rgb * w;
-          sumWeight += w;
-        }
-        
-        gl_FragColor = vec4(sumColor / sumWeight, center.a);
-      }
-    `;
-
-    // PASS 2: High-Fidelity 16-sample Bicubic Catmull-Rom upscale to target resolution
+    // PASS 1: High-Fidelity 16-sample Bicubic Catmull-Rom upscale to target resolution
     const fsUpscaleSource = `
       precision mediump float;
       varying vec2 v_texCoord;
@@ -167,84 +110,99 @@ class Anime4KWebGL {
       }
     `;
 
-    // PASS 3: High-Fidelity Edge Thinning, Adaptive Contrast & Sharpening with Multi-Scale Step-Sizing
+    // PASS 2: Anime4K Edge-Refining, Contour Thinning, and Adaptive Sharpening
     const fsRefineSource = `
       precision mediump float;
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
-      uniform vec2 u_textureSize; // Target resolution (e.g., 3840x2160)
-      uniform vec2 u_sourceSize;  // Source resolution (e.g., 1280x720)
+      uniform vec2 u_textureSize;
       uniform float u_sharpStrength;
       uniform float u_edgeStrength;
 
+      float get_luma(vec3 col) {
+        return dot(col, vec3(0.299, 0.587, 0.114));
+      }
+
       void main() {
-        vec2 texTarget = vec2(1.0) / u_textureSize;
-        vec2 texSource = vec2(1.0) / u_sourceSize;
+        vec2 texel = vec2(1.0) / u_textureSize;
         vec2 tc = v_texCoord;
 
-        // Base upscaled color
-        vec4 c = texture2D(u_image, tc);
+        // Base high-res bicubic upscaled color
+        vec4 original = texture2D(u_image, tc);
 
-        // Scale sampling step size to the original source pixels.
-        // This ensures the Sobel filter captures the true edge boundaries of the low-res video.
-        vec2 stepSize = texSource * 0.75;
+        // Detect gradient of luminance using 4-way neighbors (Sobel) at target scale
+        // Step size of 1.5 pixels is perfect for a smooth, alias-free gradient estimation
+        vec2 d = texel * 1.5;
 
-        float t_y  = dot(texture2D(u_image, tc + vec2(0.0, -stepSize.y)).rgb, vec3(0.299, 0.587, 0.114));
-        float b_y  = dot(texture2D(u_image, tc + vec2(0.0, stepSize.y)).rgb,  vec3(0.299, 0.587, 0.114));
-        float l_y  = dot(texture2D(u_image, tc + vec2(-stepSize.x, 0.0)).rgb,  vec3(0.299, 0.587, 0.114));
-        float r_y  = dot(texture2D(u_image, tc + vec2(stepSize.x, 0.0)).rgb,   vec3(0.299, 0.587, 0.114));
+        float tl = get_luma(texture2D(u_image, tc + vec2(-d.x, -d.y)).rgb);
+        float t  = get_luma(texture2D(u_image, tc + vec2(0.0, -d.y)).rgb);
+        float tr = get_luma(texture2D(u_image, tc + vec2(d.x, -d.y)).rgb);
         
-        float tl_y = dot(texture2D(u_image, tc + vec2(-stepSize.x, -stepSize.y)).rgb, vec3(0.299, 0.587, 0.114));
-        float tr_y = dot(texture2D(u_image, tc + vec2(stepSize.x, -stepSize.y)).rgb,  vec3(0.299, 0.587, 0.114));
-        float bl_y = dot(texture2D(u_image, tc + vec2(-stepSize.x, stepSize.y)).rgb,  vec3(0.299, 0.587, 0.114));
-        float br_y = dot(texture2D(u_image, tc + vec2(stepSize.x, stepSize.y)).rgb,   vec3(0.299, 0.587, 0.114));
+        float l  = get_luma(texture2D(u_image, tc + vec2(-d.x, 0.0)).rgb);
+        float r  = get_luma(texture2D(u_image, tc + vec2(d.x, 0.0)).rgb);
+        
+        float bl = get_luma(texture2D(u_image, tc + vec2(-d.x, d.y)).rgb);
+        float b  = get_luma(texture2D(u_image, tc + vec2(0.0, d.y)).rgb);
+        float br = get_luma(texture2D(u_image, tc + vec2(d.x, d.y)).rgb);
 
-        float g_x = tl_y + 2.0 * l_y + bl_y - tr_y - 2.0 * r_y - br_y;
-        float g_y = tl_y + 2.0 * t_y + tr_y - bl_y - 2.0 * b_y - br_y;
+        // Compute gradients
+        float g_x = tl + 2.0 * l + bl - tr - 2.0 * r - br;
+        float g_y = tl + 2.0 * t + tr - bl - 2.0 * b - br;
         float grad = sqrt(g_x * g_x + g_y * g_y);
 
-        // Clamping envelope from source-scale neighbors to prevent ringing/halos
-        vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, -stepSize.y)).rgb;
-        vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, stepSize.y)).rgb;
-        vec3 l_rgb = texture2D(u_image, tc + vec2(-stepSize.x, 0.0)).rgb;
-        vec3 r_rgb = texture2D(u_image, tc + vec2(stepSize.x, 0.0)).rgb;
+        vec3 final_color = original.rgb;
 
-        vec3 min_color = min(c.rgb, min(min(t_rgb, b_rgb), min(l_rgb, r_rgb)));
-        vec3 max_color = max(c.rgb, max(max(t_rgb, b_rgb), max(l_rgb, r_rgb)));
-
-        // Unsharp Masking using local high-frequency difference on the source-pixel scale
-        // This acts as a high-quality bandpass filter that offsets the upscaling blur.
-        vec3 blurred = (t_rgb + b_rgb + l_rgb + r_rgb) * 0.25;
-        float sharp_activity = clamp(grad * 8.0, 0.0, 1.0);
-        vec3 sharp_color = c.rgb + (c.rgb - blurred) * u_sharpStrength * sharp_activity;
-        vec3 local_sharpened = clamp(sharp_color, min_color, max_color);
-
-        // Edge push / Line Thinning along the gradient vector
-        vec3 final_color = local_sharpened;
-        if (grad > 0.01 && u_edgeStrength > 0.01) {
+        // --- LINE THINNING (PIXEL-PUSH) ---
+        if (grad > 0.005 && u_edgeStrength > 0.01) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
-          // Shift coordinates towards the center of the line (pixel push)
-          vec2 tc_shifted = tc - dir * texSource * (u_edgeStrength * 0.12);
-          vec4 shifted_sample = texture2D(u_image, tc_shifted);
-          vec3 thinned_color = clamp(shifted_sample.rgb, min_color, max_color);
+          // Push coordinates towards the center of the line.
+          vec2 tc_shifted = tc - dir * texel * (u_edgeStrength * 0.8);
+          vec3 shifted_color = texture2D(u_image, tc_shifted).rgb;
+          
+          // Clamp the thinned color to local neighborhood min/max to eliminate overshoot ringing (halos)
+          vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, -d.y)).rgb;
+          vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, d.y)).rgb;
+          vec3 l_rgb = texture2D(u_image, tc + vec2(-d.x, 0.0)).rgb;
+          vec3 r_rgb = texture2D(u_image, tc + vec2(d.x, 0.0)).rgb;
+          vec3 min_color = min(original.rgb, min(min(t_rgb, b_rgb), min(l_rgb, r_rgb)));
+          vec3 max_color = max(original.rgb, max(max(t_rgb, b_rgb), max(l_rgb, r_rgb)));
+          
+          shifted_color = clamp(shifted_color, min_color, max_color);
 
-          float edge_mix = clamp(grad * u_edgeStrength * 1.5, 0.0, 0.90);
-          final_color = mix(local_sharpened, thinned_color, edge_mix);
+          // Only apply push on high-gradient edge contours to keep flat textures unmodified
+          float edge_mix = clamp(grad * 3.5, 0.0, 0.95);
+          final_color = mix(final_color, shifted_color, edge_mix);
         }
 
-        // Cinematic contrast adjustment on dark lines (perfect for anime contours)
-        vec3 lumaWeight = vec3(0.299, 0.587, 0.114);
-        float final_y = dot(final_color, lumaWeight);
-        if (final_y < 0.45) {
-          float contrast_factor = 1.0 - (0.45 - final_y) * 0.25;
+        // --- HIGH-FREQUENCY SHARPENING (UNSHARP MASKING) ---
+        if (u_sharpStrength > 0.01) {
+          // Subtle local blur at target scale (1 pixel radius)
+          vec3 local_blur = (
+            texture2D(u_image, tc + vec2(-texel.x, 0.0)).rgb +
+            texture2D(u_image, tc + vec2(texel.x, 0.0)).rgb +
+            texture2D(u_image, tc + vec2(0.0, -texel.y)).rgb +
+            texture2D(u_image, tc + vec2(0.0, texel.y)).rgb
+          ) * 0.25;
+
+          // Difference represents fine high-frequency details
+          vec3 high_freq = final_color - local_blur;
+
+          // Apply sharpening in proportion to edge activity to prevent grain/noise enhancement
+          float sharp_mask = clamp(grad * 12.0, 0.0, 1.0);
+          final_color = final_color + high_freq * u_sharpStrength * sharp_mask;
+        }
+
+        // --- DARK LINE ART ENHANCEMENT ---
+        float center_luma = get_luma(final_color);
+        if (center_luma < 0.40 && grad > 0.08) {
+          float contrast_factor = 1.0 - (0.40 - center_luma) * 0.12;
           final_color = final_color * contrast_factor;
         }
 
-        gl_FragColor = vec4(final_color, c.a);
+        gl_FragColor = vec4(clamp(final_color, 0.0, 1.0), original.a);
       }
     `;
 
-    this.denoiseProgram = this.createProgram(vsSource, fsDenoiseSource);
     this.upscaleProgram = this.createProgram(vsSource, fsUpscaleSource);
     this.refineProgram = this.createProgram(vsSource, fsRefineSource);
 
@@ -299,10 +257,6 @@ class Anime4KWebGL {
   public setStrength(sharp: number, edge: number) {
     this.sharpStrength = sharp;
     this.edgeStrength = edge;
-  }
-
-  public setDenoiseStrength(d: number) {
-    this.denoiseStrength = d;
   }
 
   private compileShader(type: number, source: string): WebGLShader {
@@ -374,15 +328,11 @@ class Anime4KWebGL {
     this.gl.viewport(0, 0, targetWidth, targetHeight);
   }
 
-  private setupFBOs(vWidth: number, vHeight: number, tWidth: number, tHeight: number) {
+  private setupFBOs(tWidth: number, tHeight: number) {
     const gl = this.gl;
     if (
       this.fbo1 &&
       this.fbo1Texture &&
-      this.fbo2 &&
-      this.fbo2Texture &&
-      this.lastVideoWidth === vWidth &&
-      this.lastVideoHeight === vHeight &&
       this.lastTargetWidth === tWidth &&
       this.lastTargetHeight === tHeight
     ) {
@@ -391,18 +341,16 @@ class Anime4KWebGL {
 
     this.destroyFBOs();
 
-    this.lastVideoWidth = vWidth;
-    this.lastVideoHeight = vHeight;
     this.lastTargetWidth = tWidth;
     this.lastTargetHeight = tHeight;
 
-    // FBO 1: At Source Resolution (Denoise target)
+    // FBO 1: At Target Resolution (Upscale target)
     this.fbo1 = gl.createFramebuffer();
     this.fbo1Texture = gl.createTexture();
     if (!this.fbo1 || !this.fbo1Texture) throw new Error("FBO1 allocation failure");
 
     gl.bindTexture(gl.TEXTURE_2D, this.fbo1Texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, vWidth, vHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tWidth, tHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -411,21 +359,6 @@ class Anime4KWebGL {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo1);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fbo1Texture, 0);
 
-    // FBO 2: At Target Resolution (Upscale target)
-    this.fbo2 = gl.createFramebuffer();
-    this.fbo2Texture = gl.createTexture();
-    if (!this.fbo2 || !this.fbo2Texture) throw new Error("FBO2 allocation failure");
-
-    gl.bindTexture(gl.TEXTURE_2D, this.fbo2Texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tWidth, tHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo2);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fbo2Texture, 0);
-
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
@@ -433,13 +366,9 @@ class Anime4KWebGL {
     const gl = this.gl;
     if (this.fbo1) gl.deleteFramebuffer(this.fbo1);
     if (this.fbo1Texture) gl.deleteTexture(this.fbo1Texture);
-    if (this.fbo2) gl.deleteFramebuffer(this.fbo2);
-    if (this.fbo2Texture) gl.deleteTexture(this.fbo2Texture);
 
     this.fbo1 = null;
     this.fbo1Texture = null;
-    this.fbo2 = null;
-    this.fbo2Texture = null;
   }
 
   public start() {
@@ -497,23 +426,24 @@ class Anime4KWebGL {
     const tWidth = this.canvas.width;
     const tHeight = this.canvas.height;
 
-    // Direct initialization/adjustment of Framebuffers
-    this.setupFBOs(vWidth, vHeight, tWidth, tHeight);
+    // Allocate/rebuild the FBO to match target width and height
+    this.setupFBOs(tWidth, tHeight);
 
     // Setup geometry buffers
-    const pos = gl.getAttribLocation(this.denoiseProgram, "a_position");
+    const pos = gl.getAttribLocation(this.upscaleProgram, "a_position");
     gl.enableVertexAttribArray(pos);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
 
     // -----------------------------------------------------
-    // PASS 1: Bilateral Denoise -> FBO 1 (At Source Size)
+    // PASS 1: Catmull-Rom upscale of original video texture -> FBO 1 (At Target Size)
     // -----------------------------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo1);
-    gl.viewport(0, 0, vWidth, vHeight);
+    gl.viewport(0, 0, tWidth, tHeight);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    // Upload current frame of video stream to WebGL texture
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
@@ -522,28 +452,6 @@ class Anime4KWebGL {
       gl.UNSIGNED_BYTE,
       this.video
     );
-
-    gl.useProgram(this.denoiseProgram);
-    gl.uniform1i(gl.getUniformLocation(this.denoiseProgram, "u_image"), 0);
-    gl.uniform2f(
-      gl.getUniformLocation(this.denoiseProgram, "u_textureSize"),
-      vWidth,
-      vHeight
-    );
-    gl.uniform1f(
-      gl.getUniformLocation(this.denoiseProgram, "u_denoiseStrength"),
-      this.denoiseStrength
-    );
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-    // -----------------------------------------------------
-    // PASS 2: Catmull-Rom upscale of denoised FBO 1 Texture -> FBO 2
-    // -----------------------------------------------------
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo2);
-    gl.viewport(0, 0, tWidth, tHeight);
-
-    gl.bindTexture(gl.TEXTURE_2D, this.fbo1Texture);
 
     gl.useProgram(this.upscaleProgram);
     gl.uniform1i(gl.getUniformLocation(this.upscaleProgram, "u_image"), 0);
@@ -556,12 +464,12 @@ class Anime4KWebGL {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     // -----------------------------------------------------
-    // PASS 3: Sobel Refining, Contour Thinning, and Adaptive Sharpening -> Screen
+    // PASS 2: Line Art Refining & Super-Resolution -> Screen Framebuffer (null)
     // -----------------------------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, tWidth, tHeight);
 
-    gl.bindTexture(gl.TEXTURE_2D, this.fbo2Texture);
+    gl.bindTexture(gl.TEXTURE_2D, this.fbo1Texture);
 
     gl.useProgram(this.refineProgram);
     gl.uniform1i(gl.getUniformLocation(this.refineProgram, "u_image"), 0);
@@ -569,11 +477,6 @@ class Anime4KWebGL {
       gl.getUniformLocation(this.refineProgram, "u_textureSize"),
       tWidth,
       tHeight
-    );
-    gl.uniform2f(
-      gl.getUniformLocation(this.refineProgram, "u_sourceSize"),
-      vWidth,
-      vHeight
     );
     gl.uniform1f(
       gl.getUniformLocation(this.refineProgram, "u_sharpStrength"),
@@ -592,7 +495,6 @@ class Anime4KWebGL {
     const gl = this.gl;
     if (this.texture) gl.deleteTexture(this.texture);
     if (this.buffer) gl.deleteBuffer(this.buffer);
-    if (this.denoiseProgram) gl.deleteProgram(this.denoiseProgram);
     if (this.upscaleProgram) gl.deleteProgram(this.upscaleProgram);
     if (this.refineProgram) gl.deleteProgram(this.refineProgram);
     this.destroyFBOs();
@@ -612,9 +514,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       let isCancelled = false;
       let webglInstance: Anime4KWebGL | null = null;
       let selectedQualityHtml = "4K";
-      let currentDenoise = 0.5;
-      let currentEdge = 3.0;
-      let currentSharp = 1.5;
 
       const initPlayer = async () => {
         let finalUrl = src;
@@ -851,80 +750,17 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                           if (webglInstance) {
                             if (item.html.includes("1080")) {
                               webglInstance.setTargetHeight(1080);
+                              webglInstance.setStrength(1.5, 2.0);
                             } else {
                               webglInstance.setTargetHeight(2160); // 4K resolution
+                              webglInstance.setStrength(2.5, 3.5);
                             }
-                            webglInstance.setDenoiseStrength(currentDenoise);
-                            webglInstance.setStrength(currentSharp, currentEdge);
                             webglInstance.start();
                           }
                         } else {
                           if (webglInstance) {
                             webglInstance.stop();
                           }
-                        }
-                        return item.html;
-                      },
-                    });
-
-                    // Anime4K custom controllers
-                    artInstance.setting.add({
-                      name: "anime4k_denoise",
-                      html: "Шумоподавление",
-                      width: 220,
-                      tooltip: currentDenoise === 0 ? "Выкл" : currentDenoise === 0.5 ? "Легкое" : currentDenoise === 1.0 ? "Среднее" : "Сильное",
-                      selector: [
-                        { html: "Выкл", value: 0.0, default: currentDenoise === 0.0 },
-                        { html: "Легкое (Рекомендация)", value: 0.5, default: currentDenoise === 0.5 },
-                        { html: "Среднее", value: 1.0, default: currentDenoise === 1.0 },
-                        { html: "Сильное", value: 2.0, default: currentDenoise === 2.0 },
-                      ],
-                      onSelect: function (item) {
-                        currentDenoise = item.value;
-                        if (webglInstance) {
-                          webglInstance.setDenoiseStrength(currentDenoise);
-                        }
-                        return item.html;
-                      },
-                    });
-
-                    artInstance.setting.add({
-                      name: "anime4k_edges",
-                      html: "Толщина контуров",
-                      width: 220,
-                      tooltip: currentEdge === 0 ? "Выкл" : currentEdge === 1.5 ? "Мягкие" : currentEdge === 3.0 ? "Стандарт" : currentEdge === 4.5 ? "Четкие" : "Ультра",
-                      selector: [
-                        { html: "Выкл", value: 0.0, default: currentEdge === 0.0 },
-                        { html: "Мягкие", value: 1.5, default: currentEdge === 1.5 },
-                        { html: "Стандарт (Рекомендация)", value: 3.0, default: currentEdge === 3.0 },
-                        { html: "Четкие", value: 4.5, default: currentEdge === 4.5 },
-                        { html: "Ультра", value: 6.0, default: currentEdge === 6.0 },
-                      ],
-                      onSelect: function (item) {
-                        currentEdge = item.value;
-                        if (webglInstance) {
-                          webglInstance.setStrength(currentSharp, currentEdge);
-                        }
-                        return item.html;
-                      },
-                    });
-
-                    artInstance.setting.add({
-                      name: "anime4k_sharpen",
-                      html: "Резкость линий",
-                      width: 220,
-                      tooltip: currentSharp === 0 ? "Выкл" : currentSharp === 0.8 ? "Слабая" : currentSharp === 1.5 ? "Средняя" : currentSharp === 2.5 ? "Сильная" : "Экстремальная",
-                      selector: [
-                        { html: "Выкл", value: 0.0, default: currentSharp === 0.0 },
-                        { html: "Слабая", value: 0.8, default: currentSharp === 0.8 },
-                        { html: "Средняя (Рекомендация)", value: 1.5, default: currentSharp === 1.5 },
-                        { html: "Сильная", value: 2.5, default: currentSharp === 2.5 },
-                        { html: "Экстремальная", value: 4.0, default: currentSharp === 4.0 },
-                      ],
-                      onSelect: function (item) {
-                        currentSharp = item.value;
-                        if (webglInstance) {
-                          webglInstance.setStrength(currentSharp, currentEdge);
                         }
                         return item.html;
                       },
@@ -938,11 +774,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     ) {
                       if (selectedQualityHtml.includes("1080")) {
                         webglInstance.setTargetHeight(1080);
+                        webglInstance.setStrength(1.5, 2.0);
                       } else {
                         webglInstance.setTargetHeight(2160);
+                        webglInstance.setStrength(2.5, 3.5);
                       }
-                      webglInstance.setDenoiseStrength(currentDenoise);
-                      webglInstance.setStrength(currentSharp, currentEdge);
                       webglInstance.start();
                     }
                   }
