@@ -58,58 +58,54 @@ class Anime4KWebGL {
       }
     `;
 
-    // PASS 1: Bilinear-Guided Bilateral Filter & Super-Denoise to upscale to target resolution
+    // PASS 1: High-Fidelity Lanczos-2 Crisp Upscaler
     const fsUpscaleSource = `
       precision mediump float;
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
       uniform vec2 u_textureSize; // Source video resolution (e.g., 1280x720)
 
-      float get_luma(vec3 col) {
-        return dot(col, vec3(0.299, 0.587, 0.114));
+      float sinc(float x) {
+        if (abs(x) < 0.0001) return 1.0;
+        float pi_x = 3.1415926535 * x;
+        return sin(pi_x) / pi_x;
+      }
+
+      float lanczos2(float x) {
+        if (abs(x) >= 2.0) return 0.0;
+        return sinc(x) * sinc(x * 0.5);
       }
 
       void main() {
         vec2 texel = vec2(1.0) / u_textureSize;
-        vec2 uv = v_texCoord;
-
-        // Hardware-filtered bilinear sample is our reference
-        vec4 ref_color = texture2D(u_image, uv);
-        float ref_luma = get_luma(ref_color.rgb);
-
-        // Find the center of the nearest source pixel to start 3x3 sampling
-        vec2 center = (floor(uv * u_textureSize) + vec2(0.5)) / u_textureSize;
+        vec2 pos = v_texCoord * u_textureSize - 0.5;
+        vec2 i_pos = floor(pos);
+        vec2 f_pos = pos - i_pos;
 
         vec3 sum = vec3(0.0);
         float w_sum = 0.0;
 
-        // 3x3 bilateral filter kernel
-        for (float y = -1.0; y <= 1.0; y += 1.0) {
-          for (float x = -1.0; x <= 1.0; x += 1.0) {
-            vec2 offset = vec2(x, y);
-            vec2 s_uv = center + offset * texel;
-            vec3 s_color = texture2D(u_image, s_uv).rgb;
-
-            // Spatial Gaussian weight (sigma = 0.8)
-            float dist_sq = dot(offset, offset);
-            float w_spatial = exp(-dist_sq / (2.0 * 0.8 * 0.8));
-
-            // Range Gaussian weight (sigma = 0.075)
-            float luma_diff = get_luma(s_color) - ref_luma;
-            float w_range = exp(-(luma_diff * luma_diff) / (2.0 * 0.075 * 0.075));
-
-            float weight = w_spatial * w_range;
-            sum += s_color * weight;
+        for (float y = -1.0; y <= 2.0; y += 1.0) {
+          float w_y = lanczos2(f_pos.y - y);
+          for (float x = -1.0; x <= 2.0; x += 1.0) {
+            float w_x = lanczos2(f_pos.x - x);
+            float weight = w_x * w_y;
+            
+            vec2 sample_uv = (i_pos + vec2(x, y) + 0.5) * texel;
+            sample_uv = clamp(sample_uv, 0.5 * texel, 1.0 - 0.5 * texel);
+            vec3 color = texture2D(u_image, sample_uv).rgb;
+            
+            sum += color * weight;
             w_sum += weight;
           }
         }
 
-        vec3 final_color = w_sum > 0.001 ? (sum / w_sum) : ref_color.rgb;
-        gl_FragColor = vec4(final_color, ref_color.a);
+        vec3 final_color = abs(w_sum) > 0.01 ? clamp(sum / w_sum, 0.0, 1.0) : texture2D(u_image, v_texCoord).rgb;
+        gl_FragColor = vec4(final_color, 1.0);
       }
     `;
 
-    // PASS 2: Directional Shock Filter & Halo-free Restoration
+    // PASS 2: Super-Crisp Contour-Thinning & Outline Contrast Restoration
     const fsRefineSource = `
       precision mediump float;
       varying vec2 v_texCoord;
@@ -127,16 +123,15 @@ class Anime4KWebGL {
         vec2 texel = vec2(1.0) / u_textureSize;
         vec2 tc = v_texCoord;
 
-        // Base high-res bilaterally upscaled color
+        // Base high-res upscaled color (Lanczos-2 in Pass 1)
         vec4 original = texture2D(u_image, tc);
         float center_luma = get_luma(original.rgb);
 
-        // Upscale scale factor (e.g. 1080 / 720 = 1.5)
+        // Upscale scale factor (e.g., 1080 / 720 = 1.5)
         float scale = max(u_textureSize.y / u_sourceSize.y, 1.0);
 
-        // Calculate Sobel gradient to find edges.
-        // We use a step size proportional to the upscaling scale to bridge across upscaled boundaries.
-        vec2 d = texel * (1.2 * scale);
+        // Calculate Sobel gradient to locate edge contours
+        vec2 d = texel * (1.1 * scale);
 
         float tl = get_luma(texture2D(u_image, tc + vec2(-d.x, d.y)).rgb);
         float t  = get_luma(texture2D(u_image, tc + vec2(0.0, d.y)).rgb);
@@ -155,40 +150,41 @@ class Anime4KWebGL {
 
         vec3 final_color = original.rgb;
 
-        // Perpendicular Shock Filter
-        if (grad > 0.01 && u_sharpStrength > 0.01) {
+        // --- ADAPTIVE CONTOUR THINNING (WARP TRANSFORMS) ---
+        if (grad > 0.015 && u_edgeStrength > 0.01) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
 
-          // Sample perpendicularly to the edge.
-          // By sampling at a distance of 1.2 * scale, we find the steepness transition boundary.
-          vec2 offset = dir * texel * (1.2 * scale);
-          vec3 col_p = texture2D(u_image, tc + offset).rgb;
-          vec3 col_n = texture2D(u_image, tc - offset).rgb;
+          // Shift coordinates outward (positive gradient direction) to replace dark contour boundary with light background.
+          // This makes thick drawn lines thinner, sleeker, and incredibly distinct.
+          float shift_amt = u_edgeStrength * 0.45;
+          vec2 shift = dir * texel * (shift_amt * scale);
+          vec2 tc_shifted = tc + shift;
 
-          // Compute 1D Directional Laplacian: d2f/dx2 along the edge normal
-          vec3 high_pass = original.rgb - 0.5 * (col_p + col_n);
+          vec3 shifted_color = texture2D(u_image, tc_shifted).rgb;
 
-          // Apply adaptive shock-sharpening along the edge gradient
-          float edge_mask = clamp(grad * 10.0, 0.0, 1.0);
-          vec3 sharp_color = original.rgb - high_pass * u_sharpStrength * edge_mask;
+          // Prevent pixel ringing and color leaking by clamping shifted lookup inside neighborhood bounds
+          vec3 col_t = texture2D(u_image, tc + vec2(0.0, d.y)).rgb;
+          vec3 col_b = texture2D(u_image, tc + vec2(0.0, -d.y)).rgb;
+          vec3 col_l = texture2D(u_image, tc + vec2(-d.x, 0.0)).rgb;
+          vec3 col_r = texture2D(u_image, tc + vec2(d.x, 0.0)).rgb;
+          vec3 min_color = min(original.rgb, min(min(col_t, col_b), min(col_l, col_r)));
+          vec3 max_color = max(original.rgb, max(max(col_t, col_b), max(col_l, col_r)));
 
-          // HALO-FREE BOUNDARY ENVELOPE:
-          // Strictly clamp the sharpened value to the local neighborhood [min_color, max_color].
-          // This mathematically deletes any possibility of overshoot white lines or glowing edges!
-          vec3 min_color = min(original.rgb, min(col_p, col_n));
-          vec3 max_color = max(original.rgb, max(col_p, col_n));
+          shifted_color = clamp(shifted_color, min_color, max_color);
 
-          final_color = clamp(sharp_color, min_color, max_color);
+          // Smoothly apply thinning proportional to contour edge sharpness
+          float edge_mix = clamp(grad * 12.0, 0.0, 1.0);
+          final_color = mix(final_color, shifted_color, edge_mix);
           center_luma = get_luma(final_color);
         }
 
-        // --- DENSE LINE ART ENHANCEMENT ---
-        // Adds richness and contrast back to hand-drawn animation contours (dark lines only).
-        // This makes lines thinner and darker, completely resolving any "мыло" (blur).
+        // --- CONTOUR DEEP CONTRAST & SOLID DENSITY ---
+        // Restore dense solid color to thinned pencil/pen line art (dark lines below 0.45 luma).
+        // It provides a high-contrast drawn-look, resolving any remaining blur ("мыло") on main lines.
         if (center_luma < 0.45 && grad > 0.08 && u_edgeStrength > 0.01) {
-          float line_mask = clamp((0.45 - center_luma) * 2.0, 0.0, 1.0);
+          float line_mask = clamp((0.45 - center_luma) * 2.2, 0.0, 1.0);
           float strength = clamp(u_edgeStrength * 0.45 * line_mask, 0.0, 0.5);
-          // Darken the core contour by blending with its squared value (highly rich, natural darkening)
+          // Gently blend the contours with its own squared level for incredibly dense hand-inked line quality
           final_color = mix(final_color, final_color * final_color, strength);
         }
 
