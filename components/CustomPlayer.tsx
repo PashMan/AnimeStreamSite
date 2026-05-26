@@ -20,9 +20,9 @@ class Anime4KWebGL {
   private canvas: HTMLCanvasElement;
   private animId: number | null = null;
   public isActive = false;
-  private targetHeight: number = 1440; // Default: 2K (2560x1440)
-  private sharpStrength: number = 2.0;
-  private edgeStrength: number = 2.5;
+  private targetHeight: number = 1080; // Default: 1080p for stability
+  private sharpStrength: number = 0.6; // Gentle halo-free baseline
+  private edgeStrength: number = 0.8;  // Safe geometry baseline
 
   // Framebuffer and texture for the 2-pass pipeline
   private fbo1: WebGLFramebuffer | null = null;
@@ -155,34 +155,13 @@ class Anime4KWebGL {
 
         vec3 final_color = original.rgb;
 
-        // --- SMART NOISE REDUCTION / BILATERAL FLAT SMOOTHING (Anime4K Remaster CNN) ---
-        // Smooths compression noise on flat painted regions to make the textures incredibly dense and clean
-        if (grad < 0.04) {
-          vec3 sum = original.rgb * 4.0;
-          float w_sum = 4.0;
-          
-          vec2 offsets[4];
-          offsets[0] = vec2(-texel.x, 0.0);
-          offsets[1] = vec2(texel.x, 0.0);
-          offsets[2] = vec2(0.0, -texel.y);
-          offsets[3] = vec2(0.0, texel.y);
-          
-          for (int i = 0; i < 4; i++) {
-            vec3 n_color = texture2D(u_image, tc + offsets[i]).rgb;
-            float l_diff = abs(get_luma(n_color) - center_luma);
-            float w = clamp(1.0 - l_diff * 12.0, 0.0, 1.0);
-            sum += n_color * w;
-            w_sum += w;
-          }
-          final_color = sum / w_sum;
-          center_luma = get_luma(final_color);
-        }
-
         // --- DEEP GEOMETRY RESTORATION / LINE THINNING (PIXEL-PUSH) ---
         if (grad > 0.005 && u_edgeStrength > 0.01) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
           // Push coordinates towards the darker center of the line (-dir in standard WebGL coordinates).
-          vec2 shift = dir * texel * (u_edgeStrength * 1.25);
+          // Clamp intensity and shift amount to a maximum of 1.0 texel to completely eliminate distortions
+          float shift_amt = clamp(u_edgeStrength * 0.35, 0.0, 1.0);
+          vec2 shift = dir * texel * shift_amt;
           vec2 tc_shifted = tc - shift;
           vec3 shifted_color = texture2D(u_image, tc_shifted).rgb;
           
@@ -197,12 +176,12 @@ class Anime4KWebGL {
           shifted_color = clamp(shifted_color, min_color, max_color);
 
           // Apply push on gradient edge contours
-          float edge_mix = clamp(grad * 4.0, 0.0, 0.98);
+          float edge_mix = clamp(grad * 2.5, 0.0, 0.85);
           final_color = mix(final_color, shifted_color, edge_mix);
           center_luma = get_luma(final_color);
         }
 
-        // --- HIGH-FREQUENCY SHARPENING (UNSHARP MASKING) ---
+        // --- HIGH-FREQUENCY SHARPENING (HALO-FREE UNSHARP MASKING) ---
         if (u_sharpStrength > 0.01) {
           // Subtle local blur at target scale
           vec3 local_blur = (
@@ -215,15 +194,28 @@ class Anime4KWebGL {
           vec3 high_freq = final_color - local_blur;
 
           // Mask sharpening in proportion to edge activity to prevent grain/noise enhancement
-          float sharp_mask = clamp(grad * 12.0, 0.0, 1.0);
-          final_color = final_color + high_freq * u_sharpStrength * sharp_mask;
+          float sharp_mask = clamp(grad * 8.0, 0.0, 1.0);
+          vec3 sharp_offset = high_freq * u_sharpStrength * sharp_mask;
+
+          // Halo Prevention: Clamp the sharpened result to the local neighborhood min/max range
+          // allowing only a tiny 4% crispness margin to completely block thick white boundaries
+          vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, texel.y)).rgb;
+          vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, -texel.y)).rgb;
+          vec3 l_rgb = texture2D(u_image, tc + vec2(-texel.x, 0.0)).rgb;
+          vec3 r_rgb = texture2D(u_image, tc + vec2(texel.x, 0.0)).rgb;
+          vec3 min_color = min(original.rgb, min(min(t_rgb, b_rgb), min(l_rgb, r_rgb)));
+          vec3 max_color = max(original.rgb, max(max(t_rgb, b_rgb), max(l_rgb, r_rgb)));
+          vec3 margin = (max_color - min_color) * 0.04;
+
+          final_color = clamp(final_color + sharp_offset, min_color - margin, max_color + margin);
           center_luma = get_luma(final_color);
         }
 
         // --- HAND-DRAWN CONTOUR RESTORATION (LINE ART DENSITY RESTORATION) ---
         if (center_luma < 0.35 && grad > 0.08) {
-          float dark_push = clamp((0.35 - center_luma) * 1.8, 0.0, 0.6);
-          final_color = mix(final_color, final_color * 0.4, dark_push * u_edgeStrength * 0.35);
+          float dark_push = clamp((0.35 - center_luma) * 1.5, 0.0, 0.5);
+          float max_strength = clamp(u_edgeStrength, 0.0, 1.5);
+          final_color = mix(final_color, final_color * 0.7, dark_push * max_strength * 0.2);
         }
 
         gl_FragColor = vec4(clamp(final_color, 0.0, 1.0), original.a);
@@ -779,10 +771,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                           if (webglInstance) {
                             if (item.html.includes("1080")) {
                               webglInstance.setTargetHeight(1080);
-                              webglInstance.setStrength(1.5, 2.0);
+                              webglInstance.setStrength(0.5, 0.6);
                             } else {
                               webglInstance.setTargetHeight(2160); // 4K resolution
-                              webglInstance.setStrength(2.5, 3.5);
+                              webglInstance.setStrength(0.8, 1.0);
                             }
                             webglInstance.start();
                           }
@@ -803,10 +795,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     ) {
                       if (selectedQualityHtml.includes("1080")) {
                         webglInstance.setTargetHeight(1080);
-                        webglInstance.setStrength(1.5, 2.0);
+                        webglInstance.setStrength(0.5, 0.6);
                       } else {
                         webglInstance.setTargetHeight(2160);
-                        webglInstance.setStrength(2.5, 3.5);
+                        webglInstance.setStrength(0.8, 1.0);
                       }
                       webglInstance.start();
                     }
@@ -913,10 +905,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       ) {
                         if (selectedQualityHtml.includes("1080")) {
                           webglInstance.setTargetHeight(1080);
-                          webglInstance.setStrength(1.5, 3.0);
+                          webglInstance.setStrength(0.5, 0.6);
                         } else {
                           webglInstance.setTargetHeight(2160);
-                          webglInstance.setStrength(2.8, 4.5);
+                          webglInstance.setStrength(0.8, 1.0);
                         }
                         webglInstance.start();
                       } else {
