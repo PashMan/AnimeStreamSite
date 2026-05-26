@@ -105,12 +105,12 @@ class Anime4KWebGL {
       }
     `;
 
-    // PASS 2: Super-Crisp Contour-Thinning & Outline Contrast Restoration
+    // PASS 2: Crisp Anime Contour Thinning (Warp) & Sharp Edge Reconstruction
     const fsRefineSource = `
       precision mediump float;
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
-      uniform vec2 u_textureSize;    // Target upscaled resolution (e.g. 1920x1080)
+      uniform vec2 u_textureSize;    // Target upscaled resolution (e.g. 3840x2160)
       uniform vec2 u_sourceSize;     // Original video resolution (e.g. 1280x720)
       uniform float u_sharpStrength;
       uniform float u_edgeStrength;
@@ -123,16 +123,15 @@ class Anime4KWebGL {
         vec2 texel = vec2(1.0) / u_textureSize;
         vec2 tc = v_texCoord;
 
-        // Base high-res upscaled color (Lanczos-2 in Pass 1)
+        // Base upscaled frame
         vec4 original = texture2D(u_image, tc);
-        float center_luma = get_luma(original.rgb);
-
-        // Upscale scale factor (e.g., 1080 / 720 = 1.5)
+        
+        // Step size for Sobel gradient computation.
+        // Limit step size to keep edge detection extremely sharp at 4K.
         float scale = max(u_textureSize.y / u_sourceSize.y, 1.0);
+        vec2 d = texel * clamp(0.8 * scale, 1.0, 1.5);
 
-        // Calculate Sobel gradient to locate edge contours
-        vec2 d = texel * (1.1 * scale);
-
+        // Get luma values in 3x3 neighborhood
         float tl = get_luma(texture2D(u_image, tc + vec2(-d.x, d.y)).rgb);
         float t  = get_luma(texture2D(u_image, tc + vec2(0.0, d.y)).rgb);
         float tr = get_luma(texture2D(u_image, tc + vec2(d.x, d.y)).rgb);
@@ -144,48 +143,41 @@ class Anime4KWebGL {
         float b  = get_luma(texture2D(u_image, tc + vec2(0.0, -d.y)).rgb);
         float br = get_luma(texture2D(u_image, tc + vec2(d.x, -d.y)).rgb);
 
+        // Standard Sobel operator for gradient vector
         float g_x = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
         float g_y = (tl + 2.0 * t + tr) - (bl + 2.0 * b + br);
         float grad = sqrt(g_x * g_x + g_y * g_y);
 
         vec3 final_color = original.rgb;
 
-        // --- ADAPTIVE CONTOUR THINNING (WARP TRANSFORMS) ---
-        if (grad > 0.015 && u_edgeStrength > 0.01) {
+        // Perform gradient warp (thinning) on detected edges
+        if (grad > 0.01 && u_edgeStrength > 0.01) {
+          // dir points from dark line outward to bright background
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
 
-          // Shift coordinates outward (positive gradient direction) to replace dark contour boundary with light background.
-          // This makes thick drawn lines thinner, sleeker, and incredibly distinct.
-          float shift_amt = u_edgeStrength * 0.45;
-          vec2 shift = dir * texel * (shift_amt * scale);
+          // Shift texture coordinates outward to thin the dark line.
+          // Clamp the scaling multiplier to avoid over-distortion or blurriness on 4K.
+          float warp_scale = clamp(0.5 * scale, 1.0, 1.8);
+          vec2 shift = dir * texel * (u_edgeStrength * warp_scale);
           vec2 tc_shifted = tc + shift;
 
           vec3 shifted_color = texture2D(u_image, tc_shifted).rgb;
 
-          // Prevent pixel ringing and color leaking by clamping shifted lookup inside neighborhood bounds
-          vec3 col_t = texture2D(u_image, tc + vec2(0.0, d.y)).rgb;
-          vec3 col_b = texture2D(u_image, tc + vec2(0.0, -d.y)).rgb;
-          vec3 col_l = texture2D(u_image, tc + vec2(-d.x, 0.0)).rgb;
-          vec3 col_r = texture2D(u_image, tc + vec2(d.x, 0.0)).rgb;
-          vec3 min_color = min(original.rgb, min(min(col_t, col_b), min(col_l, col_r)));
-          vec3 max_color = max(original.rgb, max(max(col_t, col_b), max(col_l, col_r)));
+          // Highly localized neighborhood clamping (using tight 2x2 or 4-tap box) to ensure razor sharp, halo-free boundaries
+          vec2 clamp_d = texel * 1.2;
+          vec3 c_t = texture2D(u_image, tc + vec2(0.0, clamp_d.y)).rgb;
+          vec3 c_b = texture2D(u_image, tc + vec2(0.0, -clamp_d.y)).rgb;
+          vec3 c_l = texture2D(u_image, tc + vec2(-clamp_d.x, 0.0)).rgb;
+          vec3 c_r = texture2D(u_image, tc + vec2(clamp_d.x, 0.0)).rgb;
+
+          vec3 min_color = min(original.rgb, min(min(c_t, c_b), min(c_l, c_r)));
+          vec3 max_color = max(original.rgb, max(max(c_t, c_b), max(c_l, c_r)));
 
           shifted_color = clamp(shifted_color, min_color, max_color);
 
           // Smoothly apply thinning proportional to contour edge sharpness
           float edge_mix = clamp(grad * 12.0, 0.0, 1.0);
           final_color = mix(final_color, shifted_color, edge_mix);
-          center_luma = get_luma(final_color);
-        }
-
-        // --- CONTOUR DEEP CONTRAST & SOLID DENSITY ---
-        // Restore dense solid color to thinned pencil/pen line art (dark lines below 0.45 luma).
-        // It provides a high-contrast drawn-look, resolving any remaining blur ("мыло") on main lines.
-        if (center_luma < 0.45 && grad > 0.08 && u_edgeStrength > 0.01) {
-          float line_mask = clamp((0.45 - center_luma) * 2.2, 0.0, 1.0);
-          float strength = clamp(u_edgeStrength * 0.45 * line_mask, 0.0, 0.5);
-          // Gently blend the contours with its own squared level for incredibly dense hand-inked line quality
-          final_color = mix(final_color, final_color * final_color, strength);
         }
 
         gl_FragColor = vec4(clamp(final_color, 0.0, 1.0), original.a);
