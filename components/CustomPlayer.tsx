@@ -46,13 +46,14 @@ class Anime4KWebGL {
       throw new Error("WebGL is not supported in this environment");
     }
     this.gl = gl;
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
     // Shared vertical pass clip vertex shader
     const vsSource = `
       attribute vec2 a_position;
       varying vec2 v_texCoord;
       void main() {
-        v_texCoord = vec2(a_position.x * 0.5 + 0.5, 0.5 - a_position.y * 0.5);
+        v_texCoord = a_position * 0.5 + vec2(0.5);
         gl_Position = vec4(a_position, 0.0, 1.0);
       }
     `;
@@ -135,17 +136,17 @@ class Anime4KWebGL {
         // Step size of 1.5 pixels is perfect for a smooth, alias-free gradient estimation
         vec2 d = texel * 1.5;
 
-        // Sample neighbors using texture coordinates mapped to physical screen (top-left is Y=0, bottom-left is Y=1)
-        float tl = get_luma(texture2D(u_image, tc + vec2(-d.x, -d.y)).rgb);
-        float t  = get_luma(texture2D(u_image, tc + vec2(0.0, -d.y)).rgb);
-        float tr = get_luma(texture2D(u_image, tc + vec2(d.x, -d.y)).rgb);
+        // Sample neighbors using standard WebGL coordinates (Y increases from bottom Y=0 to top Y=1)
+        float tl = get_luma(texture2D(u_image, tc + vec2(-d.x, d.y)).rgb);
+        float t  = get_luma(texture2D(u_image, tc + vec2(0.0, d.y)).rgb);
+        float tr = get_luma(texture2D(u_image, tc + vec2(d.x, d.y)).rgb);
         
         float l  = get_luma(texture2D(u_image, tc + vec2(-d.x, 0.0)).rgb);
         float r  = get_luma(texture2D(u_image, tc + vec2(d.x, 0.0)).rgb);
         
-        float bl = get_luma(texture2D(u_image, tc + vec2(-d.x, d.y)).rgb);
-        float b  = get_luma(texture2D(u_image, tc + vec2(0.0, d.y)).rgb);
-        float br = get_luma(texture2D(u_image, tc + vec2(d.x, d.y)).rgb);
+        float bl = get_luma(texture2D(u_image, tc + vec2(-d.x, -d.y)).rgb);
+        float b  = get_luma(texture2D(u_image, tc + vec2(0.0, -d.y)).rgb);
+        float br = get_luma(texture2D(u_image, tc + vec2(d.x, -d.y)).rgb);
 
         // Compute gradients (pointing from dark contours towards bright backgrounds)
         float g_x = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
@@ -180,14 +181,14 @@ class Anime4KWebGL {
         // --- DEEP GEOMETRY RESTORATION / LINE THINNING (PIXEL-PUSH) ---
         if (grad > 0.005 && u_edgeStrength > 0.01) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
-          // Push coordinates towards the darker center of the line (-dir in physical space).
-          vec2 shift = vec2(dir.x, -dir.y) * texel * (u_edgeStrength * 1.25);
+          // Push coordinates towards the darker center of the line (-dir in standard WebGL coordinates).
+          vec2 shift = dir * texel * (u_edgeStrength * 1.25);
           vec2 tc_shifted = tc - shift;
           vec3 shifted_color = texture2D(u_image, tc_shifted).rgb;
           
           // Clamp the thinned color to local neighborhood min/max to eliminate overshoot ringing (halos)
-          vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, -d.y)).rgb;
-          vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, d.y)).rgb;
+          vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, d.y)).rgb;
+          vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, -d.y)).rgb;
           vec3 l_rgb = texture2D(u_image, tc + vec2(-d.x, 0.0)).rgb;
           vec3 r_rgb = texture2D(u_image, tc + vec2(d.x, 0.0)).rgb;
           vec3 min_color = min(original.rgb, min(min(t_rgb, b_rgb), min(l_rgb, r_rgb)));
@@ -333,21 +334,10 @@ class Anime4KWebGL {
     const height = this.video.videoHeight || 720;
     const aspectRatio = width / height;
 
-    // Get actual player dimensions in screen pixels for absolute pixel-perfect output (prevents browser downscale blur)
-    const rect = this.video.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    
-    let displayWidth = rect.width > 0 ? rect.width : (width / dpr);
-    let displayHeight = rect.height > 0 ? rect.height : (height / dpr);
-
-    let targetWidth = Math.round(displayWidth * dpr);
-    let targetHeight = Math.round(displayHeight * dpr);
-
-    // Limit target size up to user-selected quality target max (e.g. 1080 or 2160)
-    if (targetHeight > this.targetHeight) {
-      targetHeight = this.targetHeight;
-      targetWidth = Math.round(targetHeight * aspectRatio);
-    }
+    // Use the explicit user-selected upscaling resolution (e.g. 1080 or 2160) for internal canvas resolution
+    // to force high-fidelity WebGL upscaling instead of downscaled CSS-only stretching
+    const targetHeight = this.targetHeight;
+    const targetWidth = Math.round(targetHeight * aspectRatio);
 
     this.canvas.width = targetWidth;
     this.canvas.height = targetHeight;
@@ -451,27 +441,15 @@ class Anime4KWebGL {
     const vHeight = this.video.videoHeight || 720;
     const aspectRatio = vWidth / vHeight;
 
-    // Direct pixel-perfect auto-resize inside frame loop to handle sizing dynamically
-    const rect = this.video.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    
-    let displayWidth = rect.width > 0 ? rect.width : (vWidth / dpr);
-    let displayHeight = rect.height > 0 ? rect.height : (vHeight / dpr);
-
-    let desiredWidth = Math.round(displayWidth * dpr);
-    let desiredHeight = Math.round(displayHeight * dpr);
-
-    // Clamp desired target resolution to chosen upscale target (e.g. 1080 or 2160)
-    if (desiredHeight > this.targetHeight) {
-      desiredHeight = this.targetHeight;
-      desiredWidth = Math.round(desiredHeight * aspectRatio);
-    }
+    // Direct pixel-perfect auto-resize inside frame loop to handle sizing dynamically using selected targetHeight
+    const targetHeight = this.targetHeight;
+    const targetWidth = Math.round(targetHeight * aspectRatio);
 
     // Immediately adjust canvas buffer size if anything changed (including fullscreen toggle)
-    if (this.canvas.width !== desiredWidth || this.canvas.height !== desiredHeight) {
-      this.canvas.width = desiredWidth;
-      this.canvas.height = desiredHeight;
-      gl.viewport(0, 0, desiredWidth, desiredHeight);
+    if (this.canvas.width !== targetWidth || this.canvas.height !== targetHeight) {
+      this.canvas.width = targetWidth;
+      this.canvas.height = targetHeight;
+      gl.viewport(0, 0, targetWidth, targetHeight);
     }
 
     const tWidth = this.canvas.width;
