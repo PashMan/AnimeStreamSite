@@ -117,6 +117,7 @@ class Anime4KWebGL {
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
       uniform vec2 u_textureSize;
+      uniform vec2 u_sourceSize;
       uniform float u_sharpStrength;
       uniform float u_edgeStrength;
 
@@ -128,13 +129,16 @@ class Anime4KWebGL {
         vec2 texel = vec2(1.0) / u_textureSize;
         vec2 tc = v_texCoord;
 
+        // Determine upscaling factor to normalize kernels relative to original input size
+        float scale = max(u_textureSize.y / u_sourceSize.y, 1.0);
+
         // Base high-res bicubic upscaled color
         vec4 original = texture2D(u_image, tc);
         float center_luma = get_luma(original.rgb);
 
-        // Detect gradient of luminance using 4-way neighbors (Sobel) at target scale
-        // Step size of 1.5 pixels is perfect for a smooth, alias-free gradient estimation
-        vec2 d = texel * 1.5;
+        // Detect gradient of luminance using 4-way neighbors (Sobel) at target scale.
+        // Step size of 1.5 source pixels is perfect for a smooth, alias-free gradient estimation.
+        vec2 d = texel * (1.5 * scale);
 
         // Sample neighbors using standard WebGL coordinates (Y increases from bottom Y=0 to top Y=1)
         float tl = get_luma(texture2D(u_image, tc + vec2(-d.x, d.y)).rgb);
@@ -159,9 +163,9 @@ class Anime4KWebGL {
         if (grad > 0.005 && u_edgeStrength > 0.01) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
           // Push coordinates towards the darker center of the line (-dir in standard WebGL coordinates).
-          // Clamp intensity and shift amount to a maximum of 1.0 texel to completely eliminate distortions
-          float shift_amt = clamp(u_edgeStrength * 0.35, 0.0, 1.0);
-          vec2 shift = dir * texel * shift_amt;
+          // Scale the shift amount with the upscaling ratio to successfully thin lines on high-res output.
+          float shift_amt = u_edgeStrength * 0.4;
+          vec2 shift = dir * texel * (shift_amt * scale);
           vec2 tc_shifted = tc - shift;
           vec3 shifted_color = texture2D(u_image, tc_shifted).rgb;
           
@@ -183,12 +187,13 @@ class Anime4KWebGL {
 
         // --- HIGH-FREQUENCY SHARPENING (HALO-FREE UNSHARP MASKING) ---
         if (u_sharpStrength > 0.01) {
-          // Subtle local blur at target scale
+          // Subtle local blur at source-relative scale to prevent high-res grain sharpening
+          vec2 s_offset = texel * (0.8 * scale);
           vec3 local_blur = (
-            texture2D(u_image, tc + vec2(-texel.x, 0.0)).rgb +
-            texture2D(u_image, tc + vec2(texel.x, 0.0)).rgb +
-            texture2D(u_image, tc + vec2(0.0, -texel.y)).rgb +
-            texture2D(u_image, tc + vec2(0.0, texel.y)).rgb
+            texture2D(u_image, tc + vec2(-s_offset.x, 0.0)).rgb +
+            texture2D(u_image, tc + vec2(s_offset.x, 0.0)).rgb +
+            texture2D(u_image, tc + vec2(0.0, -s_offset.y)).rgb +
+            texture2D(u_image, tc + vec2(0.0, s_offset.y)).rgb
           ) * 0.25;
 
           vec3 high_freq = final_color - local_blur;
@@ -198,14 +203,15 @@ class Anime4KWebGL {
           vec3 sharp_offset = high_freq * u_sharpStrength * sharp_mask;
 
           // Halo Prevention: Clamp the sharpened result to the local neighborhood min/max range
-          // allowing only a tiny 4% crispness margin to completely block thick white boundaries
-          vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, texel.y)).rgb;
-          vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, -texel.y)).rgb;
-          vec3 l_rgb = texture2D(u_image, tc + vec2(-texel.x, 0.0)).rgb;
-          vec3 r_rgb = texture2D(u_image, tc + vec2(texel.x, 0.0)).rgb;
+          // allowing only a tiny 2% crispness margin to completely block thick white boundaries
+          vec2 n_offset = texel * (1.0 * scale);
+          vec3 t_rgb = texture2D(u_image, tc + vec2(0.0, n_offset.y)).rgb;
+          vec3 b_rgb = texture2D(u_image, tc + vec2(0.0, -n_offset.y)).rgb;
+          vec3 l_rgb = texture2D(u_image, tc + vec2(-n_offset.x, 0.0)).rgb;
+          vec3 r_rgb = texture2D(u_image, tc + vec2(n_offset.x, 0.0)).rgb;
           vec3 min_color = min(original.rgb, min(min(t_rgb, b_rgb), min(l_rgb, r_rgb)));
           vec3 max_color = max(original.rgb, max(max(t_rgb, b_rgb), max(l_rgb, r_rgb)));
-          vec3 margin = (max_color - min_color) * 0.04;
+          vec3 margin = (max_color - min_color) * 0.02;
 
           final_color = clamp(final_color + sharp_offset, min_color - margin, max_color + margin);
           center_luma = get_luma(final_color);
@@ -498,6 +504,11 @@ class Anime4KWebGL {
       gl.getUniformLocation(this.refineProgram, "u_textureSize"),
       tWidth,
       tHeight
+    );
+    gl.uniform2f(
+      gl.getUniformLocation(this.refineProgram, "u_sourceSize"),
+      vWidth,
+      vHeight
     );
     gl.uniform1f(
       gl.getUniformLocation(this.refineProgram, "u_sharpStrength"),
