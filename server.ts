@@ -446,11 +446,27 @@ app.options('/api/proxy-4k', (c) => {
 });
 
 app.get('/api/proxy-4k', async (c) => {
-  const targetUrl = c.req.query('url');
+  let targetUrl = c.req.query('url');
+  const rawUrl = c.req.url;
+  const urlIndex = rawUrl.indexOf('url=');
+  if (urlIndex !== -1) {
+    const extracted = rawUrl.substring(urlIndex + 4);
+    try {
+      targetUrl = decodeURIComponent(extracted);
+    } catch (err) {
+      targetUrl = c.req.query('url');
+    }
+  }
+
   if (!targetUrl) return c.text('Missing url parameter', 400);
 
   try {
-    const res = await fetch(targetUrl);
+    const res = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': 'https://shikimori.one/'
+      }
+    });
     if (!res.ok) {
       return c.text(`Proxy failed with status ${res.status}`, res.status as any);
     }
@@ -503,7 +519,9 @@ app.get('/api/proxy-4k', async (c) => {
       });
     }
 
-    return new Response(res.body, {
+    const arrayBuffer = await res.arrayBuffer();
+
+    return new Response(arrayBuffer, {
       status: 200,
       headers: {
         'Content-Type': contentType || 'video/mp2t',
@@ -805,16 +823,30 @@ app.get('/api/kodik/playlist', async (c) => {
 });
 
 app.get('/api/kodik/segment', async (c) => {
-  const segmentUrl = c.req.query('url');
+  let segmentUrl = c.req.query('url');
+  const rawUrl = c.req.url;
+  const urlIndex = rawUrl.indexOf('url=');
+  if (urlIndex !== -1) {
+    const extracted = rawUrl.substring(urlIndex + 4);
+    try {
+      segmentUrl = decodeURIComponent(extracted);
+    } catch (err) {
+      segmentUrl = c.req.query('url');
+    }
+  }
+
   if (!segmentUrl) {
     return c.json({ error: 'No segment URL provided' }, 400);
   }
 
   try {
+    const segmentUrlObj = new URL(segmentUrl);
+    const referer = `https://${segmentUrlObj.host}/` || 'https://kodik.info/';
+
     const response = await fetch(segmentUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://kodik.info/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': referer,
         'Accept': '*/*'
       }
     });
@@ -823,7 +855,9 @@ app.get('/api/kodik/segment', async (c) => {
        return new Response(`Error fetching segment: ${response.status}`, { status: response.status });
     }
 
-    return new Response(response.body, {
+    const arrayBuffer = await response.arrayBuffer();
+
+    return new Response(arrayBuffer, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('content-type') || 'video/mp2t',

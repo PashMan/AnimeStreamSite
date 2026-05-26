@@ -13,8 +13,20 @@ export async function onRequest(context: any) {
     });
   }
 
-  const urlObj = new URL(request.url);
-  const segmentUrl = urlObj.searchParams.get('url');
+  const rawUrl = request.url;
+  let segmentUrl = '';
+  const urlIndex = rawUrl.indexOf('url=');
+  if (urlIndex !== -1) {
+    const extracted = rawUrl.substring(urlIndex + 4);
+    try {
+      segmentUrl = decodeURIComponent(extracted);
+    } catch (err) {
+      segmentUrl = new URL(rawUrl).searchParams.get('url') || '';
+    }
+  } else {
+    segmentUrl = new URL(rawUrl).searchParams.get('url') || '';
+  }
+
   if (!segmentUrl) {
     return new Response(JSON.stringify({ error: 'No segment URL provided' }), {
       status: 400,
@@ -26,10 +38,13 @@ export async function onRequest(context: any) {
   }
 
   try {
+    const segmentUrlObj = new URL(segmentUrl);
+    const referer = `https://${segmentUrlObj.host}/` || 'https://kodik.info/';
+
     const response = await fetch(segmentUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://kodik.info/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': referer,
         'Accept': '*/*'
       }
     });

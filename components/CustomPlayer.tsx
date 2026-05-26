@@ -129,11 +129,13 @@ class Anime4KWebGL {
 
         // Base high-res bicubic upscaled color
         vec4 original = texture2D(u_image, tc);
+        float center_luma = get_luma(original.rgb);
 
         // Detect gradient of luminance using 4-way neighbors (Sobel) at target scale
         // Step size of 1.5 pixels is perfect for a smooth, alias-free gradient estimation
         vec2 d = texel * 1.5;
 
+        // Sample neighbors using texture coordinates mapped to physical screen (top-left is Y=0, bottom-left is Y=1)
         float tl = get_luma(texture2D(u_image, tc + vec2(-d.x, -d.y)).rgb);
         float t  = get_luma(texture2D(u_image, tc + vec2(0.0, -d.y)).rgb);
         float tr = get_luma(texture2D(u_image, tc + vec2(d.x, -d.y)).rgb);
@@ -145,18 +147,42 @@ class Anime4KWebGL {
         float b  = get_luma(texture2D(u_image, tc + vec2(0.0, d.y)).rgb);
         float br = get_luma(texture2D(u_image, tc + vec2(d.x, d.y)).rgb);
 
-        // Compute gradients
-        float g_x = tl + 2.0 * l + bl - tr - 2.0 * r - br;
-        float g_y = tl + 2.0 * t + tr - bl - 2.0 * b - br;
+        // Compute gradients (pointing from dark contours towards bright backgrounds)
+        float g_x = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
+        float g_y = (tl + 2.0 * t + tr) - (bl + 2.0 * b + br);
         float grad = sqrt(g_x * g_x + g_y * g_y);
 
         vec3 final_color = original.rgb;
 
-        // --- LINE THINNING (PIXEL-PUSH) ---
+        // --- SMART NOISE REDUCTION / BILATERAL FLAT SMOOTHING (Anime4K Remaster CNN) ---
+        // Smooths compression noise on flat painted regions to make the textures incredibly dense and clean
+        if (grad < 0.04) {
+          vec3 sum = original.rgb * 4.0;
+          float w_sum = 4.0;
+          
+          vec2 offsets[4];
+          offsets[0] = vec2(-texel.x, 0.0);
+          offsets[1] = vec2(texel.x, 0.0);
+          offsets[2] = vec2(0.0, -texel.y);
+          offsets[3] = vec2(0.0, texel.y);
+          
+          for (int i = 0; i < 4; i++) {
+            vec3 n_color = texture2D(u_image, tc + offsets[i]).rgb;
+            float l_diff = abs(get_luma(n_color) - center_luma);
+            float w = clamp(1.0 - l_diff * 12.0, 0.0, 1.0);
+            sum += n_color * w;
+            w_sum += w;
+          }
+          final_color = sum / w_sum;
+          center_luma = get_luma(final_color);
+        }
+
+        // --- DEEP GEOMETRY RESTORATION / LINE THINNING (PIXEL-PUSH) ---
         if (grad > 0.005 && u_edgeStrength > 0.01) {
           vec2 dir = vec2(g_x, g_y) / (grad + 0.0001);
-          // Push coordinates towards the center of the line.
-          vec2 tc_shifted = tc - dir * texel * (u_edgeStrength * 0.8);
+          // Push coordinates towards the darker center of the line (-dir in physical space).
+          vec2 shift = vec2(dir.x, -dir.y) * texel * (u_edgeStrength * 1.25);
+          vec2 tc_shifted = tc - shift;
           vec3 shifted_color = texture2D(u_image, tc_shifted).rgb;
           
           // Clamp the thinned color to local neighborhood min/max to eliminate overshoot ringing (halos)
@@ -169,14 +195,15 @@ class Anime4KWebGL {
           
           shifted_color = clamp(shifted_color, min_color, max_color);
 
-          // Only apply push on high-gradient edge contours to keep flat textures unmodified
-          float edge_mix = clamp(grad * 3.5, 0.0, 0.95);
+          // Apply push on gradient edge contours
+          float edge_mix = clamp(grad * 4.0, 0.0, 0.98);
           final_color = mix(final_color, shifted_color, edge_mix);
+          center_luma = get_luma(final_color);
         }
 
         // --- HIGH-FREQUENCY SHARPENING (UNSHARP MASKING) ---
         if (u_sharpStrength > 0.01) {
-          // Subtle local blur at target scale (1 pixel radius)
+          // Subtle local blur at target scale
           vec3 local_blur = (
             texture2D(u_image, tc + vec2(-texel.x, 0.0)).rgb +
             texture2D(u_image, tc + vec2(texel.x, 0.0)).rgb +
@@ -184,19 +211,18 @@ class Anime4KWebGL {
             texture2D(u_image, tc + vec2(0.0, texel.y)).rgb
           ) * 0.25;
 
-          // Difference represents fine high-frequency details
           vec3 high_freq = final_color - local_blur;
 
-          // Apply sharpening in proportion to edge activity to prevent grain/noise enhancement
+          // Mask sharpening in proportion to edge activity to prevent grain/noise enhancement
           float sharp_mask = clamp(grad * 12.0, 0.0, 1.0);
           final_color = final_color + high_freq * u_sharpStrength * sharp_mask;
+          center_luma = get_luma(final_color);
         }
 
-        // --- DARK LINE ART ENHANCEMENT ---
-        float center_luma = get_luma(final_color);
-        if (center_luma < 0.40 && grad > 0.08) {
-          float contrast_factor = 1.0 - (0.40 - center_luma) * 0.12;
-          final_color = final_color * contrast_factor;
+        // --- HAND-DRAWN CONTOUR RESTORATION (LINE ART DENSITY RESTORATION) ---
+        if (center_luma < 0.35 && grad > 0.08) {
+          float dark_push = clamp((0.35 - center_luma) * 1.8, 0.0, 0.6);
+          final_color = mix(final_color, final_color * 0.4, dark_push * u_edgeStrength * 0.35);
         }
 
         gl_FragColor = vec4(clamp(final_color, 0.0, 1.0), original.a);
@@ -224,8 +250,8 @@ class Anime4KWebGL {
     gl.bindTexture(gl.TEXTURE_2D, texIndex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   }
 
   private createProgram(vsSource: string, fsSource: string): WebGLProgram {
@@ -423,6 +449,31 @@ class Anime4KWebGL {
 
     const vWidth = this.video.videoWidth || 1280;
     const vHeight = this.video.videoHeight || 720;
+    const aspectRatio = vWidth / vHeight;
+
+    // Direct pixel-perfect auto-resize inside frame loop to handle sizing dynamically
+    const rect = this.video.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    let displayWidth = rect.width > 0 ? rect.width : (vWidth / dpr);
+    let displayHeight = rect.height > 0 ? rect.height : (vHeight / dpr);
+
+    let desiredWidth = Math.round(displayWidth * dpr);
+    let desiredHeight = Math.round(displayHeight * dpr);
+
+    // Clamp desired target resolution to chosen upscale target (e.g. 1080 or 2160)
+    if (desiredHeight > this.targetHeight) {
+      desiredHeight = this.targetHeight;
+      desiredWidth = Math.round(desiredHeight * aspectRatio);
+    }
+
+    // Immediately adjust canvas buffer size if anything changed (including fullscreen toggle)
+    if (this.canvas.width !== desiredWidth || this.canvas.height !== desiredHeight) {
+      this.canvas.width = desiredWidth;
+      this.canvas.height = desiredHeight;
+      gl.viewport(0, 0, desiredWidth, desiredHeight);
+    }
+
     const tWidth = this.canvas.width;
     const tHeight = this.canvas.height;
 
