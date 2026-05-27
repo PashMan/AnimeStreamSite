@@ -1306,6 +1306,104 @@ const Details: React.FC = () => {
               )}
 
               <div className="grid gap-6 transition-all duration-500 grid-cols-1">
+                {/* Inline selector of episodes and translations for Custom Player */}
+                {selectedPlayer === "KamiPlayer (4K)" && (
+                  <div className="mb-6 bg-white/5 border border-white/10 p-4 sm:p-5 rounded-2xl md:rounded-[2rem] shadow-xl backdrop-blur-sm flex flex-col sm:flex-row items-center gap-4">
+                    {/* Episode selector */}
+                    {anime &&
+                    ((anime.episodesAired || 0) > 1 ||
+                      (anime.episodes || 0) > 1) ? (
+                      <div className="flex-1 w-full font-sans">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 pl-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />{" "}
+                          Выберите серию
+                        </label>
+                        <div className="relative flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white hover:bg-white/10 transition-colors focus-within:border-primary/50 w-full">
+                          <select
+                            value={paramEpisode || "1"}
+                            onChange={(e) => {
+                              const epNum = e.target.value;
+                              let newUrl = `/anime/${paramId}/episode/${epNum}`;
+                              if (window.location.search) {
+                                newUrl += window.location.search;
+                              }
+                              navigate(newUrl);
+                            }}
+                            className="bg-transparent text-white outline-none w-full pr-8 appearance-none cursor-pointer font-bold font-sans"
+                          >
+                            {Array.from({
+                              length:
+                                anime.episodesAired || anime.episodes || 1,
+                            }).map((_, i) => {
+                              const epNum = i + 1;
+                              return (
+                                <option
+                                  key={epNum}
+                                  value={epNum}
+                                  className="bg-[#12131a] text-white font-bold text-xs py-2"
+                                >
+                                  Серия {epNum}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 w-full font-sans">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 pl-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />{" "}
+                          Выберите серию
+                        </label>
+                        <div className="relative flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-slate-500 w-full font-bold font-sans">
+                          1 серия (фильм/спешл)
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Translation selector */}
+                    {translations.length > 0 && (
+                      <div className="flex-1 w-full font-sans">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 pl-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />{" "}
+                          Выберите озвучку
+                        </label>
+                        <div className="relative flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white hover:bg-white/10 transition-colors focus-within:border-primary/50 w-full">
+                          <select
+                            value={
+                              selectedTranslation
+                                ? translations.findIndex(
+                                    (t) =>
+                                      t.title === selectedTranslation.title,
+                                  )
+                                : 0
+                            }
+                            onChange={(e) => {
+                              const idx = parseInt(e.target.value);
+                              if (translations[idx]) {
+                                setSelectedTranslation(translations[idx]);
+                              }
+                            }}
+                            className="bg-transparent text-white outline-none w-full pr-8 appearance-none cursor-pointer font-bold font-sans"
+                          >
+                            {translations.map((t, index) => (
+                              <option
+                                key={t.id || index}
+                                value={index}
+                                className="bg-[#12131a] text-white font-bold text-xs py-2"
+                              >
+                                {t.title}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
                   {isBlocked ? (
                     <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center text-center p-6">
@@ -1451,104 +1549,6 @@ const Details: React.FC = () => {
                     </>
                   )}
                 </div>
-
-                {/* Inline selector of episodes and translations for Custom Player */}
-                {selectedPlayer === "KamiPlayer (4K)" && (
-                  <div className="mt-4 bg-white/5 border border-white/10 p-4 sm:p-5 rounded-2xl md:rounded-[2rem] shadow-xl backdrop-blur-sm flex flex-col sm:flex-row items-center gap-4">
-                    {/* Episode selector */}
-                    {anime &&
-                    ((anime.episodesAired || 0) > 1 ||
-                      (anime.episodes || 0) > 1) ? (
-                      <div className="flex-1 w-full font-sans">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 pl-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />{" "}
-                          Выберите серию
-                        </label>
-                        <div className="relative flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white hover:bg-white/10 transition-colors focus-within:border-primary/50 w-full">
-                          <select
-                            value={paramEpisode || "1"}
-                            onChange={(e) => {
-                              const epNum = e.target.value;
-                              let newUrl = `/anime/${paramId}/episode/${epNum}`;
-                              if (window.location.search) {
-                                newUrl += window.location.search;
-                              }
-                              navigate(newUrl);
-                            }}
-                            className="bg-transparent text-white outline-none w-full pr-8 appearance-none cursor-pointer font-bold font-sans"
-                          >
-                            {Array.from({
-                              length:
-                                anime.episodesAired || anime.episodes || 1,
-                            }).map((_, i) => {
-                              const epNum = i + 1;
-                              return (
-                                <option
-                                  key={epNum}
-                                  value={epNum}
-                                  className="bg-[#12131a] text-white font-bold text-xs py-2"
-                                >
-                                  Серия {epNum}
-                                </option>
-                              );
-                            })}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex-1 w-full font-sans">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 pl-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />{" "}
-                          Выберите серию
-                        </label>
-                        <div className="relative flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-slate-500 w-full font-bold font-sans">
-                          1 серия (фильм/спешл)
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Translation selector */}
-                    {translations.length > 0 && (
-                      <div className="flex-1 w-full font-sans">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 pl-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />{" "}
-                          Выберите озвучку
-                        </label>
-                        <div className="relative flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white hover:bg-white/10 transition-colors focus-within:border-primary/50 w-full">
-                          <select
-                            value={
-                              selectedTranslation
-                                ? translations.findIndex(
-                                    (t) =>
-                                      t.title === selectedTranslation.title,
-                                  )
-                                : 0
-                            }
-                            onChange={(e) => {
-                              const idx = parseInt(e.target.value);
-                              if (translations[idx]) {
-                                setSelectedTranslation(translations[idx]);
-                              }
-                            }}
-                            className="bg-transparent text-white outline-none w-full pr-8 appearance-none cursor-pointer font-bold font-sans"
-                          >
-                            {translations.map((t, index) => (
-                              <option
-                                key={t.id || index}
-                                value={index}
-                                className="bg-[#12131a] text-white font-bold text-xs py-2"
-                              >
-                                {t.title}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </section>
           </div>
