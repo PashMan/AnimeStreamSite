@@ -1,12 +1,17 @@
-import React, { useEffect, useRef, forwardRef } from "react";
+import React, { useEffect, useRef, forwardRef, useState } from "react";
 import Artplayer from "artplayer";
 import Hls from "hls.js";
+import { FastForward, ChevronRight } from "lucide-react";
 
 interface CustomPlayerProps {
   src: string;
   maxAudioTracks?: number;
   audioTrackNames?: string[];
   autoPlay?: boolean;
+  animeId?: string;
+  episodeNumber?: string;
+  onNextEpisode?: () => void;
+  onPrevEpisode?: () => void;
 }
 
 // WebGL pristine-sampling upscaler
@@ -490,9 +495,47 @@ class Anime4KWebGL {
 }
 
 export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
-  ({ src, maxAudioTracks, audioTrackNames, autoPlay }, ref) => {
+  ({ src, maxAudioTracks, audioTrackNames, autoPlay, animeId, episodeNumber, onNextEpisode, onPrevEpisode }, ref) => {
     const artRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const artInstanceRef = useRef<Artplayer | null>(null);
+
+    const [showSkipOpening, setShowSkipOpening] = useState(false);
+    const [showSkipEnding, setShowSkipEnding] = useState(false);
+    const [preciseSkips, setPreciseSkips] = useState<{ start: number | null; end: number | null; outro_start: number | null; outro_end: number | null } | null>(null);
+    const preciseSkipsRef = useRef<{ start: number | null; end: number | null; outro_start: number | null; outro_end: number | null } | null>(null);
+
+    useEffect(() => {
+      preciseSkipsRef.current = preciseSkips;
+    }, [preciseSkips]);
+
+    useEffect(() => {
+      if (src && src.includes("/api/kodik/playlist")) {
+        let isCurrent = true;
+        let originalKodikUrl = "";
+        try {
+          const urlObj = new URL(src, window.location.origin);
+          originalKodikUrl = urlObj.searchParams.get("url") || "";
+        } catch (e) {}
+        
+        if (originalKodikUrl) {
+          fetch(`/api/kodik/skip-timings?url=${encodeURIComponent(originalKodikUrl)}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (isCurrent && data && data.normalized) {
+                setPreciseSkips(data.normalized);
+                console.log("[KODIK PRECISE SKIPS] Loaded:", data.normalized);
+              }
+            })
+            .catch((err) => console.error("[KODIK PRECISE SKIPS] Failed to load:", err));
+        }
+        return () => {
+          isCurrent = false;
+        };
+      } else {
+        setPreciseSkips(null);
+      }
+    }, [src]);
 
     useEffect(() => {
       if (!artRef.current) return;
@@ -595,6 +638,48 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               "Video Info": "Служебная информация",
             },
           } as any,
+          controls: [
+            ...(onPrevEpisode
+              ? [
+                  {
+                    name: "prev-episode",
+                    position: "left",
+                    index: 11,
+                    html: `
+                      <span class="art-icon art-icon-prev-ep" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 2px; color: #fff;" title="Предыдущая серия">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <polygon points="19 20 9 12 19 4 19 20" fill="currentColor"></polygon>
+                          <line x1="5" y1="19" x2="5" y2="5"></line>
+                        </svg>
+                      </span>
+                    `,
+                    click: function () {
+                      onPrevEpisode();
+                    },
+                  },
+                ]
+              : []),
+            ...(onNextEpisode
+              ? [
+                  {
+                    name: "next-episode",
+                    position: "left",
+                    index: 12,
+                    html: `
+                      <span class="art-icon art-icon-next-ep" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; color: #fff;" title="Следующая серия">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"></polygon>
+                          <line x1="19" y1="5" x2="19" y2="19"></line>
+                        </svg>
+                      </span>
+                    `,
+                    click: function () {
+                      onNextEpisode();
+                    },
+                  },
+                ]
+              : []),
+          ],
           layers: [
             {
               name: "play-pause-layer",
@@ -619,7 +704,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                 hls.on(Hls.Events.ERROR, function (event, data) {
                   if (data.fatal) {
-                    console.error(
+                     console.error(
                       "HLS.js fatal error:",
                       data.type,
                       data.details,
@@ -895,6 +980,57 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           },
         });
 
+        artInstanceRef.current = art;
+
+        // Save position and control overlay visibility
+        art.on("video:timeupdate", () => {
+          if (!art) return;
+          const t = art.currentTime;
+          const d = art.duration;
+
+          if (animeId && episodeNumber && t > 5 && Math.floor(t) % 5 === 0) {
+            localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, t.toString());
+          }
+
+          const skips = preciseSkipsRef.current;
+          // Show skip opening triggers
+          if (skips && typeof skips.start === 'number' && typeof skips.end === 'number') {
+            setShowSkipOpening(t >= skips.start && t < skips.end);
+          } else {
+            setShowSkipOpening(t > 5 && t < 185);
+          }
+
+          // Show skip ending triggers (last 3 minutes of episode or precise outro)
+          if (skips && typeof skips.outro_start === 'number') {
+            const outEnd = typeof skips.outro_end === 'number' ? skips.outro_end : d;
+            setShowSkipEnding(t >= skips.outro_start && t < outEnd);
+          } else {
+            setShowSkipEnding(d > 185 && t > d - 180 && t < d - 10);
+          }
+        });
+
+        art.on("video:pause", () => {
+          if (!art) return;
+          if (animeId && episodeNumber && art.currentTime > 5) {
+            localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, art.currentTime.toString());
+          }
+        });
+
+        // Restore playback position on load
+        art.on("ready", () => {
+          if (!art) return;
+          if (animeId && episodeNumber) {
+            const saved = localStorage.getItem(`anime_progress_${animeId}_${episodeNumber}`);
+            if (saved) {
+              const seekTime = parseFloat(saved);
+              if (!isNaN(seekTime) && seekTime > 5) {
+                art.currentTime = seekTime;
+                art.notice.show = `Продолжено с ${Math.floor(seekTime / 60)}:${Math.floor(seekTime % 60).toString().padStart(2, "0")}`;
+              }
+            }
+          }
+        });
+
         if (typeof ref === "function") {
           (art.video as any).art = art;
           ref(art.video);
@@ -911,14 +1047,48 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         if (webglInstance) {
           webglInstance.destroy();
         }
-        if (art && art.destroy) {
-          art.destroy(false);
+        if (art) {
+          if (animeId && episodeNumber && art.currentTime > 5) {
+            localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, art.currentTime.toString());
+          }
+          if (art.destroy) {
+            art.destroy(false);
+          }
         }
+        artInstanceRef.current = null;
         if (blobUrl) {
           URL.revokeObjectURL(blobUrl);
         }
       };
-    }, [src, ref, maxAudioTracks, audioTrackNames, autoPlay]);
+    }, [src, ref, maxAudioTracks, audioTrackNames, autoPlay, animeId, episodeNumber, onNextEpisode, onPrevEpisode]);
+
+    const handleSkipOpening = () => {
+      const art = artInstanceRef.current;
+      if (art) {
+        if (preciseSkips && typeof preciseSkips.end === 'number') {
+          art.currentTime = preciseSkips.end;
+          art.notice.show = "Пропущен опенинг";
+        } else {
+          art.currentTime = Math.min(art.currentTime + 85, art.duration);
+          art.notice.show = "Пропущено 85 секунд (опенинг)";
+        }
+      }
+    };
+
+    const handleSkipEnding = () => {
+      if (onNextEpisode) {
+        onNextEpisode();
+      } else {
+        const art = artInstanceRef.current;
+        if (art) {
+          if (preciseSkips && typeof preciseSkips.outro_end === 'number') {
+            art.currentTime = preciseSkips.outro_end;
+          } else {
+            art.currentTime = art.duration;
+          }
+        }
+      }
+    };
 
     return (
       <div className="relative w-full aspect-video rounded-xl bg-black overflow-hidden group/player">
@@ -940,6 +1110,27 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           style={{ pointerEvents: "none", transition: "opacity 0.3s ease" }}
           className="absolute inset-0 w-full h-full object-contain opacity-0 z-10"
         />
+
+        {/* OVERLAYS FOR SKIP OPENING/ENDING */}
+        {showSkipOpening && (
+          <button
+            onClick={handleSkipOpening}
+            className="absolute bottom-16 left-6 p-3 px-5 rounded-2xl bg-black/85 backdrop-blur-md border border-white/10 hover:border-primary/50 text-white flex items-center gap-2 cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-2xl text-[11px] font-bold uppercase tracking-wider z-[40]"
+          >
+            <FastForward className="w-4 h-4 text-primary animate-pulse" />
+            Пропустить опенинг (+85с)
+          </button>
+        )}
+
+        {showSkipEnding && (
+          <button
+            onClick={handleSkipEnding}
+            className="absolute bottom-16 right-6 p-3 px-5 rounded-2xl bg-black/85 backdrop-blur-md border border-white/10 hover:border-primary/50 text-white flex items-center gap-2 cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-2xl text-[11px] font-bold uppercase tracking-wider z-[40]"
+          >
+            Пропустить эндинг
+            <ChevronRight className="w-4 h-4 text-primary" />
+          </button>
+        )}
       </div>
     );
   },
