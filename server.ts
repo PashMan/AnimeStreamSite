@@ -869,10 +869,10 @@ app.get('/api/media/playlist', async (c) => {
     const html = await iframeRes.text();
 
     // 2. Extract parameters
-    const urlParamsMatch = html.match(/urlParams\s*=\s*['"]([^'"]+)['"]/) || html.match(/urlParams\s*=\s*({[^;]+})/);
-    const hashMatch = html.match(/\.hash\s*=\s*['"]([^'"]+)['"]/) || html.match(/\.hash\s*=\s*'([^']+)'/);
-    const idMatch = html.match(/\.id\s*=\s*['"]([^'"]+)['"]/) || html.match(/\.id\s*=\s*'([^']+)'/);
-    const typeMatch = html.match(/\.type\s*=\s*['"]([^'"]+)['"]/) || html.match(/\.type\s*=\s*'([^']+)'/);
+    const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*"([^"]+)"/) || html.match(/urlParams\s*=\s*({[^;]+})/);
+    const hashMatch = html.match(/\.hash\s*=\s*'([^']+)'/) || html.match(/\.hash\s*=\s*"([^"]+)"/) || html.match(/\.hash\s*=\s*['"]([^'"]+)['"]/);
+    const idMatch = html.match(/\.id\s*=\s*'([^']+)'/) || html.match(/\.id\s*=\s*"([^"]+)"/) || html.match(/\.id\s*=\s*['"]([^'"]+)['"]/);
+    const typeMatch = html.match(/\.type\s*=\s*'([^']+)'/) || html.match(/\.type\s*=\s*"([^"]+)"/) || html.match(/\.type\s*=\s*['"]([^'"]+)['"]/);
 
     if (!urlParamsMatch || !hashMatch || !idMatch || !typeMatch) {
       console.error('[KODIK PROXY] Failed to parse iframe params');
