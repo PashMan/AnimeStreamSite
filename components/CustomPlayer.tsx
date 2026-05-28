@@ -505,7 +505,21 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const artInstanceRef = useRef<Artplayer | null>(null);
 
+    const onNextEpisodeRef = useRef(onNextEpisode);
+    const onPrevEpisodeRef = useRef(onPrevEpisode);
+    const audioTrackNamesRef = useRef(audioTrackNames);
 
+    useEffect(() => {
+      onNextEpisodeRef.current = onNextEpisode;
+    }, [onNextEpisode]);
+
+    useEffect(() => {
+      onPrevEpisodeRef.current = onPrevEpisode;
+    }, [onPrevEpisode]);
+
+    useEffect(() => {
+      audioTrackNamesRef.current = audioTrackNames;
+    }, [audioTrackNames]);
 
     useEffect(() => {
       if (!artRef.current) return;
@@ -612,7 +626,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
             },
           } as any,
           controls: [
-            ...(onPrevEpisode
+            ...(!!onPrevEpisode
               ? [
                   {
                     name: "prev-episode",
@@ -627,12 +641,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       </span>
                     `,
                     click: function () {
-                      onPrevEpisode();
+                      if (onPrevEpisodeRef.current) {
+                        onPrevEpisodeRef.current();
+                      }
                     },
                   },
                 ]
               : []),
-            ...(onNextEpisode
+            ...(!!onNextEpisode
               ? [
                   {
                     name: "next-episode",
@@ -647,7 +663,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       </span>
                     `,
                     click: function () {
-                      onNextEpisode();
+                      if (onNextEpisodeRef.current) {
+                        onNextEpisodeRef.current();
+                      }
                     },
                   },
                 ]
@@ -837,8 +855,8 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   let tracks = data.audioTracks.map((t, index) => ({
                     html:
-                      audioTrackNames && audioTrackNames[index]
-                        ? audioTrackNames[index]
+                      audioTrackNamesRef.current && audioTrackNamesRef.current[index]
+                        ? audioTrackNamesRef.current[index]
                         : t.name ||
                           (t as any).language ||
                           `Озвучка ${index + 1}`,
@@ -1016,7 +1034,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           URL.revokeObjectURL(blobUrl);
         }
       };
-    }, [src, ref, maxAudioTracks, audioTrackNames, autoPlay, animeId, episodeNumber, onNextEpisode, onPrevEpisode]);
+    }, [src, maxAudioTracks, !!audioTrackNames, autoPlay, animeId, episodeNumber, !!onNextEpisode, !!onPrevEpisode]);
 
     return (
       <div className="relative w-full aspect-video rounded-xl bg-black overflow-hidden group/player">
