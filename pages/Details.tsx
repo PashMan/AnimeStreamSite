@@ -1410,7 +1410,7 @@ const Details: React.FC = () => {
                             }
 
                             return (
-                              <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-2 max-h-64 overflow-y-auto pr-1">
+                              <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto pr-1">
                                 {renderedEps.map((epNum) => {
                                   const isActive = (paramEpisode || "1") === epNum.toString();
                                   return (
@@ -1423,7 +1423,7 @@ const Details: React.FC = () => {
                                         }
                                         navigate(newUrl);
                                       }}
-                                      className={`w-full aspect-square flex flex-col items-center justify-center rounded-xl font-bold transition-all text-xs border cursor-pointer ${
+                                      className={`w-[44px] h-[44px] flex flex-col items-center justify-center rounded-xl font-bold transition-all text-xs border cursor-pointer shrink-0 ${
                                         isActive
                                           ? "bg-primary border-primary text-white shadow-[0_8px_20px_rgba(225,29,72,0.3)] scale-[1.03]"
                                           : "bg-white/5 border-white/5 text-slate-400 hover:text-white hover:border-primary/50 hover:bg-primary/5"

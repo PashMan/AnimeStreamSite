@@ -1,12 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { clearRequestQueue } from '../services/shikimori';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
+  const prevGroupKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    // Extract base group identifier to avoid scrolling to top when navigating episodes of the same anime
+    const animeMatch = pathname.match(/^\/anime\/([^/]+)/);
+    const scrollGroupKey = animeMatch ? `anime:${animeMatch[1]}` : pathname;
+
+    if (prevGroupKeyRef.current !== scrollGroupKey) {
+      window.scrollTo(0, 0);
+      prevGroupKeyRef.current = scrollGroupKey;
+    }
+
     clearRequestQueue();
     
     // Send pageview to Google Analytics
