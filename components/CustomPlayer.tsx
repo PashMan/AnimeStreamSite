@@ -1011,6 +1011,28 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
         artInstanceRef.current = art;
 
+        if (art && art.video) {
+          const originalPlay = art.video.play;
+          art.video.play = function (...args): Promise<void> {
+            try {
+              const res = originalPlay.apply(this, args);
+              if (res && typeof res.catch === "function") {
+                return res.catch((err: any) => {
+                  if (err && err.name === "AbortError") {
+                    console.warn("[HLS PLAY] Play request was interrupted by a new CSS/source load request, gracefully ignoring.");
+                  } else {
+                    console.warn("[HLS PLAY] video.play() promise rejected:", err);
+                  }
+                }) as Promise<void>;
+              }
+              return (res || Promise.resolve()) as Promise<void>;
+            } catch (err: any) {
+              console.warn("[HLS PLAY] video.play() synchronous exception:", err);
+              return Promise.resolve();
+            }
+          };
+        }
+
         // Save position and control overlay visibility
         art.on("video:timeupdate", () => {
           if (!art) return;
