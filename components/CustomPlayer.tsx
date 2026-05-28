@@ -505,46 +505,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const artInstanceRef = useRef<Artplayer | null>(null);
 
-    const [showSkipOpening, setShowSkipOpening] = useState(false);
-    const [showSkipEnding, setShowSkipEnding] = useState(false);
-    const [preciseSkips, setPreciseSkips] = useState<{ start: number | null; end: number | null; outro_start: number | null; outro_end: number | null } | null>(null);
-    const preciseSkipsRef = useRef<{ start: number | null; end: number | null; outro_start: number | null; outro_end: number | null } | null>(null);
 
-    useEffect(() => {
-      preciseSkipsRef.current = preciseSkips;
-    }, [preciseSkips]);
-
-    useEffect(() => {
-      if (src && src.includes("/api/media/playlist")) {
-        let isCurrent = true;
-        let originalKodikUrl = "";
-        try {
-          const urlObj = new URL(src, window.location.origin);
-          originalKodikUrl = urlObj.searchParams.get("url") || "";
-        } catch (e) {}
-        
-        if (originalKodikUrl) {
-          const skipQueryUrl = `/api/media/skip-timings?url=${encodeURIComponent(originalKodikUrl)}` + 
-            (animeId ? `&animeId=${encodeURIComponent(animeId)}` : "") + 
-            (episodeNumber ? `&episode=${encodeURIComponent(episodeNumber)}` : "");
-          
-          fetch(skipQueryUrl)
-            .then((res) => res.json())
-            .then((data) => {
-              if (isCurrent && data && data.normalized) {
-                setPreciseSkips(data.normalized);
-                console.log("[KODIK PRECISE SKIPS] Loaded:", data.normalized);
-              }
-            })
-            .catch((err) => console.error("[KODIK PRECISE SKIPS] Failed to load:", err));
-        }
-        return () => {
-          isCurrent = false;
-        };
-      } else {
-        setPreciseSkips(null);
-      }
-    }, [src]);
 
     useEffect(() => {
       if (!artRef.current) return;
@@ -1033,30 +994,13 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           };
         }
 
-        // Save position and control overlay visibility
+        // Save position
         art.on("video:timeupdate", () => {
           if (!art) return;
           const t = art.currentTime;
-          const d = art.duration;
 
           if (animeId && episodeNumber && t > 5 && Math.floor(t) % 5 === 0) {
             localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, t.toString());
-          }
-
-          const skips = preciseSkipsRef.current;
-          // Show skip opening triggers
-          if (skips && typeof skips.start === 'number' && typeof skips.end === 'number') {
-            setShowSkipOpening(t >= skips.start && t < skips.end);
-          } else {
-            setShowSkipOpening(t > 5 && t < 185);
-          }
-
-          // Show skip ending triggers (last 3 minutes of episode or precise outro)
-          if (skips && typeof skips.outro_start === 'number') {
-            const outEnd = typeof skips.outro_end === 'number' ? skips.outro_end : d;
-            setShowSkipEnding(t >= skips.outro_start && t < outEnd);
-          } else {
-            setShowSkipEnding(d > 185 && t > d - 180 && t < d - 10);
           }
         });
 
@@ -1113,34 +1057,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       };
     }, [src, ref, maxAudioTracks, audioTrackNames, autoPlay, animeId, episodeNumber, onNextEpisode, onPrevEpisode]);
 
-    const handleSkipOpening = () => {
-      const art = artInstanceRef.current;
-      if (art) {
-        if (preciseSkips && typeof preciseSkips.end === 'number') {
-          art.currentTime = preciseSkips.end;
-          art.notice.show = "Пропущен опенинг";
-        } else {
-          art.currentTime = Math.min(art.currentTime + 85, art.duration);
-          art.notice.show = "Пропущено 85 секунд (опенинг)";
-        }
-      }
-    };
-
-    const handleSkipEnding = () => {
-      if (onNextEpisode) {
-        onNextEpisode();
-      } else {
-        const art = artInstanceRef.current;
-        if (art) {
-          if (preciseSkips && typeof preciseSkips.outro_end === 'number') {
-            art.currentTime = preciseSkips.outro_end;
-          } else {
-            art.currentTime = art.duration;
-          }
-        }
-      }
-    };
-
     return (
       <div className="relative w-full aspect-video rounded-xl bg-black overflow-hidden group/player">
         {/* Invisible HTML5 video element strictly for SEO crawlers to discover static video URLs */}
@@ -1161,27 +1077,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           style={{ pointerEvents: "none", transition: "opacity 0.3s ease" }}
           className="absolute inset-0 w-full h-full object-contain opacity-0 z-10"
         />
-
-        {/* OVERLAYS FOR SKIP OPENING/ENDING */}
-        {showSkipOpening && (
-          <button
-            onClick={handleSkipOpening}
-            className="absolute bottom-16 left-6 p-3 px-5 rounded-2xl bg-black/85 backdrop-blur-md border border-white/10 hover:border-primary/50 text-white flex items-center gap-2 cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-2xl text-[11px] font-bold uppercase tracking-wider z-[40]"
-          >
-            <FastForward className="w-4 h-4 text-primary animate-pulse" />
-            Пропустить опенинг (+85с)
-          </button>
-        )}
-
-        {showSkipEnding && (
-          <button
-            onClick={handleSkipEnding}
-            className="absolute bottom-16 right-6 p-3 px-5 rounded-2xl bg-black/85 backdrop-blur-md border border-white/10 hover:border-primary/50 text-white flex items-center gap-2 cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-2xl text-[11px] font-bold uppercase tracking-wider z-[40]"
-          >
-            Пропустить эндинг
-            <ChevronRight className="w-4 h-4 text-primary" />
-          </button>
-        )}
       </div>
     );
   },
