@@ -721,6 +721,23 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       data.type,
                       data.details,
                     );
+
+                    switch (data.type) {
+                      case Hls.ErrorTypes.NETWORK_ERROR:
+                        console.warn("[HLS RECOVERY] Fatal network error: Attempting to recover by calling startLoad()...");
+                        hls.startLoad();
+                        break;
+                      case Hls.ErrorTypes.MEDIA_ERROR:
+                        console.warn("[HLS RECOVERY] Fatal media error (e.g. fragParsingError): Attempting to recover by calling recoverMediaError()...");
+                        hls.recoverMediaError();
+                        break;
+                      default:
+                        console.error("[HLS RECOVERY] Unrecoverable fatal error: Re-initialising stream...");
+                        artInstance.notice.show = "Ошибка воспроизведения, перезапуск...";
+                        hls.destroy();
+                        hls.loadSource(url);
+                        break;
+                    }
                     if (
                       data.details ===
                         Hls.ErrorDetails.MANIFEST_PARSING_ERROR ||
