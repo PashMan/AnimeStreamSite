@@ -130,7 +130,8 @@ export async function onRequest(context: any) {
   }
 
   try {
-    const iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space)/g, 'kodikplayer.com');
     const iframeRes = await fetch(iframeUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',

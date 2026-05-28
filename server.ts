@@ -702,7 +702,8 @@ app.get('/api/media/skip-timings', async (c) => {
     return c.json({ error: 'url parameter is required' }, 400);
   }
   try {
-    const iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space)/g, 'kodikplayer.com');
     const iframeRes = await fetch(iframeUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
@@ -788,7 +789,8 @@ app.get('/api/media/playlist', async (c) => {
   }
 
   try {
-    const iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space)/g, 'kodikplayer.com');
     console.log(`[KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
 
     // 1. Fetch iframe page

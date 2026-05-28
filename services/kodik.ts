@@ -65,7 +65,7 @@ export const fetchKodikData = async (shikimoriId: string, title?: string): Promi
         if (!trans || item.last_episode > trans.last_episode) {
             uniqueTranslations.set(item.translation.id, {
                 id: item.id,
-                link: item.link.replace(/^https?:\/\/[^\/]+/, "https://kodik.info").replace(/^\/\/[^\/]+/, "https://kodik.info"),
+                link: item.link.replace(/^https?:\/\/[^\/]+/, "https://kodikplayer.com").replace(/^\/\/[^\/]+/, "https://kodikplayer.com"),
                 translation: item.translation,
                 episodes_count: item.episodes_count,
                 last_episode: item.last_episode,
