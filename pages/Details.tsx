@@ -683,6 +683,7 @@ const Details: React.FC = () => {
 
   useEffect(() => {
     setHasFetchedPlayers(false);
+    setPlayersError(null);
   }, [paramEpisode]);
 
   useEffect(() => {
@@ -724,7 +725,10 @@ const Details: React.FC = () => {
             setPlayers(playersList);
             setTranslations(translationsList);
             if (translationsList.length > 0) {
-              setSelectedTranslation(translationsList[0]);
+              const matchedTranslation = selectedTranslation
+                ? translationsList.find((t: any) => t.title === selectedTranslation.title)
+                : null;
+              setSelectedTranslation(matchedTranslation || translationsList[0]);
             }
             setHasFetchedPlayers(true);
             // Default directly to KamiPlayer (4K)

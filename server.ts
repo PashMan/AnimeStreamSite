@@ -233,6 +233,7 @@ app.get('/api/balancer', async (c) => {
     let kinopoisk_id: string | null = null;
     let imdb_id: string | null = null;
     let world_art_id: string | null = null;
+    let kodik_translations: any[] = [];
 
     const ids = {
       shikimori_id,
@@ -258,6 +259,35 @@ app.get('/api/balancer', async (c) => {
           ids.imdb_id = imdb_id;
           ids.world_art_id = world_art_id;
         }
+
+        // Group and collect unique translations from Kodik results
+        const translationsMap = new Map();
+        kodikData.results.forEach((res: any) => {
+          if (res.translation && res.translation.title) {
+            const tName = res.translation.title;
+            const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+            if (!translationsMap.has(tName)) {
+              try {
+                const url = new URL(iframe);
+                url.searchParams.set('api', '1');
+                translationsMap.set(tName, {
+                  id: res.translation.id,
+                  title: tName,
+                  type: res.translation.type,
+                  iframe: url.toString()
+                });
+              } catch (_) {
+                translationsMap.set(tName, {
+                  id: res.translation.id,
+                  title: tName,
+                  type: res.translation.type,
+                  iframe: iframe
+                });
+              }
+            }
+          }
+        });
+        kodik_translations = Array.from(translationsMap.values());
 
         // User wants to avoid "million buttons". Just take the first one.
         const res = kodikData.results[0];
@@ -297,7 +327,7 @@ app.get('/api/balancer', async (c) => {
     }
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
-    return c.json({ players, ids });
+    return c.json({ players, ids, kodik_translations });
   } catch (error: any) {
     addLog('Balancer API Exception', { message: error.message });
     return c.json({ error: 'Failed to fetch balancer data' }, 500);
@@ -839,10 +869,10 @@ app.get('/api/media/playlist', async (c) => {
     const html = await iframeRes.text();
 
     // 2. Extract parameters
-    const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*({[^;]+})/);
-    const hashMatch = html.match(/\.hash\s*=\s*'([^']+)'/);
-    const idMatch = html.match(/\.id\s*=\s*'([^']+)'/);
-    const typeMatch = html.match(/\.type\s*=\s*'([^']+)'/);
+    const urlParamsMatch = html.match(/urlParams\s*=\s*['"]([^'"]+)['"]/) || html.match(/urlParams\s*=\s*({[^;]+})/);
+    const hashMatch = html.match(/\.hash\s*=\s*['"]([^'"]+)['"]/) || html.match(/\.hash\s*=\s*'([^']+)'/);
+    const idMatch = html.match(/\.id\s*=\s*['"]([^'"]+)['"]/) || html.match(/\.id\s*=\s*'([^']+)'/);
+    const typeMatch = html.match(/\.type\s*=\s*['"]([^'"]+)['"]/) || html.match(/\.type\s*=\s*'([^']+)'/);
 
     if (!urlParamsMatch || !hashMatch || !idMatch || !typeMatch) {
       console.error('[KODIK PROXY] Failed to parse iframe params');

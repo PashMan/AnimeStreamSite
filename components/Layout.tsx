@@ -89,7 +89,6 @@ const Layout: React.FC = () => {
   }, [user?.email]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setIsMenuOpen(false);
     setShowSuggestions(false);
   }, [pathname]);
