@@ -388,8 +388,13 @@ class Anime4KWebGL {
 
   private loop = () => {
     if (!this.isActive) return;
-    this.render();
-    this.animId = requestAnimationFrame(this.loop);
+    try {
+      this.render();
+      this.animId = requestAnimationFrame(this.loop);
+    } catch (e) {
+      console.warn("[Anime4K WebGL] Rendering failed, gracefully disabling scale filter:", e);
+      this.stop();
+    }
   };
 
   private render() {
@@ -519,7 +524,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         } catch (e) {}
         
         if (originalKodikUrl) {
-          fetch(`/api/media/skip-timings?url=${encodeURIComponent(originalKodikUrl)}`)
+          const skipQueryUrl = `/api/media/skip-timings?url=${encodeURIComponent(originalKodikUrl)}` + 
+            (animeId ? `&animeId=${encodeURIComponent(animeId)}` : "") + 
+            (episodeNumber ? `&episode=${encodeURIComponent(episodeNumber)}` : "");
+          
+          fetch(skipQueryUrl)
             .then((res) => res.json())
             .then((data) => {
               if (isCurrent && data && data.normalized) {
@@ -604,6 +613,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               : undefined,
           theme: "#E11D48",
           volume: 0.7,
+          moreVideoAttr: {
+            crossOrigin: "anonymous",
+          },
           autoplay: autoPlay || false,
           pip: true,
           autoSize: true,
@@ -773,7 +785,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   if (!hasNative1080) {
                     qualitiesList.push({
-                      html: "1080p",
+                      html: "1080p (Anime4K Upscale)",
                       level: maxLevelIdx,
                       isUpscale: true,
                       default: false,
@@ -782,7 +794,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   if (!hasNative4K) {
                     qualitiesList.push({
-                      html: "4K",
+                      html: "4K (Anime4K Upscale)",
                       level: maxLevelIdx,
                       isUpscale: true,
                       default: false,
@@ -790,10 +802,12 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   }
 
                   // Determine the upscale or best quality to set as initial default
+                  // By default, set the highest standard native quality available to guarantee zero black-screen issues out of the box.
                   const defaultItem =
-                    qualitiesList.find((q) => q.html === "4K") ||
-                    qualitiesList.find((q) => q.html === "1080p") ||
-                    qualitiesList[qualitiesList.length - 1]; // Highest standard available
+                    standardQualities.find((q) => q.html === "1080p") ||
+                    standardQualities.find((q) => q.html === "720p") ||
+                    standardQualities[standardQualities.length - 1] ||
+                    qualitiesList[qualitiesList.length - 1];
 
                   if (defaultItem) {
                     defaultItem.default = true;
@@ -817,8 +831,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                         selectedQualityHtml = item.html;
 
                         const isTargetUpscale =
-                          item.html.includes("1080") ||
-                          item.html.includes("4K");
+                          item.html.includes("Anime4K Upscale");
                         if (isTargetUpscale) {
                           if (webglInstance) {
                             if (item.html.includes("1080")) {
@@ -842,8 +855,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     // Trigger initial WebGL upscaling immediately if webglInstance is already initialized
                     if (
                       webglInstance &&
-                      (selectedQualityHtml.includes("1080") ||
-                        selectedQualityHtml.includes("4K"))
+                      (selectedQualityHtml.includes("Anime4K Upscale"))
                     ) {
                       if (selectedQualityHtml.includes("1080")) {
                         webglInstance.setTargetHeight(1080);

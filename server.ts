@@ -701,6 +701,42 @@ app.get('/api/media/skip-timings', async (c) => {
   if (!urlParam) {
     return c.json({ error: 'url parameter is required' }, 400);
   }
+
+  const animeId = c.req.query('animeId');
+  const episode = c.req.query('episode');
+
+  // Priority 1: Fetch via AniSkip if animeId and episode are specified
+  if (animeId && episode) {
+    try {
+      const aniSkipUrl = `https://api.aniskip.com/v2/skip-times/${animeId}/${episode}?types[]=op&types[]=ed&episodeLength=0`;
+      console.log(`[ANISKIP] Fetching timings from: ${aniSkipUrl}`);
+      const aniRes = await fetch(aniSkipUrl);
+      if (aniRes.ok) {
+        const aniData = await aniRes.json() as any;
+        if (aniData && aniData.found && aniData.results) {
+          const opResult = aniData.results.find((r: any) => r.skipType === 'op');
+          const edResult = aniData.results.find((r: any) => r.skipType === 'ed');
+
+          if (opResult || edResult) {
+            const normalized = {
+              start: opResult?.interval?.startTime ?? null,
+              end: opResult?.interval?.endTime ?? null,
+              outro_start: edResult?.interval?.startTime ?? null,
+              outro_end: edResult?.interval?.endTime ?? null
+            };
+            console.log("[ANISKIP] Successfully loaded timings:", normalized);
+            return c.json({
+              provider: 'aniskip',
+              normalized
+            });
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn("[ANISKIP] Timings not found or error occurred, falling back to Kodik:", err.message);
+    }
+  }
+
   try {
     let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
     iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space)/g, 'kodikplayer.com');
