@@ -94,6 +94,7 @@ const Details: React.FC = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [userComment, setUserComment] = useState("");
+  const [watchedEpisodes, setWatchedEpisodes] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isMainLoading, setIsMainLoading] = useState(true);
@@ -122,6 +123,38 @@ const Details: React.FC = () => {
       }
     }
   }, [paramEpisode]);
+
+  // Load watched history on mount/anime change
+  useEffect(() => {
+    if (paramId) {
+      try {
+        const key = `anime_watched_${paramId}`;
+        const stored = localStorage.getItem(key);
+        setWatchedEpisodes(stored ? JSON.parse(stored) : []);
+      } catch {
+        setWatchedEpisodes([]);
+      }
+    }
+  }, [paramId]);
+
+  // Record current episode view as watched
+  useEffect(() => {
+    const epNum = paramEpisode || "1";
+    if (paramId && epNum) {
+      try {
+        const key = `anime_watched_${paramId}`;
+        const stored = localStorage.getItem(key);
+        const watched: string[] = stored ? JSON.parse(stored) : [];
+        if (!watched.includes(epNum)) {
+          const updated = [...watched, epNum];
+          localStorage.setItem(key, JSON.stringify(updated));
+          setWatchedEpisodes(updated);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [paramId, paramEpisode]);
 
   const [roomId, setRoomId] = useState<string | null>(searchParams.get("room"));
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -1414,9 +1447,10 @@ const Details: React.FC = () => {
                             }
 
                             return (
-                              <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto pr-1">
+                              <div className={`flex flex-wrap gap-2 pr-1 ${renderedEps.length > 24 ? "max-h-64 overflow-y-auto custom-scrollbar" : ""}`}>
                                 {renderedEps.map((epNum) => {
                                   const isActive = (paramEpisode || "1") === epNum.toString();
+                                  const isWatched = watchedEpisodes.includes(epNum.toString());
                                   return (
                                     <button
                                       key={epNum}
@@ -1430,7 +1464,9 @@ const Details: React.FC = () => {
                                       className={`w-[44px] h-[44px] flex flex-col items-center justify-center rounded-xl font-bold transition-all text-xs border cursor-pointer shrink-0 ${
                                         isActive
                                           ? "bg-primary border-primary text-white shadow-[0_8px_20px_rgba(225,29,72,0.3)] scale-[1.03]"
-                                          : "bg-white/5 border-white/5 text-slate-400 hover:text-white hover:border-primary/50 hover:bg-primary/5"
+                                          : isWatched
+                                            ? "bg-white/5 border-white/5 text-slate-500 hover:text-white hover:border-primary/50 hover:bg-primary/5 opacity-40 hover:opacity-100"
+                                            : "bg-white/5 border-white/5 text-slate-400 hover:text-white hover:border-primary/50 hover:bg-primary/5"
                                       }`}
                                     >
                                       <span>{epNum}</span>
