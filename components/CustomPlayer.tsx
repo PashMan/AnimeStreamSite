@@ -781,8 +781,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   }
 
                   // Determine the upscale or best quality to set as initial default
-                  // By default, set the highest standard native quality available to guarantee zero black-screen issues out of the box.
+                  // Restore automatic 4K and 1080p upscale defaults that were configured yesterday (offering glorious AI upscaling by default)
                   const defaultItem =
+                    qualitiesList.find((q) => q.html === "4K (Anime4K Upscale)") ||
+                    qualitiesList.find((q) => q.html === "1080p (Anime4K Upscale)") ||
                     standardQualities.find((q) => q.html === "1080p") ||
                     standardQualities.find((q) => q.html === "720p") ||
                     standardQualities[standardQualities.length - 1] ||
