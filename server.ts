@@ -1131,16 +1131,44 @@ app.get('/api/media/segment', async (c) => {
     const segmentUrlObj = new URL(segmentUrl);
     const referer = `https://${segmentUrlObj.host}/` || 'https://kodik.info/';
 
-    const response = await fetch(segmentUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Referer': referer,
-        'Accept': '*/*'
-      }
-    });
+    let response: Response | undefined;
+    let attempts = 3;
+    let baseDelay = 300;
+    let lastError: any = null;
 
-    if (!response.ok) {
-       return new Response(`Error fetching segment: ${response.status}`, { status: response.status });
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+      try {
+        response = await fetch(segmentUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Referer': referer,
+            'Accept': '*/*'
+          },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (response.ok) {
+          break;
+        } else {
+          lastError = new Error(`Status ${response.status}`);
+        }
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        lastError = err;
+      }
+
+      if (attempt < attempts) {
+        await new Promise(resolve => setTimeout(resolve, baseDelay));
+        baseDelay *= 1.5;
+      }
+    }
+
+    if (!response || !response.ok) {
+      const errMsg = lastError ? lastError.message : 'Unknown error';
+      return new Response(`Error fetching segment after retries: ${errMsg}`, { status: response ? response.status : 502 });
     }
 
     const arrayBuffer = await response.arrayBuffer();
