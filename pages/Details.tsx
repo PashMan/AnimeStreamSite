@@ -137,9 +137,7 @@ const Details: React.FC = () => {
     }
   }, [paramId]);
 
-  // Record current episode view as watched
-  useEffect(() => {
-    const epNum = paramEpisode || "1";
+  const markAsWatched = (epNum: string) => {
     if (paramId && epNum) {
       try {
         const key = `anime_watched_${paramId}`;
@@ -154,6 +152,51 @@ const Details: React.FC = () => {
         console.error(e);
       }
     }
+  };
+
+  // Listen to message events from iframes (PlayerJS API / Kodik) and CustomPlayer custom events
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (payload) {
+          let currentTime = 0;
+          let duration = 0;
+
+          if (payload.event === 'time') {
+            currentTime = Number(payload.value);
+            duration = Number(payload.data);
+          } else if (payload.key === 'kodik_player_video_info' && payload.value) {
+            currentTime = Number(payload.value.time);
+            duration = Number(payload.value.duration);
+          }
+
+          if (duration > 0 && currentTime > 0) {
+            const ratio = currentTime / duration;
+            if (ratio >= 0.60) {
+              markAsWatched(paramEpisode || "1");
+            }
+          }
+        }
+      } catch (_) {
+        // Ignored
+      }
+    };
+
+    const handleCustomWatch = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.animeId === paramId) {
+        markAsWatched(customEvent.detail.episode);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    window.addEventListener('anime_episode_watched' as any, handleCustomWatch);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('anime_episode_watched' as any, handleCustomWatch);
+    };
   }, [paramId, paramEpisode]);
 
   const [roomId, setRoomId] = useState<string | null>(searchParams.get("room"));

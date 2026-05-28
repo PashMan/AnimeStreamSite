@@ -530,6 +530,31 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       let webglInstance: Anime4KWebGL | null = null;
       let selectedQualityHtml = "4K";
 
+      const saveProgress = (t: number, d: number) => {
+        if (!animeId || !episodeNumber) return;
+        if (t > 5 && Math.floor(t) % 5 === 0) {
+          localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, t.toString());
+        }
+        if (d > 0 && t / d >= 0.60) {
+          const key = `anime_watched_${animeId}`;
+          try {
+            const stored = localStorage.getItem(key);
+            const watched: string[] = stored ? JSON.parse(stored) : [];
+            if (!watched.includes(episodeNumber)) {
+              watched.push(episodeNumber);
+              localStorage.setItem(key, JSON.stringify(watched));
+              window.dispatchEvent(
+                new CustomEvent("anime_episode_watched", {
+                  detail: { animeId, episode: episodeNumber },
+                })
+              );
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      };
+
       const initPlayer = async () => {
         let finalUrl = src;
 
@@ -979,17 +1004,13 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         // Save position
         art.on("video:timeupdate", () => {
           if (!art) return;
-          const t = art.currentTime;
-
-          if (animeId && episodeNumber && t > 5 && Math.floor(t) % 5 === 0) {
-            localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, t.toString());
-          }
+          saveProgress(art.currentTime, art.duration);
         });
 
         art.on("video:pause", () => {
           if (!art) return;
           if (animeId && episodeNumber && art.currentTime > 5) {
-            localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, art.currentTime.toString());
+            saveProgress(art.currentTime, art.duration);
           }
         });
 
@@ -1026,7 +1047,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         }
         if (art) {
           if (animeId && episodeNumber && art.currentTime > 5) {
-            localStorage.setItem(`anime_progress_${animeId}_${episodeNumber}`, art.currentTime.toString());
+            saveProgress(art.currentTime, art.duration);
           }
           if (art.destroy) {
             art.destroy(false);
