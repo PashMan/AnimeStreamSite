@@ -28,6 +28,7 @@ import {
   Shield,
   Bell,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -112,16 +113,18 @@ const Details: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRelatedExpanded, setIsRelatedExpanded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
-  const [episodeRangeIdx, setEpisodeRangeIdx] = useState(0);
+  const [epSearchVal, setEpSearchVal] = useState("");
 
+  // Auto scroll to active episode on change
   useEffect(() => {
-    if (paramEpisode) {
-      const ep = parseInt(paramEpisode);
-      if (!isNaN(ep)) {
-        const rangeIdx = Math.floor((ep - 1) / 24);
-        setEpisodeRangeIdx(rangeIdx);
+    const activeEp = paramEpisode || "1";
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`episode-btn-${activeEp}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
-    }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [paramEpisode]);
 
   // Load watched history on mount/anime change
@@ -1435,7 +1438,7 @@ const Details: React.FC = () => {
                     {/* Episodes Selector */}
                     {anime && (
                       <div>
-                        {/* Title & Range tabs if episodes > 24 */}
+                        {/* Title & Search input */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3.5 pl-1">
                           <div className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -1444,32 +1447,33 @@ const Details: React.FC = () => {
                             </span>
                           </div>
                           
-                          {/* If multiple ranges exist, show range buttons */}
                           {(() => {
                             const totalEps = anime.episodesAired || anime.episodes || 1;
-                            if (totalEps > 24) {
-                              const rangeSize = 24;
-                              const numRanges = Math.ceil(totalEps / rangeSize);
+                            if (totalEps > 1) {
                               return (
-                                <div className="flex flex-wrap gap-1.5 bg-white/5 p-1 rounded-xl border border-white/5">
-                                  {Array.from({ length: numRanges }).map((_, rIdx) => {
-                                    const start = rIdx * rangeSize + 1;
-                                    const end = Math.min((rIdx + 1) * rangeSize, totalEps);
-                                    const isRangeActive = episodeRangeIdx === rIdx;
-                                    return (
-                                      <button
-                                        key={rIdx}
-                                        onClick={() => setEpisodeRangeIdx(rIdx)}
-                                        className={`px-3 py-1 rounded-lg text-[10px] font-bold tracking-wider transition-all uppercase cursor-pointer ${
-                                          isRangeActive
-                                            ? "bg-primary text-white"
-                                            : "text-slate-400 hover:text-white"
-                                        }`}
-                                      >
-                                        {start}-{end}
-                                      </button>
-                                    );
-                                  })}
+                                <div className="relative flex items-center">
+                                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 pointer-events-none" />
+                                  <input
+                                    type="text"
+                                    placeholder="Поиск серии..."
+                                    className="pl-8 pr-3 py-1.5 bg-white/5 border border-white/5 hover:border-white/10 focus:border-primary/50 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-36"
+                                    value={epSearchVal}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEpSearchVal(val);
+                                      const sanitized = val.replace(/\D/g, "");
+                                      if (sanitized) {
+                                        const epNum = parseInt(sanitized, 10);
+                                        if (epNum >= 1 && epNum <= totalEps) {
+                                          let newUrl = `/anime/${paramId}/episode/${epNum}`;
+                                          if (window.location.search) {
+                                            newUrl += window.location.search;
+                                          }
+                                          navigate(newUrl);
+                                        }
+                                      }
+                                    }}
+                                  />
                                 </div>
                               );
                             }
@@ -1481,11 +1485,8 @@ const Details: React.FC = () => {
                         {(() => {
                           const totalEps = anime.episodesAired || anime.episodes || 1;
                           if (totalEps > 1) {
-                            const rangeSize = 24;
-                            const startEp = episodeRangeIdx * rangeSize + 1;
-                            const endEp = Math.min((episodeRangeIdx + 1) * rangeSize, totalEps);
                             const renderedEps = [];
-                            for (let i = startEp; i <= endEp; i++) {
+                            for (let i = 1; i <= totalEps; i++) {
                               renderedEps.push(i);
                             }
 
@@ -1497,6 +1498,7 @@ const Details: React.FC = () => {
                                   return (
                                     <button
                                       key={epNum}
+                                      id={`episode-btn-${epNum}`}
                                       onClick={() => {
                                         let newUrl = `/anime/${paramId}/episode/${epNum}`;
                                         if (window.location.search) {
