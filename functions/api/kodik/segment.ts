@@ -41,21 +41,15 @@ export async function onRequest(context: any) {
     const segmentUrlObj = new URL(segmentUrl);
     const referer = `https://${segmentUrlObj.host}/` || 'https://kodik.info/';
 
-    const reqHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-      'Referer': referer,
-      'Accept': '*/*'
-    };
-    const incomingRange = request.headers.get('range');
-    if (incomingRange) {
-      reqHeaders['Range'] = incomingRange;
-    }
-
     const response = await fetch(segmentUrl, {
-      headers: reqHeaders
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': referer,
+        'Accept': '*/*'
+      }
     });
 
-    if (!response.ok && response.status !== 206) {
+    if (!response.ok) {
        return new Response(`Error fetching segment: ${response.status}`, { 
          status: response.status,
          headers: { 'Access-Control-Allow-Origin': '*' }
@@ -64,26 +58,15 @@ export async function onRequest(context: any) {
 
     const arrayBuffer = await response.arrayBuffer();
 
-    const resHeaders: Record<string, string> = {
-      'Content-Type': response.headers.get('content-type') || 'video/mp2t',
-      'Cache-Control': 'public, max-age=86400',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': '*'
-    };
-
-    const contentRange = response.headers.get('content-range');
-    if (contentRange) {
-      resHeaders['Content-Range'] = contentRange;
-    }
-    const acceptRanges = response.headers.get('accept-ranges');
-    if (acceptRanges) {
-      resHeaders['Accept-Ranges'] = acceptRanges;
-    }
-
     return new Response(arrayBuffer, {
-      status: response.status,
-      headers: resHeaders
+      status: 200,
+      headers: {
+        'Content-Type': response.headers.get('content-type') || 'video/mp2t',
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
+      }
     });
   } catch (e: any) {
     return new Response('Exception during segment fetch: ' + e.message, {

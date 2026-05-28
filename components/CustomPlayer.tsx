@@ -764,7 +764,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   if (!hasNative1080) {
                     qualitiesList.push({
-                      html: "1080p (Anime4K Upscale)",
+                      html: "1080p",
                       level: maxLevelIdx,
                       isUpscale: true,
                       default: false,
@@ -773,7 +773,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   if (!hasNative4K) {
                     qualitiesList.push({
-                      html: "4K (Anime4K Upscale)",
+                      html: "4K",
                       level: maxLevelIdx,
                       isUpscale: true,
                       default: false,
@@ -783,8 +783,8 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   // Determine the upscale or best quality to set as initial default
                   // Restore automatic 4K and 1080p upscale defaults that were configured yesterday (offering glorious AI upscaling by default)
                   const defaultItem =
-                    qualitiesList.find((q) => q.html === "4K (Anime4K Upscale)") ||
-                    qualitiesList.find((q) => q.html === "1080p (Anime4K Upscale)") ||
+                    qualitiesList.find((q) => q.html === "4K") ||
+                    qualitiesList.find((q) => q.html === "1080p") ||
                     standardQualities.find((q) => q.html === "1080p") ||
                     standardQualities.find((q) => q.html === "720p") ||
                     standardQualities[standardQualities.length - 1] ||
@@ -811,8 +811,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                         hls.nextLevel = item.level;
                         selectedQualityHtml = item.html;
 
-                        const isTargetUpscale =
-                          item.html.includes("Anime4K Upscale");
+                        const isTargetUpscale = !!item.isUpscale;
                         if (isTargetUpscale) {
                           if (webglInstance) {
                             if (item.html.includes("1080")) {
@@ -834,9 +833,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     });
 
                     // Trigger initial WebGL upscaling immediately if webglInstance is already initialized
+                    const selectedQualityObj = qualitiesList.find(q => q.html === selectedQualityHtml);
                     if (
                       webglInstance &&
-                      (selectedQualityHtml.includes("Anime4K Upscale"))
+                      selectedQualityObj &&
+                      selectedQualityObj.isUpscale
                     ) {
                       if (selectedQualityHtml.includes("1080")) {
                         webglInstance.setTargetHeight(1080);
