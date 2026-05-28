@@ -537,7 +537,7 @@ app.get('/api/proxy-4k', async (c) => {
   }
 });
 
-app.options('/api/kodik/playlist', (c) => {
+app.options('/api/media/playlist', (c) => {
   return new Response(null, {
     status: 204,
     headers: {
@@ -651,7 +651,7 @@ async function getKodikSkipButtons(iframeUrl: string, html: string): Promise<any
   return null;
 }
 
-app.options('/api/kodik/skip-timings', (c) => {
+app.options('/api/media/skip-timings', (c) => {
   return new Response(null, {
     status: 204,
     headers: {
@@ -663,7 +663,7 @@ app.options('/api/kodik/skip-timings', (c) => {
   });
 });
 
-app.get('/api/kodik/skip-timings', async (c) => {
+app.get('/api/media/skip-timings', async (c) => {
   const urlParam = c.req.query('url');
   if (!urlParam) {
     return c.json({ error: 'url parameter is required' }, 400);
@@ -720,7 +720,7 @@ app.get('/api/kodik/skip-timings', async (c) => {
   }
 });
 
-app.options('/api/kodik/segment', (c) => {
+app.options('/api/media/segment', (c) => {
   return new Response(null, {
     status: 204,
     headers: {
@@ -732,7 +732,7 @@ app.options('/api/kodik/segment', (c) => {
   });
 });
 
-app.get('/api/kodik/playlist', async (c) => {
+app.get('/api/media/playlist', async (c) => {
   const urlParam = c.req.query('url');
   if (!urlParam) {
     return c.json({ error: 'url parameter is required' }, 400);
@@ -872,7 +872,7 @@ app.get('/api/kodik/playlist', async (c) => {
         }
         
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height},NAME="${q}p"`);
-        masterLines.push(`/api/kodik/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}`);
+        masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}`);
       });
 
       return new Response(masterLines.join('\n'), {
@@ -946,7 +946,7 @@ app.get('/api/kodik/playlist', async (c) => {
     
     // Clean CRLF and split cleanly to avoid breaking tags
     const lines = m3u8Text.replace(/\r/g, '').split('\n');
-    const proxyUrlBase = `${getProxyOrigin(c)}/api/kodik/segment?url=`;
+    const proxyUrlBase = `${getProxyOrigin(c)}/api/media/segment?url=`;
 
     const rewrittenLines = lines.map(line => {
       const trimmed = line.trim();
@@ -993,7 +993,7 @@ app.get('/api/kodik/playlist', async (c) => {
   }
 });
 
-app.get('/api/kodik/segment', async (c) => {
+app.get('/api/media/segment', async (c) => {
   let segmentUrl = c.req.query('url');
   const rawUrl = c.req.url;
   const urlIndex = rawUrl.indexOf('url=');

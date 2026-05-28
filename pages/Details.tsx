@@ -889,7 +889,7 @@ const Details: React.FC = () => {
           }
           kodikIframeWithEpisode = url.toString();
         } catch (e) {}
-        schemaVideoUrl = `${origin}/api/kodik/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+        schemaVideoUrl = `${origin}/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
       } else {
         schemaVideoUrl = `${origin}/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
       }
@@ -1537,7 +1537,7 @@ const Details: React.FC = () => {
                                   }
                                   kodikIframeWithEpisode = url.toString();
                                 } catch (e) {}
-                                customSrc = `/api/kodik/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+                                customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
                               } else {
                                 // Fallback to kimi-no-na-wa so it doesn't break
                                 customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;

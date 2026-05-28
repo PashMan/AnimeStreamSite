@@ -23,17 +23,17 @@ export default defineConfig({
           'Referer': 'https://shikimori.one/'
         }
       },
-      '/api/kodik/playlist': {
+      '/api/media/playlist': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
       },
-      '/api/kodik/skip-timings': {
+      '/api/media/skip-timings': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
       },
-      '/api/kodik/segment': {
+      '/api/media/segment': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
@@ -75,17 +75,17 @@ export default defineConfig({
           'Referer': 'https://shikimori.one/'
         }
       },
-      '/api/kodik/playlist': {
+      '/api/media/playlist': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
       },
-      '/api/kodik/skip-timings': {
+      '/api/media/skip-timings': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
       },
-      '/api/kodik/segment': {
+      '/api/media/segment': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,

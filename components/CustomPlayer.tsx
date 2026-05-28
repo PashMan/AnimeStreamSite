@@ -510,7 +510,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     }, [preciseSkips]);
 
     useEffect(() => {
-      if (src && src.includes("/api/kodik/playlist")) {
+      if (src && src.includes("/api/media/playlist")) {
         let isCurrent = true;
         let originalKodikUrl = "";
         try {
@@ -519,7 +519,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         } catch (e) {}
         
         if (originalKodikUrl) {
-          fetch(`/api/kodik/skip-timings?url=${encodeURIComponent(originalKodikUrl)}`)
+          fetch(`/api/media/skip-timings?url=${encodeURIComponent(originalKodikUrl)}`)
             .then((res) => res.json())
             .then((data) => {
               if (isCurrent && data && data.normalized) {
