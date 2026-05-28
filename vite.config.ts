@@ -28,6 +28,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/api/kodik/skip-timings': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api/kodik/segment': {
         target: 'http://localhost:3001',
         changeOrigin: true,
@@ -71,6 +76,11 @@ export default defineConfig({
         }
       },
       '/api/kodik/playlist': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/kodik/skip-timings': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
