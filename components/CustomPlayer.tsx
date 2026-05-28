@@ -682,23 +682,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       data.type,
                       data.details,
                     );
-
-                    switch (data.type) {
-                      case Hls.ErrorTypes.NETWORK_ERROR:
-                        console.warn("[HLS RECOVERY] Fatal network error: Attempting to recover by calling startLoad()...");
-                        hls.startLoad();
-                        break;
-                      case Hls.ErrorTypes.MEDIA_ERROR:
-                        console.warn("[HLS RECOVERY] Fatal media error (e.g. fragParsingError): Attempting to recover by calling recoverMediaError()...");
-                        hls.recoverMediaError();
-                        break;
-                      default:
-                        console.error("[HLS RECOVERY] Unrecoverable fatal error: Re-initialising stream...");
-                        artInstance.notice.show = "Ошибка воспроизведения, перезапуск...";
-                        hls.destroy();
-                        hls.loadSource(url);
-                        break;
-                    }
                     if (
                       data.details ===
                         Hls.ErrorDetails.MANIFEST_PARSING_ERROR ||
@@ -971,28 +954,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         });
 
         artInstanceRef.current = art;
-
-        if (art && art.video) {
-          const originalPlay = art.video.play;
-          art.video.play = function (...args): Promise<void> {
-            try {
-              const res = originalPlay.apply(this, args);
-              if (res && typeof res.catch === "function") {
-                return res.catch((err: any) => {
-                  if (err && err.name === "AbortError") {
-                    console.warn("[HLS PLAY] Play request was interrupted by a new CSS/source load request, gracefully ignoring.");
-                  } else {
-                    console.warn("[HLS PLAY] video.play() promise rejected:", err);
-                  }
-                }) as Promise<void>;
-              }
-              return (res || Promise.resolve()) as Promise<void>;
-            } catch (err: any) {
-              console.warn("[HLS PLAY] video.play() synchronous exception:", err);
-              return Promise.resolve();
-            }
-          };
-        }
 
         // Save position
         art.on("video:timeupdate", () => {
