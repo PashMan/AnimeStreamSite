@@ -537,6 +537,26 @@ app.get('/api/proxy-4k', async (c) => {
   }
 });
 
+// Backward compatibility redirects for older/cached browsers calling /api/kodik/*
+app.options('/api/kodik/:path+', (c) => {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Max-Age': '86400',
+    }
+  });
+});
+
+app.get('/api/kodik/:path+', (c) => {
+  const path = c.req.param('path');
+  const qIndex = c.req.url.indexOf('?');
+  const q = qIndex !== -1 ? c.req.url.substring(qIndex) : '';
+  return c.redirect(`/api/media/${path}${q}`, 302);
+});
+
 app.options('/api/media/playlist', (c) => {
   return new Response(null, {
     status: 204,
