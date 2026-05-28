@@ -11,6 +11,19 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('/*', cors());
 
+app.use('/*', async (c, next) => {
+  const method = c.req.method;
+  const url = c.req.url;
+  console.log(`[HONO REQUEST] ${method} ${url}`);
+  try {
+    await next();
+    console.log(`[HONO RESPONSE] ${method} ${url} - Status: ${c.res.status}`);
+  } catch (err: any) {
+    console.error(`[HONO ERROR] ${method} ${url} - Error:`, err);
+    return c.json({ error: 'Internal Server Error', message: err.message }, 500);
+  }
+});
+
   // Simple in-memory log buffer for debugging
   const debugLogs: any[] = [];
   const addLog = (message: string, data?: any) => {
@@ -697,7 +710,15 @@ app.get('/api/media/skip-timings', async (c) => {
       }
     });
     if (!iframeRes.ok) {
-      return c.json({ error: 'Failed to load player page' }, 500);
+      return c.json({ 
+        error: 'Failed to load player page',
+        normalized: {
+          start: null,
+          end: null,
+          outro_start: null,
+          outro_end: null
+        }
+      }, 200);
     }
     const html = await iframeRes.text();
     const skipButtons = await getKodikSkipButtons(iframeUrl, html);
@@ -736,7 +757,15 @@ app.get('/api/media/skip-timings', async (c) => {
       normalized
     });
   } catch (err: any) {
-    return c.json({ error: err.message }, 500);
+    return c.json({ 
+      error: err.message,
+      normalized: {
+        start: null,
+        end: null,
+        outro_start: null,
+        outro_end: null
+      }
+    }, 200);
   }
 });
 
