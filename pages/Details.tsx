@@ -1319,32 +1319,7 @@ const Details: React.FC = () => {
                       <Bell className="w-4 h-4" /> Уведомлять о сериях
                     </button>
                   )}
-                  <div className="flex gap-2 bg-white/5 p-1 rounded-xl overflow-x-auto w-full sm:w-auto">
-                    {players.map((player) => (
-                      <button
-                        key={player.name}
-                        onClick={() => setSelectedPlayer(player.name)}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap ${selectedPlayer === player.name ? "bg-primary text-white shadow-lg" : "text-slate-400 hover:text-white"}`}
-                      >
-                        {player.name}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedPlayer === "Alloha" && (
-                    <div className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/10 w-full sm:w-auto">
-                      <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold whitespace-nowrap">Зеркало Alloha:</span>
-                      <select
-                        value={allohaMirror}
-                        onChange={(e) => setAllohaMirror(e.target.value)}
-                        className="bg-transparent text-slate-200 text-xs font-semibold outline-none border-none cursor-pointer pr-4"
-                      >
-                        <option value="beggins-as.pljjalgo.online" className="bg-dark text-white text-xs">Зеркало 1 (Рабочее)</option>
-                        <option value="beggins-as.allarknow.online" className="bg-dark text-white text-xs">Зеркало 2</option>
-                        <option value="beggins-as.algonoew.online" className="bg-dark text-white text-xs">Зеркало 3</option>
-                        <option value="beggins-as.stravers.live" className="bg-dark text-white text-xs">Оригинал</option>
-                      </select>
-                    </div>
-                  )}
+
                 </div>
               </div>
 
