@@ -213,12 +213,35 @@ app.get('/api/anilibria/title', async (c) => {
 
 // API Route for Balancer (Multiple players)
 app.get('/api/balancer', async (c) => {
+  // Allow grey-market API fetches with self-signed / expired certs
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
   const title = c.req.query('title');
   const year = c.req.query('year');
   const shikimori_id = c.req.query('shikimori_id');
   
   console.log(`[API] Balancer: title=${title}, year=${year}, shiki=${shikimori_id}`);
   addLog('Balancer Request Started', { title, year, shikimori_id });
+
+  const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 4000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          ...(options.headers || {})
+        }
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  };
   
   try {
     if (!title && !shikimori_id) {
@@ -226,15 +249,11 @@ app.get('/api/balancer', async (c) => {
       return c.json({ error: 'Title or Shikimori ID is required' }, 400);
     }
 
-    const players: any[] = [
-      { name: 'Kodik', iframe: null },
-      { name: 'Alloha', iframe: null },
-      { name: 'Anilibria', iframe: null }
-    ];
     let kinopoisk_id: string | null = null;
     let imdb_id: string | null = null;
     let world_art_id: string | null = null;
     let kodik_translations: any[] = [];
+    let kodik_iframe: string | null = null;
 
     const ids = {
       shikimori_id,
@@ -246,116 +265,324 @@ app.get('/api/balancer', async (c) => {
 
     // 1. Kodik (Primary source & ID resolver)
     try {
-      const kodikUrl = `https://kodik-api.com/search?token=17cc4ee691bc251131a9041e6e89e78e&${shikimori_id ? `shikimori_id=${shikimori_id}` : `title=${encodeURIComponent(String(title))}`}&with_material_data=true`;
-      const kodikRes = await fetch(kodikUrl);
-      const kodikData = await kodikRes.json() as any;
-      
-      if (kodikData.results && kodikData.results.length > 0) {
-        const resultWithIds = kodikData.results.find((r: any) => r.kinopoisk_id || r.imdb_id || r.worldart_id);
-        if (resultWithIds) {
-          kinopoisk_id = resultWithIds.kinopoisk_id || null;
-          imdb_id = resultWithIds.imdb_id || null;
-          world_art_id = resultWithIds.worldart_id || null;
-          ids.kinopoisk_id = kinopoisk_id;
-          ids.imdb_id = imdb_id;
-          ids.world_art_id = world_art_id;
-        }
+      const kodikTokens = [
+        'b7cc4293ed475c4ad1fd599d114f4435', // User custom 1
+        '17cc4ee691bc251131a9041e6e89e78e', // Original
+        '45c53578f11ecfb74e31267b634cc6a8'  // User custom 2
+      ];
 
-        // Group and collect unique translations from Kodik results
-        const translationsMap = new Map();
-        kodikData.results.forEach((res: any) => {
-          if (res.translation && res.translation.title) {
-            const tName = res.translation.title;
-            const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
-            if (!translationsMap.has(tName)) {
-              try {
-                const url = new URL(iframe);
-                url.searchParams.set('api', '1');
-                translationsMap.set(tName, {
-                  id: res.translation.id,
-                  title: tName,
-                  type: res.translation.type,
-                  iframe: url.toString()
-                });
-              } catch (_) {
-                translationsMap.set(tName, {
-                  id: res.translation.id,
-                  title: tName,
-                  type: res.translation.type,
-                  iframe: iframe
-                });
+      for (const token of kodikTokens) {
+        try {
+          const kodikUrl = `https://kodik-api.com/search?token=${token}&${shikimori_id ? `shikimori_id=${shikimori_id}` : `title=${encodeURIComponent(String(title))}`}&with_material_data=true`;
+          const kodikRes = await fetchWithTimeout(kodikUrl, {}, 3500);
+          if (kodikRes.ok) {
+            const kodikData = await kodikRes.json() as any;
+            if (kodikData.results && kodikData.results.length > 0) {
+              const resultWithIds = kodikData.results.find((r: any) => r.kinopoisk_id || r.imdb_id || r.worldart_id);
+              if (resultWithIds) {
+                kinopoisk_id = resultWithIds.kinopoisk_id || null;
+                imdb_id = resultWithIds.imdb_id || null;
+                world_art_id = resultWithIds.worldart_id || null;
+                ids.kinopoisk_id = kinopoisk_id;
+                ids.imdb_id = imdb_id;
+                ids.world_art_id = world_art_id;
               }
+
+              // Group and collect unique translations from Kodik results
+              const translationsMap = new Map();
+              kodikData.results.forEach((res: any) => {
+                if (res.translation && res.translation.title) {
+                  const tName = res.translation.title;
+                  const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+                  if (!translationsMap.has(tName)) {
+                    try {
+                      const url = new URL(iframe);
+                      url.searchParams.set('api', '1');
+                      translationsMap.set(tName, {
+                        id: res.translation.id,
+                        title: tName,
+                        type: res.translation.type,
+                        iframe: url.toString()
+                      });
+                    } catch (_) {
+                      translationsMap.set(tName, {
+                        id: res.translation.id,
+                        title: tName,
+                        type: res.translation.type,
+                        iframe: iframe
+                      });
+                    }
+                  }
+                }
+              });
+              kodik_translations = Array.from(translationsMap.values());
+
+              const res = kodikData.results[0];
+              let link = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+              try {
+                const url = new URL(link);
+                url.searchParams.set('api', '1');
+                kodik_iframe = url.toString();
+              } catch (_) {
+                kodik_iframe = link;
+              }
+              break; // Successfully got Kodik results, no need to try other tokens
             }
           }
-        });
-        kodik_translations = Array.from(translationsMap.values());
-
-        // User wants to avoid "million buttons". Just take the first one.
-        const res = kodikData.results[0];
-        const kodikPlayer = players.find(p => p.name === 'Kodik');
-        if (kodikPlayer) {
-          let link = res.link.startsWith('//') ? `https:${res.link}` : res.link;
-          // Add api=1 to enable postMessage communication
-          const url = new URL(link);
-          url.searchParams.set('api', '1');
-          kodikPlayer.iframe = url.toString();
+        } catch (err: any) {
+          console.warn(`[KODIK] Failed with token ${token}:`, err.message);
         }
       }
     } catch (e: any) {
       addLog('Kodik fetch failed', { error: e.message });
     }
 
-    // 2. Alloha
-    try {
-      const allohaToken = '96b62ea8e72e7452b652e461ab8b89';
-      let allohaUrl = '';
-      if (kinopoisk_id) {
-        allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&kp=${kinopoisk_id}`;
-      } else if (imdb_id) {
-        allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&imdb=${imdb_id}`;
-      }
+    // Prepare placeholders for prospective providers
+    let alloha_iframe: string | null = null;
+    let collaps_iframe: string | null = null;
+    let bhcesh_iframe: string | null = null;
+    let videocdn_iframe: string | null = null;
+    let bazon_iframe: string | null = null;
+    let hdvb_iframe: string | null = null;
+    let iframe_video_iframe: string | null = null;
+    let pleer_iframe: string | null = null;
+    let anilibria_iframe: string | null = null;
 
-      if (allohaUrl) {
-        addLog(`Fetching Alloha link from API: ${allohaUrl}`);
-        const allohaRes = await fetch(allohaUrl);
-        if (allohaRes.ok) {
-          const allohaData = await allohaRes.json() as any;
-          if (allohaData && allohaData.status === 'success' && allohaData.data && allohaData.data.iframe) {
-            const allohaPlayer = players.find(p => p.name === 'Alloha');
-            if (allohaPlayer) {
-              allohaPlayer.iframe = allohaData.data.iframe;
-              addLog(`Alloha link set: ${allohaPlayer.iframe}`);
+    // Concurrently fetch alternate providers to minimize response latency
+    const jobs: Promise<void>[] = [];
+
+    // 2. Alloha
+    jobs.push((async () => {
+      try {
+        const allohaTokens = [
+          'd317441359e505c343c2063edc97e7',
+          '04941a9a3ca3ac16e2b4327347bbc1',
+          '96b62ea8e72e7452b652e461ab8b89'
+        ];
+        const allohaQueries: string[] = [];
+        if (kinopoisk_id) {
+          for (const t of allohaTokens) {
+            allohaQueries.push(`https://api.alloha.tv/?token=${t}&kp=${kinopoisk_id}`);
+            allohaQueries.push(`https://api.apbugall.org/?token=${t}&kp=${kinopoisk_id}`);
+          }
+        }
+        if (imdb_id) {
+          for (const t of allohaTokens) {
+            allohaQueries.push(`https://api.alloha.tv/?token=${t}&imdb=${imdb_id}`);
+            allohaQueries.push(`https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`);
+          }
+        }
+
+        for (const url of allohaQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 3000);
+            if (res.ok) {
+              const d = await res.json() as any;
+              if (d && d.status === 'success' && d.data && d.data.iframe) {
+                alloha_iframe = d.data.iframe;
+                addLog(`Alloha found: ${alloha_iframe}`);
+                break;
+              } else if (d && d.data && d.data.iframe) {
+                alloha_iframe = d.data.iframe;
+                break;
+              } else if (d && d.iframe) {
+                alloha_iframe = d.iframe;
+                break;
+              }
+            }
+          } catch (e: any) {
+            // Silently try next token/mirror
+          }
+        }
+      } catch (e: any) {
+        addLog('Alloha jobs execution failed', { error: e.message });
+      }
+    })());
+
+    // 3. Collaps
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+              collaps_iframe = d.results[0].iframe_url;
+              addLog(`Collaps found: ${collaps_iframe}`);
             }
           }
+        } catch (e: any) {
+          console.warn('[COLLAPS] failed:', e.message);
         }
-      }
-    } catch (e: any) {
-      addLog('Alloha fetch failed', { error: e.message });
+      })());
     }
 
-    // 3. Anilibria
-    try {
-      const anilibriaRes = await fetch(`https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`);
-      if (anilibriaRes.ok) {
-        const anilibriaData = await anilibriaRes.json() as any;
-        if (anilibriaData && anilibriaData.length > 0) {
-          let bestMatch = anilibriaData[0];
-          if (year) {
-            const yearMatch = anilibriaData.find((r: any) => r.year === parseInt(String(year)));
-            if (yearMatch) bestMatch = yearMatch;
+    // 4. Bhcesh
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+              bhcesh_iframe = d.results[0].iframe_url;
+              addLog(`Bhcesh found: ${bhcesh_iframe}`);
+            }
           }
-          const anilibriaPlayer = players.find(p => p.name === 'Anilibria');
-          if (anilibriaPlayer) {
-            anilibriaPlayer.iframe = `https://www.anilibria.tv/public/iframe.php?id=${bestMatch.id}`;
+        } catch (e: any) {
+          console.warn('[BHCESH] failed:', e.message);
+        }
+      })());
+    }
+
+    // 5. Bazon
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0) {
+              bazon_iframe = d.results[0].link || d.results[0].iframe_url;
+              addLog(`Bazon found: ${bazon_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[BAZON] failed:', e.message);
+        }
+      })());
+    }
+
+    // 6. VideoCDN
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.data && d.data.length > 0) {
+              videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
+              addLog(`VideoCDN found: ${videocdn_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[VIDEOCDN] failed:', e.message);
+        }
+      })());
+    }
+
+    // 7. HDVB
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (Array.isArray(d) && d.length > 0) {
+              hdvb_iframe = d[0].iframe_url || d[0].iframe;
+              addLog(`HDVB found: ${hdvb_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[HDVB] failed:', e.message);
+        }
+      })());
+    }
+
+    // 8. Iframe
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://iframe.video/api/v2/search?kp=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0) {
+              iframe_video_iframe = d.results[0].path || d.results[0].iframe;
+            } else if (d.results && d.results.path) {
+              iframe_video_iframe = d.results.path;
+            }
+            if (iframe_video_iframe) {
+              addLog(`Iframe found: ${iframe_video_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[IFRAME.VIDEO] failed:', e.message);
+        }
+      })());
+    }
+
+    // 9. Pleer.video
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://pleer.video/${kinopoisk_id}.json`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.embeds && d.embeds.length > 0) {
+              pleer_iframe = d.embeds[0].iframe;
+              addLog(`Pleer found: ${pleer_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[PLEER] failed:', e.message);
+        }
+      })());
+    }
+
+    // 10. Anilibria
+    jobs.push((async () => {
+      try {
+        const url = `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`;
+        const anilibriaRes = await fetchWithTimeout(url, {}, 3000);
+        if (anilibriaRes.ok) {
+          const anilibriaData = await anilibriaRes.json() as any;
+          if (anilibriaData && anilibriaData.length > 0) {
+            let bestMatch = anilibriaData[0];
+            if (year) {
+              const yearMatch = anilibriaData.find((r: any) => r.year === parseInt(String(year)));
+              if (yearMatch) bestMatch = yearMatch;
+            }
+            anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${bestMatch.id}`;
             ids.anilibria_id = bestMatch.id;
+            addLog(`Anilibria found: ${anilibria_iframe}`);
           }
         }
+      } catch (e: any) {
+        addLog('Anilibria fetch failed', { error: e.message });
       }
-    } catch (e: any) {
-      addLog('Anilibria fetch failed', { error: e.message });
+    })());
+
+    // Resolve all promises concurrently
+    await Promise.allSettled(jobs);
+
+    // Build list of successfully resolved players
+    const players: any[] = [];
+    if (kodik_iframe) {
+      players.push({ name: 'Kodik', iframe: kodik_iframe });
+    } else {
+      // Default placeholder just in case
+      players.push({ name: 'Kodik', iframe: null });
     }
+
+    if (alloha_iframe) players.push({ name: 'Alloha', iframe: alloha_iframe });
+    if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
+    if (bhcesh_iframe) players.push({ name: 'Bhcesh', iframe: bhcesh_iframe });
+    if (videocdn_iframe) players.push({ name: 'VideoCDN', iframe: videocdn_iframe });
+    if (bazon_iframe) players.push({ name: 'Bazon', iframe: bazon_iframe });
+    if (hdvb_iframe) players.push({ name: 'HDVB', iframe: hdvb_iframe });
+    if (iframe_video_iframe) players.push({ name: 'Iframe', iframe: iframe_video_iframe });
+    if (pleer_iframe) players.push({ name: 'Pleer', iframe: pleer_iframe });
+    if (anilibria_iframe) players.push({ name: 'Anilibria', iframe: anilibria_iframe });
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
+    addLog(`Balancer Completed`, { playersCount: players.length, ids });
     return c.json({ players, ids, kodik_translations });
   } catch (error: any) {
     addLog('Balancer API Exception', { message: error.message });

@@ -73,6 +73,8 @@ const Details: React.FC = () => {
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selectedPlayer, setSelectedPlayer] =
     useState<string>("KamiPlayer (4K)");
+  const [allohaMirror, setAllohaMirror] =
+    useState<string>("beggins-as.pljjalgo.online");
   const [players, setPlayers] = useState<
     { name: string; iframe: string | null; isCustom?: boolean }[]
   >([{ name: "KamiPlayer (4K)", iframe: null, isCustom: true }]);
@@ -1328,6 +1330,21 @@ const Details: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                  {selectedPlayer === "Alloha" && (
+                    <div className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/10 w-full sm:w-auto">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold whitespace-nowrap">Зеркало Alloha:</span>
+                      <select
+                        value={allohaMirror}
+                        onChange={(e) => setAllohaMirror(e.target.value)}
+                        className="bg-transparent text-slate-200 text-xs font-semibold outline-none border-none cursor-pointer pr-4"
+                      >
+                        <option value="beggins-as.pljjalgo.online" className="bg-dark text-white text-xs">Зеркало 1 (Рабочее)</option>
+                        <option value="beggins-as.allarknow.online" className="bg-dark text-white text-xs">Зеркало 2</option>
+                        <option value="beggins-as.algonoew.online" className="bg-dark text-white text-xs">Зеркало 3</option>
+                        <option value="beggins-as.stravers.live" className="bg-dark text-white text-xs">Оригинал</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1666,6 +1683,16 @@ const Details: React.FC = () => {
                             );
                           }
                           let finalIframeUrl = player.iframe;
+                          if (finalIframeUrl && player.name === "Alloha" && allohaMirror) {
+                            try {
+                              const absoluteUrl = finalIframeUrl.startsWith("//")
+                                ? `https:${finalIframeUrl}`
+                                : finalIframeUrl;
+                              const url = new URL(absoluteUrl);
+                              url.host = allohaMirror;
+                              finalIframeUrl = url.toString();
+                            } catch (e) {}
+                          }
                           if (finalIframeUrl && player.name === "Kodik") {
                             try {
                               const absoluteUrl = finalIframeUrl.startsWith(
