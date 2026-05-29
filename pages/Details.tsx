@@ -1317,7 +1317,7 @@ const Details: React.FC = () => {
                       <Bell className="w-4 h-4" /> Уведомлять о сериях
                     </button>
                   )}
-                  <div className="hidden gap-2 bg-white/5 p-1 rounded-xl overflow-x-auto w-full sm:w-auto">
+                  <div className="flex gap-2 bg-white/5 p-1 rounded-xl overflow-x-auto w-full sm:w-auto">
                     {players.map((player) => (
                       <button
                         key={player.name}

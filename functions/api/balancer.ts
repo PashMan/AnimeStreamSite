@@ -17,7 +17,8 @@ export async function onRequest(context: any) {
   }
 
   const players: any[] = [
-    { name: 'Kodik', iframe: null }
+    { name: 'Kodik', iframe: null },
+    { name: 'Alloha', iframe: null }
   ];
   
   let kinopoisk_id: string | null = null;
@@ -81,6 +82,30 @@ export async function onRequest(context: any) {
       }
     }
   } catch (e) {}
+
+  // 2. Alloha
+  try {
+    const allohaToken = '96b62ea8e72e7452b652e461ab8b89';
+    let allohaUrl = '';
+    if (kinopoisk_id) {
+      allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&kp=${kinopoisk_id}`;
+    } else if (imdb_id) {
+      allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&imdb=${imdb_id}`;
+    }
+
+    if (allohaUrl) {
+      const allohaRes = await fetch(allohaUrl);
+      if (allohaRes.ok) {
+        const allohaData = await allohaRes.json() as any;
+        if (allohaData && allohaData.status === 'success' && allohaData.data && allohaData.data.iframe) {
+          const allohaPlayer = players.find(p => p.name === 'Alloha');
+          if (allohaPlayer) {
+            allohaPlayer.iframe = allohaData.data.iframe;
+          }
+        }
+      }
+    }
+  } catch (e: any) {}
 
   return new Response(JSON.stringify({ players, ids, kodik_translations }), {
     status: 200,

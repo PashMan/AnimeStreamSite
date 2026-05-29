@@ -228,6 +228,7 @@ app.get('/api/balancer', async (c) => {
 
     const players: any[] = [
       { name: 'Kodik', iframe: null },
+      { name: 'Alloha', iframe: null },
       { name: 'Anilibria', iframe: null }
     ];
     let kinopoisk_id: string | null = null;
@@ -302,6 +303,34 @@ app.get('/api/balancer', async (c) => {
       }
     } catch (e: any) {
       addLog('Kodik fetch failed', { error: e.message });
+    }
+
+    // 2. Alloha
+    try {
+      const allohaToken = '96b62ea8e72e7452b652e461ab8b89';
+      let allohaUrl = '';
+      if (kinopoisk_id) {
+        allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&kp=${kinopoisk_id}`;
+      } else if (imdb_id) {
+        allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&imdb=${imdb_id}`;
+      }
+
+      if (allohaUrl) {
+        addLog(`Fetching Alloha link from API: ${allohaUrl}`);
+        const allohaRes = await fetch(allohaUrl);
+        if (allohaRes.ok) {
+          const allohaData = await allohaRes.json() as any;
+          if (allohaData && allohaData.status === 'success' && allohaData.data && allohaData.data.iframe) {
+            const allohaPlayer = players.find(p => p.name === 'Alloha');
+            if (allohaPlayer) {
+              allohaPlayer.iframe = allohaData.data.iframe;
+              addLog(`Alloha link set: ${allohaPlayer.iframe}`);
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      addLog('Alloha fetch failed', { error: e.message });
     }
 
     // 3. Anilibria
