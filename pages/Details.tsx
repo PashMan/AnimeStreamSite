@@ -50,6 +50,7 @@ import { CustomPlayer } from "../components/CustomPlayer";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
 import { filterProfanity } from "../utils/profanity";
+import { generateAnimeSEO } from "../utils/seoGenerator";
 
 const Details: React.FC = () => {
   const params = useParams<{ id: string; "*": string }>();
@@ -867,6 +868,15 @@ const Details: React.FC = () => {
   const isWeathering = id === "38826";
   const isGardenOfWords = id === "16782";
 
+  const generatedSEO = generateAnimeSEO(
+    anime.title,
+    anime.originalName || "",
+    anime.year || "",
+    anime.genres || [],
+    anime.description || "",
+    paramEpisode
+  );
+
   const seoTitle = isYourName
     ? `Смотреть Твоё имя (Kimi no Na wa) в 4K онлайн бесплатно`
     : isSuzume
@@ -875,9 +885,7 @@ const Details: React.FC = () => {
         ? `Смотреть Дитя погоды (Tenki no Ko) в 4K онлайн бесплатно`
         : isGardenOfWords
           ? `Смотреть Сад изящных слов (Kotonoha no Niwa) в 4K онлайн бесплатно`
-          : paramEpisode
-            ? `Смотреть аниме ${anime.title} ${paramEpisode} серия бесплатно онлайн в хорошем качестве`
-            : `Смотреть ${anime.title} ${anime.originalName ? `/ ${anime.originalName} ` : ""}онлайн бесплатно в хорошем качестве`;
+          : generatedSEO.title;
 
   const seoDescription = isYourName
     ? `Смотреть аниме Твоё имя (Kimi no Na wa) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Потрясающая детализация шедевра Макото Синкая без рекламы.`
@@ -887,9 +895,7 @@ const Details: React.FC = () => {
         ? `Смотреть аниме Дитя погоды (Tenki no Ko) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Насладитесь потрясающей детализацией шедевра Макото Синкая в 2160p без рекламы.`
         : isGardenOfWords
           ? `Смотреть аниме Сад изящных слов (Kotonoha no Niwa) в ультра-высоком качестве 4K (UHD) онлайн бесплатно. Насладитесь потрясающей детализацией шедевра Макото Синкая в 2160p без рекламы.`
-          : paramEpisode
-            ? `Смотрите ${paramEpisode}-ю серию аниме ${anime.title} бесплатно онлайн на русском языке. Все озвучки и отличное качество на KamiAnime.`
-            : `Аниме ${anime.title} (${anime.year}). ${anime.description ? anime.description.slice(0, 120) : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Kodik и других.`;
+          : generatedSEO.description;
 
   const seoKeywords = isYourName
     ? `смотреть твоё имя в 4к, твое имя 4k онлайн, kimi no na wa 4k, макото синкай твое имя 4к, смотреть аниме в 4к, ${anime.title}, ${anime.originalName}`
@@ -899,9 +905,7 @@ const Details: React.FC = () => {
         ? `смотреть дитя погоды в 4к, дитя погоды 4k онлайн, tenki no ko 4k, макото синкай дитя погоды 4к, смотреть аниме в 4к, 2160p, uhd, ${anime.title}, ${anime.originalName}`
         : isGardenOfWords
           ? `смотреть сад изящных слов в 4к, сад изящных слов 4k онлайн, kotonoha no niwa 4k, макото синкай сад изящных слов 4к, смотреть аниме в 4к, 2160p, uhd, ${anime.title}, ${anime.originalName}`
-          : paramEpisode
-            ? `${anime.title} ${paramEpisode} серия, смотреть ${anime.title} ${paramEpisode} серия, ${anime.title} ${paramEpisode} серия бесплатно, ${anime.title} ${paramEpisode} русская озвучка, ${anime.title}, ${anime.originalName}, смотреть ${anime.title}, ${anime.genres.join(", ")}, аниме бесплатно`
-            : `${anime.title}, ${anime.originalName}, смотреть ${anime.title}, ${anime.genres.join(", ")}, аниме онлайн, смотреть аниме бесплатно`;
+          : generatedSEO.keywords;
 
   const isHentai =
     anime.ageRating === "rx" ||
@@ -1097,7 +1101,11 @@ const Details: React.FC = () => {
             </span>
           </div>
           <h1 className="text-4xl md:text-6xl font-display font-black text-white leading-tight mb-2 uppercase tracking-tighter drop-shadow-2xl">
-            {anime.title}
+            {isYourName ? "Твоё имя (Kimi no Na wa) в 4K" : 
+             isSuzume ? "Судзумэ, закрывающая двери в 4K" :
+             isWeathering ? "Дитя погоды в 4K" :
+             isGardenOfWords ? "Сад изящных слов в 4K" :
+             generatedSEO.h1Text}
           </h1>
           {anime.originalName && (
             <h2 className="text-xl md:text-2xl font-bold text-slate-400 mb-6">
@@ -1284,6 +1292,24 @@ const Details: React.FC = () => {
                   />
                 </button>
               </div>
+            </section>
+
+            {/* SEO Long-Tail Promotion Block (НЧ-оптимизация) */}
+            <section className="bg-gradient-to-br from-primary/10 via-white/5 to-transparent p-8 md:p-10 rounded-[2.5rem] border border-primary/25 shadow-xl backdrop-blur-sm space-y-4">
+              <h3 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-3">
+                <Shield className="w-4 h-4 text-primary animate-pulse" /> Где смотреть аниме в 4К и без рекламы казино?
+              </h3>
+              <p className="text-slate-300 leading-relaxed text-sm md:text-base font-normal">
+                {generatedSEO.promoText.split("**").map((part, index) => 
+                  index % 2 === 1 ? (
+                    <strong key={index} className="text-white font-extrabold underline decoration-primary decoration-2 underline-offset-4">
+                      {part}
+                    </strong>
+                  ) : (
+                    part
+                  )
+                )}
+              </p>
             </section>
 
             <section className="scroll-mt-24" id="watch">
