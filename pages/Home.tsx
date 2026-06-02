@@ -149,9 +149,9 @@ const Home: React.FC = () => {
       
       {/* Hero Section */}
       {isHeroLoading && heroAnimes.length === 0 ? (
-        <section className="relative h-[85vh] w-full overflow-hidden bg-surface/50 animate-pulse">
+        <section className="relative h-[62vh] w-full overflow-hidden bg-surface/50 animate-pulse">
           <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent z-10" />
-          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-24 z-20">
+          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-16 z-20">
             <div className="max-w-3xl space-y-6 w-full">
               <div className="w-24 h-6 bg-white/10 rounded-lg"></div>
               <div className="w-3/4 h-16 md:h-24 bg-white/10 rounded-2xl"></div>
@@ -161,7 +161,7 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : currentHero ? (
-        <section className="relative h-[85vh] w-full overflow-hidden group">
+        <section className="relative h-[62vh] w-full overflow-hidden group">
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               <Image 
@@ -177,21 +177,56 @@ const Home: React.FC = () => {
               <div className="absolute inset-0 bg-black/20" />
             </div>
           ))}
-          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-24 z-20">
-            <div className="max-w-3xl space-y-6 animate-in slide-in-from-bottom-10 duration-700">
+
+          {/* Side manual navigation buttons */}
+          <button 
+            onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)} 
+            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-110 active:scale-95"
+            aria-label="Предыдущий слайд"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button 
+            onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)} 
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-110 active:scale-95"
+            aria-label="Следующий слайд"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+
+          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-16 z-20">
+            <div className="max-w-3xl space-y-4 md:space-y-6 animate-in slide-in-from-bottom-10 duration-700">
               <span className="px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg">Выходит сейчас</span>
-              <h1 className="text-4xl md:text-7xl font-display font-black text-white drop-shadow-2xl uppercase tracking-tighter leading-[0.9] line-clamp-2">{currentHero.title}</h1>
-              <p className="text-slate-200 text-lg line-clamp-3 font-medium max-w-2xl drop-shadow-md p-0 border-none">
+              <h1 className="text-4xl md:text-6xl font-display font-black text-white drop-shadow-2xl uppercase tracking-tighter leading-[0.9] line-clamp-2">{currentHero.title}</h1>
+              <p className="text-slate-200 text-sm md:text-base line-clamp-2 md:line-clamp-3 font-medium max-w-2xl drop-shadow-md p-0 border-none">
                 {currentHero.description || "Описание загружается..."}
               </p>
-              <div className="flex flex-wrap gap-4 items-center pt-4">
-                <Link to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} className="px-10 py-5 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
+              <div className="flex flex-wrap gap-4 items-center pt-2">
+                <Link to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} className="px-8 py-4 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
                   <PlayCircle className="w-6 h-6 fill-current" /> Смотреть
                 </Link>
-                <div className="flex gap-2">
-                  {heroAnimes.map((_, i) => (
-                    <button aria-label={`Go to slide ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-8 bg-primary' : 'w-2 bg-white/5'}`} />
-                  ))}
+                
+                {/* Manual control buttons directly embedded in the dots slider block */}
+                <div className="flex gap-2 items-center bg-black/30 backdrop-blur-md p-1.5 rounded-2xl border border-white/5">
+                  <button 
+                    onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)}
+                    className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    aria-label="Предыдущее аниме"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="flex gap-1.5 items-center">
+                    {heroAnimes.map((_, i) => (
+                      <button aria-label={`Слайд ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-primary' : 'w-1.5 bg-white/10'}`} />
+                    ))}
+                  </div>
+                  <button 
+                    onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)}
+                    className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    aria-label="Следующее аниме"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
