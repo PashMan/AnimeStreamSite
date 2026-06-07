@@ -9,7 +9,7 @@ import subprocess
 import urllib.request
 import urllib.parse
 import base64
-from http.server import SimpleHTTPRequestHandler, HTTPServer
+import gradio as gr
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.request import HTTPXRequest
@@ -389,10 +389,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         if space_host or space_id:
                             if space_host:
-                                download_url = f"https://{space_host}/{output_filename}"
+                                download_url = f"https://{space_host}/file={output_filename}"
                             else:
                                 subdomain = space_id.replace("/", "-").lower()
-                                download_url = f"https://{subdomain}.hf.space/{output_filename}"
+                                download_url = f"https://{subdomain}.hf.space/file={output_filename}"
                             
                             download_text = (
                                 f"🪐 **Прямая ссылка на целый файл (100% качество):**\\n"
@@ -519,10 +519,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if space_host or space_id:
                     if space_host:
-                        download_url = f"https://{space_host}/{output_filename}"
+                        download_url = f"https://{space_host}/file={output_filename}"
                     else:
                         subdomain = space_id.replace("/", "-").lower()
-                        download_url = f"https://{subdomain}.hf.space/{output_filename}"
+                        download_url = f"https://{subdomain}.hf.space/file={output_filename}"
                     
                     await status_msg.edit_text(
                         f"🍿 **Аниме готово для скачивания!**\\n\\n"
@@ -547,61 +547,37 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await status_msg.edit_text(err_text, parse_mode="Markdown")
 
-# Запуск простого HTTP-сервера для Hugging Face Spaces на порту 7860
-class HealthCheckHandler(SimpleHTTPRequestHandler):
-    def do_GET(self):
-        filename = self.path.lstrip("/")
-        filename = os.path.basename(filename)
-        
-        # Скачивание готовых MP4 файлов напрямую из spaces
-        if filename.endswith(".mp4") and os.path.exists(filename):
-            try:
-                size = os.path.getsize(filename)
-                self.send_response(200)
-                self.send_header("Content-Type", "video/mp4")
-                self.send_header("Content-Length", str(size))
-                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                
-                with open(filename, "rb") as f:
-                    while True:
-                        chunk = f.read(256 * 1024)
-                        if not chunk:
-                            break
-                        self.wfile.write(chunk)
-                return
-            except Exception as e:
-                logger.error(f"Error serving MP4: {e}")
-                
-        self.send_response(200)
-        self.send_header("Content-type", "text/html; charset=utf-8")
-        self.end_headers()
-        html_content = (
-            "<html>"
-            "<head><title>KamiAnime Bot</title></head>"
-            "<body style='font-family: sans-serif; text-align: center; padding-top: 100px; background-color: #0f172a; color: #f8fafc;'>"
-            "<h1 style='color: #38bdf8;'>Ready to download: Active</h1>"
-            "<p style='color: #94a3b8;'>Бот успешно занут на Hugging Face Spaces и осуществляет сборку аниме!</p>"
-            "</body>"
-            "</html>"
-        )
-        self.wfile.write(html_content.encode("utf-8"))
-
+# Запуск нативного Gradio интерфейса для прохождения проверок Hugging Face Spaces
 def run_health_server():
-    server_address = ("", 7860)
-    httpd = HTTPServer(server_address, HealthCheckHandler)
-    print("Вспомогательный веб-сервер запущен на порту 7860 для прохождения проверок Hugging Face")
-    httpd.serve_forever()
+    try:
+        with gr.Blocks(title="KamiAnime Bot Dashboard", theme=gr.themes.Soft()) as demo:
+            gr.Markdown(
+                """
+                # 🍿 KamiAnime Telegram Bot
+                ### 🚀 Бот успешно запущен и работает в Hugging Face Spaces!
+                
+                Этот Space служит надежным облачным бэкендом для вашего Telegram-бота. 
+                
+                ---
+                ### ⚙️ Текущий статус систем:
+                - **Бот (python-telegram-bot)**: Активен (ожидает команды '/start' от пользователя)
+                - **Веб-интерфейс (Gradio)**: Успешно запущен на порту 7860
+                - **Склейка потоков (FFmpeg)**: Активна (файлы нарезаются без потери качества)
+                - **Прямые ссылки для скачивания**: Генерируются автоматически в диалоге с ботом через '/file=...'
+                """
+            )
+        demo.launch(server_name="0.0.0.0", server_port=7860, prevent_thread_lock=True, show_api=False)
+        print("Gradio запущен на порту 7860")
+    except Exception as ge:
+        print(f"Gradio launch failed: {ge}")
 
 def main():
     if not API_TOKEN or API_TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("TELEGRAM_BOT_TOKEN не задан. Бот завершает работу.")
         sys.exit(1)
         
-    # Запускаем веб-сервер в отдельном потоке
-    t = threading.Thread(target=run_health_server, daemon=True)
-    t.start()
+    # Запускаем Gradio-сервер
+    run_health_server()
         
     # Настройка прокси/зеркала Telegram API
     base_url = os.getenv("TELEGRAM_BASE_URL", "https://api.telegram.org/bot")

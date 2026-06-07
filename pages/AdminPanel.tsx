@@ -569,7 +569,7 @@ const AdminPanel: React.FC = () => {
                           Создайте второй файл с именем <span className="text-pink-400 font-bold font-mono">requirements.txt</span> и напишите туда следующие две строки:
                           <pre className="bg-slate-900 border border-white/5 p-2 rounded text-xs text-indigo-300 mt-1 font-mono">
 python-telegram-bot{"\n"}
-requests
+gradio
                           </pre>
                         </li>
                         <li>
