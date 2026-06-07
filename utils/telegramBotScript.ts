@@ -1131,7 +1131,7 @@ def run_health_server():
             @demo.app.get("/download/{filename}")
             async def download_file(filename: str):
                 # Защита от выхода из директории (path traversal)
-                if "/" in filename or "\\" in filename or ".." in filename or not filename.endswith(".mp4"):
+                if os.path.basename(filename) != filename or ".." in filename or not filename.endswith(".mp4"):
                     raise HTTPException(status_code=403, detail="Invalid filename format or access denied")
                 
                 cwd = os.path.abspath(".")
