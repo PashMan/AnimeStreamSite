@@ -2,6 +2,13 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 type Bindings = {
   DB: D1Database;
@@ -1497,6 +1504,314 @@ app.get('/api/media/segment', async (c) => {
     console.error('[KODIK SEGMENT PROXY EXCEPTION]', e);
     return c.json({ error: 'Segment proxy fetch failed: ' + e.message }, 500);
   }
+});
+
+interface DownloadTask {
+  id: string;
+  stage: string;       // "resolving" | "downloading" | "merging" | "muxing" | "ready" | "failed"
+  processed: number;   // count of segments processed so far
+  total: number;       // total segments
+  progress: number;    // percent (0 to 100)
+  status: 'running' | 'success' | 'failed';
+  error?: string;
+  outputFile?: string;
+  fileName?: string;
+  createdAt: number;
+}
+
+const activeDownloadTasks = new Map<string, DownloadTask>();
+const downloadsBaseDir = path.join(os.tmpdir(), 'anime_downloads');
+if (!fs.existsSync(downloadsBaseDir)) {
+  fs.mkdirSync(downloadsBaseDir, { recursive: true });
+}
+
+const cleanOldDownloads = async () => {
+  const now = Date.now();
+  const maxAge = 2 * 60 * 60 * 1000; // 2 hours
+  for (const [taskId, task] of activeDownloadTasks.entries()) {
+    if (now - task.createdAt > maxAge) {
+      if (task.outputFile && fs.existsSync(task.outputFile)) {
+        try {
+          await fs.promises.unlink(task.outputFile);
+          console.log(`[CLEANUP] Cleaned up output file for task ${taskId}: ${task.outputFile}`);
+        } catch (e: any) {
+          console.error(`[CLEANUP] Error deleting ${task.outputFile}:`, e.message);
+        }
+      }
+      activeDownloadTasks.delete(taskId);
+    }
+  }
+};
+
+async function fetchWithPool<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  const promises: Promise<void>[] = [];
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const i = index++;
+      try {
+        results[i] = await fn(items[i], i);
+      } catch (err) {
+        throw err;
+      }
+    }
+  }
+
+  for (let w = 0; w < Math.min(limit, items.length); w++) {
+    promises.push(worker());
+  }
+
+  await Promise.all(promises);
+  return results;
+}
+
+async function runHlsDownloadBackground(taskId: string, iframeUrl: string, quality: string, downloadFileName: string) {
+  const task = activeDownloadTasks.get(taskId);
+  if (!task) return;
+
+  const tempDir = path.join(os.tmpdir(), 'anime_downloads_temp', taskId);
+  await fs.promises.mkdir(tempDir, { recursive: true });
+
+  try {
+    task.stage = 'resolving';
+    task.progress = 5;
+
+    const playlistResolveUrl = `http://127.0.0.1:3000/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${quality}`;
+    console.log(`[BACKGROUND DOWNLOAD] Resolving playlist: ${playlistResolveUrl}`);
+    
+    const playlistRes = await fetch(playlistResolveUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://kodik.info/'
+      }
+    });
+
+    if (!playlistRes.ok) {
+      throw new Error(`Failed to resolve media playlist. Status: ${playlistRes.status}`);
+    }
+
+    const playlistText = await playlistRes.text();
+    const lines = playlistText.split('\n');
+    const segmentUrls: string[] = [];
+
+    for (let line of lines) {
+      line = line.trim();
+      if (line && !line.startsWith('#')) {
+        if (line.includes('/api/media/segment?url=')) {
+          const encodedUrl = line.split('/api/media/segment?url=')[1];
+          if (encodedUrl) {
+            segmentUrls.push(decodeURIComponent(encodedUrl));
+          }
+        } else if (line.startsWith('http')) {
+          segmentUrls.push(line);
+        } else {
+          segmentUrls.push(line);
+        }
+      }
+    }
+
+    if (segmentUrls.length === 0) {
+      throw new Error("No segments found in resolved playlist.");
+    }
+
+    task.stage = 'downloading';
+    task.total = segmentUrls.length;
+    task.progress = 10;
+    console.log(`[BACKGROUND DOWNLOAD] Starting concurrent download of ${segmentUrls.length} segments to ${tempDir}`);
+
+    task.processed = 0;
+    
+    await fetchWithPool(segmentUrls, 24, async (segUrl, index) => {
+      const segPath = path.join(tempDir, `segment_${String(index).padStart(5, '0')}.ts`);
+      const maxRetries = 4;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const urlObj = new URL(segUrl);
+          const referer = `https://${urlObj.host}/` || 'https://kodik.info/';
+          
+          const controller = new AbortController();
+          const tId = setTimeout(() => controller.abort(), 12000);
+          
+          const res = await fetch(segUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+              'Referer': referer,
+              'Accept': '*/*'
+            },
+            signal: controller.signal
+          });
+          
+          clearTimeout(tId);
+          
+          if (!res.ok) {
+            throw new Error(`HTTP status ${res.status}`);
+          }
+          
+          const arrayBuf = await res.arrayBuffer();
+          const buffer = Buffer.from(arrayBuf);
+          await fs.promises.writeFile(segPath, buffer);
+          
+          task.processed += 1;
+          task.progress = Math.round(10 + (task.processed / task.total) * 75);
+          return;
+        } catch (err: any) {
+          if (attempt === maxRetries) {
+            throw new Error(`Failed to download segment ${index}: ${err.message}`);
+          }
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        }
+      }
+    });
+
+    task.stage = 'merging';
+    task.progress = 88;
+    console.log(`[BACKGROUND DOWNLOAD] Concatenating ${task.total} segments...`);
+
+    const combinedTsPath = path.join(tempDir, 'combined.ts');
+    const writeStream = fs.createWriteStream(combinedTsPath);
+    
+    for (let i = 0; i < task.total; i++) {
+      const segPath = path.join(tempDir, `segment_${String(i).padStart(5, '0')}.ts`);
+      if (fs.existsSync(segPath)) {
+        await new Promise<void>((resolve, reject) => {
+          const readStream = fs.createReadStream(segPath);
+          readStream.pipe(writeStream, { end: false });
+          readStream.on('end', () => {
+            fs.promises.unlink(segPath).catch(() => {});
+            resolve();
+          });
+          readStream.on('error', (err) => reject(err));
+        });
+      }
+    }
+    
+    await new Promise<void>((resolve) => {
+      writeStream.end(resolve);
+    });
+
+    task.stage = 'muxing';
+    task.progress = 95;
+    
+    const outputMp4Path = path.join(downloadsBaseDir, `${taskId}.mp4`);
+    const ffmpegCmd = `ffmpeg -y -i "${combinedTsPath}" -c copy -bsf:a aac_adtstoasc "${outputMp4Path}"`;
+    
+    await execAsync(ffmpegCmd);
+
+    fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+
+    if (fs.existsSync(outputMp4Path) && (await fs.promises.stat(outputMp4Path)).size > 10 * 1024) {
+      task.stage = 'ready';
+      task.progress = 100;
+      task.status = 'success';
+      task.outputFile = outputMp4Path;
+      console.log(`[BACKGROUND DOWNLOAD SUCCESS] Task ${taskId} processed successfully.`);
+    } else {
+      throw new Error("Muxed MP4 output file does not exist or has zero size.");
+    }
+
+  } catch (err: any) {
+    console.error(`[BACKGROUND DOWNLOAD ERROR] ${taskId}`, err);
+    task.stage = 'failed';
+    task.status = 'failed';
+    task.error = err.message || String(err);
+    fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+app.get('/api/media/download/start', async (c) => {
+  const iframeUrl = c.req.query('url');
+  const quality = c.req.query('quality') || '720';
+  const animeTitle = c.req.query('title') || 'Anime';
+  const episode = c.req.query('episode') || '1';
+
+  if (!iframeUrl) {
+    return c.json({ error: 'url is required' }, 400);
+  }
+
+  const taskId = `dl_${Date.now()}_${Math.random().toString(36).substring(3, 9)}`;
+  const cleanTitle = animeTitle.replace(/[^a-zA-Z0-9а-яА-ЯёЁ\s-_]/g, '').trim() || 'Anime';
+  const downloadFileName = `${cleanTitle}_Ep_${episode}_${quality}p.mp4`;
+
+  const task: DownloadTask = {
+    id: taskId,
+    stage: 'resolving',
+    processed: 0,
+    total: 0,
+    progress: 0,
+    status: 'running',
+    createdAt: Date.now(),
+    fileName: downloadFileName
+  };
+
+  activeDownloadTasks.set(taskId, task);
+  
+  cleanOldDownloads().catch(() => {});
+
+  runHlsDownloadBackground(taskId, iframeUrl, quality, downloadFileName).catch(err => {
+    console.error(`[DOWNLOAD TASK FAILED] ${taskId}`, err);
+    const curr = activeDownloadTasks.get(taskId);
+    if (curr) {
+      curr.status = 'failed';
+      curr.stage = 'failed';
+      curr.error = err.message || String(err);
+    }
+  });
+
+  return c.json({ success: true, taskId, fileName: downloadFileName });
+});
+
+app.get('/api/media/download/progress', async (c) => {
+  const taskId = c.req.query('taskId');
+  if (!taskId) {
+    return c.json({ error: 'taskId is required' }, 400);
+  }
+  const task = activeDownloadTasks.get(taskId);
+  if (!task) {
+    return c.json({ error: 'Task not found or expired.' }, 404);
+  }
+  return c.json({
+    id: task.id,
+    stage: task.stage,
+    processed: task.processed,
+    total: task.total,
+    progress: task.progress,
+    status: task.status,
+    error: task.error,
+    fileName: task.fileName
+  });
+});
+
+app.get('/api/media/download/file', async (c) => {
+  const taskId = c.req.query('taskId');
+  if (!taskId) {
+    return c.json({ error: 'taskId is required' }, 400);
+  }
+  const task = activeDownloadTasks.get(taskId);
+  if (!task || !task.outputFile || !fs.existsSync(task.outputFile)) {
+    return c.json({ error: 'Download file not found or has expired. Files are retained for 2 hours.' }, 404);
+  }
+
+  const fileStream = fs.createReadStream(task.outputFile);
+  const stats = await fs.promises.stat(task.outputFile);
+
+  c.header('Content-Type', 'video/mp4');
+  c.header('Content-Disposition', `attachment; filename="${encodeURIComponent(task.fileName || 'anime.mp4')}"`);
+  c.header('Content-Length', String(stats.size));
+
+  setTimeout(() => {
+    if (task.outputFile && fs.existsSync(task.outputFile)) {
+      fs.promises.unlink(task.outputFile).catch(() => {});
+    }
+  }, 120000);
+
+  return new Response(fileStream as any);
 });
 
 // SPA Fallback

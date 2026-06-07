@@ -1117,6 +1117,31 @@ def run_health_server():
             allowed_paths=[cwd]
         )
         print("Gradio запущен на порту 7860")
+        
+        # Интегрируем роут скачивания через FastAPI (Gradio app)
+        if hasattr(demo, "app") and demo.app:
+            from fastapi.responses import FileResponse
+            from fastapi import HTTPException
+            
+            @demo.app.get("/download/{filename}")
+            async def download_file(filename: str):
+                safe_cwd = os.path.abspath(".")
+                safe_path = os.path.abspath(os.path.join(safe_cwd, filename))
+                
+                # Защита: разрешаем скачивать только .mp4 файлы из текущей рабочей директории
+                if not safe_path.startswith(safe_cwd) or not filename.endswith(".mp4"):
+                    raise HTTPException(status_code=403, detail="Access denied")
+                    
+                if not os.path.exists(safe_path):
+                    raise HTTPException(status_code=404, detail="File not found")
+                    
+                # Заставляем браузер скачивать файл сразу с оригинальным наименованием (как attachment)
+                headers = {
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
+                return FileResponse(path=safe_path, filename=filename, media_type="video/mp4", headers=headers)
+                
+            logger.info("Роут /download успешно внедрен в FastAPI.")
     except Exception as ge:
         print(f"Gradio launch failed: {ge}")
 

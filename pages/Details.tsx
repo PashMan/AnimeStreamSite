@@ -50,6 +50,7 @@ import { ReportModal } from "../components/ReportModal";
 import { LazyRender } from "../components/LazyRender";
 import { usePlayerSync } from "../hooks/usePlayerSync";
 import { CustomPlayer } from "../components/CustomPlayer";
+import { BrowserDownloadWidget } from "../components/BrowserDownloadWidget";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
 import { filterProfanity } from "../utils/profanity";
@@ -1745,6 +1746,38 @@ const Details: React.FC = () => {
                 </div>
               </div>
             </section>
+
+            {/* Direct Browser Downloader Card */}
+            {(() => {
+              if (selectedPlayer === "Kodik") {
+                const baseIframe =
+                  selectedTranslation?.iframe ||
+                  players.find((p) => p.name === "Kodik")?.iframe;
+                if (baseIframe) {
+                  let kodikIframeWithEpisode = baseIframe;
+                  try {
+                    const url = new URL(
+                      kodikIframeWithEpisode.startsWith("//")
+                        ? `https:${kodikIframeWithEpisode}`
+                        : kodikIframeWithEpisode,
+                    );
+                    if (paramEpisode) {
+                      url.searchParams.set("episode", paramEpisode);
+                    }
+                    kodikIframeWithEpisode = url.toString();
+                  } catch (e) {}
+                  
+                  return (
+                    <BrowserDownloadWidget
+                      episodeUrl={kodikIframeWithEpisode}
+                      animeTitle={anime?.title || "Anime"}
+                      episodeNumber={paramEpisode || "1"}
+                    />
+                  );
+                }
+              }
+              return null;
+            })()}
           </div>
         </div>
 
