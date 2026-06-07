@@ -2213,7 +2213,8 @@ const Details: React.FC = () => {
               <button
                 onClick={() => {
                   const botDlUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "KamiAnime_bot";
-                  const dlParam = `dl_${id}${paramEpisode ? `_ep${paramEpisode}` : ""}`;
+                  const trPart = selectedTranslation ? `_tr${selectedTranslation.id}` : "";
+                  const dlParam = `dl_${id}${paramEpisode ? `_ep${paramEpisode}` : ""}${trPart}`;
                   window.open(`https://t.me/${botDlUsername}?start=${dlParam}`, "_blank");
                   setIsDownloadModalOpen(false);
                 }}
