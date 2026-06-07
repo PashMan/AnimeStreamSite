@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import { Report, User } from '../types';
-import { Shield, AlertTriangle, Trash2, UserX, MessageSquareOff, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { Shield, AlertTriangle, Trash2, UserX, MessageSquareOff, CheckCircle, XCircle, FileText, Bot, Download } from 'lucide-react';
 import { containsProfanity } from '../utils/profanity';
 import { AdminSeoPanel } from '../components/AdminSeoPanel';
+import { PYTHON_BOT_SCRIPT } from '../utils/telegramBotScript';
 
 const translateType = (type: string) => {
   switch(type) {
@@ -21,7 +22,7 @@ const AdminPanel: React.FC = () => {
   const { user } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'reports' | 'profanity' | 'dmca' | 'slug' | 'users' | 'seo'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'profanity' | 'dmca' | 'slug' | 'users' | 'seo' | 'bot'>('reports');
   const [profaneContent, setProfaneContent] = useState<any[]>([]);
   const [dmcaBlocks, setDmcaBlocks] = useState<string[]>([]);
   const [slugBlocks, setSlugBlocks] = useState<string[]>([]);
@@ -274,6 +275,15 @@ const AdminPanel: React.FC = () => {
               <FileText className="w-4 h-4" />
               SEO Генератор
             </button>
+            <button
+              onClick={() => setActiveTab('bot')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                activeTab === 'bot' ? 'bg-indigo-500 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              Настройка ТГ-Бота
+            </button>
           </>
         )}
       </div>
@@ -525,6 +535,89 @@ const AdminPanel: React.FC = () => {
 
               <div style={{ display: activeTab === 'seo' ? 'block' : 'none' }}>
                 <AdminSeoPanel />
+              </div>
+
+              <div style={{ display: activeTab === 'bot' ? 'block' : 'none' }}>
+                <div className="space-y-6">
+                  <div className="bg-slate-800/50 border border-white/10 rounded-xl p-6">
+                    <h2 className="text-2xl font-black text-white mb-2 flex items-center gap-3">
+                      <Bot className="w-6 h-6 text-indigo-400" /> Интеграция Telegram-Бота для скачивания (Hugging Face + FFmpeg)
+                    </h2>
+                    <p className="text-gray-400 text-sm">
+                      Вы можете развернуть собственного Telegram бота совершенно бесплатно на платформе **Hugging Face Spaces**. Бот будет автоматически перехватывать запросы от пользователей на скачивание, загружать видеопотоки по вашему выбору через **FFmpeg**, упаковывать в **MP4** и присылать пользователю прямую ссылку или готовый видеофайл!
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-800/50 border border-white/10 rounded-xl p-6 space-y-4">
+                      <h3 className="text-lg font-bold text-white">📋 Инструкция по быстрой настройке</h3>
+                      <ol className="list-decimal list-inside space-y-3 text-sm text-gray-300">
+                        <li>
+                          <span className="font-semibold text-white">Создайте бота в Telegram</span>: 
+                          Напишите боту <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">@BotFather</a> в Telegram, отправьте команду <code className="bg-slate-900 px-1.5 py-0.5 rounded text-indigo-300">/newbot</code> и сохраните полученный **HTTP API Токен**.
+                        </li>
+                        <li>
+                          <span className="font-semibold text-white">Создайте Space на Hugging Face</span>:
+                          Зарегистрируйтесь на <a href="https://huggingface.co" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Hugging Face</a>, нажмите <span className="text-white">"New Space"</span>, выберите SDK: <span className="text-indigo-400 font-bold">Docker</span> или <span className="text-indigo-400 font-bold">Gradio (Python)</span>.
+                        </li>
+                        <li>
+                          <span className="font-semibold text-white">Добавьте переменные окружения (Secrets)</span>:
+                          В настройках вашего Space перейдите в <span className="text-white">Settings &gt; Repository Secrets</span> и добавьте секретную переменную окружения:
+                          <ul className="list-disc list-inside space-y-1 pl-4 mt-1 text-slate-400">
+                            <li><code className="bg-slate-900 px-1 py-0.5 rounded text-rose-400">TELEGRAM_BOT_TOKEN</code> = ваш токен от BotFather</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <span className="font-semibold text-white">Свяжите бота с сайтом KamiAnime</span>:
+                          Задайте имя вашего бота в файле конфигурации <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-300">.env</code> через уже существующую переменную <code className="bg-slate-900 px-1.5 py-0.5 rounded text-indigo-300">VITE_TELEGRAM_BOT_USERNAME</code>, чтобы кнопка на сайте вела именно на вашего бота!
+                        </li>
+                      </ol>
+                    </div>
+
+                    <div className="bg-slate-800/50 border border-white/10 rounded-xl p-6 flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-white mb-2">🚀 Почему Hugging Face Spaces + FFmpeg?</h3>
+                        <div className="space-y-4 text-sm text-gray-300">
+                          <p>
+                            Обычные сервера часто имеют ограничения по скорости сети или требуют платы за ресурсы. В то же время **Hugging Face** предоставляет:
+                          </p>
+                          <ul className="list-disc list-inside space-y-2 pl-2 text-slate-300">
+                            <li><span className="text-green-400 font-bold">Полностью бесплатно 24/7</span> без простоев</li>
+                            <li>Предустановленное ядро <span className="text-indigo-400 font-bold">FFmpeg</span> для сборки из коробки</li>
+                            <li>Безумная пропускная способность до <span className="text-white font-bold">10 Гбит/сек</span></li>
+                            <li>Защита ваших приватных API-ключей в надежных Secrets</li>
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="mt-4 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                        <p className="text-xs text-indigo-300 leading-relaxed font-medium">
+                          💡 Кнопка «Скачать в Telegram» на странице аниме автоматически формирует глубокую ссылку (deep-link start parameter) с ID аниме и выбранным эпизодом, которая мгновенно считывается вашим ботом!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 border border-white/10 rounded-xl p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-bold text-white">🐍 Исходный код Python-скрипта (для бота)</h3>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(PYTHON_BOT_SCRIPT);
+                          alert('Код скопирован в буфер обмена!');
+                        }}
+                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" /> Скопировать код script.py
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-400 mb-4">
+                      Создайте в вашем Space файл с именем <code className="bg-slate-900 px-1.5 py-0.5 rounded text-pink-400 font-mono">app.py</code> (для Gradio/Python) или <code className="bg-slate-900 px-1.5 py-0.5 rounded text-pink-400 font-mono">bot.py</code> (для Docker) и вставьте этот код. Не забудьте добавить <code className="bg-slate-900 px-1.5 py-0.5 rounded text-amber-400 font-mono">python-telegram-bot requests</code> в файл <code className="bg-slate-900 px-1.5 py-0.5 rounded text-blue-300">requirements.txt</code>!
+                    </p>
+                    <pre className="max-h-[350px] overflow-y-auto bg-slate-900/80 rounded-xl p-4 font-mono text-xs text-gray-300 border border-white/5 whitespace-pre select-all">
+                      {PYTHON_BOT_SCRIPT}
+                    </pre>
+                  </div>
+                </div>
               </div>
             </>
           )}
