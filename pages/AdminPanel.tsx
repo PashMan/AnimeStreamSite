@@ -643,7 +643,8 @@ huggingface_hub&lt;=0.24.0
                       <h3 className="text-lg font-bold text-white">🐍 Исходный код Python-скрипта (для app.py)</h3>
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(PYTHON_BOT_SCRIPT);
+                          const customScript = PYTHON_BOT_SCRIPT.replace(/WEB_BASE_URL_PLACEHOLDER/g, window.location.origin);
+                          navigator.clipboard.writeText(customScript);
                           alert('Код скопирован в буфер обмена!');
                         }}
                         className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center gap-2"
@@ -655,7 +656,7 @@ huggingface_hub&lt;=0.24.0
                       Создайте в вашем Space файл с именем <code className="bg-slate-900 px-1.5 py-0.5 rounded text-pink-400 font-mono">app.py</code> и вставьте этот код:
                     </p>
                     <pre className="max-h-[350px] overflow-y-auto bg-slate-900/80 rounded-xl p-4 font-mono text-xs text-gray-300 border border-white/5 whitespace-pre select-all">
-                      {PYTHON_BOT_SCRIPT}
+                      {PYTHON_BOT_SCRIPT.replace(/WEB_BASE_URL_PLACEHOLDER/g, typeof window !== 'undefined' ? window.location.origin : '')}
                     </pre>
                   </div>
                 </div>

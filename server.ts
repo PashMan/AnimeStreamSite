@@ -1230,6 +1230,30 @@ app.get('/api/media/playlist', async (c) => {
     const targetQuality = c.req.query('quality');
     const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 480, 360
 
+    if (c.req.query('resolve') === 'true') {
+      const resolvedLinks: Record<string, string> = {};
+      for (const qual of Object.keys(gboxData.links)) {
+        const listSources = gboxData.links[qual];
+        if (listSources && listSources.length > 0) {
+          try {
+            const rawSrc = listSources[0].src;
+            const decryptedUrl = rawSrc.includes('mp4:hls:manifest') ? rawSrc : decodeKodikUrl(rawSrc);
+            resolvedLinks[qual] = decryptedUrl.startsWith('//') ? `https:${decryptedUrl}` : decryptedUrl;
+          } catch (de_err: any) {
+            console.error(`[KODIK PROXY] Decryption failed for quality ${qual}:`, de_err.message);
+          }
+        }
+      }
+      c.header('Access-Control-Allow-Origin', '*');
+      c.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      c.header('Access-Control-Allow-Headers', '*');
+      return c.json({
+        success: true,
+        links: resolvedLinks,
+        qualities
+      });
+    }
+
     if (!targetQuality && qualities.length > 1) {
       console.log(`[KODIK PROXY] Building Master Playlist for available qualities: ${qualities.join(', ')}`);
       const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];

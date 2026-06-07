@@ -28,6 +28,10 @@ API_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 # API токен для работы с Kodik
 KODIK_TOKEN = os.getenv("KODIK_API_TOKEN", "17cc4ee691bc251131a9041e6e89e78e")
 
+# URL вашего веб-приложения для резервного декодирования.
+# При копировании скрипта плейсхолдер заменяется на реальный адрес вашего сайта.
+WEB_APP_URL = os.getenv("WEB_APP_URL", "WEB_BASE_URL_PLACEHOLDER")
+
 def convert_char(char, num):
     alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     upper = char.upper()
@@ -96,7 +100,29 @@ def make_kodik_api_request(anime_id):
 def extract_m3u8_stream(iframe_url, quality=None):
     if iframe_url.startswith("//"):
         iframe_url = "https:" + iframe_url
-    
+        
+    # Сначала пытаемся использовать дешифратор нашего веб-приложения (рекомендуемый и самый стабильный способ)
+    if WEB_APP_URL and WEB_APP_URL != "WEB_BASE_URL_PLACEHOLDER":
+        api_url = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&resolve=true"
+        logger.info(f"Резолвим поток через API веб-приложения: {api_url}")
+        try:
+            req = urllib.request.Request(
+                api_url, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            )
+            with urllib.request.urlopen(req, timeout=15) as response:
+                res_data = json.loads(response.read().decode('utf-8'))
+                
+            if res_data.get("success") and res_data.get("links"):
+                links_dict = {q: [{"src": src}] for q, src in res_data["links"].items()}
+                available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
+                if available_qualities:
+                    logger.info("Успешно получили декодированные потоки через API веб-приложения!")
+                    return available_qualities, links_dict
+        except Exception as proxy_err:
+            logger.warning(f"Не удалось получить потоки через API веб-приложения: {proxy_err}. Пробуем локальный парсинг...")
+
+    # Локальный парсинг (резервный вариант)
     # Резолвим домены для борьбы с блокировками и лимитами, как в веб-прокси
     iframe_url = re.sub(
         r'(kodik\\.info|kodik\\.cc|kodik\\.biz|kodik\\.net|kodik\\.tv|kodik\\.club|kodik\\.site|kodik\\.space)', 
@@ -356,7 +382,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 selected_qual_str = str(available_quals[0])
                 
             raw_src = links_dict[selected_qual_str][0]['src']
-            decrypted_url = raw_src if 'mp4:hls:manifest' in raw_src else decode_kodik_url(raw_src)
+            if raw_src.startswith('http') or raw_src.startswith('//') or 'mp4:hls:manifest' in raw_src:
+                decrypted_url = raw_src
+            else:
+                decrypted_url = decode_kodik_url(raw_src)
             playlist_url = decrypted_url if decrypted_url.startswith('http') else "https:" + decrypted_url
 
             # 3. Склеивание потока через FFmpeg
