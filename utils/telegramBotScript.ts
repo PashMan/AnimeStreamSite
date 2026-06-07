@@ -60,11 +60,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         text = (
-            f"🎬 **Найдено аниме в базе!**\n"
-            f"• ID на Shikimori: {anime_id}\n"
-            f"• Серия: {episode}\n\n"
+            f"🎬 **Найдено аниме в базе!**\\n"
+            f"• ID на Shikimori: {anime_id}\\n"
+            f"• Серия: {episode}\\n\\n"
             f"Выберите желаемое качество. Я скачаю все фрагменты потока и пришлю вам готовую ссылку!"
-        ).replace("\n", "\\n")
+        )
         
         await update.message.reply_text(
             text,
@@ -103,10 +103,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             link = "https:" + item["link"] if item["link"].startswith("//") else item["link"]
             
             status_text = (
-                "📥 **[2/2] Склеивание фрагментов потока...**\n\n"
-                "• Начинаем склеивание в MP4...\n"
+                "📥 **[2/2] Склеивание фрагментов потока...**\\n\\n"
+                "• Начинаем склеивание в MP4...\\n"
                 "• Это займет менее минуты! 🚀"
-            ).replace("\n", "\\n")
+            )
             await status_msg.edit_text(
                 status_text,
                 parse_mode="Markdown"
@@ -118,10 +118,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(4) # имитация сборки
             
             success_text = (
-                "✅ **Аниме успешно подготовлено!**\n\n"
-                f"🔗 **[Кликните для скачивания MP4 ({quality}p)]({link})**\n\n"
+                "✅ **Аниме успешно подготовлено!**\\n\\n"
+                f"🔗 **[Кликните для скачивания MP4 ({quality}p)]({link})**\\n\\n"
                 "Приятного просмотра 🍿"
-            ).replace("\n", "\\n")
+            )
             await status_msg.edit_text(
                 success_text,
                 parse_mode="Markdown"
@@ -130,10 +130,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error: {e}")
             err_text = (
-                f"❌ Произошла ошибка при связывании ffmpeg и робота.\n"
-                f"Лог ошибки: {str(e)}\n\n"
+                f"❌ Произошла ошибка при связывании ffmpeg и робота.\\n"
+                f"Лог ошибки: {str(e)}\\n\\n"
                 f"Но вы можете скачать напрямую через резервный поток!"
-            ).replace("\n", "\\n")
+            )
             await status_msg.edit_text(err_text)
 
 # Запуск простого HTTP-сервера для Hugging Face Spaces на порту 7860 
