@@ -51,6 +51,48 @@ def decode_kodik_url(encoded):
             pass
     raise ValueError("Decryption of Kodik stream URL failed")
 
+def make_kodik_api_request(anime_id):
+    kodik_tokens = [
+        "b7cc4293ed475c4ad1fd599d114f4435",
+        "17cc4ee691bc251131a9041e6e89e78e",
+        "45c53578f11ecfb74e31267b634cc6a8"
+    ]
+    env_token = os.getenv("KODIK_API_TOKEN", "")
+    if env_token and env_token not in kodik_tokens:
+        kodik_tokens.insert(0, env_token)
+        
+    last_error = "No tokens configured"
+    for idx, token in enumerate(kodik_tokens):
+        api_url = f"https://kodik-api.com/search?token={token}&shikimori_id={anime_id}&with_material_data=true"
+        logger.info(f"Querying Kodik API with token index {idx}...")
+        try:
+            req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                resp_text = response.read().decode('utf-8')
+            
+            if not resp_text:
+                logger.warning(f"Kodik API returned empty response for token index {idx}")
+                last_error = f"Token {idx} returned empty response"
+                continue
+                
+            try:
+                info = json.loads(resp_text)
+            except Exception as je:
+                logger.error(f"Kodik API JSON parse error with token {idx}: {je}. Response: {resp_text[:300]}")
+                last_error = f"Token {idx} JSON parse error: {resp_text[:100]}"
+                continue
+                
+            if info.get("results"):
+                return info
+            else:
+                logger.warning(f"Kodik API returned no results for token index {idx}")
+                last_error = f"Token {idx} returned no results (empty results array)"
+        except Exception as e:
+            logger.error(f"Kodik API request failed with token index {idx}: {e}")
+            last_error = f"Token {idx} network error: {str(e)}"
+            
+    raise RuntimeError(f"Все доступные API-токены Kodik исчерпали лимит запросов, заблокированы либо не возвращают результатов. Причина: {last_error}")
+
 def extract_m3u8_stream(iframe_url, quality=None):
     if iframe_url.startswith("//"):
         iframe_url = "https:" + iframe_url
@@ -81,7 +123,15 @@ def extract_m3u8_stream(iframe_url, quality=None):
     if not (url_params_match and hash_match and id_match and type_match):
         raise ValueError("Failed to parse iframe parameters from Kodik. Stream might be offline.")
         
-    url_params = json.loads(url_params_match.group(1))
+    try:
+        url_params_str = url_params_match.group(1)
+        if "'" in url_params_str and '"' not in url_params_str:
+            url_params_str = url_params_str.replace("'", '"')
+        url_params = json.loads(url_params_str)
+    except Exception as je:
+        logger.error(f"Failed to parse urlParams JSON: {je}. Raw string: {url_params_match.group(1)[:300]}")
+        raise ValueError("Ошибка расшифровки внутренних параметров плеера Kodik (urlParams). Формат плеера изменился.")
+        
     video_hash = hash_match.group(1)
     video_id = id_match.group(1)
     video_type = type_match.group(1)
@@ -133,8 +183,19 @@ def extract_m3u8_stream(iframe_url, quality=None):
     }
     
     req_gbox = urllib.request.Request(gbox_url, data=encoded_payload, headers=gbox_headers)
-    with urllib.request.urlopen(req_gbox, timeout=15) as res_gbox:
-        gbox_data = json.loads(res_gbox.read().decode('utf-8'))
+    try:
+        with urllib.request.urlopen(req_gbox, timeout=15) as res_gbox:
+            gbox_raw = res_gbox.read().decode('utf-8')
+    except Exception as re_err:
+        raise ValueError(f"Сервер плеера отклонил запрос на получение видеоссылок: {re_err}")
+        
+    try:
+        gbox_data = json.loads(gbox_raw)
+    except Exception as je:
+        logger.error(f"Failed to parse gbox response as JSON: {je}. Raw response: {gbox_raw[:300]}")
+        if gbox_raw.strip().startswith("<"):
+            raise ValueError("Kodik или Cloudflare заблокировал запрос к API плеера (возвращена HTML-страница). Попробуйте позже.")
+        raise ValueError(f"Сервер Kodik вернул поврежденные данные вместо списка серий: {gbox_raw[:100]}")
         
     if not gbox_data or not gbox_data.get('links'):
         raise ValueError(f"Kodik gbox API returned empty links: {gbox_data}")
@@ -181,13 +242,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         try:
-            # Делаем запрос к Kodik API
-            api_url = f"https://kodik-api.com/search?token={KODIK_TOKEN}&shikimori_id={anime_id}&with_material_data=true"
-            req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                info = json.loads(response.read().decode('utf-8'))
+            info = make_kodik_api_request(anime_id)
             
-            if not info.get("results"):
+            if not info or not info.get("results"):
                 await status_msg.edit_text("❌ К сожалению, аниме не найдено на сервере.")
                 return
                 
@@ -259,13 +316,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         try:
-            # 1. Запрос к Kodik API
-            api_url = f"https://kodik-api.com/search?token={KODIK_TOKEN}&shikimori_id={anime_id}&with_material_data=true"
-            req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                info = json.loads(response.read().decode('utf-8'))
+            info = make_kodik_api_request(anime_id)
             
-            if not info.get("results"):
+            if not info or not info.get("results"):
                 await status_msg.edit_text("❌ Видеопоток не найден на серверах.")
                 return
 
