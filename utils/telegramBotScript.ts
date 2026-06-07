@@ -142,7 +142,7 @@ def make_kodik_api_request(anime_id):
 
     # Сначала пытаемся проксировать запрос через наш сайт, 
     # чтобы обойти блокировки IP адресов Hugging Face со стороны Kodik!
-    if WEB_APP_URL and "WEB_BASE_URL_PLACEHOLDER" not in WEB_APP_URL and "PLACEHOLDER" not in WEB_APP_URL:
+    if is_valid_url(WEB_APP_URL):
         for idx, token in enumerate(kodik_tokens):
             proxy_url = f"{WEB_APP_URL.rstrip('/')}/api/media/search?token={token}&shikimori_id={anime_id}"
             logger.info(f"Querying Kodik API via site proxy: {proxy_url}")
@@ -203,7 +203,7 @@ def extract_m3u8_stream(iframe_url, quality=None):
         iframe_url = "https:" + iframe_url
         
     # Сначала пытаемся использовать дешифратор нашего веб-приложения (рекомендуемый и самый стабильный способ)
-    has_web_app = WEB_APP_URL and "WEB_BASE_URL_PLACEHOLDER" not in WEB_APP_URL and "PLACEHOLDER" not in WEB_APP_URL
+    has_web_app = is_valid_url(WEB_APP_URL)
     
     if has_web_app:
         api_url = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&resolve=true"
@@ -342,7 +342,7 @@ def extract_m3u8_stream(iframe_url, quality=None):
         raise ValueError(f"Kodik gbox API returned empty links: {gbox_data}")
         
     links_dict = gbox_data['links']
-    if WEB_APP_URL and WEB_APP_URL != "WEB_BASE_URL_PLACEHOLDER":
+    if is_valid_url(WEB_APP_URL):
         # Используем проксированное вещание нашего сайта, чтобы качать без лимитов и блокировок IP на Hugging Face
         proxied_links_dict = {}
         for q in links_dict.keys():
