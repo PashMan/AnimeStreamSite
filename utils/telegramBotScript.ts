@@ -73,9 +73,9 @@ def extract_m3u8_stream(iframe_url, quality=None):
         
     # 2. Извлекаем параметры (как в server.ts)
     url_params_match = re.search(r"urlParams\\s*=\\s*'([^']+)'", html) or re.search(r'urlParams\\s*=\\s*"([^"]+)"', html) or re.search(r"urlParams\\s*=\\s*({[^;]+})", html)
-    hash_match = re.search(r"\\.hash\\s*=\\s*'([^']+)'", html) or re.search(r'\\.hash\\s*=\\s*"([^"]+)"', html) or re.search(r"\\.hash\\s*=\\s*['\"]([^'\"]+)['\"]", html)
-    id_match = re.search(r"\\.id\\s*=\\s*'([^']+)'", html) or re.search(r'\\.id\\s*=\\s*"([^"]+)"', html) or re.search(r"\\.id\\s*=\\s*['\"]([^'\"]+)['\"]", html)
-    type_match = re.search(r"\\.type\\s*=\\s*'([^']+)'", html) or re.search(r'\\.type\\s*=\\s*"([^"]+)"', html) or re.search(r"\\.type\\s*=\\s*['\"]([^'\"]+)['\"]", html)
+    hash_match = re.search(r"\\.hash\\s*=\\s*'([^']+)'", html) or re.search(r'\\.hash\\s*=\\s*"([^"]+)"', html) or re.search(r"""\\.hash\\s*=\\s*['\"]([^'\"]+)['\"]""", html)
+    id_match = re.search(r"\\.id\\s*=\\s*'([^']+)'", html) or re.search(r'\\.id\\s*=\\s*"([^"]+)"', html) or re.search(r"""\\.id\\s*=\\s*['\"]([^'\"]+)['\"]""", html)
+    type_match = re.search(r"\\.type\\s*=\\s*'([^']+)'", html) or re.search(r'\\.type\\s*=\\s*"([^"]+)"', html) or re.search(r"""\\.type\\s*=\\s*['\"]([^'\"]+)['\"]""", html)
     
     if not (url_params_match and hash_match and id_match and type_match):
         raise ValueError("Failed to parse iframe parameters from Kodik. Stream might be offline.")
@@ -409,7 +409,7 @@ class HealthCheckHandler(SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "video/mp4")
                 self.send_header("Content-Length", str(size))
-                self.send_header("Content-Disposition", f"attachment; filename=\\\\"{filename}\\\\"")
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 
