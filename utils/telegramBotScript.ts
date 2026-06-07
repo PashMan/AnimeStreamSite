@@ -338,9 +338,155 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_size = os.path.getsize(output_filename)
             file_size_mb = file_size / (1024 * 1024)
 
+            # Если файл превышает 48 МБ (лимит Telegram), мы разделяем его без потери качества
+            if file_size > 48 * 1024 * 1024:
+                try:
+                    # 1. Измеряем длительность видео через ffprobe
+                    duration = 1440.0
+                    try:
+                        probe_cmd = [
+                            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                            "-of", "default=noprint_wrappers=1:noclose=1", output_filename
+                        ]
+                        p_dur = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        if p_dur.returncode == 0 and p_dur.stdout.strip():
+                            duration = float(p_dur.stdout.strip())
+                    except Exception as pe:
+                        logger.error(f"Ffprobe error: {pe}")
+
+                    import math
+                    import glob
+                    
+                    target_size = 47 * 1024 * 1024  # 47 MB
+                    num_parts = math.ceil(file_size / target_size)
+                    segment_time = duration / num_parts
+
+                    await status_msg.edit_text(
+                        f"✂️ **Файл весит {file_size_mb:.1f} Мб (лимит TG: 50MB).**\\n"
+                        f"Склеили без сжатия! Теперь быстро нарезаем фильм на {num_parts} равные части без потери качества для отправки в Telegram...",
+                        parse_mode="Markdown"
+                    )
+
+                    parts_pattern = f"part_%03d_{output_filename}"
+                    split_cmd = [
+                        "ffmpeg", "-y",
+                        "-i", output_filename,
+                        "-c", "copy",
+                        "-map", "0",
+                        "-segment_time", str(segment_time),
+                        "-f", "segment",
+                        "-reset_timestamps", "1",
+                        parts_pattern
+                    ]
+                    
+                    split_process = subprocess.run(split_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    part_files = sorted(glob.glob(f"part_*_{output_filename}"))
+                    
+                    if len(part_files) > 0:
+                        space_id = os.getenv("SPACE_ID", "")
+                        space_host = os.getenv("SPACE_HOST", "")
+                        download_text = ""
+                        
+                        if space_host or space_id:
+                            if space_host:
+                                download_url = f"https://{space_host}/{output_filename}"
+                            else:
+                                subdomain = space_id.replace("/", "-").lower()
+                                download_url = f"https://{subdomain}.hf.space/{output_filename}"
+                            
+                            download_text = (
+                                f"🪐 **Прямая ссылка на целый файл (100% качество):**\\n"
+                                f"🔗 **[СКАЧАТЬ {quality}p]({download_url})**\\n\\n"
+                            )
+                        
+                        header_text = (
+                            f"🎬 **Аниме готово без потери качества!**\\n\\n"
+                            f"{download_text}"
+                            f"📦 Файл разделен на {len(part_files)} части, чтобы обойти ограничение Telegram.\\n"
+                            f"Отправляем части прямо сюда..."
+                        )
+                        await status_msg.edit_text(header_text, parse_mode="Markdown", disable_web_page_preview=True)
+                        
+                        for idx, part_file in enumerate(part_files):
+                            part_size = os.path.getsize(part_file)
+                            part_size_mb = part_size / (1024 * 1024)
+                            
+                            await query.message.reply_chat_action("upload_video")
+                            with open(part_file, "rb") as pf:
+                                await query.message.reply_video(
+                                    video=pf,
+                                    filename=os.path.basename(part_file),
+                                    caption=(
+                                        f"🎞️ **Часть {idx+1} из {len(part_files)}** ({part_size_mb:.1f} MB)\\n\\n"
+                                        f"• **Серия:** {episode}\\n"
+                                        f"• **Качество:** {quality}p (без сжатия!)"
+                                    ),
+                                    supports_streaming=True
+                                )
+                            try:
+                                os.remove(part_file)
+                            except:
+                                pass
+                        
+                        try:
+                            os.remove(output_filename)
+                        except:
+                            pass
+                        return
+                    else:
+                        raise RuntimeError(f"FFmpeg segmentation returned no files: {split_process.stderr}")
+                        
+                except Exception as ex:
+                    logger.error(f"Lossless splitting failed: {ex}. Falling back to compression...")
+                    try:
+                        await status_msg.edit_text(
+                            f"⚠️ Не удалось нарезать файл без потери качества. Запускаем сжатие до 47MB...",
+                            parse_mode="Markdown"
+                        )
+                        # 2. Вычисляем битрейт под целевой размер 45MB
+                        target_bytes = 45 * 1024 * 1024
+                        total_bitrate_bps = (target_bytes * 8) / duration
+                        audio_bitrate_bps = 64000
+                        video_bitrate_bps = total_bitrate_bps - audio_bitrate_bps
+                        
+                        if video_bitrate_bps < 120000:
+                            video_bitrate_bps = 120000
+                            
+                        compressed_filename = f"compressed_{output_filename}"
+                        if os.path.exists(compressed_filename):
+                            try:
+                                os.remove(compressed_filename)
+                            except:
+                                pass
+                                
+                        compress_cmd = [
+                            "ffmpeg", "-y",
+                            "-i", output_filename,
+                            "-b:v", f"{int(video_bitrate_bps)}",
+                            "-maxrate", f"{int(video_bitrate_bps * 1.5)}",
+                            "-bufsize", f"{int(video_bitrate_bps * 2)}",
+                            "-c:v", "libx264",
+                            "-preset", "veryfast",
+                            "-c:a", "aac",
+                            "-b:a", f"{int(audio_bitrate_bps)}",
+                            compressed_filename
+                        ]
+                        
+                        subprocess.run(compress_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        if os.path.exists(compressed_filename) and os.path.getsize(compressed_filename) > 0:
+                            os.remove(output_filename)
+                            os.rename(compressed_filename, output_filename)
+                            file_size = os.path.getsize(output_filename)
+                            file_size_mb = file_size / (1024 * 1024)
+                    except Exception as ce:
+                        logger.error(f"Compression fallback failed: {ce}")
+
+            file_size = os.path.getsize(output_filename)
+            file_size_mb = file_size / (1024 * 1024)
+
             await status_msg.edit_text(
-                f"📥 **FFmpeg завершил сборку! (Размер: {file_size_mb:.1f} MB)**\\n"
-                f"Начинаем загрузку видео к вам в диалог...",
+                f"📥 **Сборка завершена успешно! ({file_size_mb:.1f} MB)**\\n"
+                f"Начинаем отправку видеофайла в Telegram-чат...",
                 parse_mode="Markdown"
             )
 
@@ -354,8 +500,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         caption=(
                             f"🍿 **Ваше аниме готово для просмотра!**\\n\\n"
                             f"• **Серия:** {episode}\\n"
-                            f"• **Выбранное качество:** {quality}p\\n"
-                            f"• **Размер файла:** {file_size_mb:.1f} Мб\\n\\n"
+                            f"• **Качество:** {quality}p\\n"
+                            f"• **Размер:** {file_size_mb:.1f} Мб\\n\\n"
                             f"Приятного просмотра! 🎉"
                         ),
                         supports_streaming=True
@@ -369,9 +515,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 # Если файл слишком большой, отдаем прямую ссылку с Hugging Face Spaces
                 space_id = os.getenv("SPACE_ID", "")
-                if space_id:
-                    subdomain = space_id.replace("/", "-").lower()
-                    download_url = f"https://{subdomain}.hf.space/{output_filename}"
+                space_host = os.getenv("SPACE_HOST", "")
+                
+                if space_host or space_id:
+                    if space_host:
+                        download_url = f"https://{space_host}/{output_filename}"
+                    else:
+                        subdomain = space_id.replace("/", "-").lower()
+                        download_url = f"https://{subdomain}.hf.space/{output_filename}"
                     
                     await status_msg.edit_text(
                         f"🍿 **Аниме готово для скачивания!**\\n\\n"
@@ -384,7 +535,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await status_msg.edit_text(
                         f"⚠️ **Файл весит {file_size_mb:.1f} MB** (превышает лимит 50MB бота).\\n"
-                        f"Настройте переменную SPACE_ID (например: username/spacename) в секретах Hugging Face, чтобы получать высокоскоростные ссылки на прямое скачивание файлов!"
+                        f"Настройте переменные в секретах Hugging Face, чтобы получать ссылки на прямое скачивание файлов!"
                     )
 
         except Exception as e:
@@ -426,15 +577,15 @@ class HealthCheckHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        html_content = """
-        <html>
-        <head><title>KamiAnime Bot</title></head>
-        <body style="font-family: sans-serif; text-align: center; padding-top: 100px; background-color: #0f172a; color: #f8fafc;">
-            <h1 style="color: #38bdf8;">KamiAnime Telegram Bot status: ACTIVE</h1>
-            <p style="color: #94a3b8;">Бот успешно работает в вашей экосистеме Hugging Face Spaces и готов отправлять MP4-файлы!</p>
-        </body>
-        </html>
-        """
+        html_content = (
+            "<html>"
+            "<head><title>KamiAnime Bot</title></head>"
+            "<body style='font-family: sans-serif; text-align: center; padding-top: 100px; background-color: #0f172a; color: #f8fafc;'>"
+            "<h1 style='color: #38bdf8;'>Ready to download: Active</h1>"
+            "<p style='color: #94a3b8;'>Бот успешно занут на Hugging Face Spaces и осуществляет сборку аниме!</p>"
+            "</body>"
+            "</html>"
+        )
         self.wfile.write(html_content.encode("utf-8"))
 
 def run_health_server():
