@@ -198,6 +198,35 @@ export async function onRequest(context: any) {
     const targetQuality = urlObj.searchParams.get('quality');
     const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 360, etc.
 
+    if (urlObj.searchParams.get('resolve') === 'true') {
+      const resolvedLinks: Record<string, string> = {};
+      for (const qual of Object.keys(gboxData.links)) {
+        const listSources = gboxData.links[qual];
+        if (listSources && listSources.length > 0) {
+          try {
+            const rawSrc = listSources[0].src;
+            const decryptedUrl = rawSrc.includes('mp4:hls:manifest') ? rawSrc : decodeKodikUrl(rawSrc);
+            resolvedLinks[qual] = decryptedUrl.startsWith('//') ? `https:${decryptedUrl}` : decryptedUrl;
+          } catch (de_err: any) {
+            console.error(`[CF KODIK PROXY] Decryption failed for quality ${qual}:`, de_err.message);
+          }
+        }
+      }
+      return new Response(JSON.stringify({
+        success: true,
+        links: resolvedLinks,
+        qualities
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': '*'
+        }
+      });
+    }
+
     if (!targetQuality && qualities.length > 1) {
       console.log(`[CF KODIK PROXY] Building Master Playlist for available qualities: ${qualities.join(', ')}`);
       const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
