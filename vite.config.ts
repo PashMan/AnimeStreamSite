@@ -23,17 +23,7 @@ export default defineConfig({
           'Referer': 'https://shikimori.one/'
         }
       },
-      '/api/media/playlist': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/api/media/skip-timings': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/api/media/segment': {
+      '/api/media': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
@@ -75,17 +65,7 @@ export default defineConfig({
           'Referer': 'https://shikimori.one/'
         }
       },
-      '/api/media/playlist': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/api/media/skip-timings': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/api/media/segment': {
+      '/api/media': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
