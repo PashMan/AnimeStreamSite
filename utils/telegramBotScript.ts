@@ -620,7 +620,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             
             logger.info(f"Запуск FFmpeg со ссылкой {playlist_url}")
-            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
+            process = await asyncio.to_thread(subprocess.run, cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
             
             # Если скачивание напрямую по какой-то причине не удалось, делаем резервную попытку через прокси нашего сайта
             if (not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0) and playlist_url != backup_playlist_url:
@@ -631,7 +631,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     cmd_backup[p_idx] = backup_playlist_url
                 except ValueError:
                     pass
-                process = subprocess.run(cmd_backup, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
+                process = await asyncio.to_thread(subprocess.run, cmd_backup, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
             
             if not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
                 raise RuntimeError(f"FFmpeg failed: {process.stderr or process.stdout}")
@@ -649,7 +649,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             "ffprobe", "-v", "error", "-show_entries", "format=duration",
                             "-of", "default=noprint_wrappers=1:noclose=1", output_filename
                         ]
-                        p_dur = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        p_dur = await asyncio.to_thread(subprocess.run, probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                         if p_dur.returncode == 0 and p_dur.stdout.strip():
                             duration = float(p_dur.stdout.strip())
                     except Exception as pe:
@@ -658,7 +658,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     import math
                     import glob
                     
-                    target_size = 47 * 1024 * 1024  # 47 MB
+                    target_size = 30 * 1024 * 1024  # Более безопасный размер целевой части (30 MB) во избежание овершутинга из-за ключевых кадров
                     num_parts = math.ceil(file_size / target_size)
                     segment_time = duration / num_parts
 
@@ -680,7 +680,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parts_pattern
                     ]
                     
-                    split_process = subprocess.run(split_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    split_process = await asyncio.to_thread(subprocess.run, split_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     part_files = sorted(glob.glob(f"part_*_{output_filename}"))
                     
                     if len(part_files) > 0:
@@ -712,6 +712,35 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             part_size = os.path.getsize(part_file)
                             part_size_mb = part_size / (1024 * 1024)
                             
+                            # На случай овершутинга отдельного куска свыше 49 МБ - сожмем его до 35 МБ
+                            if part_size > 49 * 1024 * 1024:
+                                logger.warning(f"Кусок {part_file} весит {part_size_mb:.1f} MB (превышает лимит). Пытаемся быстро поджать под 35MB...")
+                                part_compress_name = f"comp_{part_file}"
+                                part_duration = segment_time
+                                target_bytes_part = 35 * 1024 * 1024
+                                part_total_bitrate = (target_bytes_part * 8) / part_duration
+                                part_audio_bitrate = 64000
+                                part_video_bitrate = max(120000, part_total_bitrate - part_audio_bitrate)
+                                
+                                part_compress_cmd = [
+                                    "ffmpeg", "-y",
+                                    "-i", part_file,
+                                    "-b:v", f"{int(part_video_bitrate)}",
+                                    "-maxrate", f"{int(part_video_bitrate * 1.5)}",
+                                    "-bufsize", f"{int(part_video_bitrate * 2)}",
+                                    "-c:v", "libx264",
+                                    "-preset", "veryfast",
+                                    "-c:a", "aac",
+                                    "-b:a", f"{int(part_audio_bitrate)}",
+                                    part_compress_name
+                                ]
+                                await asyncio.to_thread(subprocess.run, part_compress_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                if os.path.exists(part_compress_name) and os.path.getsize(part_compress_name) > 0:
+                                    os.remove(part_file)
+                                    os.rename(part_compress_name, part_file)
+                                    part_size = os.path.getsize(part_file)
+                                    part_size_mb = part_size / (1024 * 1024)
+
                             await query.message.reply_chat_action("upload_video")
                             with open(part_file, "rb") as pf:
                                 await query.message.reply_video(
@@ -741,11 +770,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.error(f"Lossless splitting failed: {ex}. Falling back to compression...")
                     try:
                         await status_msg.edit_text(
-                            f"⚠️ Не удалось нарезать файл без потери качества. Запускаем сжатие до 47MB...",
+                            f"⚠️ Не удалось нарезать файл без потери качества. Запускаем сжатие до 35MB...",
                             parse_mode="Markdown"
                         )
-                        # 2. Вычисляем битрейт под целевой размер 45MB
-                        target_bytes = 45 * 1024 * 1024
+                        # 2. Вычисляем битрейт под безопасный размер 35MB
+                        target_bytes = 35 * 1024 * 1024
                         total_bitrate_bps = (target_bytes * 8) / duration
                         audio_bitrate_bps = 64000
                         video_bitrate_bps = total_bitrate_bps - audio_bitrate_bps
@@ -773,7 +802,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             compressed_filename
                         ]
                         
-                        subprocess.run(compress_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        await asyncio.to_thread(subprocess.run, compress_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                         if os.path.exists(compressed_filename) and os.path.getsize(compressed_filename) > 0:
                             os.remove(output_filename)
                             os.rename(compressed_filename, output_filename)
