@@ -513,6 +513,170 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Start error: {e}")
             await status_msg.edit_text(f"❌ Возникла непредвиденная ошибка: {str(e)}")
 
+# Вспомогательные функции для быстрого параллельного скачивания HLS и отложенного удаления файлов
+async def delay_delete(filepath: str, delay_seconds: int = 7200):
+    await asyncio.sleep(delay_seconds)
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            logger.info(f"Отложенное удаление временного файла завершено: {filepath}")
+    except Exception as e:
+        logger.error(f"Ошибка при отложенном удалении файла {filepath}: {e}")
+
+def fetch_m3u8_segments(playlist_url: str, headers: dict) -> list:
+    req = urllib.request.Request(playlist_url, headers=headers)
+    with urllib.request.urlopen(req, timeout=15) as response:
+        content = response.read().decode('utf-8')
+    
+    lines = content.splitlines()
+    segments = []
+    
+    # Check if it's a master playlist or variant/media playlist
+    is_master = any("#EXT-X-STREAM-INF" in line for line in lines)
+    if is_master:
+        # Find the first variant playlist URL
+        variant_url = None
+        for i, line in enumerate(lines):
+            if "#EXT-X-STREAM-INF" in line:
+                for j in range(i + 1, len(lines)):
+                    candidate = lines[j].strip()
+                    if candidate and not candidate.startswith("#"):
+                        variant_url = urllib.parse.urljoin(playlist_url, candidate)
+                        break
+                if variant_url:
+                    break
+        if variant_url:
+            return fetch_m3u8_segments(variant_url, headers)
+        else:
+            raise ValueError("No variant playlist found in master playlist")
+            
+    # It's a media playlist containing segments
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith("#"):
+            segment_url = urllib.parse.urljoin(playlist_url, line)
+            segments.append(segment_url)
+            
+    return segments
+
+async def download_hls_stream_fast(playlist_url: str, output_filename: str, status_msg=None) -> bool:
+    from concurrent.futures import ThreadPoolExecutor
+    import shutil
+    import time
+    
+    headers = {
+        "Referer": "https://kodik.info/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    try:
+        segments = await asyncio.to_thread(fetch_m3u8_segments, playlist_url, headers)
+        if not segments:
+            raise ValueError("No segments found in the HLS playlist")
+            
+        total_segments = len(segments)
+        logger.info(f"Найдено {total_segments} сегментов для скачивания.")
+        
+        # Создаем временную директорию для сегментов
+        temp_dir = os.path.join(os.path.dirname(os.path.abspath(output_filename)), f"temp_hls_{int(time.time())}")
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Для отслеживания прогресса
+        downloaded_count = [0]
+        
+        def download_single(segment_url: str, idx: int):
+            seg_path = os.path.join(temp_dir, f"segment_{idx:05d}.ts")
+            
+            # Попытки скачивания с ретраями
+            for attempt in range(4):
+                try:
+                    req = urllib.request.Request(segment_url, headers={
+                        "Referer": headers["Referer"],
+                        "User-Agent": headers["User-Agent"]
+                    })
+                    with urllib.request.urlopen(req, timeout=12) as response:
+                        with open(seg_path, "wb") as f:
+                            f.write(response.read())
+                    downloaded_count[0] += 1
+                    
+                    # Логируем каждые 50 сегментов
+                    if downloaded_count[0] % 50 == 0 or downloaded_count[0] == total_segments:
+                        logger.info(f"Скачано {downloaded_count[0]}/{total_segments} сегментов")
+                    return True
+                except Exception as e:
+                    if attempt == 3:
+                        logger.error(f"Не удалось скачать сегмент {idx} ({segment_url}) после попыток: {e}")
+                        raise e
+                    time.sleep(1 + attempt)
+            return False
+
+        if status_msg:
+            try:
+                await status_msg.edit_text(
+                    f"🚀 **[3/3] Запуск супер-быстрого скачивания...**\\n\\n"
+                    f"Сериал содержит {total_segments} частей.\\n"
+                    f"Скачиваем в 24 параллельных потока для обхода ограничений CDN! ⚡\\n"
+                    f"Это займет буквально секунд 10-30!",
+                    parse_mode="Markdown"
+                )
+            except:
+                pass
+
+        # Скачиваем параллельно в 24 потока
+        with ThreadPoolExecutor(max_workers=24) as executor:
+            futures = [executor.submit(download_single, url, i) for i, url in enumerate(segments)]
+            # Ожидаем завершения всех потоков в асинхронном режиме
+            await asyncio.to_thread(lambda: [f.result() for f in futures])
+
+        if status_msg:
+            try:
+                await status_msg.edit_text(
+                    f"⚙️ **Объединяем {total_segments} сегментов без потери качества...**\\n"
+                    f"Практически готово!",
+                    parse_mode="Markdown"
+                )
+            except:
+                pass
+
+        # Объединяем сегменты в один временный .ts файл
+        combined_ts = os.path.join(temp_dir, "combined.ts")
+        with open(combined_ts, "wb") as outfile:
+            for i in range(total_segments):
+                seg_path = os.path.join(temp_dir, f"segment_{i:05d}.ts")
+                if os.path.exists(seg_path):
+                    with open(seg_path, "rb") as infile:
+                        outfile.write(infile.read())
+                    # Удаляем кусок для экономии места сразу
+                    os.remove(seg_path)
+
+        # Быстро пакуем в mp4 с помощью FFmpeg (-c copy)
+        packaging_cmd = [
+            "ffmpeg", "-y",
+            "-i", combined_ts,
+            "-c", "copy",
+            "-bsf:a", "aac_adtstoasc",
+            output_filename
+        ]
+        
+        process = await asyncio.to_thread(subprocess.run, packaging_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        # Удаляем временную папку
+        try:
+            shutil.rmtree(temp_dir)
+        except:
+            pass
+            
+        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
+            logger.info(f"Файл успешно создан: {output_filename}")
+            return True
+        else:
+            logger.error(f"Упаковка в MP4 прервалась: {process.stderr}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Ошибка при быстром скачивании HLS: {e}")
+        return False
+
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработчик кнопок качества (q_...)
@@ -604,37 +768,54 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except:
                     pass
 
-            # Запускаем ffmpeg
-            cmd = [
-                "ffmpeg", "-y",
-                "-headers", "Referer: https://kodik.info/\\r\\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n",
-                "-http_persistent", "1",
-                "-reconnect", "1",
-                "-reconnect_at_eof", "1",
-                "-reconnect_streamed", "1",
-                "-reconnect_delay_max", "5",
-                "-i", playlist_url,
-                "-c", "copy",
-                "-bsf:a", "aac_adtstoasc",
-                output_filename
-            ]
-            
-            logger.info(f"Запуск FFmpeg со ссылкой {playlist_url}")
-            process = await asyncio.to_thread(subprocess.run, cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
-            
-            # Если скачивание напрямую по какой-то причине не удалось, делаем резервную попытку через прокси нашего сайта
-            if (not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0) and playlist_url != backup_playlist_url:
-                logger.warning(f"Прямое скачивание не удалось (код: {process.returncode}). Пробуем скачать через прокси сайта: {backup_playlist_url}")
-                cmd_backup = cmd.copy()
+            # 3. Склеивание потока через быстрое параллельное скачивание с ретраями
+            output_filename = f"anime_{anime_id}_ep_{episode}_{quality}p.mp4"
+            if os.path.exists(output_filename):
                 try:
-                    p_idx = cmd_backup.index(playlist_url)
-                    cmd_backup[p_idx] = backup_playlist_url
-                except ValueError:
+                    os.remove(output_filename)
+                except:
                     pass
-                process = await asyncio.to_thread(subprocess.run, cmd_backup, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
+
+            success = await download_hls_stream_fast(playlist_url, output_filename, status_msg)
             
-            if not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
-                raise RuntimeError(f"FFmpeg failed: {process.stderr or process.stdout}")
+            # Если быстрое скачивание не удалось (редко, например из-за кастомного m3u8), откатываемся на стандартный ffmpeg
+            if not success or not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
+                logger.warning("Быстрое скачивание не удалось. Пытаемся запустить стандартный FFmpeg...")
+                await status_msg.edit_text(
+                    f"⚠️ **Быстрый метод дал сбой. Переключаемся на стандартный метод FFmpeg...**\\n"
+                    f"Пожалуйста, подождите, сборка может занять до 5-10 минут...",
+                    parse_mode="Markdown"
+                )
+                
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-headers", "Referer: https://kodik.info/\\r\\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n",
+                    "-http_persistent", "1",
+                    "-reconnect", "1",
+                    "-reconnect_at_eof", "1",
+                    "-reconnect_streamed", "1",
+                    "-reconnect_delay_max", "5",
+                    "-i", playlist_url,
+                    "-c", "copy",
+                    "-bsf:a", "aac_adtstoasc",
+                    output_filename
+                ]
+                
+                logger.info(f"Запуск стандартного FFmpeg со ссылкой {playlist_url}")
+                process = await asyncio.to_thread(subprocess.run, cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
+                
+                if (not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0) and playlist_url != backup_playlist_url:
+                    logger.warning(f"Прямое скачивание FFmpeg не удалось. Пробуем скачать через прокси сайта: {backup_playlist_url}")
+                    cmd_backup = cmd.copy()
+                    try:
+                        p_idx = cmd_backup.index(playlist_url)
+                        cmd_backup[p_idx] = backup_playlist_url
+                    except ValueError:
+                        pass
+                    process = await asyncio.to_thread(subprocess.run, cmd_backup, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
+                
+                if not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
+                    raise RuntimeError(f"FFmpeg failed: {process.stderr or process.stdout}")
 
             file_size = os.path.getsize(output_filename)
             file_size_mb = file_size / (1024 * 1024)
@@ -690,14 +871,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         if space_host or space_id:
                             if space_host:
-                                download_url = f"https://{space_host}/file={output_filename}"
+                                download_url = f"https://{space_host}/download/{output_filename}"
                             else:
                                 subdomain = space_id.replace("/", "-").lower()
-                                download_url = f"https://{subdomain}.hf.space/file={output_filename}"
+                                download_url = f"https://{subdomain}.hf.space/download/{output_filename}"
                             
                             download_text = (
                                 f"🪐 **Прямая ссылка на целый файл (100% качество):**\\n"
-                                f"🔗 **[СКАЧАТЬ {quality}p]({download_url})**\\n\\n"
+                                f"🔗 **[СКАЧАТЬ {quality}p]({download_url})** - сразу в браузере!\\n\\n"
                             )
                         
                         header_text = (
@@ -759,9 +940,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 pass
                         
                         try:
-                            os.remove(output_filename)
-                        except:
-                            pass
+                            # Оставляем оригинальный целый MP4 файл на диске на 2 часа для прямой загрузки по ссылке
+                            asyncio.create_task(delay_delete(output_filename, 7200))
+                        except Exception as de_err:
+                            logger.error(f"Failed to schedule delay delete: {de_err}")
                         return
                     else:
                         raise RuntimeError(f"FFmpeg segmentation returned no files: {split_process.stderr}")
@@ -822,6 +1004,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Отправка файла видео, если он влезает в лимит бота (50MB)
             if file_size <= 50 * 1024 * 1024:
+                download_text = ""
+                space_id = os.getenv("SPACE_ID", "")
+                space_host = os.getenv("SPACE_HOST", "")
+                if space_host or space_id:
+                    if space_host:
+                        download_url = f"https://{space_host}/download/{output_filename}"
+                    else:
+                        subdomain = space_id.replace("/", "-").lower()
+                        download_url = f"https://{subdomain}.hf.space/download/{output_filename}"
+                    download_text = f"🪐 **[Скачать сразу в браузере]({download_url})**\\n\\n"
+                
                 await query.message.reply_chat_action("upload_video")
                 with open(output_filename, "rb") as video_file:
                     await query.message.reply_video(
@@ -832,16 +1025,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"• **Серия:** {episode}\\n"
                             f"• **Качество:** {quality}p\\n"
                             f"• **Размер:** {file_size_mb:.1f} Мб\\n\\n"
+                            f"{download_text}"
                             f"Приятного просмотра! 🎉"
                         ),
                         supports_streaming=True
                     )
                 await status_msg.delete()
-                # Удаляем временный файл для экономии диска
-                try:
-                    os.remove(output_filename)
-                except:
-                    pass
+                # Удаляем временный файл для экономии диска отложенно на 2 часа, чтобы ссылка на скачивание в браузере работала
+                if space_host or space_id:
+                    try:
+                        asyncio.create_task(delay_delete(output_filename, 7200))
+                    except Exception as de_err:
+                        logger.error(f"Failed to schedule delay delete: {de_err}")
+                else:
+                    try:
+                        os.remove(output_filename)
+                    except:
+                        pass
             else:
                 # Если файл слишком большой, отдаем прямую ссылку с Hugging Face Spaces
                 space_id = os.getenv("SPACE_ID", "")
@@ -849,19 +1049,24 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if space_host or space_id:
                     if space_host:
-                        download_url = f"https://{space_host}/file={output_filename}"
+                        download_url = f"https://{space_host}/download/{output_filename}"
                     else:
                         subdomain = space_id.replace("/", "-").lower()
-                        download_url = f"https://{subdomain}.hf.space/file={output_filename}"
+                        download_url = f"https://{subdomain}.hf.space/download/{output_filename}"
                     
                     await status_msg.edit_text(
                         f"🍿 **Аниме готово для скачивания!**\\n\\n"
                         f"Файл весит **{file_size_mb:.1f} MB**, что больше лимита Telegram бота (50MB).\\n"
-                        f"Мы сохранили его в вашем Space-хранилище. Скачайте по прямой ссылке:\\n\\n"
+                        f"Мы сохранили его в вашем Space-хранилище. Скачайте по прямой ссылке сразу на телефон или ПК:\\n\\n"
                         f"🔗 **[СКАЧАТЬ MP4 {quality}p]({download_url})**\\n\\n"
-                        f"*Ссылка активна, скачивание идет на полной скорости!*",
+                        f"*Ссылка активна 2 часа, скачивание идет на полной скорости без сжатия!*",
                         parse_mode="Markdown"
                     )
+                    
+                    try:
+                        asyncio.create_task(delay_delete(output_filename, 7200))
+                    except Exception as de_err:
+                        logger.error(f"Failed to schedule delay delete: {de_err}")
                 else:
                     await status_msg.edit_text(
                         f"⚠️ **Файл весит {file_size_mb:.1f} MB** (превышает лимит 50MB бота).\\n"
