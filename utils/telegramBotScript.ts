@@ -883,7 +883,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Запуск нативного Gradio интерфейса для прохождения проверок Hugging Face Spaces
 def run_health_server():
     try:
-        with gr.Blocks(title="KamiAnime Bot Dashboard", theme=gr.themes.Soft()) as demo:
+        with gr.Blocks(title="KamiAnime Bot Dashboard", theme=gr.themes.Soft(), allowed_paths=["."]) as demo:
             gr.Markdown(
                 """
                 # 🍿 KamiAnime Telegram Bot
