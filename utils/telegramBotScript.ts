@@ -30,10 +30,21 @@ KODIK_TOKEN = os.getenv("KODIK_API_TOKEN", "17cc4ee691bc251131a9041e6e89e78e")
 
 # URL вашего веб-приложения для резервного декодирования.
 # При копировании скрипта плейсхолдер заменяется на реальный адрес вашего сайта.
+def get_txt_path():
+    try:
+        # Пытаемся получить абсолютный путь к файлу в директории самого скрипта
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if base_dir:
+            return os.path.join(base_dir, "web_app_url.txt")
+    except:
+        pass
+    return "web_app_url.txt"
+
 def get_web_app_url():
-    if os.path.exists("web_app_url.txt"):
+    txt_path = get_txt_path()
+    if os.path.exists(txt_path):
         try:
-            with open("web_app_url.txt", "r", encoding="utf-8") as f:
+            with open(txt_path, "r", encoding="utf-8") as f:
                 url = f.read().strip()
                 if url and "PLACEHOLDER" not in url:
                     return url
@@ -70,6 +81,9 @@ def decode_kodik_url(encoded):
     raise ValueError("Decryption of Kodik stream URL failed")
 
 def make_kodik_api_request(anime_id):
+    global WEB_APP_URL
+    WEB_APP_URL = get_web_app_url()
+    
     kodik_tokens = [
         "b7cc4293ed475c4ad1fd599d114f4435",
         "17cc4ee691bc251131a9041e6e89e78e",
@@ -80,6 +94,32 @@ def make_kodik_api_request(anime_id):
         kodik_tokens.insert(0, env_token)
         
     last_error = "No tokens configured"
+
+    # Сначала пытаемся проксировать запрос через наш сайт, 
+    # чтобы обойти блокировки IP адресов Hugging Face со стороны Kodik!
+    if WEB_APP_URL and "WEB_BASE_URL_PLACEHOLDER" not in WEB_APP_URL and "PLACEHOLDER" not in WEB_APP_URL:
+        for idx, token in enumerate(kodik_tokens):
+            proxy_url = f"{WEB_APP_URL.rstrip('/')}/api/media/search?token={token}&shikimori_id={anime_id}"
+            logger.info(f"Querying Kodik API via site proxy: {proxy_url}")
+            try:
+                req = urllib.request.Request(proxy_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    resp_text = response.read().decode('utf-8')
+                
+                if resp_text:
+                    info = json.loads(resp_text)
+                    if info.get("results"):
+                        logger.info("Успешно получили результаты поиска Kodik через прокси сайта!")
+                        return info
+                    else:
+                        logger.warning(f"Kodik API via proxy returned empty results for token {idx}")
+                        last_error = f"Kodik API via proxy returned empty results for token {idx}"
+            except Exception as pe:
+                logger.error(f"Failed to search Kodik via site proxy with token {idx}: {pe}")
+                last_error = f"Proxy search error: {str(pe)}"
+
+    # Резервный вариант (прямой запрос на случай если прокси не настроен или недоступен)
+    logger.info("Резервный поиск: запрашиваем Kodik API напрямую...")
     for idx, token in enumerate(kodik_tokens):
         api_url = f"https://kodik-api.com/search?token={token}&shikimori_id={anime_id}&with_material_data=true"
         logger.info(f"Querying Kodik API with token index {idx}...")
@@ -302,7 +342,8 @@ async def set_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         url = "https://" + url
 
     try:
-        with open("web_app_url.txt", "w", encoding="utf-8") as f:
+        txt_path = get_txt_path()
+        with open(txt_path, "w", encoding="utf-8") as f:
             f.write(url)
 
         global WEB_APP_URL
@@ -742,6 +783,25 @@ def run_health_server():
     except Exception as ge:
         print(f"Gradio launch failed: {ge}")
 
+# Настройка файловой блокировки для избежания повторного запуска polling в Hugging Face (409 Conflict)
+import tempfile
+import time
+
+_lock_file = None
+
+def acquire_bot_lock():
+    global _lock_file
+    lock_path = os.path.join(tempfile.gettempdir(), "kamianime_bot.lock")
+    try:
+        _lock_file = open(lock_path, "w")
+        import fcntl
+        fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        logger.info("Успешно захвачена файловая блокировка бота. Запускаем polling...")
+        return True
+    except Exception as e:
+        logger.warning(f"Пропускаем повторный запуск polling, так как бот уже активен в другом процессе: {e}")
+        return False
+
 def main():
     if not API_TOKEN or API_TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("TELEGRAM_BOT_TOKEN не задан. Бот завершает работу.")
@@ -750,6 +810,12 @@ def main():
     # Запускаем Gradio-сервер
     run_health_server()
         
+    # Проверяем файловую блокировку перед запуском polling
+    if not acquire_bot_lock():
+        print("Активный инстанс бота уже запущен. Этот процесс спит, обслуживая Gradio веб-интерфейс.")
+        while True:
+            time.sleep(3600)
+
     # Настройка прокси/зеркала Telegram API
     base_url = os.getenv("TELEGRAM_BASE_URL", "https://api.telegram.org/bot")
     if base_url and not base_url.endswith("/bot"):
@@ -767,7 +833,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_callback))
     
     print("KamiAnime Телеграм Бот успешно запущен!")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
