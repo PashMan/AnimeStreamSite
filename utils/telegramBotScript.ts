@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 # ВНИМАНИЕ: Переменные SPACE_ID и SPACE_HOST определяются Hugging Face автоматически. НЕ добавляйте их вручную!
 API_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 
+# Абсолютная папка для сохранения скачанных файлов во избежание нестыковок CWD
+DOWNLOADS_DIR = os.path.abspath(".")
+
 # API токен для работы с Kodik
 KODIK_TOKEN = os.getenv("KODIK_API_TOKEN", "17cc4ee691bc251131a9041e6e89e78e")
 
@@ -761,7 +764,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
 
-            output_filename = f"anime_{anime_id}_ep_{episode}_{quality}p.mp4"
+            filename_base = f"anime_{anime_id}_ep_{episode}_{quality}p.mp4"
+            output_filename = os.path.join(DOWNLOADS_DIR, filename_base)
             if os.path.exists(output_filename):
                 try:
                     os.remove(output_filename)
@@ -769,7 +773,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     pass
 
             # 3. Склеивание потока через быстрое параллельное скачивание с ретраями
-            output_filename = f"anime_{anime_id}_ep_{episode}_{quality}p.mp4"
+            filename_base = f"anime_{anime_id}_ep_{episode}_{quality}p.mp4"
+            output_filename = os.path.join(DOWNLOADS_DIR, filename_base)
             if os.path.exists(output_filename):
                 try:
                     os.remove(output_filename)
@@ -871,10 +876,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         if space_host or space_id:
                             if space_host:
-                                download_url = f"https://{space_host}/download/{output_filename}"
+                                download_url = f"https://{space_host}/download/{filename_base}"
                             else:
                                 subdomain = space_id.replace("/", "-").lower()
-                                download_url = f"https://{subdomain}.hf.space/download/{output_filename}"
+                                download_url = f"https://{subdomain}.hf.space/download/{filename_base}"
                             
                             download_text = (
                                 f"🪐 **Прямая ссылка на целый файл (100% качество):**\\n"
@@ -1009,10 +1014,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 space_host = os.getenv("SPACE_HOST", "")
                 if space_host or space_id:
                     if space_host:
-                        download_url = f"https://{space_host}/download/{output_filename}"
+                        download_url = f"https://{space_host}/download/{filename_base}"
                     else:
                         subdomain = space_id.replace("/", "-").lower()
-                        download_url = f"https://{subdomain}.hf.space/download/{output_filename}"
+                        download_url = f"https://{subdomain}.hf.space/download/{filename_base}"
                     download_text = f"🪐 **[Скачать сразу в браузере]({download_url})**\\n\\n"
                 
                 await query.message.reply_chat_action("upload_video")
@@ -1049,10 +1054,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if space_host or space_id:
                     if space_host:
-                        download_url = f"https://{space_host}/download/{output_filename}"
+                        download_url = f"https://{space_host}/download/{filename_base}"
                     else:
                         subdomain = space_id.replace("/", "-").lower()
-                        download_url = f"https://{subdomain}.hf.space/download/{output_filename}"
+                        download_url = f"https://{subdomain}.hf.space/download/{filename_base}"
                     
                     await status_msg.edit_text(
                         f"🍿 **Аниме готово для скачивания!**\\n\\n"
@@ -1125,14 +1130,37 @@ def run_health_server():
             
             @demo.app.get("/download/{filename}")
             async def download_file(filename: str):
-                safe_cwd = os.path.abspath(".")
-                safe_path = os.path.abspath(os.path.join(safe_cwd, filename))
+                # Защита от выхода из директории (path traversal)
+                if "/" in filename or "\\" in filename or ".." in filename or not filename.endswith(".mp4"):
+                    raise HTTPException(status_code=403, detail="Invalid filename format or access denied")
                 
-                # Защита: разрешаем скачивать только .mp4 файлы из текущей рабочей директории
-                if not safe_path.startswith(safe_cwd) or not filename.endswith(".mp4"):
-                    raise HTTPException(status_code=403, detail="Access denied")
-                    
-                if not os.path.exists(safe_path):
+                cwd = os.path.abspath(".")
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                parent_dir = os.path.dirname(script_dir)
+                
+                paths_to_try = [
+                    os.path.join(DOWNLOADS_DIR if 'DOWNLOADS_DIR' in globals() else cwd, filename),
+                    os.path.join(cwd, filename),
+                    os.path.join(script_dir, filename),
+                    os.path.join(parent_dir, filename),
+                    os.path.join("/tmp", filename)
+                ]
+                
+                safe_path = None
+                for path in paths_to_try:
+                    abs_path = os.path.abspath(path)
+                    logger.info(f"Checking download path: {abs_path}")
+                    if os.path.exists(abs_path) and os.path.isfile(abs_path):
+                        safe_path = abs_path
+                        break
+                
+                if not safe_path:
+                    try:
+                        logger.error(f"File not found in any path for: {filename}.")
+                        logger.error(f"Current working dir: {cwd}. Files: {os.listdir(cwd)}")
+                        logger.error(f"Script dir: {script_dir}. Files: {os.listdir(script_dir)}")
+                    except Exception as le:
+                        logger.error(f"Logging file list error: {le}")
                     raise HTTPException(status_code=404, detail="File not found")
                     
                 # Заставляем браузер скачивать файл сразу с оригинальным наименованием (как attachment)

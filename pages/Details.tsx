@@ -1352,9 +1352,9 @@ const Details: React.FC = () => {
                   )}
                   <button
                     onClick={() => setIsDownloadModalOpen(true)}
-                    className="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.03] active:scale-95 flex items-center gap-2 whitespace-nowrap shadow-lg shadow-cyan-500/10"
+                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-black rounded-lg text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.03] active:scale-95 flex items-center gap-2 whitespace-nowrap shadow-lg shadow-amber-500/10"
                   >
-                    <Download className="w-4 h-4" /> Скачать в TG
+                    <Download className="w-4 h-4" /> Скачать серию
                   </button>
                 </div>
               </div>
@@ -2181,83 +2181,70 @@ const Details: React.FC = () => {
         </div>
       )}
 
-       {/* Download TG Bot Info Modal */}
+       {/* Download Series Modal */}
       {isDownloadModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface border border-white/10 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#111827] border border-white/10 rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-500 to-yellow-500"></div>
             <button
               onClick={() => setIsDownloadModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors z-10"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-12 h-12 bg-cyan-500/20 rounded-2xl flex items-center justify-center text-cyan-400 mb-6">
-              <Bot className="w-6 h-6" />
+            <div className="mb-6">
+              <h3 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                <Download className="w-6 h-6 text-amber-500 animate-pulse" />
+                Скачивание серии
+              </h3>
+              <p className="text-slate-400 text-sm mt-1">
+                Выберите качество для моментальной сборки и скачивания видеофайла прямо в браузере:
+              </p>
             </div>
 
-            <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-              Скачивание через Telegram Бот
-            </h3>
-            <p className="text-slate-400 text-sm mb-6">
-              Быстрый и удобный способ сохранить любимое аниме для просмотра в офлайн-режиме:
-            </p>
+            {(() => {
+              const baseIframe =
+                selectedTranslation?.iframe ||
+                players.find((p) => p.name === "Kodik")?.iframe;
+              if (baseIframe) {
+                let kodikIframeWithEpisode = baseIframe;
+                try {
+                  const url = new URL(
+                    kodikIframeWithEpisode.startsWith("//")
+                      ? `https:${kodikIframeWithEpisode}`
+                      : kodikIframeWithEpisode,
+                  );
+                  if (paramEpisode) {
+                    url.searchParams.set("episode", paramEpisode);
+                  }
+                  kodikIframeWithEpisode = url.toString();
+                } catch (e) {}
 
-            <div className="space-y-4 mb-8 text-slate-300">
-              <div className="flex gap-4">
-                <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 mt-1 font-bold text-sm">
-                  1
-                </div>
-                <div>
-                  <h4 className="text-white font-bold text-sm">Переход в бота @{import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "KamiAnime_bot"}</h4>
-                  <p className="text-slate-400 text-xs mt-1">
-                    Кнопка ниже автоматически откроет нашего официального бота и передаст параметры выбранного аниме {paramEpisode ? `(${paramEpisode} серия)` : ''}.
+                return (
+                  <BrowserDownloadWidget
+                    episodeUrl={kodikIframeWithEpisode}
+                    animeTitle={anime?.title || "Anime"}
+                    episodeNumber={paramEpisode || "1"}
+                  />
+                );
+              }
+              return (
+                <div className="p-6 text-center text-slate-400 bg-white/5 border border-white/10 rounded-2xl">
+                  <p className="font-semibold text-white mb-2 ml-1 flex items-center justify-center gap-1.5">
+                    Прямое скачивание недоступно
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Для данного релиза отсутствует медиа-источник Kodik, необходимый для сборки файлов.
                   </p>
                 </div>
-              </div>
+              );
+            })()}
 
-              <div className="flex gap-4">
-                <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 mt-1 font-bold text-sm">
-                  2
-                </div>
-                <div>
-                  <h4 className="text-white font-bold text-sm">Выбор качества</h4>
-                  <p className="text-slate-400 text-xs mt-1">
-                    В чате с ботом нажмите кнопку выбора подходящего разрешения видео (например, HD или Full HD качества) для начала обработки.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 mt-1 font-bold text-sm">
-                  3
-                </div>
-                <div>
-                  <h4 className="text-white font-bold text-sm">Сохранение файла</h4>
-                  <p className="text-slate-400 text-xs mt-1">
-                    Бот мгновенно подготовит и пришлет готовый MP4-файл или стабильную ссылку для моментального сканирования и скачивания на любое устройство.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => {
-                  const botDlUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || "KamiAnime_bot";
-                  const trPart = selectedTranslation ? `_tr${selectedTranslation.id}` : "";
-                  const dlParam = `dl_${id}${paramEpisode ? `_ep${paramEpisode}` : ""}${trPart}`;
-                  window.open(`https://t.me/${botDlUsername}?start=${dlParam}`, "_blank");
-                  setIsDownloadModalOpen(false);
-                }}
-                className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white rounded-xl font-bold uppercase tracking-widest text-xs transition-colors flex items-center justify-center gap-2"
-              >
-                <Download className="w-4 h-4" /> Перейти к скачиванию
-              </button>
+            <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setIsDownloadModalOpen(false)}
-                className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black uppercase tracking-widest text-[10px] transition-colors"
+                className="px-6 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-colors"
               >
                 Закрыть
               </button>
