@@ -30,29 +30,61 @@ KODIK_TOKEN = os.getenv("KODIK_API_TOKEN", "17cc4ee691bc251131a9041e6e89e78e")
 
 # URL вашего веб-приложения для резервного декодирования.
 # При копировании скрипта плейсхолдер заменяется на реальный адрес вашего сайта.
-def get_txt_path():
+_cached_url = None
+
+def get_possible_txt_paths():
+    paths = []
+    # 1. Специфичный путь рядом со скриптом
     try:
-        # Пытаемся получить абсолютный путь к файлу в директории самого скрипта
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if base_dir:
-            return os.path.join(base_dir, "web_app_url.txt")
+            paths.append(os.path.join(base_dir, "web_app_url.txt"))
     except:
         pass
-    return "web_app_url.txt"
+    # 2. Относительный путь в текущей рабочей папке
+    paths.append("web_app_url.txt")
+    # 3. Абсолютный путь во временной папке (всегда доступен на запись в HF/Docker)
+    paths.append("/tmp/web_app_url.txt")
+    # 4. Абсолютный путь в домашней папке страницы
+    try:
+        home_dir = os.path.expanduser("~")
+        if home_dir:
+            paths.append(os.path.join(home_dir, "web_app_url.txt"))
+    except:
+        pass
+    # Очистим дубликаты сохраняя порядок
+    seen = set()
+    unique_paths = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique_paths.append(p)
+    return unique_paths
 
 def get_web_app_url():
-    txt_path = get_txt_path()
-    if os.path.exists(txt_path):
-        try:
-            with open(txt_path, "r", encoding="utf-8") as f:
-                url = f.read().strip()
-                if url and "PLACEHOLDER" not in url:
-                    return url
-        except:
-            pass
+    global _cached_url
+    if _cached_url and "PLACEHOLDER" not in _cached_url:
+        return _cached_url
+
+    # Пытаемся прочитать из всех возможных путей
+    for path in get_possible_txt_paths():
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    url = f.read().strip()
+                    if url and "PLACEHOLDER" not in url:
+                        logger.info(f"Успешно прочитан URL сайта из файла {path}: {url}")
+                        _cached_url = url
+                        return url
+            except Exception as e:
+                logger.debug(f"Не удалось прочитать {path}: {e}")
+
     env_url = os.getenv("WEB_APP_URL", "")
     if env_url and "PLACEHOLDER" not in env_url and env_url != "WEB_BASE_URL_PLACEHOLDER":
+        logger.info(f"Используем URL сайта из переменной окружения WEB_APP_URL: {env_url}")
+        _cached_url = env_url
         return env_url
+
     return "WEB_BASE_URL_PLACEHOLDER"
 
 WEB_APP_URL = get_web_app_url()
@@ -331,7 +363,7 @@ async def set_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "✍️ **Укажите адрес вашего сайта!**\\n\\n"
             "Пример:\\n"
-            "\`/seturl https://kamianime.club\`\\n\\n"
+            "**/seturl https://kamianime.club**\\n\\n"
             "Бот мгновенно переключится на дешифратор этого сайта без необходимости редактировать файлы или перезапускать Space.",
             parse_mode="Markdown"
         )
@@ -341,23 +373,42 @@ async def set_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
 
-    try:
-        txt_path = get_txt_path()
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(url)
+    # Сохраняем в кэш в памяти
+    global WEB_APP_URL, _cached_url
+    WEB_APP_URL = url
+    _cached_url = url
+    logger.info(f"Команда /seturl: установлен URL {url}")
 
-        global WEB_APP_URL
-        WEB_APP_URL = url
+    # Пытаемся записать во все возможные пути для надежности сохранения
+    errors = []
+    success_paths = []
+    for path in get_possible_txt_paths():
+        try:
+            # Создаем родительские папки, если нужно
+            parent = os.path.dirname(path)
+            if parent and not os.path.exists(parent):
+                os.makedirs(parent, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(url)
+            success_paths.append(path)
+        except Exception as e:
+            errors.append(f"{path}: {str(e)}")
 
+    if success_paths:
+        logger.info(f"URL успешно записан в файлы: {success_paths}")
         await update.message.reply_text(
             f"✅ **Бот успешно привязан к сайту!**\\n\\n"
-            f"🔗 Адрес сайта: {url}\\n\\n"
-            f"Теперь дешифрование Kodik будет автоматически проходить через ваш сайт для обхода лимитов и блокировок.",
+            f"🔗 Адрес сайта: **{url}**\\n\\n"
+            f"Дешифрование Kodik будет автоматически проходить через этот сайт для обхода лимитов и блокировок.\\n"
+            f"*(Сохранено в {len(success_paths)} локациях на сервере)*",
             parse_mode="Markdown"
         )
-    except Exception as e:
+    else:
+        logger.error(f"Не удалось сохранить URL в файлы: {errors}")
         await update.message.reply_text(
-            f"⚠️ **Не удалось привязать сайт:** {str(e)}",
+            f"⚠️ **Адрес установлен в памяти бота, но не удалось записать его на диск для автозапуска:**\\n"
+            f"Адрес сайта: **{url}**\\n"
+            f"Ошибки записи: {', '.join(errors)}",
             parse_mode="Markdown"
         )
 
