@@ -883,7 +883,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Запуск нативного Gradio интерфейса для прохождения проверок Hugging Face Spaces
 def run_health_server():
     try:
-        with gr.Blocks(title="KamiAnime Bot Dashboard", theme=gr.themes.Soft(), allowed_paths=["."]) as demo:
+        # Устанавливаем переменную окружения разрешенных путей Gradio
+        cwd = os.path.abspath(".")
+        os.environ["GRADIO_ALLOWED_PATHS"] = cwd
+        logger.info(f"Настройка GRADIO_ALLOWED_PATHS: {cwd}")
+        
+        with gr.Blocks(title="KamiAnime Bot Dashboard", theme=gr.themes.Soft()) as demo:
             gr.Markdown(
                 """
                 # 🍿 KamiAnime Telegram Bot
@@ -899,7 +904,13 @@ def run_health_server():
                 - **Прямые ссылки для скачивания**: Генерируются автоматически в диалоге с ботом через '/file=...'
                 """
             )
-        demo.launch(server_name="0.0.0.0", server_port=7860, prevent_thread_lock=True, show_api=False)
+        demo.launch(
+            server_name="0.0.0.0", 
+            server_port=7860, 
+            prevent_thread_lock=True, 
+            show_api=False,
+            allowed_paths=[cwd]
+        )
         print("Gradio запущен на порту 7860")
     except Exception as ge:
         print(f"Gradio launch failed: {ge}")
