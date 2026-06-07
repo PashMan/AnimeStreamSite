@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Download, Loader2, Film, CheckCircle, AlertTriangle, ArrowDownToLine } from "lucide-react";
+import { Download, Loader2, Film, CheckCircle, AlertTriangle } from "lucide-react";
 
 interface BrowserDownloadWidgetProps {
   episodeUrl: string;
@@ -33,7 +33,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   const [downloading, setDownloading] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load available qualities from Kodik playlist endpoint
+  // Load available qualities from Kodik playlist endpoint with absolute defensive parsing
   useEffect(() => {
     if (!episodeUrl) return;
 
@@ -43,18 +43,22 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       setQualities([]);
       try {
         const res = await fetch(`/api/media/playlist?url=${encodeURIComponent(episodeUrl)}&resolve=true`);
-        if (!res.ok) throw new Error("Не удалось получить список качеств видео");
-        const data = await res.json();
+        
+        const text = await res.text();
+        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html") || !res.ok) {
+          throw new Error("Сервер не вернул список видео. Пожалуйста, обновите страницу или повторите попытку позже.");
+        }
+
+        const data = JSON.parse(text);
         if (data.success && data.qualities) {
-          // Sort descending
           const sorted = [...data.qualities].sort((a, b) => Number(b) - Number(a));
           setQualities(sorted.map(String));
         } else {
-          throw new Error("Не найдено доступных вариантов качества видео");
+          throw new Error("Варианты качества видео не найдены");
         }
       } catch (err: any) {
         console.error("Error fetching qualities:", err);
-        setError(err.message || "Ошибка при получении качеств стрима");
+        setError(err.message || "Ошибка при получении качеств видео");
       } finally {
         setLoadingQualities(false);
       }
@@ -62,7 +66,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
 
     fetchQualities();
     
-    // Clear download state when episodeUrl changes
+    // Clear download state when episode changes
     setTaskId(null);
     setProgress(null);
     setDownloading(false);
@@ -91,9 +95,13 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       const res = await fetch(
         `/api/media/download/start?url=${encodeURIComponent(episodeUrl)}&quality=${quality}&title=${encodeURIComponent(animeTitle)}&episode=${episodeNumber}`
       );
-      if (!res.ok) throw new Error("Не удалось запустить процесс сборки видеофайла на сервере");
       
-      const data = await res.json();
+      const text = await res.text();
+      if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html") || !res.ok) {
+        throw new Error("Не удалось запустить сборку видеофайла на сервере. Пожалуйста, попробуйте еще раз.");
+      }
+      
+      const data = JSON.parse(text);
       if (data.success && data.taskId) {
         setTaskId(data.taskId);
         startPolling(data.taskId);
@@ -101,7 +109,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         throw new Error(data.error || "Ошибка инициализации загрузки");
       }
     } catch (err: any) {
-      setError(err.message || "Ошибка подключения");
+      setError(err.message || "Ошибка подключения к серверу");
       setDownloading(false);
     }
   };
@@ -112,13 +120,21 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
     const poll = async () => {
       try {
         const res = await fetch(`/api/media/download/progress?taskId=${tid}`);
+        
+        const text = await res.text();
+        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+          // If returned HTML, ignore or wait next attempt to avoid crashing
+          return;
+        }
+
         if (!res.ok) {
           if (res.status === 404) {
-             throw new Error("Задача на сервере не найдена");
+             throw new Error("Задача на сервере завершилась или не найдена");
           }
           return;
         }
-        const data: DownloadProgress = await res.json();
+
+        const data: DownloadProgress = JSON.parse(text);
         setProgress(data);
 
         if (data.status === "success") {
@@ -133,12 +149,12 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
           }
-          setError(data.error || "Сборка видеофайла прервалась ошибкой на сервере");
+          setError(data.error || "Сборка видеофайла прервалась ошибкой");
           setDownloading(false);
         }
       } catch (err: any) {
         console.error("Polling error:", err);
-        setError(err.message || "Потеряно подключение к серверу во время сборки");
+        setError(err.message || "Потеряно подключение к серверу");
         setDownloading(false);
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current);
@@ -164,64 +180,62 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   const getStageMessage = (stage: string) => {
     switch (stage) {
       case "resolving":
-        return "🔍 Получение ссылки на поток от Kodik Player...";
+        return "Подготовка потока...";
       case "downloading":
-        return `📥 Быстрое скачивание видео-сегментов... (${progress?.processed || 0}/${progress?.total || 1})`;
+        return `Загрузка сегментов... (${progress?.processed || 0}/${progress?.total || 1})`;
       case "merging":
-        return "⚡ Склеивание сегментов в медиапоток без потери качества...";
+        return "Сборка видеофайла...";
       case "muxing":
-        return "⚙️ Сохранение в готовый MP4 контейнер...";
+        return "Оптимизация формата...";
       case "ready":
-        return "🍿 Готово! Видео передается в браузер...";
+        return "Передача в браузер...";
       case "failed":
-        return "❌ Сбой сборки файла.";
+        return "Ошибка.";
       default:
-        return "🚀 Запуск процесса...";
+        return "Запуск...";
     }
   };
 
   return (
-    <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-6 md:p-8 mt-10 transition-all duration-300">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h4 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
-            <ArrowDownToLine className="w-5 h-5 text-amber-500 animate-bounce" />
-            Прямое скачивание в браузере
-          </h4>
-          <p className="text-slate-400 text-xs mt-1 max-w-xl">
-            Скачивайте серию в максимальном качестве сразу к себе на устройство (ПК, телефон, ТВ) на полной скорости вашего интернета, в обход любых ограничений Telegram.
-          </p>
-        </div>
+    <div className="bg-[#1f2937]/50 border border-white/5 rounded-2xl p-6 transition-all duration-300">
+      <div className="flex flex-col gap-4">
+        <label className="text-sm font-semibold text-slate-300 tracking-wide">
+          Выберите качество:
+        </label>
 
         <div className="flex flex-wrap items-center gap-3">
           {loadingQualities && (
-            <div className="flex items-center gap-2 text-slate-400 text-xs font-medium">
+            <div className="flex items-center gap-2 text-slate-400 text-xs font-medium py-2">
               <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
-              Сканирование качеств...
+              Загрузка доступного качества...
             </div>
           )}
 
           {error && (
-            <div className="text-red-400 text-xs font-semibold flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              {error}
+            <div className="text-red-400 text-xs font-semibold flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 px-4 py-2 rounded-xl w-full">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
           {!loadingQualities && qualities.length > 0 && !downloading && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               {qualities.map((qual) => (
                 <button
                   key={qual}
                   onClick={() => handleStartDownload(qual)}
                   disabled={downloading}
-                  className="flex items-center gap-1.5 bg-white/5 hover:bg-amber-500 hover:text-black border border-white/10 hover:border-amber-400 transition-all duration-300 text-white font-bold text-xs uppercase px-4 py-2 rounded-xl cursor-pointer shadow-lg shadow-black/20"
+                  className="flex items-center gap-1.5 bg-[#111827] hover:bg-amber-500 hover:text-black border border-white/10 hover:border-amber-400 transition-all duration-300 text-slate-200 font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-lg active:scale-95 disabled:opacity-50"
                 >
-                  <Film className="w-3.5 h-3.5" />
+                  <Film className="w-3.5 h-3.5 shrink-0" />
                   {qual}p
                 </button>
               ))}
             </div>
+          )}
+
+          {!loadingQualities && qualities.length === 0 && !error && (
+            <span className="text-slate-400 text-xs">Доступное качество не обнаружено</span>
           )}
         </div>
       </div>
@@ -229,40 +243,40 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       {downloading && progress && (
         <div className="mt-6 border-t border-white/5 pt-6 space-y-3 animate-fade-in">
           <div className="flex justify-between items-center text-xs">
-            <div className="flex items-center gap-2 font-black text-slate-300 uppercase tracking-wider">
+            <div className="flex items-center gap-2 font-bold text-slate-300">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
-              {getStageMessage(progress.stage)}
+              <span>{getStageMessage(progress.stage)}</span>
             </div>
             <span className="font-mono text-amber-500 font-bold text-sm bg-amber-500/10 px-2 py-0.5 rounded">
               {progress.progress}%
             </span>
           </div>
 
-          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+          <div className="h-2 w-full bg-[#111827] rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(245,158,11,0.4)]"
               style={{ width: `${progress.progress}%` }}
             />
           </div>
 
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider self-end">
-            Пожалуйста, не закрывайте страницу до завершения сборки серии...
+          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider text-right">
+            Пожалуйста, не закрывайте вкладку во время скачивания.
           </p>
         </div>
       )}
 
       {!downloading && progress?.status === "success" && (
-        <div className="mt-6 border-t border-white/5 pt-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 p-4 rounded-2xl transition-all duration-300">
+        <div className="mt-6 border-t border-white/5 pt-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 p-4 rounded-xl transition-all duration-300">
           <div className="flex items-center gap-3">
             <CheckCircle className="w-6 h-6 text-emerald-400 shrink-0" />
             <div>
-              <p className="text-white font-bold text-sm">Сборка успешно завершена!</p>
-              <p className="text-slate-400 text-xs mt-0.5">Файл {progress.fileName} подготовлен без потери качества.</p>
+              <p className="text-white font-bold text-sm">Готово!</p>
+              <p className="text-slate-400 text-xs mt-0.5">Файл подготовлен и передан браузеру.</p>
             </div>
           </div>
           <button
             onClick={() => triggerFileDownload(progress.id, progress.fileName || "video.mp4")}
-            className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs uppercase px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105"
+            className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105"
           >
             <Download className="w-4 h-4" />
             Скачать файл
