@@ -61,29 +61,42 @@ def get_possible_txt_paths():
             unique_paths.append(p)
     return unique_paths
 
+def is_valid_url(url):
+    if not url:
+        return False
+    url = url.strip()
+    return url.startswith(("http://", "https://")) and "PLACEHOLDER" not in url
+
 def get_web_app_url():
     global _cached_url
-    if _cached_url and "PLACEHOLDER" not in _cached_url:
+    if is_valid_url(_cached_url):
         return _cached_url
 
-    # Пытаемся прочитать из всех возможных путей
+    # 1. Пытаемся прочитать из всех возможных путей
     for path in get_possible_txt_paths():
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     url = f.read().strip()
-                    if url and "PLACEHOLDER" not in url:
-                        logger.info(f"Успешно прочитан URL сайта из файла {path}: {url}")
-                        _cached_url = url
-                        return url
+                if is_valid_url(url):
+                    logger.info(f"Успешно прочитан URL сайта из файла {path}: {url}")
+                    _cached_url = url
+                    return url
             except Exception as e:
-                logger.debug(f"Не удалось прочитать {path}: {e}")
+                logger.warning(f"Не удалось прочитать {path}: {e}")
 
-    env_url = os.getenv("WEB_APP_URL", "")
-    if env_url and "PLACEHOLDER" not in env_url and env_url != "WEB_BASE_URL_PLACEHOLDER":
+    # 2. Пытаемся взять из переменной окружения
+    env_url = os.getenv("WEB_APP_URL", "").strip()
+    if is_valid_url(env_url):
         logger.info(f"Используем URL сайта из переменной окружения WEB_APP_URL: {env_url}")
         _cached_url = env_url
         return env_url
+
+    # 3. Возвращаем плейсхолдер по умолчанию
+    default_url = "WEB_BASE_URL_PLACEHOLDER"
+    if is_valid_url(default_url):
+        _cached_url = default_url
+        return default_url
 
     return "WEB_BASE_URL_PLACEHOLDER"
 
@@ -190,51 +203,39 @@ def extract_m3u8_stream(iframe_url, quality=None):
         iframe_url = "https:" + iframe_url
         
     # Сначала пытаемся использовать дешифратор нашего веб-приложения (рекомендуемый и самый стабильный способ)
-    if not WEB_APP_URL or "WEB_BASE_URL_PLACEHOLDER" in WEB_APP_URL or "PLACEHOLDER" in WEB_APP_URL:
-        raise ValueError(
-            "Бот не привязан к нашему сайту! \\n\\n"
-            "⚠️ **Для обхода блокировок и стабильного скачивания боту необходим декодер вашего сайта.**\\n"
-            "Вы можете привязать бот мгновенно прямо в Телеграмме! Напишите боту команду:\\n"
-            "👉 \`/seturl https://ваш-сайт.com\`\\n\\n"
-            "Или выполните эти шаги:\\n"
-            "1. Зайдите в **Админ-панель** вашего сайта KamiAnime.\\n"
-            "2. Скопируйте обновленный код **app.py** (там автоматически прописан реальный адрес вашего сайта).\\n"
-            "3. Замените им содержимое файла 'app.py' на Hugging Face.\\n\\n"
-            "*Или добавьте переменную окружения (Repository Secret) 'WEB_APP_URL' со значением адреса вашего сайта в настройках Hugging Face Space.*"
-        )
-
-    api_url = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&resolve=true"
-    logger.info(f"Резолвим поток через API веб-приложения: {api_url}")
-    try:
-        req = urllib.request.Request(
-            api_url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        )
-        with urllib.request.urlopen(req, timeout=20) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            
-        if res_data.get("success") and res_data.get("links"):
-            # Вместо оригинальных ссылок, возвращаем проксированные ссылки нашего сайта, 
-            # чтобы FFmpeg компилировал поток через наш прокси без блокировок IP на Hugging Face!
-            links_dict = {}
-            for q in res_data["links"].keys():
-                proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
-                links_dict[q] = [{"src": proxied_m3u8}]
-            
-            available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
-            if available_qualities:
-                logger.info("Успешно получили проксированные потоки через API веб-приложения!")
-                return available_qualities, links_dict
+    has_web_app = WEB_APP_URL and "WEB_BASE_URL_PLACEHOLDER" not in WEB_APP_URL and "PLACEHOLDER" not in WEB_APP_URL
+    
+    if has_web_app:
+        api_url = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&resolve=true"
+        logger.info(f"Резолвим поток через API веб-приложения: {api_url}")
+        try:
+            req = urllib.request.Request(
+                api_url, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            )
+            with urllib.request.urlopen(req, timeout=20) as response:
+                res_data = json.loads(response.read().decode('utf-8'))
+                
+            if res_data.get("success") and res_data.get("links"):
+                # Вместо оригинальных ссылок, возвращаем проксированные ссылки нашего сайта, 
+                # чтобы FFmpeg компилировал поток через наш прокси без блокировок IP на Hugging Face!
+                links_dict = {}
+                for q in res_data["links"].keys():
+                    proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
+                    links_dict[q] = [{"src": proxied_m3u8}]
+                
+                available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
+                if available_qualities:
+                    logger.info("Успешно получили проксированные потоки через API веб-приложения!")
+                    return available_qualities, links_dict
+                else:
+                    logger.warning("Декодер сайта вернул пустой список разрешений вещания.")
             else:
-                raise ValueError("Декодер сайта вернул пустой список разрешений вещания.")
-        else:
-            raise ValueError(f"Декодер сайта сообщил об ошибке: {res_data.get('error', 'Неизвестная ошибка')}")
-    except Exception as proxy_err:
-        raise RuntimeError(
-            f"Не удалось подключиться к декодеру сайта ({WEB_APP_URL}).\\n"
-            f"Ошибка подключения: {proxy_err}\\n\\n"
-            f"Пожалуйста, убедитесь, что ваш сайт активен и работает по указанному адресу!"
-        )
+                logger.warning(f"Декодер сайта сообщил об ошибке: {res_data.get('error', 'Неизвестная ошибка')}")
+        except Exception as proxy_err:
+            logger.warning(f"Не удалось подключиться к декодеру сайта ({WEB_APP_URL}): {proxy_err}. Пробуем локальный парсинг.")
+    else:
+        logger.info("Бот не привязан к сайту (WEB_APP_URL не задан или содержит плейсхолдер). Инициализируем локальный парсинг.")
 
     # Локальный парсинг (резервный вариант)
     # Резолвим домены для борьбы с блокировками и лимитами, как в веб-прокси
