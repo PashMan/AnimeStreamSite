@@ -587,13 +587,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             cmd = [
                 "ffmpeg", "-y",
                 "-headers", "Referer: https://kodik.info/\\r\\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\n",
+                "-http_persistent", "1",
+                "-reconnect", "1",
+                "-reconnect_at_eof", "1",
+                "-reconnect_streamed", "1",
+                "-reconnect_delay_max", "5",
                 "-i", playlist_url,
                 "-c", "copy",
                 "-bsf:a", "aac_adtstoasc",
                 output_filename
             ]
             
-            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120)
+            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
             
             if not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
                 raise RuntimeError(f"FFmpeg failed: {process.stderr or process.stdout}")
@@ -804,12 +809,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         except Exception as e:
             logger.error(f"Error in callback: {e}")
+            import html
+            safe_err = html.escape(str(e))
             err_text = (
-                f"❌ Возникла ошибка при обработке или скачивании:\\n"
-                f"_{str(e)}_\\n\\n"
+                f"❌ <b>Возникла ошибка при обработке или скачивании:</b>\\n"
+                f"<code>{safe_err}</code>\\n\\n"
                 f"Попробуйте выбрать другое качество или серию!"
             )
-            await status_msg.edit_text(err_text, parse_mode="Markdown")
+            await status_msg.edit_text(err_text, parse_mode="HTML")
 
 # Запуск нативного Gradio интерфейса для прохождения проверок Hugging Face Spaces
 def run_health_server():

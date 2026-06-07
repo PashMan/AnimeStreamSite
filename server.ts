@@ -1481,9 +1481,9 @@ app.get('/api/media/segment', async (c) => {
       return new Response(`Error fetching segment after retries: ${errMsg}`, { status: response ? response.status : 502 });
     }
 
-    const arrayBuffer = await response.arrayBuffer();
+    const bodyData = response.body || await response.arrayBuffer();
 
-    return new Response(arrayBuffer, {
+    return new Response(bodyData, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('content-type') || 'video/mp2t',
