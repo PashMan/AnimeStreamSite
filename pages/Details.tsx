@@ -2185,7 +2185,7 @@ const Details: React.FC = () => {
       {isDownloadModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
           <div className="bg-[#111827] border border-white/10 rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-500 to-yellow-500"></div>
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
             <button
               onClick={() => setIsDownloadModalOpen(false)}
               className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors z-10"
@@ -2195,11 +2195,11 @@ const Details: React.FC = () => {
 
             <div className="mb-6">
               <h3 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-                <Download className="w-6 h-6 text-amber-500 animate-pulse" />
+                <Download className="w-6 h-6 text-cyan-400" />
                 Скачивание серии
               </h3>
               <p className="text-slate-400 text-sm mt-1">
-                Выберите качество для моментальной сборки и скачивания видеофайла прямо в браузере:
+                Выберите качество, чтобы собрать и скачать видеофайл прямо в браузере:
               </p>
             </div>
 
