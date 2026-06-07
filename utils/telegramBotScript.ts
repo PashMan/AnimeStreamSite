@@ -30,7 +30,21 @@ KODIK_TOKEN = os.getenv("KODIK_API_TOKEN", "17cc4ee691bc251131a9041e6e89e78e")
 
 # URL вашего веб-приложения для резервного декодирования.
 # При копировании скрипта плейсхолдер заменяется на реальный адрес вашего сайта.
-WEB_APP_URL = os.getenv("WEB_APP_URL", "WEB_BASE_URL_PLACEHOLDER")
+def get_web_app_url():
+    if os.path.exists("web_app_url.txt"):
+        try:
+            with open("web_app_url.txt", "r", encoding="utf-8") as f:
+                url = f.read().strip()
+                if url and "PLACEHOLDER" not in url:
+                    return url
+        except:
+            pass
+    env_url = os.getenv("WEB_APP_URL", "")
+    if env_url and "PLACEHOLDER" not in env_url and env_url != "WEB_BASE_URL_PLACEHOLDER":
+        return env_url
+    return "WEB_BASE_URL_PLACEHOLDER"
+
+WEB_APP_URL = get_web_app_url()
 
 def convert_char(char, num):
     alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -98,6 +112,8 @@ def make_kodik_api_request(anime_id):
     raise RuntimeError(f"Все доступные API-токены Kodik исчерпали лимит запросов, заблокированы либо не возвращают результатов. Причина: {last_error}")
 
 def extract_m3u8_stream(iframe_url, quality=None):
+    global WEB_APP_URL
+    WEB_APP_URL = get_web_app_url()
     if iframe_url.startswith("//"):
         iframe_url = "https:" + iframe_url
         
@@ -106,7 +122,9 @@ def extract_m3u8_stream(iframe_url, quality=None):
         raise ValueError(
             "Бот не привязан к нашему сайту! \\n\\n"
             "⚠️ **Для обхода блокировок и стабильного скачивания боту необходим декодер вашего сайта.**\\n"
-            "Пожалуйста, выполните эти шаги:\\n"
+            "Вы можете привязать бот мгновенно прямо в Телеграмме! Напишите боту команду:\\n"
+            "👉 \`/seturl https://ваш-сайт.com\`\\n\\n"
+            "Или выполните эти шаги:\\n"
             "1. Зайдите в **Админ-панель** вашего сайта KamiAnime.\\n"
             "2. Скопируйте обновленный код **app.py** (там автоматически прописан реальный адрес вашего сайта).\\n"
             "3. Замените им содержимое файла 'app.py' на Hugging Face.\\n\\n"
@@ -264,6 +282,43 @@ def extract_m3u8_stream(iframe_url, quality=None):
         raise ValueError("No video stream found for any quality.")
         
     return available_qualities, links_dict
+
+async def set_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Команда /seturl <url> для мгновенной привязки бота к сайту.
+    """
+    if not context.args:
+        await update.message.reply_text(
+            "✍️ **Укажите адрес вашего сайта!**\\n\\n"
+            "Пример:\\n"
+            "\`/seturl https://kamianime.club\`\\n\\n"
+            "Бот мгновенно переключится на дешифратор этого сайта без необходимости редактировать файлы или перезапускать Space.",
+            parse_mode="Markdown"
+        )
+        return
+
+    url = context.args[0].strip().rstrip('/')
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+
+    try:
+        with open("web_app_url.txt", "w", encoding="utf-8") as f:
+            f.write(url)
+
+        global WEB_APP_URL
+        WEB_APP_URL = url
+
+        await update.message.reply_text(
+            f"✅ **Бот успешно привязан к сайту!**\\n\\n"
+            f"🔗 Адрес сайта: {url}\\n\\n"
+            f"Теперь дешифрование Kodik будет автоматически проходить через ваш сайт для обхода лимитов и блокировок.",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        await update.message.reply_text(
+            f"⚠️ **Не удалось привязать сайт:** {str(e)}",
+            parse_mode="Markdown"
+        )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -708,6 +763,7 @@ def main():
     
     app = Application.builder().token(API_TOKEN).base_url(base_url).request(request_config).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("seturl", set_url))
     app.add_handler(CallbackQueryHandler(button_callback))
     
     print("KamiAnime Телеграм Бот успешно запущен!")
