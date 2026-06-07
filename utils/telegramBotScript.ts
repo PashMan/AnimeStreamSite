@@ -160,13 +160,18 @@ def main():
     t = threading.Thread(target=run_health_server, daemon=True)
     t.start()
         
+    # Настройка прокси/зеркала Telegram API на случай блокировок со стороны Hugging Face или Telegram
+    base_url = os.getenv("TELEGRAM_BASE_URL", "https://api.telegram.org/bot")
+    if base_url and not base_url.endswith("/bot"):
+        base_url = base_url.rstrip("/") + "/bot"
+        
     request_config = HTTPXRequest(
-        connect_timeout=30.0,
-        read_timeout=30.0,
-        write_timeout=30.0
+        connect_timeout=45.0,
+        read_timeout=45.0,
+        write_timeout=45.0
     )
     
-    app = Application.builder().token(API_TOKEN).request(request_config).build()
+    app = Application.builder().token(API_TOKEN).base_url(base_url).request(request_config).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_callback))
     

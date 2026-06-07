@@ -576,6 +576,38 @@ requests
                           <span className="font-semibold text-white">Добавьте Secrets</span>:
                           В настройках вашего Space перейдите в раздел <span className="text-white">Settings &gt; Repository Secrets</span> и добавьте переменную <code className="bg-slate-900 px-1 py-0.5 rounded text-rose-400">TELEGRAM_BOT_TOKEN</code> со значением вашего токена от BotFather.
                         </li>
+                        <li className="text-amber-300 font-medium">
+                          ⚠️ <span className="font-semibold text-white">Решение ошибки "Timed out / ConnectTimeout"</span>:
+                          Telegram блокирует запросы с IP-адресов Hugging Face. Чтобы бот заработал, добавьте еще одну переменную в <span className="text-white">Settings &gt; Repository Secrets</span>:
+                          <ul className="list-disc list-inside space-y-2 pl-4 mt-2 text-slate-300">
+                            <li>Имя: <code className="bg-slate-900 px-1 py-0.5 rounded text-emerald-400 font-mono">TELEGRAM_BASE_URL</code></li>
+                            <li>
+                              Значение (выберите любой рабочий прокси/зеркало):
+                              <div className="bg-slate-900/80 border border-white/5 p-3 rounded-lg mt-1 space-y-1.5 font-mono text-xs text-indigo-300">
+                                <div>• <code className="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">https://tapi.bitti.io/bot</code> (Стабильное публичное зеркало)</div>
+                                <div>• <code className="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">https://telegg.ru/bot</code> (Российское зеркало для обхода блокировок)</div>
+                                <div>• <code className="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">https://api.telegram-proxy.org/bot</code> (Популярный прокси-сервер)</div>
+                              </div>
+                            </li>
+                            <li className="text-xs text-slate-400 mt-2">
+                              🛡️ **Самый надежный способ (свой прокси за 1 минуту бесплатно):**
+                              <div className="mt-1 pl-2 border-l-2 border-slate-700 space-y-1 text-slate-300 text-[11px] leading-relaxed">
+                                1. Зайдите на <a href="https://dash.cloudflare.com" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Cloudflare</a> &gt; Workers &amp; Pages &gt; Create Worker.<br />
+                                2. Вставьте в код воркера эти 6 строчек:<br />
+                                <pre className="bg-slate-950 p-1.5 rounded text-[10px] text-pink-400 font-mono my-1 leading-normal">
+{`export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    url.hostname = 'api.telegram.org';
+    return fetch(new Request(url, request));
+  }
+}`}
+                                </pre>
+                                3. Нажмите **Deploy** и скопируйте вашу личную ссылку (например, <code className="text-amber-400">https://my-tg-proxy.myname.workers.dev/bot</code>). Вставьте её в секреты Hugging Face!
+                              </div>
+                            </li>
+                          </ul>
+                        </li>
                       </ol>
                     </div>
 
