@@ -566,10 +566,11 @@ const AdminPanel: React.FC = () => {
                         </li>
                         <li>
                           <span className="font-semibold text-white">Добавьте requirements.txt</span>:
-                          Создайте второй файл с именем <span className="text-pink-400 font-bold font-mono">requirements.txt</span> и напишите туда следующие две строки:
+                          Создайте второй файл с именем <span className="text-pink-400 font-bold font-mono">requirements.txt</span> и напишите туда следующие три строки (это исправит несовместимость версий):
                           <pre className="bg-slate-900 border border-white/5 p-2 rounded text-xs text-indigo-300 mt-1 font-mono">
 python-telegram-bot{"\n"}
-gradio
+gradio{"\n"}
+huggingface_hub&lt;=0.24.0
                           </pre>
                         </li>
                         <li>
