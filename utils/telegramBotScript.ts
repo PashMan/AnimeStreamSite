@@ -163,8 +163,7 @@ def main():
     request_config = HTTPXRequest(
         connect_timeout=30.0,
         read_timeout=30.0,
-        write_timeout=30.0,
-        pool_size=10
+        write_timeout=30.0
     )
     
     app = Application.builder().token(API_TOKEN).request(request_config).build()
