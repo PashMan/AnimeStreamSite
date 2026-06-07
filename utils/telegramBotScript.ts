@@ -102,31 +102,49 @@ def extract_m3u8_stream(iframe_url, quality=None):
         iframe_url = "https:" + iframe_url
         
     # Сначала пытаемся использовать дешифратор нашего веб-приложения (рекомендуемый и самый стабильный способ)
-    if WEB_APP_URL and WEB_APP_URL != "WEB_BASE_URL_PLACEHOLDER":
-        api_url = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&resolve=true"
-        logger.info(f"Резолвим поток через API веб-приложения: {api_url}")
-        try:
-            req = urllib.request.Request(
-                api_url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            )
-            with urllib.request.urlopen(req, timeout=15) as response:
-                res_data = json.loads(response.read().decode('utf-8'))
-                
-            if res_data.get("success") and res_data.get("links"):
-                # Вместо оригинальных ссылок, возвращаем проксированные ссылки нашего сайта, 
-                # чтобы FFmpeg компилировал поток через наш прокси без блокировок IP на Hugging Face!
-                links_dict = {}
-                for q in res_data["links"].keys():
-                    proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
-                    links_dict[q] = [{"src": proxied_m3u8}]
-                
-                available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
-                if available_qualities:
-                    logger.info("Успешно получили проксированные потоки через API веб-приложения!")
-                    return available_qualities, links_dict
-        except Exception as proxy_err:
-            logger.warning(f"Не удалось получить потоки через API веб-приложения: {proxy_err}. Пробуем локальный парсинг...")
+    if not WEB_APP_URL or "WEB_BASE_URL_PLACEHOLDER" in WEB_APP_URL or "PLACEHOLDER" in WEB_APP_URL:
+        raise ValueError(
+            "Бот не привязан к нашему сайту! \n\n"
+            "⚠️ **Для обхода блокировок и стабильного скачивания боту необходим декодер вашего сайта.**\n"
+            "Пожалуйста, выполните эти шаги:\n"
+            "1. Зайдите в **Админ-панель** вашего сайта KamiAnime.\n"
+            "2. Скопируйте обновленный код **app.py** (там автоматически прописан реальный адрес вашего сайта).\n"
+            "3. Замените им содержимое файла \`app.py\` на Hugging Face.\n\n"
+            "*Или добавьте переменную окружения (Repository Secret) \`WEB_APP_URL\` со значением адреса вашего сайта в настройках Hugging Face Space.*"
+        )
+
+    api_url = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&resolve=true"
+    logger.info(f"Резолвим поток через API веб-приложения: {api_url}")
+    try:
+        req = urllib.request.Request(
+            api_url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=20) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            
+        if res_data.get("success") and res_data.get("links"):
+            # Вместо оригинальных ссылок, возвращаем проксированные ссылки нашего сайта, 
+            # чтобы FFmpeg компилировал поток через наш прокси без блокировок IP на Hugging Face!
+            links_dict = {}
+            for q in res_data["links"].keys():
+                proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
+                links_dict[q] = [{"src": proxied_m3u8}]
+            
+            available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
+            if available_qualities:
+                logger.info("Успешно получили проксированные потоки через API веб-приложения!")
+                return available_qualities, links_dict
+            else:
+                raise ValueError("Декодер сайта вернул пустой список разрешений вещания.")
+        else:
+            raise ValueError(f"Декодер сайта сообщил об ошибке: {res_data.get('error', 'Неизвестная ошибка')}")
+    except Exception as proxy_err:
+        raise RuntimeError(
+            f"Не удалось подключиться к декодеру сайта ({WEB_APP_URL}).\n"
+            f"Ошибка подключения: {proxy_err}\n\n"
+            f"Пожалуйста, убедитесь, что ваш сайт активен и работает по указанному адресу!"
+        )
 
     # Локальный парсинг (резервный вариант)
     # Резолвим домены для борьбы с блокировками и лимитами, как в веб-прокси
