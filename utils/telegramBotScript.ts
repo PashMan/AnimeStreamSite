@@ -109,8 +109,8 @@ def extract_m3u8_stream(iframe_url, quality=None):
             "Пожалуйста, выполните эти шаги:\\n"
             "1. Зайдите в **Админ-панель** вашего сайта KamiAnime.\\n"
             "2. Скопируйте обновленный код **app.py** (там автоматически прописан реальный адрес вашего сайта).\\n"
-            "3. Замените им содержимое файла \\\`app.py\\\` на Hugging Face.\\n\\n"
-            "*Или добавьте переменную окружения (Repository Secret) \\\`WEB_APP_URL\\\` со значением адреса вашего сайта в настройках Hugging Face Space.*"
+            "3. Замените им содержимое файла 'app.py' на Hugging Face.\\n\\n"
+            "*Или добавьте переменную окружения (Repository Secret) 'WEB_APP_URL' со значением адреса вашего сайта в настройках Hugging Face Space.*"
         )
 
     api_url = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&resolve=true"
