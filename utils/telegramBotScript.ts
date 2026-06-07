@@ -217,16 +217,21 @@ def extract_m3u8_stream(iframe_url, quality=None):
                 res_data = json.loads(response.read().decode('utf-8'))
                 
             if res_data.get("success") and res_data.get("links"):
-                # Вместо оригинальных ссылок, возвращаем проксированные ссылки нашего сайта, 
-                # чтобы FFmpeg компилировал поток через наш прокси без блокировок IP на Hugging Face!
+                # Возвращаем словарь с проксированными И ПРЯМЫМИ ссылками.
+                # Для проигрывания в браузере хорош прокси, а для FFmpeg-загрузчика на сервере бота
+                # лучше и быстрее использовать прямой URL от CDN Kodik.
                 links_dict = {}
                 for q in res_data["links"].keys():
+                    direct_url = res_data["links"][q]
                     proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
-                    links_dict[q] = [{"src": proxied_m3u8}]
+                    links_dict[q] = [{
+                        "src": proxied_m3u8,
+                        "direct_src": direct_url
+                    }]
                 
                 available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
                 if available_qualities:
-                    logger.info("Успешно получили проксированные потоки через API веб-приложения!")
+                    logger.info("Успешно получили проксированные и прямые потоки через API веб-приложения!")
                     return available_qualities, links_dict
                 else:
                     logger.warning("Декодер сайта вернул пустой список разрешений вещания.")
@@ -342,13 +347,21 @@ def extract_m3u8_stream(iframe_url, quality=None):
         raise ValueError(f"Kodik gbox API returned empty links: {gbox_data}")
         
     links_dict = gbox_data['links']
-    if is_valid_url(WEB_APP_URL):
-        # Используем проксированное вещание нашего сайта, чтобы качать без лимитов и блокировок IP на Hugging Face
-        proxied_links_dict = {}
-        for q in links_dict.keys():
-            proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
-            proxied_links_dict[q] = [{"src": proxied_m3u8}]
-        links_dict = proxied_links_dict
+    processed_links = {}
+    for q in links_dict.keys():
+        list_sources = links_dict[q]
+        if list_sources and len(list_sources) > 0:
+            raw_src = list_sources[0]['src']
+            decrypted_url = raw_src if (raw_src.startswith('http') or raw_src.startswith('//') or 'mp4:hls:manifest' in raw_src) else decode_kodik_url(raw_src)
+            direct_url = decrypted_url if decrypted_url.startswith('http') else "https:" + decrypted_url
+            
+            proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}" if is_valid_url(WEB_APP_URL) else direct_url
+            
+            processed_links[q] = [{
+                "src": proxied_m3u8,
+                "direct_src": direct_url
+            }]
+    links_dict = processed_links
 
     available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
     if not available_qualities:
@@ -561,12 +574,20 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if selected_qual_str not in links_dict:
                 selected_qual_str = str(available_quals[0])
                 
-            raw_src = links_dict[selected_qual_str][0]['src']
-            if raw_src.startswith('http') or raw_src.startswith('//') or 'mp4:hls:manifest' in raw_src:
-                decrypted_url = raw_src
-            else:
-                decrypted_url = decode_kodik_url(raw_src)
-            playlist_url = decrypted_url if decrypted_url.startswith('http') else "https:" + decrypted_url
+            stream_item = links_dict[selected_qual_str][0]
+            
+            # Мы предпочитаем прямой URL-адрес от CDN Kodik для FFmpeg на сервере бота (direct_src),
+            # чтобы скачивание происходило мгновенно на гигабитной скорости без тройного прокси через наш Express API.
+            direct_src = stream_item.get("direct_src", "")
+            proxied_src = stream_item.get("src", "")
+            
+            playlist_url = direct_src if direct_src else proxied_src
+            if playlist_url.startswith("//"):
+                playlist_url = "https:" + playlist_url
+                
+            backup_playlist_url = proxied_src if proxied_src else playlist_url
+            if backup_playlist_url.startswith("//"):
+                backup_playlist_url = "https:" + backup_playlist_url
 
             # 3. Склеивание потока через FFmpeg
             await status_msg.edit_text(
@@ -598,7 +619,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 output_filename
             ]
             
+            logger.info(f"Запуск FFmpeg со ссылкой {playlist_url}")
             process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
+            
+            # Если скачивание напрямую по какой-то причине не удалось, делаем резервную попытку через прокси нашего сайта
+            if (not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0) and playlist_url != backup_playlist_url:
+                logger.warning(f"Прямое скачивание не удалось (код: {process.returncode}). Пробуем скачать через прокси сайта: {backup_playlist_url}")
+                cmd_backup = cmd.copy()
+                try:
+                    p_idx = cmd_backup.index(playlist_url)
+                    cmd_backup[p_idx] = backup_playlist_url
+                except ValueError:
+                    pass
+                process = subprocess.run(cmd_backup, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600)
             
             if not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
                 raise RuntimeError(f"FFmpeg failed: {process.stderr or process.stdout}")
