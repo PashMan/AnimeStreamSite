@@ -10,6 +10,7 @@ import subprocess
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.request import HTTPXRequest
 
 # Настройка логирования
 logging.basicConfig(
@@ -59,9 +60,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            f"🎬 **Найдено аниме в базе!**\\n"
-            f"• ID на Shikimori: \\\`{anime_id}\\\`\\n"
-            f"• Серия: \\\`{episode}\\\`\\n\\n"
+            f"🎬 **Найдено аниме в базе!**\n"
+            f"• ID на Shikimori: {anime_id}\n"
+            f"• Серия: {episode}\n\n"
             f"Выберите желаемое качество. Я скачаю все фрагменты потока и пришлю вам готовый MP4-файл или резервную ссылку!",
             reply_markup=reply_markup,
             parse_mode="Markdown"
@@ -98,9 +99,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             link = "https:" + item["link"] if item["link"].startswith("//") else item["link"]
             
             await status_msg.edit_text(
-                f"📥 **[2/2] Склеивание фрагментов потока...**\\n\\n"
-                f"• Начинаем склеивание в MP4...\\n"
-                f"• Это займет менее минуты! 🚀",
+                "📥 **[2/2] Склеивание фрагментов потока...**\n\n"
+                "• Начинаем склеивание в MP4...\n"
+                "• Это займет менее минуты! 🚀",
                 parse_mode="Markdown"
             )
 
@@ -110,8 +111,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(4) # имитация сборки
             
             await status_msg.edit_text(
-                "✅ **Аниме успешно подготовлено!**\\n\\n"
-                f"🔗 **[Кликните для скачивания MP4 ({quality}p)]({link})**\\n\\n"
+                "✅ **Аниме успешно подготовлено!**\n\n"
+                f"🔗 **[Кликните для скачивания MP4 ({quality}p)]({link})**\n\n"
                 "Приятного просмотра 🍿",
                 parse_mode="Markdown"
             )
@@ -119,8 +120,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error: {e}")
             await status_msg.edit_text(
-                f"❌ Произошла ошибка при связывании ffmpeg и робота.\\n"
-                f"Лог ошибки: \\\`{str(e)}\\\`\\n\\n"
+                f"❌ Произошла ошибка при связывании ffmpeg и робота.\n"
+                f"Лог ошибки: {str(e)}\n\n"
                 f"Но вы можете скачать напрямую через резервный поток!"
             )
 
@@ -148,7 +149,14 @@ def main():
     t = threading.Thread(target=run_health_server, daemon=True)
     t.start()
         
-    app = Application.builder().token(API_TOKEN).build()
+    request_config = HTTPXRequest(
+        connect_timeout=30.0,
+        read_timeout=30.0,
+        write_timeout=30.0,
+        pool_size=10
+    )
+    
+    app = Application.builder().token(API_TOKEN).request(request_config).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_callback))
     
