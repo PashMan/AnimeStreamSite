@@ -575,6 +575,9 @@ gradio
                         <li>
                           <span className="font-semibold text-white">Добавьте Secrets</span>:
                           В настройках вашего Space перейдите в раздел <span className="text-white">Settings &gt; Repository Secrets</span> и добавьте переменную <code className="bg-slate-900 px-1 py-0.5 rounded text-rose-400">TELEGRAM_BOT_TOKEN</code> со значением вашего токена от BotFather.
+                          <div className="mt-2 text-rose-400 font-medium bg-rose-950/20 border border-rose-500/20 p-2.5 rounded-lg text-xs leading-relaxed">
+                            🛑 <strong>КРИТИЧЕСКИ ВАЖНО:</strong> Никогда не создавайте секреты или переменные с именами <code className="bg-slate-950 px-1 text-rose-300 font-mono">SPACE_ID</code> или <code className="bg-slate-950 px-1 text-rose-300 font-mono">SPACE_HOST</code>! Они определяются платформой Hugging Face автоматически. Если вы их уже вручную добавили — <strong>немедленно удалите их</strong> в настройках Space, иначе возникнет ошибка <i>Reserved environment variables: ["SPACE_ID"]</i> и Space заблокируется!
+                          </div>
                         </li>
                         <li className="text-amber-300 font-medium">
                           ⚠️ <span className="font-semibold text-white">Решение ошибки "Timed out / ConnectTimeout"</span>:

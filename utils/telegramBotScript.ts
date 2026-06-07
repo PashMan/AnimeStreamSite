@@ -22,6 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Токен Телеграм бота (Задайте у себя в Hugging Face / Space Settings -> Repository Secrets)
+# ВНИМАНИЕ: Переменные SPACE_ID и SPACE_HOST определяются Hugging Face автоматически. НЕ добавляйте их вручную!
 API_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 
 # API токен для работы с Kodik
@@ -535,7 +536,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await status_msg.edit_text(
                         f"⚠️ **Файл весит {file_size_mb:.1f} MB** (превышает лимит 50MB бота).\\n"
-                        f"Настройте переменные в секретах Hugging Face, чтобы получать ссылки на прямое скачивание файлов!"
+                        f"Бот запущен вне Hugging Face Spaces, либо отсутствует доступ к автоматическим переменным (SPACE_ID и SPACE_HOST).\\n"
+                        f"Пожалуйста, не добавляйте SPACE_ID или SPACE_HOST вручную во избежание сбоя Hugging Face!"
                     )
 
         except Exception as e:
