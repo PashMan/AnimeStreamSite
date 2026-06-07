@@ -114,10 +114,16 @@ def extract_m3u8_stream(iframe_url, quality=None):
                 res_data = json.loads(response.read().decode('utf-8'))
                 
             if res_data.get("success") and res_data.get("links"):
-                links_dict = {q: [{"src": src}] for q, src in res_data["links"].items()}
+                # Вместо оригинальных ссылок, возвращаем проксированные ссылки нашего сайта, 
+                # чтобы FFmpeg компилировал поток через наш прокси без блокировок IP на Hugging Face!
+                links_dict = {}
+                for q in res_data["links"].keys():
+                    proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
+                    links_dict[q] = [{"src": proxied_m3u8}]
+                
                 available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
                 if available_qualities:
-                    logger.info("Успешно получили декодированные потоки через API веб-приложения!")
+                    logger.info("Успешно получили проксированные потоки через API веб-приложения!")
                     return available_qualities, links_dict
         except Exception as proxy_err:
             logger.warning(f"Не удалось получить потоки через API веб-приложения: {proxy_err}. Пробуем локальный парсинг...")
@@ -227,6 +233,14 @@ def extract_m3u8_stream(iframe_url, quality=None):
         raise ValueError(f"Kodik gbox API returned empty links: {gbox_data}")
         
     links_dict = gbox_data['links']
+    if WEB_APP_URL and WEB_APP_URL != "WEB_BASE_URL_PLACEHOLDER":
+        # Используем проксированное вещание нашего сайта, чтобы качать без лимитов и блокировок IP на Hugging Face
+        proxied_links_dict = {}
+        for q in links_dict.keys():
+            proxied_m3u8 = f"{WEB_APP_URL.rstrip('/')}/api/media/playlist?url={urllib.parse.quote(iframe_url)}&quality={q}"
+            proxied_links_dict[q] = [{"src": proxied_m3u8}]
+        links_dict = proxied_links_dict
+
     available_qualities = sorted([int(k) for k in links_dict.keys()], reverse=True)
     if not available_qualities:
         raise ValueError("No video stream found for any quality.")
