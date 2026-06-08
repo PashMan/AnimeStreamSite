@@ -32,6 +32,8 @@ import {
   Bot,
   Download,
   ArrowDownToLine,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -214,7 +216,17 @@ const Details: React.FC = () => {
   const nativeVideoRef = useRef<HTMLVideoElement>(null);
   const isCustomPlayer =
     players.find((p) => p.name === selectedPlayer)?.isCustom || false;
-  const { role, usersCount, myId, sync, hostState } = usePlayerSync(
+  const {
+    role,
+    usersCount,
+    myId,
+    sync,
+    hostState,
+    isVoiceMuted,
+    toggleVoiceMute,
+    joinedUsers = [],
+    voiceError,
+  } = usePlayerSync(
     roomId,
     iframeRef,
     nativeVideoRef,
@@ -223,6 +235,7 @@ const Details: React.FC = () => {
 
   const [isRoomInstructionOpen, setIsRoomInstructionOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [copiedRoomLink, setCopiedRoomLink] = useState(false);
 
   useEffect(() => {
     if (roomId) {
@@ -1360,70 +1373,189 @@ const Details: React.FC = () => {
               </div>
 
               {roomId && (
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-400">
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-white font-bold">
-                        Совместный просмотр
-                      </h4>
-                      <p className="text-sm text-slate-400">
-                        Роль:{" "}
-                        <span className="text-purple-400 font-bold">
-                          {role === "host" ? "Хост" : "Зритель"}
-                        </span>{" "}
-                        • Зрителей: {usersCount}
-                        {myId && (
-                          <span className="ml-2 text-[10px] opacity-50 font-mono">
-                            ({myId.substring(0, 5)})
+                <div id="co-watching-room-panel" className="mb-6 bg-slate-900/90 border border-purple-500/30 rounded-[2rem] p-5 sm:p-6 shadow-[0_10px_30px_rgba(168,85,247,0.1)] backdrop-blur-md flex flex-col gap-5">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-500/15 rounded-2xl flex items-center justify-center text-purple-400 border border-purple-500/20">
+                        <Users className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-white font-bold text-base flex items-center gap-2">
+                          Совместный просмотр
+                          <span className="px-2 py-0.5 bg-purple-500/25 text-purple-300 text-[10px] rounded-full font-bold uppercase tracking-wider">
+                            Войсчат активен
                           </span>
-                        )}
-                      </p>
-                      {role === "viewer" && hostState && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          Хост на{" "}
-                          <span className="text-white font-mono">
-                            {Math.floor((hostState.time || 0) / 60)
-                              .toString()
-                              .padStart(2, "0")}
-                            :
-                            {Math.floor((hostState.time || 0) % 60)
-                              .toString()
-                              .padStart(2, "0")}
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Роль:{" "}
+                          <span className="text-purple-400 font-bold">
+                            {role === "host" ? "Хост комнаты" : "Зритель"}
                           </span>{" "}
-                          • {hostState.isPlaying ? "▶ Играет" : "⏸ Пауза"}
+                          • В сети: <span className="text-white font-bold">{usersCount} чел.</span>
                         </p>
-                      )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {/* Toggle Voice Channel */}
+                      <button
+                        onClick={toggleVoiceMute}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
+                          isVoiceMuted
+                            ? "bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400"
+                            : "bg-green-500/20 hover:bg-green-500/30 border-green-500/30 text-green-400 shadow-[0_0_12px_rgba(34,197,94,0.15)]"
+                        }`}
+                      >
+                        {isVoiceMuted ? (
+                          <>
+                            <MicOff className="w-4 h-4" /> Включить микрофон
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="w-4 h-4 animate-bounce" /> Микрофон активен
+                          </>
+                        )}
+                      </button>
+
+                      {/* Copy Link with reactive check icon and state */}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(window.location.href);
+                          setCopiedRoomLink(true);
+                          setTimeout(() => setCopiedRoomLink(false), 2500);
+                        }}
+                        className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        {copiedRoomLink ? (
+                          <>
+                            <Check className="w-4 h-4 text-green-400" /> Скопировано!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" /> Пригласить друзей
+                          </>
+                        )}
+                      </button>
+
+                      {/* Disconnect Room Button */}
+                      <button
+                        onClick={() => {
+                          setRoomId(null);
+                          setSearchParams(
+                            (prev) => {
+                              prev.delete("room");
+                              return prev;
+                            },
+                            { replace: true },
+                          );
+                        }}
+                        className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20 cursor-pointer"
+                        title="Выйти из комнаты"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(window.location.href);
-                        // Optional: add a toast here
-                      }}
-                      className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
-                    >
-                      <Copy className="w-4 h-4" /> Копировать ссылку
-                    </button>
-                    <button
-                      onClick={() => {
-                        setRoomId(null);
-                        setSearchParams(
-                          (prev) => {
-                            prev.delete("room");
-                            return prev;
-                          },
-                          { replace: true },
+
+                  {/* Joined users list */}
+                  <div>
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400 block mb-2 pl-1">
+                      Участники в комнате ({joinedUsers.length}):
+                    </span>
+                    <div className="flex flex-wrap gap-3">
+                      {joinedUsers.map((item) => {
+                        const isItself = item.clientId === myId;
+                        return (
+                          <div
+                            key={item.clientId}
+                            className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border transition-all ${
+                              isItself
+                                ? "bg-purple-500/10 border-purple-500/20 text-white"
+                                : "bg-white/5 border-white/5 text-slate-300"
+                            }`}
+                          >
+                            <div className="relative">
+                              <img
+                                src={item.avatar}
+                                alt={item.name}
+                                className="w-8 h-8 rounded-full object-cover border border-white/10"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div
+                                className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center p-0.5 border text-[8px] ${
+                                  item.isMuted
+                                    ? "bg-red-500 border-slate-900 text-white"
+                                    : "bg-green-500 border-slate-900 text-white animate-pulse"
+                                }`}
+                              >
+                                {item.isMuted ? (
+                                  <MicOff className="w-2.5 h-2.5" />
+                                ) : (
+                                  <Mic className="w-2.5 h-2.5" />
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col leading-tight">
+                              <span className="text-xs font-bold flex items-center gap-1">
+                                {item.name}
+                                {isItself && (
+                                  <span className="text-[9px] text-purple-400 font-normal">
+                                    (Вы)
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                {item.isHost ? (
+                                  <span className="text-purple-400 font-semibold">• Хост</span>
+                                ) : (
+                                  <span>• Зритель</span>
+                                )}
+                                {!item.isMuted && (
+                                  <span className="text-green-400 font-medium animate-pulse">
+                                    • Говорит
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
                         );
-                      }}
-                      className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                      })}
+                    </div>
                   </div>
+
+                  {/* Host watch location display for viewers */}
+                  {role === "viewer" && hostState && (
+                    <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-xs text-slate-400 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
+                        Синхронизация с хостом:
+                      </span>
+                      <span className="font-mono text-white bg-white/10 px-2 py-0.5 rounded">
+                        {Math.floor((hostState.time || 0) / 60)
+                          .toString()
+                          .padStart(2, "0")}
+                        :
+                        {Math.floor((hostState.time || 0) % 60)
+                          .toString()
+                          .padStart(2, "0")}
+                      </span>
+                      <span className="text-[10px] uppercase font-bold text-purple-400">
+                        {hostState.isPlaying ? "Идет воспроизведение" : "Пауза"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Micro permissions warnings */}
+                  {voiceError && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 flex items-start gap-2.5 text-xs text-yellow-400 animate-headShake">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-bold">Внимание с голосовой связью</p>
+                        <p className="text-[11px] opacity-90 mt-0.5">{voiceError}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

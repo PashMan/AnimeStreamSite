@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
+import { setupWebSocketServer } from './utils/socketServer';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -1836,11 +1837,13 @@ const isProd = process.env.NODE_ENV === 'production';
 const port = 3000;
 
 console.log(`[HONO NODE SERVER] Starting backend listener on port ${port}...`);
-serve({
+const server = serve({
   fetch: app.fetch,
   port,
   hostname: '0.0.0.0'
 });
+
+setupWebSocketServer(server);
 
 export default {
   fetch: app.fetch,
