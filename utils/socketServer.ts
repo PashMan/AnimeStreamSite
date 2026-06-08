@@ -1,5 +1,3 @@
-// @ts-ignore
-import { upgradeWebSocket } from 'hono/websocket';
 
 interface RoomClient {
   clientId: string;
@@ -25,8 +23,7 @@ interface Room {
 
 const rooms = new Map<string, Room>();
 
-// @ts-ignore
-export const handleRoomWebSocket = upgradeWebSocket((c: any) => {
+export const makeRoomWebSocketHandler = (upgradeWebSocket: any) => upgradeWebSocket((c: any) => {
   const roomId = c.req.query('roomId');
   const clientId = c.req.query('clientId') || Math.random().toString(36).substring(2, 9);
   const name = c.req.query('name') || 'Guest';

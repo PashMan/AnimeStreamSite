@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
-import { handleRoomWebSocket } from './utils/socketServer';
-import { injectWebSocket } from '@hono/node-server/websocket';
+import { makeRoomWebSocketHandler } from './utils/socketServer';
+import { createNodeWebSocket } from '@hono/node-server/websocket';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -17,6 +17,9 @@ type Bindings = {
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+const handleRoomWebSocket = makeRoomWebSocketHandler(upgradeWebSocket);
 
 app.use('/*', cors());
 
