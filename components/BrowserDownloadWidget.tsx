@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Download, Loader2, Film, CheckCircle, AlertTriangle } from "lucide-react";
+import { Download, Loader2, Film, CheckCircle, AlertTriangle, Monitor, Server } from "lucide-react";
 
 interface BrowserDownloadWidgetProps {
   episodeUrl: string;
@@ -31,10 +31,12 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   const [loadingQualities, setLoadingQualities] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  const [downloadMethod, setDownloadMethod] = useState<'server' | 'client'>('server');
   const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [localDownloadBlobUrl, setLocalDownloadBlobUrl] = useState<string | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load available qualities from Kodik playlist endpoint with absolute defensive parsing
@@ -75,6 +77,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
     // Clear download state when episode changes
     setProgress(null);
     setDownloading(false);
+    setCurrentTaskId(null);
     if (localDownloadBlobUrl) {
       URL.revokeObjectURL(localDownloadBlobUrl);
       setLocalDownloadBlobUrl(null);
@@ -99,192 +102,318 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
     setSelectedQuality(quality);
     setDownloading(true);
     setProgress(null);
+    setCurrentTaskId(null);
 
     if (localDownloadBlobUrl) {
       URL.revokeObjectURL(localDownloadBlobUrl);
       setLocalDownloadBlobUrl(null);
     }
 
-    const fileName = `${animeTitle.replace(/[\/:*?"<>|]/g, "_")}_Ep_${episodeNumber}_${quality}p.ts`;
-
-    try {
-      // 1. Fetch playlist content from our Cloudflare function
-      const playlistUrl = `/api/media/playlist?url=${encodeURIComponent(episodeUrl)}&quality=${quality}`;
-      const playlistRes = await fetch(playlistUrl);
-      
-      const playlistText = await playlistRes.text();
-      const trimmedText = playlistText.trim().toLowerCase();
-      const isHtmlResponse = trimmedText.startsWith("<!doctype") || trimmedText.startsWith("<html") || trimmedText.startsWith("<head") || trimmedText.startsWith("<body");
-      if (isHtmlResponse || !playlistRes.ok) {
-        throw new Error("Не удалось загрузить плейлист потока от сервера. Возможно, блокируются сторонние куки-файлы в iframe.");
-      }
-
-      // 2. Parse segment URLs (lines not starting with #)
-      const lines = playlistText.split("\n");
-      const segmentUrls: string[] = [];
-      for (let line of lines) {
-        line = line.trim();
-        if (line && !line.startsWith("#")) {
-          if (line.startsWith("/")) {
-            segmentUrls.push(window.location.origin + line);
-          } else if (!line.startsWith("http")) {
-            segmentUrls.push(window.location.origin + "/api/media/" + line);
-          } else {
-            segmentUrls.push(line);
-          }
+    if (downloadMethod === 'server') {
+      // SERVER-SIDE HIGH SPEED MP4 DOWNLOAD
+      const startUrl = `/api/media/download/start?url=${encodeURIComponent(episodeUrl)}&quality=${quality}&title=${encodeURIComponent(animeTitle)}&episode=${episodeNumber}`;
+      try {
+        const res = await fetch(startUrl);
+        const text = await res.text();
+        
+        if (!res.ok) {
+          throw new Error(`Ошибка запуска сервера: ${res.statusText}`);
         }
-      }
-
-      const total = segmentUrls.length;
-      if (total === 0) {
-        throw new Error("Не удалось извлечь фрагменты видео из плейлиста для скачивания.");
-      }
-
-      // 3. Concurrent download loop using parallel chunks pool
-      setProgress({
-        id: "client_download",
-        stage: "downloading",
-        processed: 0,
-        total,
-        progress: 0,
-        status: "running",
-        fileName
-      });
-
-      const concurrency = 8;
-      const results = new Array<ArrayBuffer>(total);
-      let completedCount = 0;
-      let activeIndex = 0;
-
-      const downloadChunk = async (index: number, url: string) => {
-        let attempt = 0;
-        const maxAttempts = 3;
-        while (attempt < maxAttempts) {
-          try {
-            attempt++;
-            const segmentRes = await fetch(url);
-            if (!segmentRes.ok) throw new Error(`Chunk status: ${segmentRes.status}`);
-            const buf = await segmentRes.arrayBuffer();
-            results[index] = buf;
-            return;
-          } catch (chunkErr) {
-            console.warn(`Attempt ${attempt} failed for chunk index ${index}:`, chunkErr);
-            if (attempt === maxAttempts) {
-              throw new Error(`Ошибка загрузки фрагмента ${index + 1} из ${total}. Пожалуйста, перезапустите скачивание.`);
-            }
-            await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
-          }
-        }
-      };
-
-      const worker = async () => {
-        while (activeIndex < total) {
-          const currentIndex = activeIndex++;
-          await downloadChunk(currentIndex, segmentUrls[currentIndex]);
-          completedCount++;
-          
-          // Safe progress state calculation
-          const percent = Math.round((completedCount / total) * 100);
+        
+        const data = JSON.parse(text);
+        if (data.success && data.taskId) {
+          setCurrentTaskId(data.taskId);
           setProgress({
-            id: "client_download",
-            stage: "downloading",
-            processed: completedCount,
-            total,
-            progress: percent,
+            id: data.taskId,
+            stage: "resolving",
+            processed: 0,
+            total: 0,
+            progress: 5,
             status: "running",
-            fileName
+            fileName: data.fileName || `${animeTitle}_Ep_${episodeNumber}_${quality}p.mp4`
           });
+          startServerPolling(data.taskId);
+        } else {
+          throw new Error(data.error || "Не удалось запустить сборку серии на сервере.");
         }
-      };
+      } catch (err: any) {
+        console.error("Server-side start download failed:", err);
+        setError(err.message || "Ошибка соединения с сервером сборки.");
+        setDownloading(false);
+      }
+    } else {
+      // CLIENT-SIDE BROWSER TS DOWNLOAD (Alternative fallback)
+      const fileName = `${animeTitle.replace(/[\/:*?"<>|]/g, "_")}_Ep_${episodeNumber}_${quality}p.ts`;
 
-      // Run parallel workers
-      const workers = Array.from({ length: Math.min(concurrency, total) }, worker);
-      await Promise.all(workers);
+      try {
+        const playlistUrl = `/api/media/playlist?url=${encodeURIComponent(episodeUrl)}&quality=${quality}`;
+        const playlistRes = await fetch(playlistUrl);
+        
+        const playlistText = await playlistRes.text();
+        const trimmedText = playlistText.trim().toLowerCase();
+        const isHtmlResponse = trimmedText.startsWith("<!doctype") || trimmedText.startsWith("<html") || trimmedText.startsWith("<head") || trimmedText.startsWith("<body");
+        if (isHtmlResponse || !playlistRes.ok) {
+          throw new Error("Не удалось загрузить плейлист потока от сервера. Возможно, блокируются сторонние куки-файлы в iframe.");
+        }
 
-      // 4. Merge stage
-      setProgress({
-        id: "client_download",
-        stage: "merging",
-        processed: total,
-        total,
-        progress: 99,
-        status: "running",
-        fileName
-      });
+        const lines = playlistText.split("\n");
+        const segmentUrls: string[] = [];
+        for (let line of lines) {
+          line = line.trim();
+          if (line && !line.startsWith("#")) {
+            if (line.startsWith("/")) {
+              segmentUrls.push(window.location.origin + line);
+            } else if (!line.startsWith("http")) {
+              segmentUrls.push(window.location.origin + "/api/media/" + line);
+            } else {
+              segmentUrls.push(line);
+            }
+          }
+        }
 
-      const blob = new Blob(results, { type: "video/mp2t" });
-      const localUrl = URL.createObjectURL(blob);
-      setLocalDownloadBlobUrl(localUrl);
+        const total = segmentUrls.length;
+        if (total === 0) {
+          throw new Error("Не удалось извлечь фрагменты видео из плейлиста для скачивания.");
+        }
 
-      // 5. Success
-      setProgress({
-        id: "client_download",
-        stage: "ready",
-        processed: total,
-        total,
-        progress: 100,
-        status: "success",
-        fileName
-      });
+        setProgress({
+          id: "client_download",
+          stage: "downloading",
+          processed: 0,
+          total,
+          progress: 0,
+          status: "running",
+          fileName
+        });
 
-      // Instantly trigger browser file save
-      const link = document.createElement("a");
-      link.href = localUrl;
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      setDownloading(false);
-    } catch (err: any) {
-      console.error("Browser download failed:", err);
-      setError(err.message || "Ошибка при скачивании");
-      setDownloading(false);
-      setProgress({
-        id: "client_download",
-        stage: "failed",
-        processed: 0,
-        total: 1,
-        progress: 0,
-        status: "failed",
-        error: err.message || "Ошибка скачивания фрагментов"
-      });
+        const concurrency = 8;
+        const results = new Array<ArrayBuffer>(total);
+        let completedCount = 0;
+        let activeIndex = 0;
+
+        const downloadChunk = async (index: number, url: string) => {
+          let attempt = 0;
+          const maxAttempts = 3;
+          while (attempt < maxAttempts) {
+            try {
+              attempt++;
+              const segmentRes = await fetch(url);
+              if (!segmentRes.ok) throw new Error(`Chunk status: ${segmentRes.status}`);
+              const buf = await segmentRes.arrayBuffer();
+              results[index] = buf;
+              return;
+            } catch (chunkErr) {
+              console.warn(`Attempt ${attempt} failed for chunk index ${index}:`, chunkErr);
+              if (attempt === maxAttempts) {
+                throw new Error(`Ошибка загрузки фрагмента ${index + 1} из ${total}. Пожалуйста, перезапустите скачивание.`);
+              }
+              await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+            }
+          }
+        };
+
+        const worker = async () => {
+          while (activeIndex < total) {
+            const currentIndex = activeIndex++;
+            await downloadChunk(currentIndex, segmentUrls[currentIndex]);
+            completedCount++;
+            
+            const percent = Math.round((completedCount / total) * 100);
+            setProgress({
+              id: "client_download",
+              stage: "downloading",
+              processed: completedCount,
+              total,
+              progress: percent,
+              status: "running",
+              fileName
+            });
+          }
+        };
+
+        const workers = Array.from({ length: Math.min(concurrency, total) }, worker);
+        await Promise.all(workers);
+
+        setProgress({
+          id: "client_download",
+          stage: "merging",
+          processed: total,
+          total,
+          progress: 99,
+          status: "running",
+          fileName
+        });
+
+        const blob = new Blob(results, { type: "video/mp2t" });
+        const localUrl = URL.createObjectURL(blob);
+        setLocalDownloadBlobUrl(localUrl);
+
+        setProgress({
+          id: "client_download",
+          stage: "ready",
+          processed: total,
+          total,
+          progress: 100,
+          status: "success",
+          fileName
+        });
+
+        const link = document.createElement("a");
+        link.href = localUrl;
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setDownloading(false);
+      } catch (err: any) {
+        console.error("Browser download failed:", err);
+        setError(err.message || "Ошибка при скачивании");
+        setDownloading(false);
+        setProgress({
+          id: "client_download",
+          stage: "failed",
+          processed: 0,
+          total: 1,
+          progress: 0,
+          status: "failed",
+          error: err.message || "Ошибка скачивания фрагментов"
+        });
+      }
     }
   };
 
-  const triggerFileDownload = (tid: string, name: string) => {
-    if (tid === "client_download" && localDownloadBlobUrl) {
-      const link = document.createElement("a");
-      link.href = localDownloadBlobUrl;
-      link.setAttribute("download", name);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+  const startServerPolling = (tid: string) => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/media/download/progress?taskId=${tid}`);
+        const text = await res.text();
+        
+        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+          return;
+        }
+
+        if (!res.ok) {
+          if (res.status === 404) {
+            throw new Error("Задача скачивания не найдена или прекращена на сервере.");
+          }
+          return;
+        }
+
+        const data: DownloadProgress = JSON.parse(text);
+        setProgress(data);
+
+        if (data.status === "success") {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          setDownloading(false);
+          triggerServerFileDownload(tid, data.fileName || "video.mp4");
+        } else if (data.status === "failed") {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          setError(data.error || "Не удалось конвертировать серию на сервере.");
+          setDownloading(false);
+        }
+      } catch (err: any) {
+        console.error("Server polling error:", err);
+        setError(err.message || "Ошибка связи с сервером сборщика");
+        setDownloading(false);
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      }
+    };
+
+    poll();
+    pollIntervalRef.current = setInterval(poll, 1500);
+  };
+
+  const triggerServerFileDownload = (tid: string, name: string) => {
+    const downloadUrl = `/api/media/download/file?taskId=${tid}`;
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.setAttribute("download", name);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getStageMessage = (stage: string) => {
     switch (stage) {
       case "resolving":
-        return "Подключение...";
+        return "Подключение к стриминг-серверу...";
       case "downloading":
-        return progress ? `Скачивание фрагментов (${progress.processed} из ${progress.total})...` : "Скачивание...";
+        return progress 
+          ? `Скачивание фрагментов на сервер (${progress.processed} из ${progress.total || "..."})...` 
+          : "Скачивание фрагментов на сервер...";
       case "merging":
-        return "Интеграция фрагментов в TS...";
+        return "Соединение сегментов видеопотока...";
+      case "muxing":
+        return "Упаковка и конвертация видео в формат MP4 (без потери качества)...";
       case "ready":
-        return "Файл собран!";
+        return "Готово к сохранению!";
       case "failed":
-        return "Ошибка";
+        return "Ошибка!";
       default:
-        return "Запуск скачивания...";
+        return "Подготовка...";
     }
   };
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-6 transition-all duration-300 space-y-5">
+      
+      {/* METHOD SELECTOR */}
+      <div className="grid grid-cols-2 gap-2 bg-black/40 p-1.5 rounded-xl border border-white/5">
+        <button
+          type="button"
+          onClick={() => {
+            if (!downloading) {
+              setDownloadMethod('server');
+              setError(null);
+              setProgress(null);
+            }
+          }}
+          disabled={downloading}
+          className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold tracking-wide transition-all duration-300 cursor-pointer ${
+            downloadMethod === 'server'
+              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          } disabled:opacity-50`}
+        >
+          <Server className="w-3.5 h-3.5 shrink-0" />
+          <span>Скачать .MP4 (Сервер)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!downloading) {
+              setDownloadMethod('client');
+              setError(null);
+              setProgress(null);
+            }
+          }}
+          disabled={downloading}
+          className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold tracking-wide transition-all duration-300 cursor-pointer ${
+            downloadMethod === 'client'
+              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          } disabled:opacity-50`}
+        >
+          <Monitor className="w-3.5 h-3.5 shrink-0" />
+          <span>Скачать .TS (Браузер)</span>
+        </button>
+      </div>
+
       <div className="flex flex-col gap-3">
         <label className="text-xs uppercase tracking-wider font-extrabold text-slate-400">
-          Выберите качество для скачивания в браузере:
+          Выберите качество:
         </label>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -312,7 +441,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
                   className="flex items-center justify-center gap-1.5 bg-white/5 hover:bg-cyan-500 hover:text-white border border-white/5 hover:border-cyan-500 transition-all duration-300 text-slate-200 font-bold text-xs py-2.5 rounded-xl cursor-pointer shadow-lg active:scale-95 disabled:opacity-50"
                 >
                   <Film className="w-3.5 h-3.5 shrink-0" />
-                  {qual}p (.ts)
+                  {qual}p ({downloadMethod === 'server' ? '.mp4' : '.ts'})
                 </button>
               ))}
             </div>
@@ -324,20 +453,38 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         </div>
       </div>
 
-      <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-4.5 space-y-2.5 text-slate-300">
-        <p className="text-amber-400 font-bold text-xs flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          Важная информация перед скачиванием в браузере:
-        </p>
-        <ul className="text-xs list-disc pl-4 space-y-2 leading-relaxed">
-          <li>
-            <strong className="text-white">Скачанный файл не открывается?</strong> Так как склеивание происходит целиком на Вашей стороне (в браузере), видео скачивается в нативном формате <strong className="text-amber-400">.ts (MPEG Transport Stream)</strong>. Он отлично и плавно открывается в современных плеерах: <strong className="text-cyan-400">VLC Media Player, MX Player, KMPlayer или PotPlayer</strong>.
-          </li>
-          <li>
-            <strong className="text-white">Качает медленнее, чем в Telegram?</strong> Все веб-браузеры (Chrome, Brave, Safari) аппаратно ограничивают количество одновременных подключений к одному домену <strong className="text-amber-400">(максимум 6 потоков)</strong>, из-за чего фрагменты качаются в очередь. В Telegram-боте же загрузка идет напрямую на наши сверхбыстрые сервера в 24 параллельных потока без ограничений браузера!
-          </li>
-        </ul>
-      </div>
+      {/* DETAILED FEATURES ALERT EXPLAINER */}
+      {downloadMethod === 'server' ? (
+        <div className="bg-cyan-500/5 border border-cyan-500/15 rounded-xl p-4.5 space-y-2 text-slate-300">
+          <p className="text-cyan-400 font-bold text-xs flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-cyan-400 shrink-0" />
+            Преимущества сервера (Формат .MP4):
+          </p>
+          <ul className="text-xs list-disc pl-4 space-y-2 leading-relaxed">
+            <li>
+              Наш сервер собирает фрагменты по высокоскоростной локальной гигабитной сети, соединяет их и <strong className="text-white">автоматически конвертирует видео в стандартный MP4-формат</strong> с помощью утилиты FFmpeg.
+            </li>
+            <li>
+              Готовый MP4 файл идеально открывается на любом устройстве: на айфоне, андроиде, компьютере и телевизоре без установки сторонних плееров!
+            </li>
+          </ul>
+        </div>
+      ) : (
+        <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-4.5 space-y-2 text-slate-300">
+          <p className="text-amber-400 font-bold text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            Особенности браузера (Формат .TS):
+          </p>
+          <ul className="text-xs list-disc pl-4 space-y-2 leading-relaxed">
+            <li>
+              Браузер скачивает сотни сегментов напрямую на Ваш ПК в буфер. Из-за лимитов браузера Chrome/Safari (до 6 одновременных закачек) загрузка идет медленнее.
+            </li>
+            <li>
+              Поскольку браузер не может произвести конвертацию без серверов, файл сохраняется <strong className="text-amber-400">как черновой видеопоток .ts</strong>. Для его запуска понадобится универсальный плеер вроде <strong className="text-cyan-400">VLC Media Player или PotPlayer</strong>.
+            </li>
+          </ul>
+        </div>
+      )}
 
       {downloading && progress && (
         <div className="border-t border-white/5 pt-5 space-y-2.5 animate-fade-in">
@@ -360,21 +507,37 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         </div>
       )}
 
+      {/* SUCCESS BANNER */}
       {!downloading && progress?.status === "success" && (
-        <div className="border-t border-white/5 pt-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-cyan-500/5 border border-cyan-500/10 p-4 rounded-xl transition-all duration-300 font-sans">
+        <div className="border-t border-white/5 pt-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-cyan-500/5 border border-cyan-500/15 p-4 rounded-xl transition-all duration-300 font-sans">
           <div className="flex items-center gap-3">
             <CheckCircle className="w-6 h-6 text-cyan-400 shrink-0" />
             <div>
               <p className="text-white font-bold text-sm">Файл успешно собран!</p>
-              <p className="text-slate-400 text-xs mt-0.5">Видео загружено с правильным расширением .ts и готово к просмотру.</p>
+              <p className="text-slate-400 text-xs mt-0.5">
+                {downloadMethod === 'server' 
+                  ? "Полностью готовый MP4-файл собран и уже скачивается на устройство." 
+                  : "Черновой медиафайл .TS собран и передан в загрузки браузера."}
+              </p>
             </div>
           </div>
           <button
-            onClick={() => triggerFileDownload(progress.id, progress.fileName || "video.ts")}
+            onClick={() => {
+              if (downloadMethod === 'server' && currentTaskId) {
+                triggerServerFileDownload(currentTaskId, progress.fileName || "video.mp4");
+              } else if (downloadMethod === 'client' && localDownloadBlobUrl) {
+                const link = document.createElement("a");
+                link.href = localDownloadBlobUrl;
+                link.setAttribute("download", progress.fileName || "video.ts");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }
+            }}
             className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-xs uppercase px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105"
           >
             <Download className="w-4 h-4" />
-            Сохранить .ts
+            Сохранить {downloadMethod === 'server' ? '.MP4' : '.TS'}
           </button>
         </div>
       )}
@@ -389,7 +552,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
                 </svg>
               </div>
               <div>
-                <h4 className="text-white font-bold text-sm">Рекомендуемый способ: Скачать через Telegram</h4>
+                <h4 className="text-white font-bold text-sm">Альтернативный способ: Скачать через Telegram</h4>
                 <p className="text-slate-400 text-xs mt-1 leading-relaxed">
                   Наш Telegram-бот работает на выделенных серверах с мощными утилитами. Он моментально собирает серию без лимитов браузера и присылает Вам готовую запись <strong className="text-white">сразу в формате .MP4</strong>, идеально подходящую для воспроизведения на стандартном плеере любого телефона (iPhone / Android) и ТВ!
                 </p>
