@@ -75,13 +75,13 @@ export function generateAnimeSEO(
   const formatYear = year ? ` (${year})` : "";
 
   // 1. Optimized Title Tag (Title)
-  // Target: "Смотреть [Название аниме] [номер сезона] сезон в 4к качестве онлайн бесплатно"
+  // Target: "Смотреть [Название аниме] [номер сезона] сезон в 4к качестве онлайн бесплатно или скачать в mp4"
   // Target: "В какой озвучке лучше смотреть [Название] без рекламы казино"
   let seoTitle = "";
   if (paramEpisode) {
-    seoTitle = `Смотреть ${baseTitle} ${seasonSuffix} — ${paramEpisode} серия в 4К качестве онлайн бесплатно без всплывающей рекламы ставок`;
+    seoTitle = `Смотреть ${baseTitle} ${seasonSuffix} — ${paramEpisode} серия в 4К качестве онлайн или скачать в mp4 бесплатно`;
   } else {
-    seoTitle = `Смотреть аниме ${baseTitle} ${seasonSuffix} в 4К качестве онлайн в Ultra HD бесплатно без рекламы казино`;
+    seoTitle = `Смотреть аниме ${baseTitle} ${seasonSuffix} в 4К онлайн бесплатно или скачать все серии в mp4`;
   }
 
   // 2. Optimized H1 Header
@@ -96,29 +96,58 @@ export function generateAnimeSEO(
     : `Увлекательное аниме в жанре ${genres.length > 0 ? genres.slice(0, 2).join(", ") : "приключения"}. Оцените потрясающий сюжет и любимых персонажей на KamiAnime.`;
 
   const seoDescription = paramEpisode
-    ? `Смотреть ${paramEpisode}-ю серию аниме ${baseTitle} ${seasonSuffix} онлайн в Ultra HD 4K качестве абсолютно без всплывающей рекламы и ставок. В какой озвучке лучше смотреть? Доступны дубляж Анилибрия, DEEP, оригинальная дорожка с русскими субтитрами и другие топовые релизы.`
-    : `Смотреть аниме ${baseTitle} ${seasonSuffix}${formatYear} все серии онлайн в оригинальном качестве Ultra HD 4K. Чистый звук, полное отсутствие всплывающей рекламы казино и ставок. Подробный разбор: узнайте, в какой озвучке лучше смотреть (${genres.slice(0, 3).join(", ")}) на KamiAnime!`;
+    ? `Смотреть и скачать ${paramEpisode}-ю серию аниме ${baseTitle} ${seasonSuffix} в mp4 формате онлайн на телефон или ПК без рекламы. В какой озвучке лучше смотреть? Доступны дубляж Анилибрия, DEEP, оригинальная дорожка с русскими субтитрами и другие топовые релизы.`
+    : `Смотреть или скачать аниме ${baseTitle} ${seasonSuffix}${formatYear} все серии на телефон и ПК в хорошем качестве .mp4 бесплатно и без рекламы. Узнайте отзывы, в какой озвучке лучше смотреть (${genres.slice(0, 3).join(", ")}) на KamiAnime!`;
 
   // 4. Promo Text block to render on the page for SEO crawlers (and users wishing to know where to watch)
-  const promoText = `Смотреть аниме «${baseTitle}» в Ultra HD 4K качестве онлайн — это лучший способ погрузиться в захватывающий сюжет проекта${formatYear}. Мы позаботились о вашем комфорте: у нас вы можете наслаждаться любимым тайтлом полностью **без всплывающей рекламы ставок и казино**. Сомневаетесь, **в какой озвучке лучше смотреть**? Мы собрали все лучшие релиз-круппы на одной странице! Вас ждут озвучки **Анилибрия (Anilibria)**, **DEEP**, **JAM Club**, а также оригинальная японская аудиодорожка с качественными русскими субтитрами. Выбирайте любимый плеер, включайте 4К разрешение и наслаждайтесь плавным просмотром абсолютно бесплатно на KamiAnime!`;
+  const promoText = `Смотреть аниме «${baseTitle}» в Ultra HD 4K качестве онлайн или скачать напрямую в .mp4 на телефон и ПК — это лучший способ погрузиться в захватывающий сюжет проекта${formatYear}. Мы позаботились о вашем комфорте: у нас вы можете смотреть или скачать любимый тайтл полностью бесплатно и без всплывающей рекламы ставок. Нужна конкретная серия? С помощью быстрого скачивания вы можете за секунды получить любимую серию в формате MP4 для просмотра офлайн. Сомневаетесь, в какой озвучке лучше смотреть? Мы собрали все лучшие релиз-группы на одной странице! Вас ждут озвучки Анилибрия (Anilibria), DEEP, JAM Club, а также оригинальная японская аудиодорожка с качественными русскими субтитрами. Наслаждайтесь плавным просмотром абсолютно бесплатно на KamiAnime!`;
 
   // 5. Long-tail Keywords setup for SEO bots
+  const normTitle = baseTitle.toLowerCase();
   const baseKeywords = [
-    `смотреть ${baseTitle.toLowerCase()} в 4к качестве`,
-    `аниме ${baseTitle.toLowerCase()} смотреть онлайн 4k`,
-    `${baseTitle.toLowerCase()} ${seasonSuffix} в ультра ашд`,
-    `${baseTitle.toLowerCase()} в какой озвучке лучше смотреть`,
-    `смотреть ${baseTitle.toLowerCase()} бесплатно без рекламы казино`,
-    `аниме ${baseTitle.toLowerCase()} без ставок`,
-    `${baseTitle.toLowerCase()} анилибрия deep смотреть онлайн`,
-    baseTitle.toLowerCase(),
+    `скачать ${normTitle} в mp4`,
+    `скачать аниме ${normTitle} бесплатно`,
+    `скачать аниме ${normTitle} все серии`,
+    `скачать аниме ${normTitle} ${seasonSuffix.toLowerCase()}`,
+    `скачать аниме ${normTitle} ${seasonSuffix.toLowerCase()} все серии`,
+    `скачать ${normTitle} на телефон`,
+    `скачать и смотреть ${normTitle} все серии`,
+    `скачать торрент ${normTitle}`,
+    `смотреть ${normTitle} в 4к качестве`,
+    `аниме ${normTitle} смотреть онлайн 4k`,
+    `${normTitle} ${seasonSuffix.toLowerCase()} в ультра ашд`,
+    `${normTitle} в какой озвучке лучше смотреть`,
+    `смотреть ${normTitle} бесплатно без рекламы казино`,
+    `аниме ${normTitle} без ставок`,
+    `${normTitle} анилибрия deep смотреть онлайн`,
+    normTitle,
     originalName.toLowerCase()
   ];
 
   if (paramEpisode) {
+    // Extract just the digit from the episode (e.g. "5 серия" -> "5")
+    const epDigitMatch = paramEpisode.match(/\d+/);
+    const epDigit = epDigitMatch ? epDigitMatch[0] : paramEpisode;
+    
     baseKeywords.unshift(
-      `смотреть ${baseTitle.toLowerCase()} ${seasonSuffix} ${paramEpisode} серия 4к`,
-      `${baseTitle.toLowerCase()} ${paramEpisode} серия без рекламы`
+      `скачать аниме ${normTitle} ${epDigit} серия`,
+      `скачать аниме ${normTitle} ${epDigit} серия в mp4`,
+      `скачать аниме ${normTitle} ${epDigit} серия на телефон`,
+      `скачать аниме ${normTitle} ${epDigit} серия бесплатно`,
+      `скачать аниме ${normTitle} ${seasonSuffix.toLowerCase()} ${epDigit} серия`,
+      `скачать аниме ${normTitle} ${seasonSuffix.toLowerCase()} ${epDigit} серия в хорошем качестве`,
+      `скачать ${normTitle} ${paramEpisode} серия в mp4`,
+      `скачать аниме ${normTitle} ${seasonSuffix.toLowerCase()} ${paramEpisode} серия на телефон`,
+      `смотреть ${normTitle} ${seasonSuffix.toLowerCase()} ${paramEpisode} серия 4к`,
+      `${normTitle} ${paramEpisode} серия без рекламы`
+    );
+  } else {
+    baseKeywords.unshift(
+      `скачать все серии ${normTitle} в хорошем качестве`,
+      `скачать аниме ${normTitle} ${seasonSuffix.toLowerCase()} в mp4`,
+      `скачать аниме ${normTitle} 1 серия`,
+      `скачать аниме ${normTitle} 2 серия`,
+      `скачать аниме ${normTitle} последняя серия`
     );
   }
 

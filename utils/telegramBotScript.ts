@@ -691,6 +691,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         translation_id = parts[3]
         quality = parts[4]
         
+        # Убираем кнопки качества сразу, чтобы предотвратить повторные нажатия
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception as edit_err:
+            logger.warning(f"Failed to clear reply markup: {edit_err}")
+            
         status_msg = await query.message.reply_text(
             "⏳ **Готовим файл к скачиванию, подождите 30 секунд...**",
             parse_mode="Markdown"
@@ -1052,9 +1058,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         logger.error(f"Failed to schedule delay delete: {de_err}")
                 else:
                     await status_msg.edit_text(
-                        f"⚠️ **Файл весит {file_size_mb:.1f} MB** (превышает лимит 50MB бота).\\n"
-                        f"Бот запущен вне Hugging Face Spaces, либо отсутствует доступ к автоматическим переменным (SPACE_ID и SPACE_HOST).\\n"
-                        f"Пожалуйста, не добавляйте SPACE_ID или SPACE_HOST вручную во избежание сбоя Hugging Face!"
+                        f"⚠️ **Файл слишком большой ({file_size_mb:.1f} MB)** и превышает лимит отправки в Telegram.\n\n"
+                        f"Пожалуйста, выберите более низкое качество видео (например, 480p или 360p), чтобы скачать его прямо здесь, или воспользуйтесь сайтом."
                     )
 
         except Exception as e:
