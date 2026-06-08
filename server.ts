@@ -18,6 +18,14 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('/*', cors());
 
+app.onError((err, c) => {
+  console.error(`[HONO UNCAUGHT ERROR]:`, err);
+  return c.json({
+    error: 'Internal Server Error',
+    message: err.message || String(err)
+  }, 500);
+});
+
 app.use('/*', async (c, next) => {
   const method = c.req.method;
   const url = c.req.url;
