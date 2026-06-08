@@ -152,3 +152,19 @@ html, body {
 }
 .markdown-body u { text-decoration: underline; text-decoration-color: #8B5CF6; text-underline-offset: 4px; }
 .markdown-body img { max-width: 100%; border-radius: 1rem; margin: 1rem 0; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); }
+
+/* Mobile Performance & Smooth Scroll Optimizations */
+@media (max-width: 768px) {
+  /* Disable heavy GPU-repaint filters on mobile screens */
+  *, *::before, *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    /* Optional: reduce animations/transitions where appropriate to keep scrolling buttery-smooth */
+  }
+
+  /* Help mobile scroll behaviors stay hardware-accelerated and smooth */
+  .overflow-x-auto, .overflow-y-auto, [class*="overflow-"] {
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+

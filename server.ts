@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
-import { setupWebSocketServer } from './utils/socketServer';
+import { handleRoomWebSocket } from './utils/socketServer';
+import { injectWebSocket } from '@hono/node-server/websocket';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -1830,6 +1831,9 @@ app.get('/api/media/download/file', async (c) => {
   return new Response(fileStream as any);
 });
 
+// WS Room Route (must be registered before SPA fallback)
+app.get('/ws/room', handleRoomWebSocket);
+
 // SPA Fallback
 app.get('*', serveStatic({ root: './dist' }));
 
@@ -1843,7 +1847,7 @@ const server = serve({
   hostname: '0.0.0.0'
 });
 
-setupWebSocketServer(server);
+injectWebSocket(server);
 
 export default {
   fetch: app.fetch,

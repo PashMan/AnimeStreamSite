@@ -1,10 +1,9 @@
-import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
-import { parse } from 'url';
+// @ts-ignore
+import { upgradeWebSocket } from 'hono/websocket';
 
 interface RoomClient {
   clientId: string;
-  ws: WebSocket;
+  ws: any; // Context for Hono WS connection
   name: string;
   avatar: string;
   isMuted: boolean;
@@ -26,118 +25,156 @@ interface Room {
 
 const rooms = new Map<string, Room>();
 
-export function setupWebSocketServer(server: any) {
-  const wss = new WebSocketServer({ noServer: true });
+// @ts-ignore
+export const handleRoomWebSocket = upgradeWebSocket((c: any) => {
+  const roomId = c.req.query('roomId');
+  const clientId = c.req.query('clientId') || Math.random().toString(36).substring(2, 9);
+  const name = c.req.query('name') || 'Guest';
+  const avatar = c.req.query('avatar') || '';
 
-  server.on('upgrade', (request: IncomingMessage, socket: any, head: any) => {
-    const { pathname } = parse(request.url || '', true);
-
-    if (pathname === '/ws/room') {
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
-    }
-  });
-
-  wss.on('connection', (ws: WebSocket, request: IncomingMessage) => {
-    const { query } = parse(request.url || '', true);
-    const roomId = query.roomId as string;
-    const clientId = query.clientId as string || Math.random().toString(36).substring(2, 9);
-    const name = query.name as string || 'Guest';
-    const avatar = query.avatar as string || '';
-
-    if (!roomId) {
-      ws.close(1008, 'Room ID required');
-      return;
-    }
-
-    console.log(`[WS] Client ${clientId} (${name}) connecting to room ${roomId}`);
-
-    let room = rooms.get(roomId);
-    if (!room) {
-      room = {
-        id: roomId,
-        clients: new Map(),
-        playerState: {
-          isPlaying: false,
-          time: 0,
-          updatedAt: Date.now()
-        }
-      };
-      rooms.set(roomId, room);
-    }
-
-    const client: RoomClient = {
-      clientId,
-      ws,
-      name,
-      avatar,
-      isMuted: true, // Default to muted for safety
-      joinedAt: Date.now()
-    };
-
-    room.clients.set(clientId, client);
-
-    const getHostClientId = (r: Room) => {
-      const clientsSorted = Array.from(r.clients.values()).sort((a, b) => a.joinedAt - b.joinedAt);
-      return clientsSorted[0]?.clientId;
-    };
-
-    // Send successful join info
-    const sendJson = (targetWs: WebSocket, obj: any) => {
-      if (targetWs.readyState === WebSocket.OPEN) {
-        targetWs.send(JSON.stringify(obj));
+  if (!roomId) {
+    return {
+      onOpen(event: any, ws: any) {
+        ws.close(1008, 'Room ID required');
       }
     };
+  }
 
-    // Helper to broadcast to room
-    const broadcastToRoom = (msg: any, excludeClientId?: string) => {
-      if (!room) return;
-      const msgStr = JSON.stringify(msg);
-      room.clients.forEach((c) => {
-        if (c.clientId !== excludeClientId && c.ws.readyState === WebSocket.OPEN) {
-          c.ws.send(msgStr);
+  let room = rooms.get(roomId);
+  let client: RoomClient | null = null;
+
+  return {
+    onOpen(event: any, ws: any) {
+      console.log(`[WS] Client ${clientId} (${name}) connecting to room ${roomId}`);
+
+      room = rooms.get(roomId!);
+      if (!room) {
+        room = {
+          id: roomId!,
+          clients: new Map(),
+          playerState: {
+            isPlaying: false,
+            time: 0,
+            updatedAt: Date.now()
+          }
+        };
+        rooms.set(roomId!, room);
+      }
+
+      client = {
+        clientId,
+        ws,
+        name,
+        avatar,
+        isMuted: true, // Default to muted for safety
+        joinedAt: Date.now()
+      };
+
+      room.clients.set(clientId, client);
+
+      const getHostClientId = (r: Room) => {
+        const clientsSorted = Array.from(r.clients.values()).sort((a, b) => a.joinedAt - b.joinedAt);
+        return clientsSorted[0]?.clientId;
+      };
+
+      const sendJson = (targetWs: any, obj: any) => {
+        try {
+          targetWs.send(JSON.stringify(obj));
+        } catch (e) {
+          console.error('[WS] Send error', e);
         }
+      };
+
+      const broadcastToRoom = (msg: any, excludeClientId?: string) => {
+        if (!room) return;
+        const msgStr = JSON.stringify(msg);
+        room.clients.forEach((c) => {
+          if (c.clientId !== excludeClientId) {
+            try {
+              c.ws.send(msgStr);
+            } catch (e) {
+              console.error('[WS] Broadcast send error', e);
+            }
+          }
+        });
+      };
+
+      const getClientList = () => {
+        if (!room) return [];
+        const currentHostId = getHostClientId(room);
+        return Array.from(room.clients.values()).map(c => ({
+          clientId: c.clientId,
+          name: c.name,
+          avatar: c.avatar,
+          isMuted: c.isMuted,
+          isHost: c.clientId === currentHostId
+        }));
+      };
+
+      const hostClientId = getHostClientId(room);
+
+      // 1. Send initialization data back to joining user
+      sendJson(ws, {
+        type: 'init-state',
+        clientId,
+        role: clientId === hostClientId ? 'host' : 'viewer',
+        users: getClientList(),
+        playerState: room.playerState
       });
-    };
 
-    // Get current client list (excluding sensitive ws object)
-    const getClientList = () => {
-      if (!room) return [];
-      const currentHostId = getHostClientId(room);
-      return Array.from(room.clients.values()).map(c => ({
-        clientId: c.clientId,
-        name: c.name,
-        avatar: c.avatar,
-        isMuted: c.isMuted,
-        isHost: c.clientId === currentHostId
-      }));
-    };
+      // 2. Broadcast updated user list to everyone in the room
+      broadcastToRoom({
+        type: 'room-users-updated',
+        users: getClientList()
+      });
+    },
 
-    const hostClientId = getHostClientId(room);
-
-    // 1. Send initialization data back to joining user
-    sendJson(ws, {
-      type: 'init-state',
-      clientId,
-      role: clientId === hostClientId ? 'host' : 'viewer',
-      users: getClientList(),
-      playerState: room.playerState
-    });
-
-    // 2. Broadcast updated user list to everyone in the room
-    broadcastToRoom({
-      type: 'room-users-updated',
-      users: getClientList()
-    });
-
-    // Listen for client messages
-    ws.on('message', (message: string) => {
+    onMessage(event: any, ws: any) {
+      if (!room || !client) return;
       try {
-        const data = JSON.parse(message);
+        const data = JSON.parse(String(event.data));
+
+        const getHostClientId = (r: Room) => {
+          const clientsSorted = Array.from(r.clients.values()).sort((a, b) => a.joinedAt - b.joinedAt);
+          return clientsSorted[0]?.clientId;
+        };
+
+        const sendJson = (targetWs: any, obj: any) => {
+          try {
+            targetWs.send(JSON.stringify(obj));
+          } catch (e) {
+            console.error('[WS] Send error', e);
+          }
+        };
+
+        const broadcastToRoom = (msg: any, excludeClientId?: string) => {
+          if (!room) return;
+          const msgStr = JSON.stringify(msg);
+          room.clients.forEach((c) => {
+            if (c.clientId !== excludeClientId) {
+              try {
+                c.ws.send(msgStr);
+              } catch (e) {
+                console.error('[WS] Broadcast send error', e);
+              }
+            }
+          });
+        };
+
+        const getClientList = () => {
+          if (!room) return [];
+          const currentHostId = getHostClientId(room);
+          return Array.from(room.clients.values()).map(c => ({
+            clientId: c.clientId,
+            name: c.name,
+            avatar: c.avatar,
+            isMuted: c.isMuted,
+            isHost: c.clientId === currentHostId
+          }));
+        };
+
         switch (data.type) {
           case 'player-state-update': {
-            if (!room) return;
             // Update the authoritative player state on the server
             room.playerState = {
               isPlaying: data.isPlaying,
@@ -158,7 +195,6 @@ export function setupWebSocketServer(server: any) {
           }
 
           case 'webrtc-signal': {
-            if (!room) return;
             const targetClient = room.clients.get(data.targetId);
             if (targetClient) {
               sendJson(targetClient.ws, {
@@ -171,7 +207,6 @@ export function setupWebSocketServer(server: any) {
           }
 
           case 'voice-state-update': {
-            if (!room) return;
             client.isMuted = !!data.isMuted;
             
             broadcastToRoom({
@@ -184,15 +219,54 @@ export function setupWebSocketServer(server: any) {
       } catch (err) {
         console.error('[WS] Error processing message:', err);
       }
-    });
+    },
 
-    ws.on('close', () => {
+    onClose(event: any, ws: any) {
       if (!room) return;
       console.log(`[WS] Client ${clientId} disconnected from room ${roomId}`);
       room.clients.delete(clientId);
 
+      const getHostClientId = (r: Room) => {
+        const clientsSorted = Array.from(r.clients.values()).sort((a, b) => a.joinedAt - b.joinedAt);
+        return clientsSorted[0]?.clientId;
+      };
+
+      const sendJson = (targetWs: any, obj: any) => {
+        try {
+          targetWs.send(JSON.stringify(obj));
+        } catch (e) {
+          console.error('[WS] Send error', e);
+        }
+      };
+
+      const broadcastToRoom = (msg: any, excludeClientId?: string) => {
+        if (!room) return;
+        const msgStr = JSON.stringify(msg);
+        room.clients.forEach((c) => {
+          if (c.clientId !== excludeClientId) {
+            try {
+              c.ws.send(msgStr);
+            } catch (e) {
+              console.error('[WS] Broadcast send error', e);
+            }
+          }
+        });
+      };
+
+      const getClientList = () => {
+        if (!room) return [];
+        const currentHostId = getHostClientId(room);
+        return Array.from(room.clients.values()).map(c => ({
+          clientId: c.clientId,
+          name: c.name,
+          avatar: c.avatar,
+          isMuted: c.isMuted,
+          isHost: c.clientId === currentHostId
+        }));
+      };
+
       if (room.clients.size === 0) {
-        rooms.delete(roomId);
+        rooms.delete(roomId!);
         console.log(`[WS] Room ${roomId} is empty and was destroyed`);
       } else {
         const remainingClients = Array.from(room.clients.values()).sort((a, b) => a.joinedAt - b.joinedAt);
@@ -200,7 +274,7 @@ export function setupWebSocketServer(server: any) {
 
         // Inform the new host if their role changed to host
         const newHost = remainingClients[0];
-        if (newHost && newHostId !== hostClientId) {
+        if (newHost) {
           sendJson(newHost.ws, {
             type: 'role-change',
             role: 'host'
@@ -213,10 +287,6 @@ export function setupWebSocketServer(server: any) {
           users: getClientList()
         });
       }
-    });
-
-    ws.on('error', (err) => {
-      console.warn(`[WS] Error on client ${clientId} socket:`, err.message);
-    });
-  });
-}
+    }
+  };
+});
