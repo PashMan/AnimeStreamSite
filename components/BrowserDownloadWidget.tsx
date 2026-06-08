@@ -49,11 +49,10 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         const res = await fetch(`/api/media/playlist?url=${encodeURIComponent(episodeUrl)}&resolve=true`);
         
         const text = await res.text();
-        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html") || !res.ok) {
-          if (text.includes("Cookie check") || text.includes("Action required to load your app") || text.includes("aistudio") || text.includes("security cookie")) {
-            throw new Error("Ваш браузер блокирует файлы cookie во встроенном фрейме Google AI Studio (например, Safari на iOS или режим инкогнито). Пожалуйста, в правом верхнем углу интерфейса AI Studio нажмите кнопку открытия в новой вкладке (Open in new tab), чтобы скачивание и плеер работали без ограничений.");
-          }
-          throw new Error("Не удалось получить видео-поток. Пожалуйста, попробуйте еще раз позже.");
+        const trimmed = text.trim().toLowerCase();
+        const isHtml = trimmed.startsWith("<!doctype") || trimmed.startsWith("<html") || trimmed.startsWith("<head") || trimmed.startsWith("<body");
+        if (isHtml || !res.ok) {
+          throw new Error("Браузер заблокировал сторонние cookie-файлы во встроенном фрейме Google AI Studio (либо получен некорректный HTML-ответ). Пожалуйста, в правом верхнем углу интерфейса AI Studio нажмите кнопку «Open in new tab» (Открыть в новой вкладке) — плеер и скачивание заработают без ограничений, или воспользуйтесь нашим Telegram-ботом ниже!");
         }
 
         const data = JSON.parse(text);
@@ -121,11 +120,10 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         throw new Error(errorMsg);
       }
       
-      if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
-        if (text.includes("Cookie check") || text.includes("Action required to load your app") || text.includes("aistudio") || text.includes("security cookie")) {
-          throw new Error("Ваш браузер блокирует файлы cookie во встроенном фрейме Google AI Studio (например, Safari на iOS или режим инкогнито). Пожалуйста, в верхнем правом углу интерфейса AI Studio нажмите кнопку открытия в новой вкладке (Open in new tab), чтобы скачивание работало.");
-        }
-        throw new Error("Неверный ответ от сервера (был возвращен HTML вместо JSON)");
+      const trimmedText = text.trim().toLowerCase();
+      const isHtmlResponse = trimmedText.startsWith("<!doctype") || trimmedText.startsWith("<html") || trimmedText.startsWith("<head") || trimmedText.startsWith("<body");
+      if (isHtmlResponse) {
+        throw new Error("Браузер заблокировал сторонние cookie-файлы во встроенном фрейме Google AI Studio (либо получен некорректный HTML-ответ). Пожалуйста, в правом верхнем углу интерфейса AI Studio нажмите кнопку «Open in new tab» (Открыть в новой вкладке) — плеер и скачивание заработают без ограничений, или воспользуйтесь нашим Telegram-ботом ниже!");
       }
       
       const data = JSON.parse(text);
