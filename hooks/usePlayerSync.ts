@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/db';
 
 interface SyncState {
   isPlaying: boolean;
@@ -16,6 +17,7 @@ export interface RoomUser {
   avatar: string;
   isMuted: boolean;
   isHost: boolean;
+  joinedAt: number;
 }
 
 const playRemoteStream = (peerId: string, stream: MediaStream) => {
@@ -47,8 +49,10 @@ export const usePlayerSync = (
   const userName = user?.name || `Аноним_${Math.floor(Math.random() * 900 + 100)}`;
   const userAvatar = user?.avatar || `https://picsum.photos/seed/${userName}/200`;
 
-  const wsRef = useRef<WebSocket | null>(null);
+  const channelRef = useRef<any>(null);
   const clientIdRef = useRef(Math.random().toString(36).substring(2, 9));
+  const joinedAtRef = useRef<number>(Date.now());
+
   const [role, setRole] = useState<'host' | 'viewer' | null>(null);
   const roleRef = useRef<'host' | 'viewer' | null>(null);
   const [usersCount, setUsersCount] = useState(0);
@@ -64,7 +68,6 @@ export const usePlayerSync = (
   const isPlayingRef = useRef(false);
   const viewerKodikHashRef = useRef<string | null>(null);
   const hostStateRef = useRef<SyncState>({ isPlaying: false, time: 0 });
-  const ignoreNextEventRef = useRef(false);
 
   const navigate = useNavigate();
   const params = useParams();
@@ -87,11 +90,13 @@ export const usePlayerSync = (
 
   // Update voice state initially or on socket load
   const sendVoiceState = (muted: boolean) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'voice-state-update',
-        isMuted: muted
-      }));
+    if (channelRef.current) {
+      channelRef.current.track({
+        name: userName,
+        avatar: userAvatar,
+        isMuted: muted,
+        joinedAt: joinedAtRef.current,
+      }).catch((err: any) => console.warn('[Presence] track error on voice state:', err));
     }
   };
 
@@ -161,12 +166,16 @@ export const usePlayerSync = (
       });
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            type: 'webrtc-signal',
-            targetId: peerId,
-            signal: { candidate: event.candidate }
-          }));
+        if (event.candidate && channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'webrtc-relay',
+            payload: {
+              senderId: clientIdRef.current,
+              targetId: peerId,
+              signal: { candidate: event.candidate }
+            }
+          });
         }
       };
 
@@ -189,7 +198,7 @@ export const usePlayerSync = (
   };
 
   const updateHostState = async (state: Partial<SyncState>) => {
-    if (roleRef.current !== 'host' || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (roleRef.current !== 'host' || !channelRef.current) return;
 
     pendingStateUpdatesRef.current = { ...pendingStateUpdatesRef.current, ...state };
 
@@ -197,7 +206,7 @@ export const usePlayerSync = (
 
     updateTimeoutRef.current = setTimeout(async () => {
       updateTimeoutRef.current = null;
-      if (roleRef.current !== 'host' || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      if (roleRef.current !== 'host' || !channelRef.current) return;
 
       const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
 
@@ -220,154 +229,163 @@ export const usePlayerSync = (
       hostStateRef.current = { ...hostStateRef.current, ...newState };
 
       console.log('[SYNC] Broadcasting Host state update:', newState);
-      wsRef.current.send(JSON.stringify({
-        type: 'player-state-update',
-        ...newState
-      }));
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'player-state-update',
+        payload: newState
+      });
     }, 400);
   };
 
-  // WebSocket Connection Management
+  // Supabase Channel Connection Management
   useEffect(() => {
     if (!roomId) return;
 
     const myId = clientIdRef.current;
-    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProto}//${window.location.host}/ws/room?roomId=${roomId}&clientId=${myId}&name=${encodeURIComponent(userName)}&avatar=${encodeURIComponent(userAvatar)}`;
+    console.log(`[SYNC] Connecting to Supabase Realtime channel room_${roomId} as client ${myId}`);
 
-    console.log(`[WS] Connecting to WebSocket: ${wsUrl}`);
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    const channel = supabase.channel(`room_${roomId}`, {
+      config: {
+        presence: {
+          key: myId,
+        },
+      },
+    });
+    channelRef.current = channel;
 
-    ws.onopen = () => {
-      console.log('[WS] Connection established');
-      sendVoiceState(isVoiceMuted);
-    };
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        console.log('[Presence] Sync event state:', state);
 
-    ws.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        switch (data.type) {
-          case 'init-state': {
-            console.log('[WS] Received initial room state', data);
-            setRole(data.role);
-            setJoinedUsers(data.users);
-            setUsersCount(data.users.length);
-
-            // Setup peer connections with other online users
-            data.users.forEach((item: RoomUser) => {
-              if (item.clientId !== myId) {
-                const pc = getOrCreatePeerConnection(item.clientId);
-                const isInitiator = myId < item.clientId;
-                if (isInitiator) {
-                  pc.createOffer().then(offer => {
-                    return pc.setLocalDescription(offer);
-                  }).then(() => {
-                    ws.send(JSON.stringify({
-                      type: 'webrtc-signal',
-                      targetId: item.clientId,
-                      signal: { sdp: pc.localDescription }
-                    }));
-                  }).catch(e => console.error('[WebRTC] Offer initiation error', e));
-                }
-              }
+        const presenceUsers: RoomUser[] = [];
+        Object.entries(state).forEach(([key, list]) => {
+          const val = (list as any[])[0];
+          if (val) {
+            presenceUsers.push({
+              clientId: key,
+              name: val.name || 'Аноним',
+              avatar: val.avatar || '',
+              isMuted: typeof val.isMuted === 'boolean' ? val.isMuted : true,
+              joinedAt: val.joinedAt || Date.now(),
+              isHost: false, // Computed next
             });
-
-            if (data.role === 'viewer' && data.playerState) {
-              const hState = data.playerState;
-              hostStateRef.current = hState;
-              syncToPlayer(hState, true);
-            }
-            break;
           }
+        });
 
-          case 'room-users-updated': {
-            console.log('[WS] Room users updated list:', data.users);
-            setJoinedUsers(data.users);
-            setUsersCount(data.users.length);
+        // Stable sorting by joinedAt
+        presenceUsers.sort((a, b) => a.joinedAt - b.joinedAt);
 
-            // Re-sync peer connections: Add new ones
-            data.users.forEach((item: RoomUser) => {
-              if (item.clientId !== myId) {
-                getOrCreatePeerConnection(item.clientId);
-              }
-            });
+        const mappedUsers = presenceUsers.map((u, index) => ({
+          ...u,
+          isHost: index === 0,
+        }));
 
-            // Cleanup left peers
-            pcsRef.current.forEach((pc, peerId) => {
-              const stillInRoom = data.users.some((x: RoomUser) => x.clientId === peerId);
-              if (!stillInRoom) {
-                console.log(`[WebRTC] Closing peer connection for retired user ${peerId}`);
-                pc.close();
-                pcsRef.current.delete(peerId);
-                removeRemoteStream(peerId);
-              }
-            });
-            break;
-          }
+        setJoinedUsers(mappedUsers);
+        setUsersCount(mappedUsers.length);
 
-          case 'role-change': {
-            console.log(`[WS] Client role upgraded to: ${data.role}`);
-            setRole(data.role);
-            break;
-          }
-
-          case 'player-state-broadcast': {
-            if (roleRef.current !== 'viewer') return;
-            const hState = data as SyncState;
-
-            if (hState.episode !== hostStateRef.current.episode ||
-                hState.isPlaying !== hostStateRef.current.isPlaying ||
-                Math.abs(hState.time - hostStateRef.current.time) > 4 ||
-                hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash) {
-              
-              console.log('[SYNC] Synced from Host via WS broadcast:', hState);
-              const force = hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
-              hostStateRef.current = hState;
-              syncToPlayer(hState, force);
-            }
-            break;
-          }
-
-          case 'webrtc-signal-relay': {
-            const senderId = data.senderId;
-            const sig = data.signal;
-            const pc = getOrCreatePeerConnection(senderId);
-
-            if (sig.sdp) {
-              await pc.setRemoteDescription(new RTCSessionDescription(sig.sdp));
-              if (sig.sdp.type === 'offer') {
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                ws.send(JSON.stringify({
-                  type: 'webrtc-signal',
-                  targetId: senderId,
-                  signal: { sdp: pc.localDescription }
-                }));
-              }
-            } else if (sig.candidate) {
-              await pc.addIceCandidate(new RTCIceCandidate(sig.candidate));
-            }
-            break;
-          }
+        const me = mappedUsers.find((u) => u.clientId === myId);
+        const myComputedRole = me?.isHost ? 'host' : 'viewer';
+        if (myComputedRole !== roleRef.current) {
+          console.log(`[SYNC] Role updated based on stable sorting: ${roleRef.current} -> ${myComputedRole}`);
+          setRole(myComputedRole);
         }
-      } catch (err) {
-        console.error('[WS] Frame error parsing payload', err);
+
+        // WebRTC signaling setup for visible peers
+        mappedUsers.forEach((item: RoomUser) => {
+          if (item.clientId !== myId) {
+            const pc = getOrCreatePeerConnection(item.clientId);
+            const isInitiator = myId < item.clientId;
+            if (isInitiator && pc.connectionState === 'new') {
+              console.log(`[WebRTC] Initiating offer connection to ${item.clientId}`);
+              pc.createOffer()
+                .then((offer) => pc.setLocalDescription(offer))
+                .then(() => {
+                  channel.send({
+                    type: 'broadcast',
+                    event: 'webrtc-relay',
+                    payload: {
+                      senderId: myId,
+                      targetId: item.clientId,
+                      signal: { sdp: pc.localDescription },
+                    },
+                  });
+                })
+                .catch((e) => console.error('[WebRTC] Offer initiation error', e));
+            }
+          }
+        });
+
+        // Cleanup retired connections
+        pcsRef.current.forEach((pc, peerId) => {
+          const stillInRoom = mappedUsers.some((x: RoomUser) => x.clientId === peerId);
+          if (!stillInRoom) {
+            console.log(`[WebRTC] Closing peer connection for retired user ${peerId}`);
+            pc.close();
+            pcsRef.current.delete(peerId);
+            removeRemoteStream(peerId);
+          }
+        });
+      })
+      .on('broadcast', { event: 'player-state-update' }, ({ payload }: { payload: any }) => {
+        if (roleRef.current !== 'viewer') return;
+        const hState = payload as SyncState;
+
+        if (hState.episode !== hostStateRef.current.episode ||
+            hState.isPlaying !== hostStateRef.current.isPlaying ||
+            Math.abs(hState.time - hostStateRef.current.time) > 4 ||
+            hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash) {
+          
+          console.log('[SYNC] Synced from Host via Supabase broadcast:', hState);
+          const force = hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
+          hostStateRef.current = hState;
+          syncToPlayer(hState, force);
+        }
+      })
+      .on('broadcast', { event: 'webrtc-relay' }, async ({ payload }: { payload: any }) => {
+        if (payload.targetId !== myId) return;
+
+        const senderId = payload.senderId;
+        const sig = payload.signal;
+        const pc = getOrCreatePeerConnection(senderId);
+
+        if (sig.sdp) {
+          await pc.setRemoteDescription(new RTCSessionDescription(sig.sdp));
+          if (sig.sdp.type === 'offer') {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            channel.send({
+              type: 'broadcast',
+              event: 'webrtc-relay',
+              payload: {
+                senderId: myId,
+                targetId: senderId,
+                signal: { sdp: pc.localDescription },
+              },
+            });
+          }
+        } else if (sig.candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(sig.candidate));
+        }
+      });
+
+    channel.subscribe(async (status: string) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('[SYNC] Subscribed to Supabase channel, tracking presence...');
+        await channel.track({
+          name: userName,
+          avatar: userAvatar,
+          isMuted: isVoiceMuted,
+          joinedAt: joinedAtRef.current,
+        });
       }
-    };
-
-    ws.onclose = () => {
-      console.log('[WS] Connection closed, cleaning dependencies');
-    };
-
-    ws.onerror = (err) => {
-      console.warn('[WS] Socket error detected', err);
-    };
+    });
 
     return () => {
-      console.log('[WS] Component unmounting, wiping connections');
-      ws.close();
+      console.log('[SYNC] Unsubscribing from channel, cleaning connections');
+      channel.unsubscribe();
+      channelRef.current = null;
+
       pcsRef.current.forEach((pc, id) => {
         pc.close();
         removeRemoteStream(id);
