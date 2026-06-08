@@ -248,7 +248,7 @@ def extract_m3u8_stream(iframe_url, quality=None):
     # Локальный парсинг (резервный вариант)
     # Резолвим домены для борьбы с блокировками и лимитами, как в веб-прокси
     iframe_url = re.sub(
-        r'(kodik\\.info|kodik\\.cc|kodik\\.biz|kodik\\.net|kodik\\.tv|kodik\\.club|kodik\\.site|kodik\\.space)', 
+        r'(kodik\\.info|kodik\\.cc|kodik\\.biz|kodik\\.net|kodik\\.tv|kodik\\.club|kodik\\.site|kodik\\.space|kodik\\.ru|kodikonline\\.com|kodikhd\\.club|kodik-api\\.com)', 
         'kodikplayer.com', 
         iframe_url
     )

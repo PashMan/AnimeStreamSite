@@ -1772,6 +1772,8 @@ const Details: React.FC = () => {
                       episodeUrl={kodikIframeWithEpisode}
                       animeTitle={anime?.title || "Anime"}
                       episodeNumber={paramEpisode || "1"}
+                      shikimoriId={anime?.id || id}
+                      translationId={selectedTranslation?.id ? String(selectedTranslation.id) : undefined}
                     />
                   );
                 }
@@ -2226,6 +2228,8 @@ const Details: React.FC = () => {
                     episodeUrl={kodikIframeWithEpisode}
                     animeTitle={anime?.title || "Anime"}
                     episodeNumber={paramEpisode || "1"}
+                    shikimoriId={anime?.id || id}
+                    translationId={selectedTranslation?.id ? String(selectedTranslation.id) : undefined}
                   />
                 );
               }

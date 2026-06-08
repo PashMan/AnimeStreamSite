@@ -739,6 +739,14 @@ function getProxyOrigin(c: any): string {
   return `${proto}://${host}`;
 }
 
+function safeDecodeURIComponent(val: string): string {
+  try {
+    return decodeURIComponent(val);
+  } catch (_) {
+    return val;
+  }
+}
+
 app.options('/api/proxy-4k', (c) => {
   return new Response(null, {
     status: 204,
@@ -1032,7 +1040,7 @@ app.get('/api/media/skip-timings', async (c) => {
 
   try {
     let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space)/g, 'kodikplayer.com');
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
     const iframeRes = await fetch(iframeUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
@@ -1149,7 +1157,7 @@ app.get('/api/media/playlist', async (c) => {
 
   try {
     let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space)/g, 'kodikplayer.com');
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
     console.log(`[KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
 
     // 1. Fetch iframe page
@@ -1235,7 +1243,7 @@ app.get('/api/media/playlist', async (c) => {
       d_sign: urlParams.d_sign || '',
       pd: urlParams.pd || '',
       pd_sign: urlParams.pd_sign || '',
-      ref: decodeURIComponent(urlParams.ref || ''),
+      ref: safeDecodeURIComponent(urlParams.ref || ''),
       ref_sign: urlParams.ref_sign || '',
       bad_user: 'true',
       cdn_is_working: 'true'
@@ -1582,10 +1590,9 @@ async function runHlsDownloadBackground(taskId: string, iframeUrl: string, quali
     task.stage = 'resolving';
     task.progress = 5;
 
-    const playlistResolveUrl = `http://127.0.0.1:3000/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${quality}`;
-    console.log(`[BACKGROUND DOWNLOAD] Resolving playlist: ${playlistResolveUrl}`);
+    console.log(`[BACKGROUND DOWNLOAD] Resolving playlist programmatically for: ${iframeUrl}`);
     
-    const playlistRes = await fetch(playlistResolveUrl, {
+    const playlistRes = await app.request(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${quality}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': 'https://kodik.info/'
@@ -1606,7 +1613,7 @@ async function runHlsDownloadBackground(taskId: string, iframeUrl: string, quali
         if (line.includes('/api/media/segment?url=')) {
           const encodedUrl = line.split('/api/media/segment?url=')[1];
           if (encodedUrl) {
-            segmentUrls.push(decodeURIComponent(encodedUrl));
+            segmentUrls.push(safeDecodeURIComponent(encodedUrl));
           }
         } else if (line.startsWith('http')) {
           segmentUrls.push(line);

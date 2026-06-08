@@ -5,6 +5,8 @@ interface BrowserDownloadWidgetProps {
   episodeUrl: string;
   animeTitle: string;
   episodeNumber: string | number;
+  shikimoriId?: string | number;
+  translationId?: string | number;
 }
 
 interface DownloadProgress {
@@ -22,6 +24,8 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   episodeUrl,
   animeTitle,
   episodeNumber,
+  shikimoriId,
+  translationId,
 }) => {
   const [qualities, setQualities] = useState<string[]>([]);
   const [loadingQualities, setLoadingQualities] = useState(false);
@@ -97,8 +101,25 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       );
       
       const text = await res.text();
-      if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html") || !res.ok) {
-        throw new Error("Не удалось запустить скачивание. Попробуйте еще раз.");
+      if (!res.ok) {
+        let errorMsg = "Не удалось запустить скачивание.";
+        try {
+          const errObj = JSON.parse(text);
+          if (errObj && errObj.message) {
+            errorMsg = `Ошибка: ${errObj.message}`;
+          } else if (errObj && errObj.error) {
+             errorMsg = `Ошибка: ${errObj.error}`;
+          }
+        } catch {
+          if (text && text.length < 150) {
+            errorMsg = `Ошибка: ${text}`;
+          }
+        }
+        throw new Error(errorMsg);
+      }
+      
+      if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+        throw new Error("Неверный ответ от сервера (был возвращен HTML вместо JSON)");
       }
       
       const data = JSON.parse(text);
@@ -276,6 +297,35 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
             <Download className="w-4 h-4" />
             Скачать файл
           </button>
+        </div>
+      )}
+
+      {shikimoriId && (
+        <div className="mt-6 border-t border-white/10 pt-5 space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0088cc]/5 border border-[#0088cc]/10 p-5 rounded-2xl">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 bg-[#0088cc]/25 text-[#0088cc] rounded-xl self-start mt-0.5 shrink-0">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.1.02-1.62 1.03-4.57 3.03-.43.3-.82.44-1.17.43-.39-.01-1.15-.22-1.71-.41-.69-.23-1.24-.35-1.19-.74.03-.2.3-.4.81-.6 3.19-1.39 5.32-2.3 6.39-2.73 3.04-1.24 3.67-1.45 4.09-1.46.09 0 .3.02.43.13.11.09.14.21.16.3.02.08.03.24.01.37z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="text-white font-bold text-sm">Скачать через Telegram-Бот</h4>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Не получается скачать на сайте из-за медленных серверов или блокировок? Запустите нашего аниме-бота — он мгновенно соберет серию на высокоскоростных серверах пространства Hugging Face Space и пришлет готовым файлом прямо в Telegram!
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const botUsername = (import.meta.env.VITE_TELEGRAM_BOT_USERNAME) || "KamiAnime_bot";
+                window.open(`https://t.me/${botUsername}?start=dl_${shikimoriId}_ep${episodeNumber}_tr${translationId || 0}`, "_blank");
+              }}
+              className="w-full sm:w-auto px-5 py-3 bg-[#0088cc] hover:bg-[#008cdd] text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 text-center"
+            >
+              Скачать в ТГ
+            </button>
+          </div>
         </div>
       )}
     </div>
