@@ -1352,7 +1352,7 @@ const Details: React.FC = () => {
                   )}
                   <button
                     onClick={() => setIsDownloadModalOpen(true)}
-                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-black rounded-lg text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.03] active:scale-95 flex items-center gap-2 whitespace-nowrap shadow-lg shadow-amber-500/10"
+                    className="px-4 py-2.5 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.03] active:scale-95 flex items-center gap-2 whitespace-nowrap shadow-lg shadow-primary/20"
                   >
                     <Download className="w-4 h-4" /> Скачать серию
                   </button>

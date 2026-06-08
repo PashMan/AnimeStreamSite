@@ -51,7 +51,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         const trimmed = text.trim().toLowerCase();
         const isHtml = trimmed.startsWith("<!doctype") || trimmed.startsWith("<html") || trimmed.startsWith("<head") || trimmed.startsWith("<body");
         if (isHtml || !res.ok) {
-          throw new Error("Браузер заблокировал сторонние куки-файлы или API недоступно. Пожалуйста, попробуйте открыть страницу в новой вкладке, временно отключите блокировщики рекламы, либо скачайте файл в Telegram-боте ниже!");
+          throw new Error("Загрузка видео заблокирована Вашим браузером. Пожалуйста, откройте страницу в новой вкладке, временно отключите блокировщики рекламы или скачайте файл через Telegram-бота ниже!");
         }
 
         const data = JSON.parse(text);
@@ -153,7 +153,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       const trimmedText = playlistText.trim().toLowerCase();
       const isHtmlResponse = trimmedText.startsWith("<!doctype") || trimmedText.startsWith("<html") || trimmedText.startsWith("<head") || trimmedText.startsWith("<body");
       if (isHtmlResponse || !playlistRes.ok) {
-        throw new Error("Не удалось загрузить плейлист потока от сервера. Возможно, блокируются сторонние куки-файлы в iframe.");
+        throw new Error("Не удалось загрузить видеофайл. Пожалуйста, откройте страницу в новой вкладке или скачайте серию через Telegram-бот ниже.");
       }
 
       // Parse segment URLs from M3U8 content
@@ -343,17 +343,17 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   const getStageMessage = (stage: string) => {
     switch (stage) {
       case "loading_libs":
-        return "Инициализация видеоконвертера (mux.js)...";
+        return "Подготовка к началу загрузки...";
       case "fetching_playlist":
-        return "Получение плейлиста серии...";
+        return "Подготовка файлов серии...";
       case "downloading":
-        return progress ? `Загрузка фрагментов в память (${progress.processed} из ${progress.total || "..."})...` : "Загрузка фрагментов...";
+        return progress ? `Скачивание видеофайла (${progress.processed} из ${progress.total || "..."})...` : "Скачивание серии...";
       case "muxing":
-        return "Мгновенное перепаковывание видеопотока в полноценный формат .MP4 (mux.js)...";
+        return "Завершение сборки видео...";
       case "ready":
-        return "Файл собран!";
+        return "Видео успешно готово!";
       case "failed":
-        return "Ошибка";
+        return "Ошибка при загрузке";
       default:
         return "Подготовка к скачиванию...";
     }
@@ -403,17 +403,17 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         </div>
       </div>
 
-      <div className="bg-cyan-500/5 border border-cyan-500/15 rounded-xl p-4.5 space-y-2.5 text-slate-300">
+      <div className="bg-cyan-500/5 border border-cyan-500/15 rounded-xl p-4.5 space-y-2.5 text-slate-300 font-sans">
         <p className="text-cyan-400 font-bold text-xs flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-cyan-400 shrink-0" />
-          Особенности скачивания в браузере:
+          Рекомендации при скачивании в браузере:
         </p>
         <ul className="text-xs list-disc pl-4 space-y-2 leading-relaxed">
           <li>
-            <strong className="text-white">Скачивание без серверов:</strong> Серия собирается в оперативной памяти прямо в Вашем браузере. С помощью встроенной JS-библиотеки <strong className="text-cyan-400">mux.js</strong> исходный видеопоток автоматически упаковывается в стандартный <strong className="text-cyan-400">.mp4-контейнер</strong>.
+            <strong className="text-white">Процесс загрузки:</strong> Серия скачивается и собирается прямо на Вашем устройстве. Пожалуйста, не закрывайте вкладку до полного завершения процесса.
           </li>
           <li>
-            <strong className="text-white">Полная совместимость:</strong> Полученный файл <strong className="text-white">.mp4</strong> идеально воспроизводится на смартфонах (iOS / Android), ТВ и ПК безо всяких хитрых настроек или VLC-плееров!
+            <strong className="text-white">Удобный формат:</strong> Готовое видео сохраняется в стандартном формате <strong className="text-cyan-400">.mp4</strong>, который отлично воспроизводится на смартфонах, планшетах, компьютерах и умных ТВ.
           </li>
         </ul>
       </div>
@@ -444,8 +444,8 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
           <div className="flex items-center gap-3">
             <CheckCircle className="w-6 h-6 text-cyan-400 shrink-0" />
             <div>
-              <p className="text-white font-bold text-sm">Файл успешно собран в MP4!</p>
-              <p className="text-slate-400 text-xs mt-0.5">Видеозапись сохранена с правильным и привычным расширением .mp4 и готова к просмотру на любом плеере.</p>
+              <p className="text-white font-bold text-sm">Серия успешно скачана!</p>
+              <p className="text-slate-400 text-xs mt-0.5">Видео сохранено в формате .mp4 и готово к просмотру на любом плеере или телефоне.</p>
             </div>
           </div>
           <button
@@ -479,7 +479,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
               <div>
                 <h4 className="text-white font-bold text-sm">Альтернативный способ: Скачать через Telegram</h4>
                 <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Наш Telegram-бот работает на выделенных серверах с мощными утилитами. Он моментально собирает серию без лимитов браузера и присылает Вам готовую запись <strong className="text-white">сразу в формате .MP4</strong>, идеально подходящую для воспроизведения на стандартном плеере любого телефона (iPhone / Android) и ТВ!
+                  Наш Telegram-бот поможет моментально получить нужную серию. Вы получите готовое видео высокого качества прямо в диалоге с ботом, которое удобно смотреть на телефонах (iPhone / Android), планшетах или компьютерах!
                 </p>
               </div>
             </div>
