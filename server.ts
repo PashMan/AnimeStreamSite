@@ -4,6 +4,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
 import { makeRoomWebSocketHandler } from './utils/socketServer';
 import { createNodeWebSocket } from '@hono/node-server/websocket';
+import { upgradeWebSocket as cfUpgradeWebSocket } from 'hono/cloudflare-workers';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -18,8 +19,14 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
-const handleRoomWebSocket = makeRoomWebSocketHandler(upgradeWebSocket);
+const { injectWebSocket, upgradeWebSocket: nodeUpgradeWebSocket } = createNodeWebSocket({ app });
+
+// Check if running on Cloudflare Workers / Pages
+const isCloudflare = typeof WebSocketPair !== 'undefined';
+
+const handleRoomWebSocket = isCloudflare
+  ? makeRoomWebSocketHandler(cfUpgradeWebSocket)
+  : makeRoomWebSocketHandler(nodeUpgradeWebSocket);
 
 app.use('/*', cors());
 
@@ -1840,17 +1847,19 @@ app.get('/ws/room', handleRoomWebSocket);
 // SPA Fallback
 app.get('*', serveStatic({ root: './dist' }));
 
-const isProd = process.env.NODE_ENV === 'production';
-const port = 3000;
+const isCloudflareEnvironment = typeof WebSocketPair !== 'undefined';
 
-console.log(`[HONO NODE SERVER] Starting backend listener on port ${port}...`);
-const server = serve({
-  fetch: app.fetch,
-  port,
-  hostname: '0.0.0.0'
-});
+if (!isCloudflareEnvironment) {
+  const port = 3000;
+  console.log(`[HONO NODE SERVER] Starting backend listener on port ${port}...`);
+  const server = serve({
+    fetch: app.fetch,
+    port,
+    hostname: '0.0.0.0'
+  });
 
-injectWebSocket(server);
+  injectWebSocket(server);
+}
 
 export default {
   fetch: app.fetch,

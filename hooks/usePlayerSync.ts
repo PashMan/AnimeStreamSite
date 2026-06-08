@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/db';
 
 interface SyncState {
   isPlaying: boolean;
@@ -17,7 +16,6 @@ export interface RoomUser {
   avatar: string;
   isMuted: boolean;
   isHost: boolean;
-  joinedAt: number;
 }
 
 const playRemoteStream = (peerId: string, stream: MediaStream) => {
@@ -27,6 +25,7 @@ const playRemoteStream = (peerId: string, stream: MediaStream) => {
     audioEl.id = `audio-peer-${peerId}`;
     audioEl.autoplay = true;
     audioEl.style.display = 'none';
+    audioEl.setAttribute('controls', 'false');
     document.body.appendChild(audioEl);
   }
   audioEl.srcObject = stream;
@@ -49,16 +48,14 @@ export const usePlayerSync = (
   const userName = user?.name || `Аноним_${Math.floor(Math.random() * 900 + 100)}`;
   const userAvatar = user?.avatar || `https://picsum.photos/seed/${userName}/200`;
 
-  const channelRef = useRef<any>(null);
+  const socketRef = useRef<WebSocket | null>(null);
   const clientIdRef = useRef(Math.random().toString(36).substring(2, 9));
-  const joinedAtRef = useRef<number>(Date.now());
 
   const [role, setRole] = useState<'host' | 'viewer' | null>(null);
-  const roleRef = useRef<'host' | 'viewer' | null>(null);
   const [usersCount, setUsersCount] = useState(0);
   const [joinedUsers, setJoinedUsers] = useState<RoomUser[]>([]);
 
-  // Voice chat states
+  // Voice WebRTC states
   const [isVoiceMuted, setIsVoiceMuted] = useState(true);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -84,19 +81,17 @@ export const usePlayerSync = (
   const updateTimeoutRef = useRef<any>(null);
   const pendingStateUpdatesRef = useRef<Partial<SyncState>>({});
 
+  const roleRef = useRef<'host' | 'viewer' | null>(null);
   useEffect(() => {
     roleRef.current = role;
   }, [role]);
 
-  // Update voice state initially or on socket load
   const sendVoiceState = (muted: boolean) => {
-    if (channelRef.current) {
-      channelRef.current.track({
-        name: userName,
-        avatar: userAvatar,
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'voice-state-update',
         isMuted: muted,
-        joinedAt: joinedAtRef.current,
-      }).catch((err: any) => console.warn('[Presence] track error on voice state:', err));
+      }));
     }
   };
 
@@ -107,40 +102,55 @@ export const usePlayerSync = (
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach(track => {
         track.enabled = !newMuted;
+        try {
+          track.applyConstraints({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }).catch(console.warn);
+        } catch (e) {}
       });
     }
     sendVoiceState(newMuted);
   };
 
-  // Acquire microphone permission on join
+  // Acquire microphone with robust noise filtering and echo cancellation to prevent feedback loop
   useEffect(() => {
     if (!roomId) return;
     let isActive = true;
 
     const requestMic = async () => {
       try {
-        console.log('[VoiceChat] Obtaining microphone stream...');
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        console.log('[VoiceChat] Obtaining pristine microphone stream with hardware filtering...');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1,
+            sampleRate: 48000,
+          },
+          video: false
+        });
+
         if (!isActive) {
           stream.getTracks().forEach(t => t.stop());
           return;
         }
 
         localStreamRef.current = stream;
-        // set disabled initially matching default mute state
         stream.getAudioTracks().forEach(t => {
           t.enabled = !isVoiceMuted;
         });
 
-        console.log('[VoiceChat] Track success, attaching to peers');
-        // Attach stream tracks to existing peer connections if any
+        console.log('[VoiceChat] Micro acquired successfully. Attaching track to peers');
         pcsRef.current.forEach((pc) => {
           stream.getTracks().forEach(track => {
             pc.addTrack(track, stream);
           });
         });
       } catch (err: any) {
-        console.warn('[VoiceChat] Mic permissions failed:', err.message || err);
+        console.warn('[VoiceChat] Mic access rejected or unavailable:', err.message || err);
         setVoiceError('Разрешите доступ к микрофону для разговора в комнате.');
       }
     };
@@ -156,31 +166,27 @@ export const usePlayerSync = (
     };
   }, [roomId]);
 
-  // Handle peer connection setup
+  // WebRTC Peer Connection Helper
   const getOrCreatePeerConnection = (peerId: string) => {
     let pc = pcsRef.current.get(peerId);
     if (!pc) {
-      console.log(`[WebRTC] Creating peer connection for: ${peerId}`);
+      console.log(`[WebRTC] Building peer connection for: ${peerId}`);
       pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       });
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'webrtc-relay',
-            payload: {
-              senderId: clientIdRef.current,
-              targetId: peerId,
-              signal: { candidate: event.candidate }
-            }
-          });
+        if (event.candidate && socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+          socketRef.current.send(JSON.stringify({
+            type: 'webrtc-signal',
+            targetId: peerId,
+            signal: { candidate: event.candidate }
+          }));
         }
       };
 
       pc.ontrack = (event) => {
-        console.log(`[WebRTC] Received audio track from ${peerId}`);
+        console.log(`[WebRTC] Remote track detected from attendee ${peerId}`);
         if (event.streams && event.streams[0]) {
           playRemoteStream(peerId, event.streams[0]);
         }
@@ -198,7 +204,7 @@ export const usePlayerSync = (
   };
 
   const updateHostState = async (state: Partial<SyncState>) => {
-    if (roleRef.current !== 'host' || !channelRef.current) return;
+    if (roleRef.current !== 'host' || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
 
     pendingStateUpdatesRef.current = { ...pendingStateUpdatesRef.current, ...state };
 
@@ -206,7 +212,7 @@ export const usePlayerSync = (
 
     updateTimeoutRef.current = setTimeout(async () => {
       updateTimeoutRef.current = null;
-      if (roleRef.current !== 'host' || !channelRef.current) return;
+      if (roleRef.current !== 'host' || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
 
       const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
 
@@ -228,180 +234,188 @@ export const usePlayerSync = (
       lastStateUpdateStrRef.current = stateStr;
       hostStateRef.current = { ...hostStateRef.current, ...newState };
 
-      console.log('[SYNC] Broadcasting Host state update:', newState);
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'player-state-update',
-        payload: newState
-      });
+      console.log('[WS-SYNC] Broadcasting Host State:', newState);
+      socketRef.current.send(JSON.stringify({
+        type: 'player-state-update',
+        ...newState
+      }));
     }, 400);
   };
 
-  // Supabase Channel Connection Management
+  // Connect to native WebSocket backend server
   useEffect(() => {
     if (!roomId) return;
 
     const myId = clientIdRef.current;
-    console.log(`[SYNC] Connecting to Supabase Realtime channel room_${roomId} as client ${myId}`);
+    
+    // Construct absolute socket path mapping localhost to ws: and safe SSL fallback
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const socketUrl = `${protocol}//${host}/ws/room?roomId=${roomId}&clientId=${myId}&name=${encodeURIComponent(userName)}&avatar=${encodeURIComponent(userAvatar)}`;
 
-    const channel = supabase.channel(`room_${roomId}`, {
-      config: {
-        presence: {
-          key: myId,
-        },
-      },
-    });
-    channelRef.current = channel;
+    console.log(`[WS] Initializing connection to ${socketUrl}`);
+    const socket = new WebSocket(socketUrl);
+    socketRef.current = socket;
 
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        console.log('[Presence] Sync event state:', state);
+    socket.onopen = () => {
+      console.log('[WS] Connected to Hono co-watching WebSocket backend.');
+      sendVoiceState(isVoiceMuted);
+    };
 
-        const presenceUsers: RoomUser[] = [];
-        Object.entries(state).forEach(([key, list]) => {
-          const val = (list as any[])[0];
-          if (val) {
-            presenceUsers.push({
-              clientId: key,
-              name: val.name || 'Аноним',
-              avatar: val.avatar || '',
-              isMuted: typeof val.isMuted === 'boolean' ? val.isMuted : true,
-              joinedAt: val.joinedAt || Date.now(),
-              isHost: false, // Computed next
-            });
-          }
-        });
+    socket.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log(`[WS] Payload received:`, data);
 
-        // Stable sorting by joinedAt
-        presenceUsers.sort((a, b) => a.joinedAt - b.joinedAt);
+        if (data.type === 'init-state') {
+          setRole(data.role || 'viewer');
+          setUsersCount(data.users?.length || 0);
+          setJoinedUsers(data.users || []);
 
-        const mappedUsers = presenceUsers.map((u, index) => ({
-          ...u,
-          isHost: index === 0,
-        }));
-
-        setJoinedUsers(mappedUsers);
-        setUsersCount(mappedUsers.length);
-
-        const me = mappedUsers.find((u) => u.clientId === myId);
-        const myComputedRole = me?.isHost ? 'host' : 'viewer';
-        if (myComputedRole !== roleRef.current) {
-          console.log(`[SYNC] Role updated based on stable sorting: ${roleRef.current} -> ${myComputedRole}`);
-          setRole(myComputedRole);
-        }
-
-        // WebRTC signaling setup for visible peers
-        mappedUsers.forEach((item: RoomUser) => {
-          if (item.clientId !== myId) {
-            const pc = getOrCreatePeerConnection(item.clientId);
-            const isInitiator = myId < item.clientId;
-            if (isInitiator && pc.connectionState === 'new') {
-              console.log(`[WebRTC] Initiating offer connection to ${item.clientId}`);
-              pc.createOffer()
-                .then((offer) => pc.setLocalDescription(offer))
-                .then(() => {
-                  channel.send({
-                    type: 'broadcast',
-                    event: 'webrtc-relay',
-                    payload: {
-                      senderId: myId,
-                      targetId: item.clientId,
-                      signal: { sdp: pc.localDescription },
-                    },
-                  });
-                })
-                .catch((e) => console.error('[WebRTC] Offer initiation error', e));
+          if (data.playerState) {
+            hostStateRef.current = data.playerState;
+            if (data.role === 'viewer') {
+              console.log('[WS-SYNC] Initial sync state applied from host:', data.playerState);
+              // Wait for component to mount correctly, then sync player
+              setTimeout(() => {
+                syncToPlayer(data.playerState, true);
+              }, 1200);
             }
           }
-        });
+        } 
+        
+        else if (data.type === 'room-users-updated') {
+          const remoteUsers = data.users || [];
+          setJoinedUsers(remoteUsers);
+          setUsersCount(remoteUsers.length);
 
-        // Cleanup retired connections
-        pcsRef.current.forEach((pc, peerId) => {
-          const stillInRoom = mappedUsers.some((x: RoomUser) => x.clientId === peerId);
-          if (!stillInRoom) {
-            console.log(`[WebRTC] Closing peer connection for retired user ${peerId}`);
-            pc.close();
-            pcsRef.current.delete(peerId);
-            removeRemoteStream(peerId);
+          const meInRoom = remoteUsers.find((u: RoomUser) => u.clientId === myId);
+          if (meInRoom && meInRoom.isHost && roleRef.current !== 'host') {
+            console.log('[WS] Assigned host role.');
+            setRole('host');
           }
-        });
-      })
-      .on('broadcast', { event: 'player-state-update' }, ({ payload }: { payload: any }) => {
-        if (roleRef.current !== 'viewer') return;
-        const hState = payload as SyncState;
 
-        if (hState.episode !== hostStateRef.current.episode ||
-            hState.isPlaying !== hostStateRef.current.isPlaying ||
-            Math.abs(hState.time - hostStateRef.current.time) > 4 ||
-            hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash) {
-          
-          console.log('[SYNC] Synced from Host via Supabase broadcast:', hState);
-          const force = hState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
-          hostStateRef.current = hState;
-          syncToPlayer(hState, force);
-        }
-      })
-      .on('broadcast', { event: 'webrtc-relay' }, async ({ payload }: { payload: any }) => {
-        if (payload.targetId !== myId) return;
+          // Trigger WebRTC connections safely
+          remoteUsers.forEach((user: RoomUser) => {
+            if (user.clientId !== myId) {
+              const pc = getOrCreatePeerConnection(user.clientId);
+              const isInitiator = myId < user.clientId;
+              if (isInitiator && pc.connectionState === 'new') {
+                console.log(`[WebRTC] Opening channel offer with ${user.clientId}`);
+                pc.createOffer()
+                  .then((offer) => pc.setLocalDescription(offer))
+                  .then(() => {
+                    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                      socketRef.current.send(JSON.stringify({
+                        type: 'webrtc-signal',
+                        targetId: user.clientId,
+                        signal: { sdp: pc.localDescription }
+                      }));
+                    }
+                  })
+                  .catch((e) => console.error('[WebRTC] Offer error', e));
+              }
+            }
+          });
 
-        const senderId = payload.senderId;
-        const sig = payload.signal;
-        const pc = getOrCreatePeerConnection(senderId);
+          // Prune closed / disconnected attendees
+          pcsRef.current.forEach((pc, peerId) => {
+            const exists = remoteUsers.some((u: RoomUser) => u.clientId === peerId);
+            if (!exists) {
+              console.log(`[WebRTC] Pruning connection for disconnected user ${peerId}`);
+              pc.close();
+              pcsRef.current.delete(peerId);
+              removeRemoteStream(peerId);
+            }
+          });
+        } 
+        
+        else if (data.type === 'player-state-broadcast') {
+          if (roleRef.current !== 'viewer') return;
+          const remoteState: SyncState = {
+            isPlaying: data.isPlaying,
+            time: data.time,
+            episode: data.episode,
+            kodikVideo: data.kodikVideo,
+            nativeAudioTrack: data.nativeAudioTrack,
+          };
 
-        if (sig.sdp) {
-          await pc.setRemoteDescription(new RTCSessionDescription(sig.sdp));
-          if (sig.sdp.type === 'offer') {
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            channel.send({
-              type: 'broadcast',
-              event: 'webrtc-relay',
-              payload: {
-                senderId: myId,
-                targetId: senderId,
-                signal: { sdp: pc.localDescription },
-              },
-            });
+          const diff = Math.abs(remoteState.time - lastTimeRef.current);
+          const needsSync = remoteState.episode !== hostStateRef.current.episode ||
+                            remoteState.isPlaying !== hostStateRef.current.isPlaying ||
+                            diff > 4 ||
+                            remoteState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
+
+          if (needsSync) {
+            console.log('[WS-SYNC] Received peer boardcast sync event:', remoteState);
+            const force = remoteState.kodikVideo?.hash !== hostStateRef.current.kodikVideo?.hash;
+            hostStateRef.current = remoteState;
+            syncToPlayer(remoteState, force);
           }
-        } else if (sig.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(sig.candidate));
-        }
-      });
+        } 
+        
+        else if (data.type === 'webrtc-signal-relay') {
+          const peerId = data.senderId;
+          const sig = data.signal;
+          const pc = getOrCreatePeerConnection(peerId);
 
-    channel.subscribe(async (status: string) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('[SYNC] Subscribed to Supabase channel, tracking presence...');
-        await channel.track({
-          name: userName,
-          avatar: userAvatar,
-          isMuted: isVoiceMuted,
-          joinedAt: joinedAtRef.current,
-        });
+          if (sig.sdp) {
+            await pc.setRemoteDescription(new RTCSessionDescription(sig.sdp));
+            if (sig.sdp.type === 'offer') {
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                socketRef.current.send(JSON.stringify({
+                  type: 'webrtc-signal',
+                  targetId: peerId,
+                  signal: { sdp: pc.localDescription }
+                }));
+              }
+            }
+          } else if (sig.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(sig.candidate));
+          }
+        } 
+        
+        else if (data.type === 'role-change') {
+          console.log('[WS] Role upgraded to:', data.role);
+          setRole(data.role);
+        }
+      } catch (e) {
+        console.warn('[WS] Failed parsing package:', e);
       }
-    });
+    };
 
-    return () => {
-      console.log('[SYNC] Unsubscribing from channel, cleaning connections');
-      channel.unsubscribe();
-      channelRef.current = null;
+    socket.onerror = (e) => {
+      console.warn('[WS] Socket error details:', e);
+    };
 
+    socket.onclose = () => {
+      console.log('[WS] Connection closed, cleaning dependencies');
       pcsRef.current.forEach((pc, id) => {
         pc.close();
         removeRemoteStream(id);
       });
       pcsRef.current.clear();
     };
+
+    return () => {
+      console.log('[WS] Executing useEffect cleanup - closing WebSocket');
+      socket.close();
+      socketRef.current = null;
+    };
   }, [roomId]);
 
-  // Periodic status feedback from host
+  // Periodic heartbeat / status report to the backend from Host
   useEffect(() => {
     if (role !== 'host') return;
-    const interval = setInterval(() => updateHostState({}), 4000);
+    const interval = setInterval(() => {
+      updateHostState({});
+    }, 4000);
     return () => clearInterval(interval);
   }, [role, episode]);
 
-  // Listen to native video events
+  // Handle native video listeners
   useEffect(() => {
     if (!roomId || !isCustomPlayer) return;
     let boundVideo: any = null;
@@ -424,7 +438,7 @@ export const usePlayerSync = (
     const handleAudioTrackChange = (e: any) => {
       if (roleRef.current === 'host') {
         const trackId = e.detail;
-        console.log('[SYNC] Host changed audio track to:', trackId);
+        console.log('[WS-SYNC] Host loaded track:', trackId);
         updateHostState({ nativeAudioTrack: trackId });
       }
     };
@@ -462,7 +476,7 @@ export const usePlayerSync = (
     };
   }, [roomId, isCustomPlayer, role]);
 
-  // Listen to iframe messages
+  // Bind Kodik player event emitter messaging
   useEffect(() => {
     if (!roomId || !iframeRef.current || isCustomPlayer) return;
 
@@ -470,11 +484,9 @@ export const usePlayerSync = (
       const data = event.data;
       if (!data) return;
 
-      // Kodik Player Ready
       if (data.key === 'kodik_player_ready') {
-        console.log('[SYNC] Player ready event received');
+        console.log('[WS-SYNC] Player ready callback');
         if (roleRef.current === 'viewer' && hostStateRef.current) {
-          console.log('[SYNC] Viewer player ready, syncing to host state');
           syncToPlayer(hostStateRef.current, true);
         }
       }
@@ -493,7 +505,6 @@ export const usePlayerSync = (
         lastTimeRef.current = newTime;
 
         if (roleRef.current === 'host' && jump > 2) {
-          console.log('[SYNC] Host seek detected, syncing immediately');
           updateHostState({ time: newTime });
         }
       } else if (data.key === 'kodik_player_api' && data.value?.kodik_player_time_update) {
@@ -502,7 +513,6 @@ export const usePlayerSync = (
         lastTimeRef.current = newTime;
 
         if (roleRef.current === 'host' && jump > 2) {
-          console.log('[SYNC] Host seek detected (via api), syncing immediately');
           updateHostState({ time: newTime });
         }
       }
@@ -554,24 +564,20 @@ export const usePlayerSync = (
     const currentEpisodeStr = document.location.pathname.split('/episode/')[1]?.split('/')[0] || episode;
 
     if (state.episode && state.episode !== currentEpisodeStr) {
-      console.log(`[SYNC] Episode mismatch: ${state.episode} vs ${currentEpisodeStr}. Navigating...`);
+      console.log(`[WS-SYNC] Episode mismatch: ${state.episode} -> Navigation initiated.`);
       navigate(`/anime/${refId}/episode/${state.episode}?room=${roomId}`);
       return;
     }
 
     if (refIsCustomPlayer) {
-      if (!nativeVideoRef.current) {
-        console.warn('[SYNC] Cannot sync: native video ref not ready');
-        return;
-      }
+      if (!nativeVideoRef.current) return;
       const video = nativeVideoRef.current as HTMLVideoElement;
 
-      console.log(`[SYNC] Viewer syncing to NATIVE player${force ? ' (forced)' : ''}:`, state);
+      console.log(`[WS-SYNC] Processing view Native Player alignment:`, state);
 
       if (state.nativeAudioTrack !== undefined) {
          const art = (video as any).art;
          if (art?.hls && art.hls.audioTrack !== state.nativeAudioTrack) {
-            console.log(`[SYNC] Viewer changing native audio track to ${state.nativeAudioTrack}`);
             art.hls.audioTrack = state.nativeAudioTrack;
          }
       }
@@ -582,7 +588,7 @@ export const usePlayerSync = (
           const playPromise = video.play();
           if (playPromise) {
             playPromise.catch((e: any) => {
-               console.warn('[SYNC] Play prevented by browser:', e);
+               console.warn('[WS-SYNC] Play prevented, fallback to muted play:', e);
                video.muted = true;
                video.play().catch(console.error);
             });
@@ -594,25 +600,19 @@ export const usePlayerSync = (
 
       const timeDiff = Math.abs(state.time - video.currentTime);
       if (force || timeDiff > 3) {
-        console.log(`[SYNC] Seeking native player to ${state.time} (diff: ${timeDiff.toFixed(1)}s)`);
         video.currentTime = state.time;
       }
       return;
     }
 
-    if (!iframeRef.current || !iframeRef.current.contentWindow) {
-      console.warn('[SYNC] Cannot sync: iframe not ready');
-      return;
-    }
+    if (!iframeRef.current || !iframeRef.current.contentWindow) return;
     const target = iframeRef.current.contentWindow;
 
-    console.log(`[SYNC] Viewer syncing to player${force ? ' (forced)' : ''}:`, state);
+    console.log(`[WS-SYNC] Processing view Iframe Player alignment:`, state);
 
     if (state.kodikVideo) {
       if (viewerKodikHashRef.current !== state.kodikVideo.hash) {
-         console.log('[SYNC] Translation/video changed, sending change_video API');
          viewerKodikHashRef.current = state.kodikVideo.hash;
-
          target.postMessage({ key: 'kodik_player_api', value: { method: 'change_video', autoplay: true, ...state.kodikVideo } }, '*');
 
          setTimeout(() => {
@@ -620,7 +620,7 @@ export const usePlayerSync = (
              target.postMessage({ key: 'kodik_player_api', value: { method: 'play' } }, '*');
            }
            if (state.time > 0) {
-             console.log(`[SYNC] Delayed seek after video change to ${state.time}`);
+             console.log(`[WS-SYNC] Relocating seek index: ${state.time}`);
              target.postMessage({ key: 'kodik_player_api', value: { method: 'seek', seconds: state.time } }, '*');
              target.postMessage({ key: 'kodik_player_api', value: { method: 'seek', time: state.time } }, '*');
            }
@@ -628,12 +628,9 @@ export const usePlayerSync = (
       }
     }
 
-    // Sync Play/Pause
     if (force || state.isPlaying !== isPlayingRef.current) {
       isPlayingRef.current = state.isPlaying;
       const cmd = state.isPlaying ? 'play' : 'pause';
-
-      console.log(`[SYNC] Sending ${cmd} to player`);
 
       target.postMessage({ key: 'kodik_player_api', value: { method: cmd } }, '*');
       target.postMessage(JSON.stringify({ key: 'kodik_player_api', value: { method: cmd } }), '*');
@@ -641,11 +638,8 @@ export const usePlayerSync = (
       target.postMessage(JSON.stringify({ key: `kodik_player_${cmd}` }), '*');
     }
 
-    // Sync Time
     const timeDiff = Math.abs(state.time - lastTimeRef.current);
     if (force || timeDiff > 3) {
-      console.log(`[SYNC] Seeking player to ${state.time} (diff: ${timeDiff.toFixed(1)}s)`);
-
       target.postMessage({ key: 'kodik_player_api', value: { method: 'seek', seconds: state.time } }, '*');
       target.postMessage({ key: 'kodik_player_api', value: { method: 'seek', time: state.time } }, '*');
       target.postMessage(JSON.stringify({ key: 'kodik_player_api', value: { method: 'seek', seconds: state.time } }), '*');
@@ -654,7 +648,7 @@ export const usePlayerSync = (
 
   const sync = () => {
     if (roleRef.current === 'viewer' && hostStateRef.current) {
-      console.log('[SYNC] Manual sync triggered');
+      console.log('[WS] Forced manual synchronization request');
       syncToPlayer(hostStateRef.current, true);
     }
   };
