@@ -32,7 +32,6 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   const [error, setError] = useState<string | null>(null);
   
   const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [localDownloadBlobUrl, setLocalDownloadBlobUrl] = useState<string | null>(null);
@@ -74,7 +73,6 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
     fetchQualities();
     
     // Clear download state when episode changes
-    setTaskId(null);
     setProgress(null);
     setDownloading(false);
     if (localDownloadBlobUrl) {
@@ -100,7 +98,6 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
     setError(null);
     setSelectedQuality(quality);
     setDownloading(true);
-    setTaskId(null);
     setProgress(null);
 
     if (localDownloadBlobUrl) {
@@ -108,7 +105,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       setLocalDownloadBlobUrl(null);
     }
 
-    const fileName = `${animeTitle.replace(/[\/:*?"<>|]/g, "_")}_Ep_${episodeNumber}_${quality}p.mp4`;
+    const fileName = `${animeTitle.replace(/[\/:*?"<>|]/g, "_")}_Ep_${episodeNumber}_${quality}p.ts`;
 
     try {
       // 1. Fetch playlist content from our Cloudflare function
@@ -215,7 +212,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         fileName
       });
 
-      const blob = new Blob(results, { type: "video/mp4" });
+      const blob = new Blob(results, { type: "video/mp2t" });
       const localUrl = URL.createObjectURL(blob);
       setLocalDownloadBlobUrl(localUrl);
 
@@ -256,13 +253,14 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   };
 
   const triggerFileDownload = (tid: string, name: string) => {
-    const downloadUrl = tid === "client_download" && localDownloadBlobUrl ? localDownloadBlobUrl : `/api/media/download/file?taskId=${tid}`;
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.setAttribute("download", name);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (tid === "client_download" && localDownloadBlobUrl) {
+      const link = document.createElement("a");
+      link.href = localDownloadBlobUrl;
+      link.setAttribute("download", name);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const getStageMessage = (stage: string) => {
@@ -272,9 +270,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       case "downloading":
         return progress ? `Скачивание фрагментов (${progress.processed} из ${progress.total})...` : "Скачивание...";
       case "merging":
-        return "Интеграция фрагментов в MP4...";
-      case "muxing":
-        return "Обработка...";
+        return "Интеграция фрагментов в TS...";
       case "ready":
         return "Файл собран!";
       case "failed":
@@ -285,10 +281,10 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   };
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 transition-all duration-300">
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 transition-all duration-300 space-y-5">
       <div className="flex flex-col gap-3">
         <label className="text-xs uppercase tracking-wider font-extrabold text-slate-400">
-          Выберите качество:
+          Выберите качество для скачивания в браузере:
         </label>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -316,7 +312,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
                   className="flex items-center justify-center gap-1.5 bg-white/5 hover:bg-cyan-500 hover:text-white border border-white/5 hover:border-cyan-500 transition-all duration-300 text-slate-200 font-bold text-xs py-2.5 rounded-xl cursor-pointer shadow-lg active:scale-95 disabled:opacity-50"
                 >
                   <Film className="w-3.5 h-3.5 shrink-0" />
-                  {qual}p
+                  {qual}p (.ts)
                 </button>
               ))}
             </div>
@@ -328,8 +324,23 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         </div>
       </div>
 
+      <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-4.5 space-y-2.5 text-slate-300">
+        <p className="text-amber-400 font-bold text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          Важная информация перед скачиванием в браузере:
+        </p>
+        <ul className="text-xs list-disc pl-4 space-y-2 leading-relaxed">
+          <li>
+            <strong className="text-white">Скачанный файл не открывается?</strong> Так как склеивание происходит целиком на Вашей стороне (в браузере), видео скачивается в нативном формате <strong className="text-amber-400">.ts (MPEG Transport Stream)</strong>. Он отлично и плавно открывается в современных плеерах: <strong className="text-cyan-400">VLC Media Player, MX Player, KMPlayer или PotPlayer</strong>.
+          </li>
+          <li>
+            <strong className="text-white">Качает медленнее, чем в Telegram?</strong> Все веб-браузеры (Chrome, Brave, Safari) аппаратно ограничивают количество одновременных подключений к одному домену <strong className="text-amber-400">(максимум 6 потоков)</strong>, из-за чего фрагменты качаются в очередь. В Telegram-боте же загрузка идет напрямую на наши сверхбыстрые сервера в 24 параллельных потока без ограничений браузера!
+          </li>
+        </ul>
+      </div>
+
       {downloading && progress && (
-        <div className="mt-5 border-t border-white/5 pt-5 space-y-2.5 animate-fade-in">
+        <div className="border-t border-white/5 pt-5 space-y-2.5 animate-fade-in">
           <div className="flex justify-between items-center text-xs">
             <div className="flex items-center gap-2 font-bold text-slate-300">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
@@ -350,26 +361,26 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       )}
 
       {!downloading && progress?.status === "success" && (
-        <div className="mt-5 border-t border-white/5 pt-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-cyan-500/5 border border-cyan-500/10 p-4 rounded-xl transition-all duration-300">
+        <div className="border-t border-white/5 pt-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-cyan-500/5 border border-cyan-500/10 p-4 rounded-xl transition-all duration-300 font-sans">
           <div className="flex items-center gap-3">
             <CheckCircle className="w-6 h-6 text-cyan-400 shrink-0" />
             <div>
-              <p className="text-white font-bold text-sm">Готово!</p>
-              <p className="text-slate-400 text-xs mt-0.5">Файл автоматически скачивается на устройство.</p>
+              <p className="text-white font-bold text-sm">Файл успешно собран!</p>
+              <p className="text-slate-400 text-xs mt-0.5">Видео загружено с правильным расширением .ts и готово к просмотру.</p>
             </div>
           </div>
           <button
-            onClick={() => triggerFileDownload(progress.id, progress.fileName || "video.mp4")}
+            onClick={() => triggerFileDownload(progress.id, progress.fileName || "video.ts")}
             className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-xs uppercase px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105"
           >
             <Download className="w-4 h-4" />
-            Скачать файл
+            Сохранить .ts
           </button>
         </div>
       )}
 
       {shikimoriId && (
-        <div className="mt-6 border-t border-white/10 pt-5 space-y-3">
+        <div className="border-t border-white/10 pt-5 space-y-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0088cc]/5 border border-[#0088cc]/10 p-5 rounded-2xl">
             <div className="flex items-start gap-3.5">
               <div className="p-2.5 bg-[#0088cc]/25 text-[#0088cc] rounded-xl self-start mt-0.5 shrink-0">
@@ -378,9 +389,9 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
                 </svg>
               </div>
               <div>
-                <h4 className="text-white font-bold text-sm">Скачать через Telegram-Бот</h4>
+                <h4 className="text-white font-bold text-sm">Рекомендуемый способ: Скачать через Telegram</h4>
                 <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Не получается скачать на сайте из-за медленных серверов или блокировок? Запустите нашего аниме-бота — он мгновенно соберет серию на высокоскоростных серверах пространства Hugging Face Space и пришлет готовым файлом прямо в Telegram!
+                  Наш Telegram-бот работает на выделенных серверах с мощными утилитами. Он моментально собирает серию без лимитов браузера и присылает Вам готовую запись <strong className="text-white">сразу в формате .MP4</strong>, идеально подходящую для воспроизведения на стандартном плеере любого телефона (iPhone / Android) и ТВ!
                 </p>
               </div>
             </div>
@@ -391,7 +402,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
               }}
               className="w-full sm:w-auto px-5 py-3 bg-[#0088cc] hover:bg-[#008cdd] text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 text-center"
             >
-              Скачать в ТГ
+              Скачать в ТГ (.MP4)
             </button>
           </div>
         </div>
