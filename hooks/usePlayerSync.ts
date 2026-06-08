@@ -24,11 +24,20 @@ const playRemoteStream = (peerId: string, stream: MediaStream) => {
     audioEl = document.createElement('audio');
     audioEl.id = `audio-peer-${peerId}`;
     audioEl.autoplay = true;
+    audioEl.muted = false;
     audioEl.style.display = 'none';
     audioEl.setAttribute('controls', 'false');
+    audioEl.setAttribute('playsinline', 'true');
     document.body.appendChild(audioEl);
   }
-  audioEl.srcObject = stream;
+  if (audioEl.srcObject !== stream) {
+    console.log(`[WebRTC] Binding remote audio stream for peer ${peerId}`);
+    audioEl.srcObject = stream;
+    audioEl.muted = false;
+    audioEl.play().catch(err => {
+      console.warn(`[WebRTC] audio.play() was prevented for peer ${peerId}, waiting for user interaction:`, err);
+    });
+  }
 };
 
 const removeRemoteStream = (peerId: string) => {
@@ -60,6 +69,7 @@ export const usePlayerSync = (
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const candidatesQueueRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   const lastTimeRef = useRef(0);
   const isPlayingRef = useRef(false);
@@ -127,8 +137,6 @@ export const usePlayerSync = (
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
-            channelCount: 1,
-            sampleRate: 48000,
           },
           video: false
         });
@@ -146,7 +154,10 @@ export const usePlayerSync = (
         console.log('[VoiceChat] Micro acquired successfully. Attaching track to peers');
         pcsRef.current.forEach((pc) => {
           stream.getTracks().forEach(track => {
-            pc.addTrack(track, stream);
+            const alreadyAdded = pc.getSenders().some(s => s.track === track);
+            if (!alreadyAdded) {
+              pc.addTrack(track, stream);
+            }
           });
         });
       } catch (err: any) {
@@ -172,7 +183,11 @@ export const usePlayerSync = (
     if (!pc) {
       console.log(`[WebRTC] Building peer connection for: ${peerId}`);
       pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
       });
 
       pc.onicecandidate = (event) => {
@@ -194,7 +209,10 @@ export const usePlayerSync = (
 
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => {
-          pc!.addTrack(track, localStreamRef.current!);
+          const alreadyAdded = pc!.getSenders().some(s => s.track === track);
+          if (!alreadyAdded) {
+            pc!.addTrack(track, localStreamRef.current!);
+          }
         });
       }
 
@@ -372,8 +390,37 @@ export const usePlayerSync = (
                 }));
               }
             }
+
+            // Process any queued ICE candidates now that remote description is set
+            const queue = candidatesQueueRef.current.get(peerId);
+            if (queue) {
+              console.log(`[WebRTC] Processing ${queue.length} queued ICE candidates for ${peerId}`);
+              for (const cand of queue) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(cand));
+                } catch (e) {
+                  console.warn('[WebRTC] Error adding queued candidate:', e);
+                }
+              }
+              candidatesQueueRef.current.delete(peerId);
+            }
           } else if (sig.candidate) {
-            await pc.addIceCandidate(new RTCIceCandidate(sig.candidate));
+            if (pc.remoteDescription) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(sig.candidate));
+              } catch (e) {
+                console.warn('[WebRTC] Error adding received candidate:', e);
+              }
+            } else {
+              // Remote description not yet set, queue Candidate to prevent WebRTC handshake breakdown
+              console.log(`[WebRTC] Queueing candidate for peer ${peerId}`);
+              let queue = candidatesQueueRef.current.get(peerId);
+              if (!queue) {
+                queue = [];
+                candidatesQueueRef.current.set(peerId, queue);
+              }
+              queue.push(sig.candidate);
+            }
           }
         } 
         
