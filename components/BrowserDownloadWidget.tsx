@@ -403,21 +403,6 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         </div>
       </div>
 
-      <div className="bg-cyan-500/5 border border-cyan-500/15 rounded-xl p-4.5 space-y-2.5 text-slate-300 font-sans">
-        <p className="text-cyan-400 font-bold text-xs flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-cyan-400 shrink-0" />
-          Рекомендации при скачивании в браузере:
-        </p>
-        <ul className="text-xs list-disc pl-4 space-y-2 leading-relaxed">
-          <li>
-            <strong className="text-white">Процесс загрузки:</strong> Серия скачивается и собирается прямо на Вашем устройстве. Пожалуйста, не закрывайте вкладку до полного завершения процесса.
-          </li>
-          <li>
-            <strong className="text-white">Удобный формат:</strong> Готовое видео сохраняется в стандартном формате <strong className="text-cyan-400">.mp4</strong>, который отлично воспроизводится на смартфонах, планшетах, компьютерах и умных ТВ.
-          </li>
-        </ul>
-      </div>
-
       {downloading && progress && (
         <div className="border-t border-white/5 pt-5 space-y-2.5 animate-fade-in">
           <div className="flex justify-between items-center text-xs">

@@ -498,11 +498,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             text = (
-                f"🎬 **Найдено аниме в нашей базе!**\\n\\n"
+                f"🎬 **Найдено аниме!**\\n\\n"
                 f"• 📌 **Название:** {anime_title}\\n"
                 f"• 🎙️ **Озвучка:** {translation_title}\\n"
                 f"• 💿 **Серия:** {episode}\\n\\n"
-                f"Выберите желаемое качество видео ниже. Наш робот мгновенно склеит фрагменты m3u8 в целый MP4-файл и отправит его вам!"
+                f"Выберите желаемое качество видео ниже:"
             )
             
             await status_msg.delete()
@@ -616,10 +616,7 @@ async def download_hls_stream_fast(playlist_url: str, output_filename: str, stat
         if status_msg:
             try:
                 await status_msg.edit_text(
-                    f"🚀 **[3/3] Запуск супер-быстрого скачивания...**\\n\\n"
-                    f"Сериал содержит {total_segments} частей.\\n"
-                    f"Скачиваем в 24 параллельных потока для обхода ограничений CDN! ⚡\\n"
-                    f"Это займет буквально секунд 10-30!",
+                    f"⏳ **Готовим файл к скачиванию, подождите 30 секунд...**",
                     parse_mode="Markdown"
                 )
             except:
@@ -634,8 +631,7 @@ async def download_hls_stream_fast(playlist_url: str, output_filename: str, stat
         if status_msg:
             try:
                 await status_msg.edit_text(
-                    f"⚙️ **Объединяем {total_segments} сегментов без потери качества...**\\n"
-                    f"Практически готово!",
+                    f"⚙️ **Завершаем подготовку файла...**",
                     parse_mode="Markdown"
                 )
             except:
@@ -696,8 +692,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         quality = parts[4]
         
         status_msg = await query.message.reply_text(
-            f"⏳ **[1/3] Поиск потока для {quality}p...**\\n"
-            f"Извлекаем прямые плейлисты в выбранной озвучке...",
+            "⏳ **Готовим файл к скачиванию, подождите 30 секунд...**",
             parse_mode="Markdown"
         )
 
@@ -729,11 +724,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 link = f"{link}{sep}episode={episode}"
 
             # 2. Дешифрование потока через бэкенд-парсер
-            await status_msg.edit_text(
-                f"⚙️ **[2/3] Дешифрование m3u8...**\\n"
-                f"Парсим прямые плейлисты Kodik для качества {quality}p...",
-                parse_mode="Markdown"
-            )
+            pass
             
             available_quals, links_dict = extract_m3u8_stream(link, quality)
             
@@ -757,12 +748,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 backup_playlist_url = "https:" + backup_playlist_url
 
             # 3. Склеивание потока через FFmpeg
-            await status_msg.edit_text(
-                f"🚀 **[3/3] Запуск FFmpeg компилятора...**\\n"
-                f"Скачиваем сегменты потока HLS в один MP4-файл.\\n"
-                f"Это займет буквально секунд 15-30, подождите...",
-                parse_mode="Markdown"
-            )
+            pass
 
             filename_base = f"anime_{anime_id}_ep_{episode}_{quality}p.mp4"
             output_filename = os.path.join(DOWNLOADS_DIR, filename_base)
@@ -787,8 +773,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not success or not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
                 logger.warning("Быстрое скачивание не удалось. Пытаемся запустить стандартный FFmpeg...")
                 await status_msg.edit_text(
-                    f"⚠️ **Быстрый метод дал сбой. Переключаемся на стандартный метод FFmpeg...**\\n"
-                    f"Пожалуйста, подождите, сборка может занять до 5-10 минут...",
+                    f"⚙️ **Сборка файла... Пожалуйста, подождите немного больше обычного...**",
                     parse_mode="Markdown"
                 )
                 
@@ -849,8 +834,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     segment_time = duration / num_parts
 
                     await status_msg.edit_text(
-                        f"✂️ **Файл весит {file_size_mb:.1f} Мб (лимит TG: 50MB).**\\n"
-                        f"Склеили без сжатия! Теперь быстро нарезаем фильм на {num_parts} равные части без потери качества для отправки в Telegram...",
+                        f"⏳ **Готовим файл к скачиванию, подождите 30 секунд...**",
                         parse_mode="Markdown"
                     )
 
@@ -882,15 +866,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 download_url = f"https://{subdomain}.hf.space/download/{filename_base}"
                             
                             download_text = (
-                                f"🪐 **Прямая ссылка на целый файл (100% качество):**\\n"
-                                f"🔗 **[СКАЧАТЬ {quality}p]({download_url})** - сразу в браузере!\\n\\n"
+                                f"🔗 **[Скачать файл]({download_url})**\\n\\n"
+                                f"*Файл хранится 2 часа*"
                             )
                         
                         header_text = (
-                            f"🎬 **Аниме готово без потери качества!**\\n\\n"
+                            f"🍿 **Аниме готово для скачивания!**\\n\\n"
                             f"{download_text}"
-                            f"📦 Файл разделен на {len(part_files)} части, чтобы обойти ограничение Telegram.\\n"
-                            f"Отправляем части прямо сюда..."
                         )
                         await status_msg.edit_text(header_text, parse_mode="Markdown", disable_web_page_preview=True)
                         
@@ -1002,8 +984,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_size_mb = file_size / (1024 * 1024)
 
             await status_msg.edit_text(
-                f"📥 **Сборка завершена успешно! ({file_size_mb:.1f} MB)**\\n"
-                f"Начинаем отправку видеофайла в Telegram-чат...",
+                "⏳ **Готовим файл к скачиванию, подождите 30 секунд...**",
                 parse_mode="Markdown"
             )
 
@@ -1018,7 +999,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         subdomain = space_id.replace("/", "-").lower()
                         download_url = f"https://{subdomain}.hf.space/download/{filename_base}"
-                    download_text = f"🪐 **[Скачать сразу в браузере]({download_url})**\\n\\n"
+                    download_text = (
+                        f"🔗 **[Скачать файл]({download_url})**\\n\\n"
+                        f"*Файл хранится 2 часа*"
+                    )
                 
                 await query.message.reply_chat_action("upload_video")
                 with open(output_filename, "rb") as video_file:
@@ -1026,12 +1010,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         video=video_file,
                         filename=output_filename,
                         caption=(
-                            f"🍿 **Ваше аниме готово для просмотра!**\\n\\n"
-                            f"• **Серия:** {episode}\\n"
-                            f"• **Качество:** {quality}p\\n"
-                            f"• **Размер:** {file_size_mb:.1f} Мб\\n\\n"
-                            f"{download_text}"
-                            f"Приятного просмотра! 🎉"
+                            f"🍿 **Аниме готово для скачивания!**\\n\\n"
+                            f"{download_text}" if download_text else f"🍿 **Аниме готово для скачивания!**"
                         ),
                         supports_streaming=True
                     )
@@ -1061,10 +1041,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     await status_msg.edit_text(
                         f"🍿 **Аниме готово для скачивания!**\\n\\n"
-                        f"Файл весит **{file_size_mb:.1f} MB**, что больше лимита Telegram бота (50MB).\\n"
-                        f"Мы сохранили его в вашем Space-хранилище. Скачайте по прямой ссылке сразу на телефон или ПК:\\n\\n"
-                        f"🔗 **[СКАЧАТЬ MP4 {quality}p]({download_url})**\\n\\n"
-                        f"*Ссылка активна 2 часа, скачивание идет на полной скорости без сжатия!*",
+                        f"🔗 **[Скачать файл]({download_url})**\\n\\n"
+                        f"*Файл хранится 2 часа*",
                         parse_mode="Markdown"
                     )
                     
