@@ -248,8 +248,18 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         fileName: outputFileName
       });
 
-      // Execute Transmuxing on the results array
-      const transmuxer = new (window as any).muxjs.mp4.Transmuxer();
+      // Execute Transmuxing on the results array with custom options to align timestamps
+      const transmuxer = new (window as any).muxjs.mp4.Transmuxer({
+        baseMediaDecodeTime: 0,
+        keepOriginalTimestamps: false
+      });
+
+      try {
+        transmuxer.setBaseMediaDecodeTime(0);
+      } catch (t_err) {
+        console.warn("Could not set baseMediaDecodeTime directly:", t_err);
+      }
+
       const remuxedSegs: Uint8Array[] = [];
       let remuxedInitSegment: any = null;
       let remuxedBytesLength = 0;
@@ -265,12 +275,16 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       });
 
       // Feed sequential downloaded segments to the transmuxer
+      // NOTE: We do NOT call flush() inside the loop anymore! This ensures continuous track parsing,
+      // preventing DTS/PTS drift and maintaining perfect audio/video synchronization across segment boundaries.
       for (let i = 0; i < results.length; i++) {
         if (results[i]) {
           transmuxer.push(new Uint8Array(results[i]));
-          transmuxer.flush();
         }
       }
+
+      // Flush exactly once after concatenating all media content to construct final MP4 fragments
+      transmuxer.flush();
 
       const finalInitSegment = remuxedInitSegment;
       if (!finalInitSegment) {
