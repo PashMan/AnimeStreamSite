@@ -35,6 +35,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [localDownloadBlobUrl, setLocalDownloadBlobUrl] = useState<string | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load available qualities from Kodik playlist endpoint with absolute defensive parsing
@@ -52,7 +53,7 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
         const trimmed = text.trim().toLowerCase();
         const isHtml = trimmed.startsWith("<!doctype") || trimmed.startsWith("<html") || trimmed.startsWith("<head") || trimmed.startsWith("<body");
         if (isHtml || !res.ok) {
-          throw new Error("Браузер заблокировал сторонние cookie-файлы во встроенном фрейме Google AI Studio (либо получен некорректный HTML-ответ). Пожалуйста, в правом верхнем углу интерфейса AI Studio нажмите кнопку «Open in new tab» (Открыть в новой вкладке) — плеер и скачивание заработают без ограничений, или воспользуйтесь нашим Telegram-ботом ниже!");
+          throw new Error("Браузер заблокировал сторонние куки-файлы (или получен некорректный ответ от API). Пожалуйста, отключите блокировщики рекламы, попробуйте открыть страницу в новой вкладке, либо воспользуйтесь нашим Telegram-ботом ниже!");
         }
 
         const data = JSON.parse(text);
@@ -76,6 +77,10 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
     setTaskId(null);
     setProgress(null);
     setDownloading(false);
+    if (localDownloadBlobUrl) {
+      URL.revokeObjectURL(localDownloadBlobUrl);
+      setLocalDownloadBlobUrl(null);
+    }
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -86,8 +91,9 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (localDownloadBlobUrl) URL.revokeObjectURL(localDownloadBlobUrl);
     };
-  }, []);
+  }, [localDownloadBlobUrl]);
 
   const handleStartDownload = async (quality: string) => {
     if (downloading) return;
@@ -97,102 +103,160 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
     setTaskId(null);
     setProgress(null);
 
+    if (localDownloadBlobUrl) {
+      URL.revokeObjectURL(localDownloadBlobUrl);
+      setLocalDownloadBlobUrl(null);
+    }
+
+    const fileName = `${animeTitle.replace(/[\/:*?"<>|]/g, "_")}_Ep_${episodeNumber}_${quality}p.mp4`;
+
     try {
-      const res = await fetch(
-        `/api/media/download/start?url=${encodeURIComponent(episodeUrl)}&quality=${quality}&title=${encodeURIComponent(animeTitle)}&episode=${episodeNumber}`
-      );
+      // 1. Fetch playlist content from our Cloudflare function
+      const playlistUrl = `/api/media/playlist?url=${encodeURIComponent(episodeUrl)}&quality=${quality}`;
+      const playlistRes = await fetch(playlistUrl);
       
-      const text = await res.text();
-      if (!res.ok) {
-        let errorMsg = "Не удалось запустить скачивание.";
-        try {
-          const errObj = JSON.parse(text);
-          if (errObj && errObj.message) {
-            errorMsg = `Ошибка: ${errObj.message}`;
-          } else if (errObj && errObj.error) {
-             errorMsg = `Ошибка: ${errObj.error}`;
-          }
-        } catch {
-          if (text && text.length < 150) {
-            errorMsg = `Ошибка: ${text}`;
+      const playlistText = await playlistRes.text();
+      const trimmedText = playlistText.trim().toLowerCase();
+      const isHtmlResponse = trimmedText.startsWith("<!doctype") || trimmedText.startsWith("<html") || trimmedText.startsWith("<head") || trimmedText.startsWith("<body");
+      if (isHtmlResponse || !playlistRes.ok) {
+        throw new Error("Не удалось загрузить плейлист потока от сервера. Возможно, блокируются сторонние куки-файлы в iframe.");
+      }
+
+      // 2. Parse segment URLs (lines not starting with #)
+      const lines = playlistText.split("\n");
+      const segmentUrls: string[] = [];
+      for (let line of lines) {
+        line = line.trim();
+        if (line && !line.startsWith("#")) {
+          if (line.startsWith("/")) {
+            segmentUrls.push(window.location.origin + line);
+          } else if (!line.startsWith("http")) {
+            segmentUrls.push(window.location.origin + "/api/media/" + line);
+          } else {
+            segmentUrls.push(line);
           }
         }
-        throw new Error(errorMsg);
       }
+
+      const total = segmentUrls.length;
+      if (total === 0) {
+        throw new Error("Не удалось извлечь фрагменты видео из плейлиста для скачивания.");
+      }
+
+      // 3. Concurrent download loop using parallel chunks pool
+      setProgress({
+        id: "client_download",
+        stage: "downloading",
+        processed: 0,
+        total,
+        progress: 0,
+        status: "running",
+        fileName
+      });
+
+      const concurrency = 8;
+      const results = new Array<ArrayBuffer>(total);
+      let completedCount = 0;
+      let activeIndex = 0;
+
+      const downloadChunk = async (index: number, url: string) => {
+        let attempt = 0;
+        const maxAttempts = 3;
+        while (attempt < maxAttempts) {
+          try {
+            attempt++;
+            const segmentRes = await fetch(url);
+            if (!segmentRes.ok) throw new Error(`Chunk status: ${segmentRes.status}`);
+            const buf = await segmentRes.arrayBuffer();
+            results[index] = buf;
+            return;
+          } catch (chunkErr) {
+            console.warn(`Attempt ${attempt} failed for chunk index ${index}:`, chunkErr);
+            if (attempt === maxAttempts) {
+              throw new Error(`Ошибка загрузки фрагмента ${index + 1} из ${total}. Пожалуйста, перезапустите скачивание.`);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+          }
+        }
+      };
+
+      const worker = async () => {
+        while (activeIndex < total) {
+          const currentIndex = activeIndex++;
+          await downloadChunk(currentIndex, segmentUrls[currentIndex]);
+          completedCount++;
+          
+          // Safe progress state calculation
+          const percent = Math.round((completedCount / total) * 100);
+          setProgress({
+            id: "client_download",
+            stage: "downloading",
+            processed: completedCount,
+            total,
+            progress: percent,
+            status: "running",
+            fileName
+          });
+        }
+      };
+
+      // Run parallel workers
+      const workers = Array.from({ length: Math.min(concurrency, total) }, worker);
+      await Promise.all(workers);
+
+      // 4. Merge stage
+      setProgress({
+        id: "client_download",
+        stage: "merging",
+        processed: total,
+        total,
+        progress: 99,
+        status: "running",
+        fileName
+      });
+
+      const blob = new Blob(results, { type: "video/mp4" });
+      const localUrl = URL.createObjectURL(blob);
+      setLocalDownloadBlobUrl(localUrl);
+
+      // 5. Success
+      setProgress({
+        id: "client_download",
+        stage: "ready",
+        processed: total,
+        total,
+        progress: 100,
+        status: "success",
+        fileName
+      });
+
+      // Instantly trigger browser file save
+      const link = document.createElement("a");
+      link.href = localUrl;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
-      const trimmedText = text.trim().toLowerCase();
-      const isHtmlResponse = trimmedText.startsWith("<!doctype") || trimmedText.startsWith("<html") || trimmedText.startsWith("<head") || trimmedText.startsWith("<body");
-      if (isHtmlResponse) {
-        throw new Error("Браузер заблокировал сторонние cookie-файлы во встроенном фрейме Google AI Studio (либо получен некорректный HTML-ответ). Пожалуйста, в правом верхнем углу интерфейса AI Studio нажмите кнопку «Open in new tab» (Открыть в новой вкладке) — плеер и скачивание заработают без ограничений, или воспользуйтесь нашим Telegram-ботом ниже!");
-      }
-      
-      const data = JSON.parse(text);
-      if (data.success && data.taskId) {
-        setTaskId(data.taskId);
-        startPolling(data.taskId);
-      } else {
-        throw new Error(data.error || "Ошибка запуска");
-      }
-    } catch (err: any) {
-      setError(err.message || "Ошибка соединения");
       setDownloading(false);
+    } catch (err: any) {
+      console.error("Browser download failed:", err);
+      setError(err.message || "Ошибка при скачивании");
+      setDownloading(false);
+      setProgress({
+        id: "client_download",
+        stage: "failed",
+        processed: 0,
+        total: 1,
+        progress: 0,
+        status: "failed",
+        error: err.message || "Ошибка скачивания фрагментов"
+      });
     }
   };
 
-  const startPolling = (tid: string) => {
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/media/download/progress?taskId=${tid}`);
-        
-        const text = await res.text();
-        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
-          return;
-        }
-
-        if (!res.ok) {
-          if (res.status === 404) {
-             throw new Error("Задача скачивания не найдена на сервере");
-          }
-          return;
-        }
-
-        const data: DownloadProgress = JSON.parse(text);
-        setProgress(data);
-
-        if (data.status === "success") {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-          setDownloading(false);
-          triggerFileDownload(tid, data.fileName || "video.mp4");
-        } else if (data.status === "failed") {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-          setError(data.error || "Ошибка сборки файла");
-          setDownloading(false);
-        }
-      } catch (err: any) {
-        console.error("Polling error:", err);
-        setError(err.message || "Потеряно подключение");
-        setDownloading(false);
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-      }
-    };
-
-    poll();
-    pollIntervalRef.current = setInterval(poll, 1500);
-  };
-
   const triggerFileDownload = (tid: string, name: string) => {
-    const downloadUrl = `/api/media/download/file?taskId=${tid}`;
+    const downloadUrl = tid === "client_download" && localDownloadBlobUrl ? localDownloadBlobUrl : `/api/media/download/file?taskId=${tid}`;
     const link = document.createElement("a");
     link.href = downloadUrl;
     link.setAttribute("download", name);
@@ -206,13 +270,13 @@ export const BrowserDownloadWidget: React.FC<BrowserDownloadWidgetProps> = ({
       case "resolving":
         return "Подключение...";
       case "downloading":
-        return "Скачивание...";
+        return progress ? `Скачивание фрагментов (${progress.processed} из ${progress.total})...` : "Скачивание...";
       case "merging":
-        return "Сборка файла...";
+        return "Интеграция фрагментов в MP4...";
       case "muxing":
         return "Обработка...";
       case "ready":
-        return "Завершение...";
+        return "Файл собран!";
       case "failed":
         return "Ошибка";
       default:

@@ -68,7 +68,7 @@ export async function onRequest(context: any) {
 
   try {
     let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space)/g, 'kodikplayer.com');
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
     console.log(`[CF KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
 
     // 1. Fetch iframe page
