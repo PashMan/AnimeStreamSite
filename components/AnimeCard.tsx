@@ -35,7 +35,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
 
   return (
     <Link to={targetUrl} className="group block relative w-full h-full">
-      <div className="relative w-full aspect-[2/3] rounded-xl overflow-hidden mb-2.5 bg-neutral-900/40 border border-white/5 group-hover:border-primary/50 transition-all duration-500 ease-out shadow-lg group-hover:shadow-[0_12px_24px_rgba(255,90,0,0.15)] group-hover:-translate-y-1">
+      <div className="relative w-full aspect-[2/3] rounded-xl overflow-hidden mb-2.5 bg-neutral-900/40 border border-white/5 group-hover:border-primary/50 transition-all duration-500 ease-out shadow-lg group-hover:shadow-[0_12px_24px_rgba(139,92,246,0.15)] group-hover:-translate-y-1">
         <Image 
           src={anime.image} 
           alt={`Смотреть аниме ${anime.title} онлайн`} 
@@ -58,11 +58,6 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
               <div className="px-2 py-0.5 bg-[#141519]/60 backdrop-blur-md text-[8px] font-extrabold uppercase text-slate-400 tracking-wider rounded border border-white/5">
                 {anime.type || 'TV'}
               </div>
-              {Number(anime.id) % 2 === 0 && (
-                <div className="p-1 bg-[#F47521] rounded text-[8px] text-black font-extrabold shadow-md flex items-center gap-0.5 leading-none px-1.5 uppercase tracking-wider" title="Доступно с подпиской Premium">
-                  <Crown className="w-2.5 h-2.5 fill-current" /> Premium
-                </div>
-              )}
             </div>
           )}
 
@@ -76,7 +71,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
 
         {/* Play Icon and Info overlay on hover */}
         <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-10">
-          <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center scale-75 group-hover:scale-100 transition-all duration-300 shadow-[0_0_15px_rgba(255,90,0,0.6)]">
+          <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center scale-75 group-hover:scale-100 transition-all duration-300 shadow-[0_0_15px_rgba(139,92,246,0.6)]">
             <PlayCircle className="w-6 h-6 fill-current ml-0.5 shrink-0" />
           </div>
         </div>

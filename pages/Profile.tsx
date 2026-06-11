@@ -671,7 +671,6 @@ const Profile: React.FC = () => {
                              alt={user.name} 
                              className="w-full h-full object-cover" 
                           />
-                          {user.isPremium && <Crown className="absolute -top-2 -right-2 w-8 h-8 text-yellow-500 fill-current drop-shadow-lg" />}
                           
                           <label className={`absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${avatarClass}`}>
                             {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
@@ -684,8 +683,8 @@ const Profile: React.FC = () => {
                       
                       <h1 className="text-2xl font-black uppercase tracking-tight text-center z-10 relative">{user.name}</h1>
                       <div className="flex flex-col items-center gap-3 mt-3 z-10 relative">
-                         <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest ${user.isPremium ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20' : 'bg-primary/20 text-primary border-primary/20'}`} style={{ color: currentTheme, borderColor: currentTheme, backgroundColor: currentTheme ? `${currentTheme}33` : undefined }}>
-                            {user.isPremium ? 'Premium ' : 'Пользователь'}
+                         <span className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-xl border tracking-widest bg-primary/20 text-primary border-primary/20`} style={{ color: currentTheme, borderColor: currentTheme, backgroundColor: currentTheme ? `${currentTheme}33` : undefined }}>
+                            Пользователь
                          </span>
                       </div>
                       {user.bio && <p className="mt-5 opacity-80 text-sm leading-relaxed text-center z-10 relative">"{user.bio}"</p>}

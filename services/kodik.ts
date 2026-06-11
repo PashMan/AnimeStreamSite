@@ -82,3 +82,87 @@ export const fetchKodikData = async (shikimoriId: string, title?: string): Promi
      return [];
   }
 }
+
+export interface KodikRecentUpdate {
+  id: string;
+  title: string;
+  originalName: string;
+  image: string;
+  episode: number;
+  translation: string;
+  updatedAt: string;
+  slug: string;
+  rating: number;
+}
+
+const localSlugify = (text: string): string => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-');
+};
+
+export const fetchRecentUpdates = async (limit = 40): Promise<KodikRecentUpdate[]> => {
+  try {
+    const res = await fetch(`/api/media/list?limit=${limit}`);
+    if (!res.ok) return [];
+    
+    const data = await res.json();
+    if (!data?.results || !Array.isArray(data.results)) return [];
+    
+    // Group by shikimori_id to keep latest update
+    const grouped = new Map<string, any>();
+    
+    data.results.forEach((item: any) => {
+      const shikiId = item.shikimori_id || item.kinopoisk_id || item.id;
+      if (!shikiId) return;
+      
+      const existing = grouped.get(shikiId.toString());
+      const itemDate = new Date(item.updated_at || item.created_at);
+      
+      if (!existing || itemDate > new Date(existing.updated_at || existing.created_at)) {
+        grouped.set(shikiId.toString(), item);
+      }
+    });
+    
+    const uniqueResults = Array.from(grouped.values());
+    
+    const mapped: KodikRecentUpdate[] = uniqueResults.map(item => {
+      const shikiId = item.shikimori_id || item.kinopoisk_id || item.id;
+      const mat = item.material_data || {};
+      
+      const title = mat.title || item.title || 'Без названия';
+      const cleanTitle = title.split('/')[0].trim();
+      
+      let image = mat.poster_url || mat.poster || '';
+      if (image && image.includes('shikimori.one')) {
+        const path = image.split('shikimori.one')[1];
+        image = `/api/image${path}`;
+      } else if (image && !image.startsWith('http') && !image.startsWith('/')) {
+        image = `/api/image/system/animes/original/${shikiId}.jpg`;
+      } else if (!image) {
+        image = `/api/image/system/animes/original/${shikiId}.jpg`;
+      }
+      
+      return {
+        id: shikiId.toString(),
+        title: cleanTitle,
+        originalName: mat.title_en || mat.title || item.title || '',
+        image: image,
+        episode: item.last_episode || item.episodes_count || 1,
+        translation: item.translation?.title || 'Субтитры | Озвучка',
+        updatedAt: item.updated_at || item.created_at || '',
+        slug: localSlugify(mat.title_en || mat.title || cleanTitle),
+        rating: mat.shikimori_rating || mat.kp_rating || 0
+      };
+    });
+    
+    return mapped;
+  } catch (e) {
+    console.error("Error in fetchRecentUpdates:", e);
+    return [];
+  }
+};

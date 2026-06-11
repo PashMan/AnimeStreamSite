@@ -15,6 +15,43 @@ import { Anime, ScheduleItem, NewsItem, ForumTopic, CommunityCollection } from '
 import { FALLBACK_IMAGE, COLLECTIONS_DATA } from '../constants';
 import CollectionCard from '../components/CollectionCard';
 import CreateCollectionModal from '../components/CreateCollectionModal';
+import { KodikRecentUpdate, fetchRecentUpdates } from '../services/kodik';
+
+function formatKodikTime(dateStr: string): string {
+  if (!dateStr) return "Только что";
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return "Только что";
+    if (diffMins < 60) {
+      if (diffMins === 1) return "1 минуту назад";
+      if (diffMins % 10 === 1 && diffMins !== 11) return `${diffMins} минуту назад`;
+      if (diffMins % 10 >= 2 && diffMins % 10 <= 4 && (diffMins < 10 || diffMins > 20)) return `${diffMins} минуты назад`;
+      return `${diffMins} минут назад`;
+    }
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) {
+      if (diffHours === 1) return "1 час назад";
+      if (diffHours % 10 === 1 && diffHours !== 11) return `${diffHours} час назад`;
+      if (diffHours % 10 >= 2 && diffHours % 10 <= 4 && (diffHours < 10 || diffHours > 20)) return `${diffHours} часа назад`;
+      return `${diffHours} часов назад`;
+    }
+    
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return `Вчера в ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return "Сегодня";
+  }
+}
 
 const Home: React.FC = () => {
   const ongoingRef = useRef<HTMLDivElement>(null);
@@ -27,6 +64,7 @@ const Home: React.FC = () => {
   
   const [heroAnimes, setHeroAnimes] = useState<Anime[]>([]);
   const [newAnimes, setNewAnimes] = useState<Anime[]>([]);
+  const [kodikRecentUpdates, setKodikRecentUpdates] = useState<KodikRecentUpdate[]>([]);
   const [trendingAnimes, setTrendingAnimes] = useState<Anime[]>([]);
   const [animes4k, setAnimes4k] = useState<Anime[]>([]);
   const [favoritesAnimes, setFavoritesAnimes] = useState<Anime[]>([]);
@@ -95,6 +133,13 @@ const Home: React.FC = () => {
     };
 
     loadHero();
+    
+    // Load recently updated episodes from Kodik
+    fetchRecentUpdates(40).then(data => {
+        if (isMounted) {
+            setKodikRecentUpdates(data);
+        }
+    });
     
     // Immediate load for first sections
     fetchAnimes({ order: 'ranked', status: 'ongoing', limit: 40 }).then(data => {
@@ -395,19 +440,19 @@ const Home: React.FC = () => {
           </div>
           
           <div ref={latestRef} className="flex gap-6 overflow-x-auto hide-scrollbar scroll-smooth pb-4 px-1 snap-x">
-            {newAnimes.length > 0 ? (
-              newAnimes.slice(0, 10).map((anime, idx) => {
+            {kodikRecentUpdates.length > 0 ? (
+              kodikRecentUpdates.slice(0, 15).map((anime, idx) => {
                 const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
                 const isSlugBlocked = slugBlocks.includes(anime.id.toString());
                 const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
-                const randomTime = idx === 0 ? "5 минут назад" : idx === 1 ? "27 минут назад" : idx === 2 ? "1 час назад" : idx < 5 ? "2 часа назад" : "Сегодня, 11:20";
+                const displayTime = formatKodikTime(anime.updatedAt);
                 const isPremium = Number(anime.id) % 3 === 0;
 
                 return (
                   <div key={`latest-ep-${anime.id}-${idx}`} className="w-[280px] sm:w-[320px] flex-none snap-start text-left">
                     <Link to={targetUrl} className="group block relative w-full h-full">
                       {/* Image Frame aspect-video */}
-                      <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-3 bg-neutral-900/40 border border-white/5 group-hover:border-primary/50 transition-all duration-400 ease-out shadow-lg group-hover:shadow-[0_12px_24px_rgba(255,90,0,0.15)]">
+                      <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-3 bg-neutral-900/40 border border-white/5 group-hover:border-[#F47521]/50 transition-all duration-400 ease-out shadow-lg group-hover:shadow-[0_12px_24px_rgba(255,90,0,0.15)]">
                         <Image 
                           src={anime.image} 
                           alt={anime.title} 
@@ -433,13 +478,13 @@ const Home: React.FC = () => {
                             </span>
                           )}
                           <span className="bg-black/60 backdrop-blur-md text-white text-[7.5px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/5">
-                            Эп. {anime.episodesAired || Math.floor(Math.random() * 4) + 1}
+                            Эп. {anime.episode}
                           </span>
                         </div>
 
                         {/* Duration or Timestamp corner */}
                         <div className="absolute bottom-2.5 right-2.5 z-20 bg-black/70 backdrop-blur-md text-[8px] font-extrabold uppercase tracking-widest text-[#F47521] px-1.5 py-0.5 rounded border border-[#F47521]/10">
-                          {randomTime}
+                          {displayTime}
                         </div>
                       </div>
 
@@ -449,9 +494,9 @@ const Home: React.FC = () => {
                           {anime.title}
                         </h3>
                         <div className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-tight text-slate-500 mt-1">
-                          <span className="text-slate-400 font-bold">Озвучка + Субтитры</span>
-                          <span className="w-0.5 h-0.5 rounded-full bg-slate-700" />
-                          <span className="text-[#F47521] font-black">Full HD 1080p</span>
+                          <span className="text-slate-400 font-bold truncate max-w-[170px]">{anime.translation}</span>
+                          <span className="w-0.5 h-0.5 rounded-full bg-slate-700 shrink-0" />
+                          <span className="text-[#F47521] font-black shrink-0">Full HD 1080p</span>
                         </div>
                       </div>
                     </Link>

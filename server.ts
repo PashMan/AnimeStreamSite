@@ -361,14 +361,18 @@ app.get('/api/balancer', async (c) => {
                         id: res.translation.id,
                         title: tName,
                         type: res.translation.type,
-                        iframe: url.toString()
+                        iframe: url.toString(),
+                        episodes_count: res.episodes_count || 1,
+                        last_episode: res.last_episode || 1
                       });
                     } catch (_) {
                       translationsMap.set(tName, {
                         id: res.translation.id,
                         title: tName,
                         type: res.translation.type,
-                        iframe: iframe
+                        iframe: iframe,
+                        episodes_count: res.episodes_count || 1,
+                        last_episode: res.last_episode || 1
                       });
                     }
                   }
@@ -1169,6 +1173,30 @@ app.options('/api/media/segment', (c) => {
       'Access-Control-Max-Age': '86400',
     }
   });
+});
+
+app.get('/api/media/list', async (c) => {
+  const token = c.req.query('token') || '17cc4ee691bc251131a9041e6e89e78e';
+  const limit = c.req.query('limit') || '20';
+  const types = c.req.query('types') || 'anime-serial';
+  
+  const targetUrl = `https://kodik-api.com/list?token=${token}&types=${types}&sort=updated_at&order=desc&limit=${limit}&with_material_data=true`;
+  
+  try {
+    const res = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    const data = await res.json();
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    c.header('Access-Control-Allow-Headers', '*');
+    return c.json(data);
+  } catch (err: any) {
+    c.header('Access-Control-Allow-Origin', '*');
+    return c.json({ error: err.message }, 500);
+  }
 });
 
 app.get('/api/media/search', async (c) => {

@@ -88,13 +88,15 @@ const Details: React.FC = () => {
     { name: string; iframe: string | null; isCustom?: boolean }[]
   >([{ name: "KamiPlayer (4K)", iframe: null, isCustom: true }]);
   const [translations, setTranslations] = useState<
-    { id: number; title: string; type: string; iframe: string }[]
+    { id: number; title: string; type: string; iframe: string; episodes_count?: number; last_episode?: number }[]
   >([]);
   const [selectedTranslation, setSelectedTranslation] = useState<{
     id: number;
     title: string;
     type: string;
     iframe: string;
+    episodes_count?: number;
+    last_episode?: number;
   } | null>(null);
   const [hasFetchedPlayers, setHasFetchedPlayers] = useState(false);
   const [isPlayersLoading, setIsPlayersLoading] = useState(false);
@@ -255,7 +257,7 @@ const Details: React.FC = () => {
   // Redirect to episode 1 if no episode is selected in URL to keep visual match across players
   useEffect(() => {
     if (!paramEpisode && id && anime) {
-      const totalEpisodes = anime.episodesAired || anime.episodes || 1;
+      const totalEpisodes = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
       if (totalEpisodes > 0) {
         let newUrl = `/anime/${paramId}/episode/1`;
         if (window.location.search) {
@@ -652,7 +654,7 @@ const Details: React.FC = () => {
 
         // Automatically update the user lists based on watch activity
         if (user?.email && anime && id) {
-          const totalEpisodes = anime.episodesAired || anime.episodes || 0;
+          const totalEpisodes = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 0;
 
           if (
             isStarted &&
@@ -1607,7 +1609,7 @@ const Details: React.FC = () => {
 
                       {/* Episode Search Filter */}
                       {(() => {
-                        const totalEps = anime.episodesAired || anime.episodes || 1;
+                        const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
                         if (totalEps > 1) {
                           return (
                             <div className="relative flex items-center">
@@ -1688,12 +1690,12 @@ const Details: React.FC = () => {
                     {/* EPISODES STREAM LIST (High Fidelity Crunchyroll rectangular widescreen listing cards!) */}
                     <div className="space-y-4">
                       <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">
-                        Выпуск серий ({anime.episodesAired || anime.episodes || 1})
+                        Выпуск серий ({(selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1})
                       </div>
 
                       <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1.5 custom-scrollbar">
                         {(() => {
-                          const totalEps = anime.episodesAired || anime.episodes || 1;
+                          const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
                           const filteredEpisodes = Array.from({ length: totalEps }, (_, index) => index + 1)
                             .filter(epNum => {
                               if (!epSearchVal) return true;
@@ -1898,9 +1900,9 @@ const Details: React.FC = () => {
                               }
                             }
 
-                            const episodesCount = anime
+                            const episodesCount = selectedTranslation?.last_episode || selectedTranslation?.episodes_count || (anime
                               ? (anime.episodesAired || anime.episodes || 1)
-                              : 1;
+                              : 1);
                             const currentEpNum = parseInt(paramEpisode || "1") || 1;
 
                             const handleNextEp = currentEpNum < episodesCount ? () => {
