@@ -57,6 +57,19 @@ const Layout: React.FC = () => {
   const { user, logout, openAuthModal } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 45) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const isActive = (path: string) => pathname === path;
 
@@ -130,7 +143,7 @@ const Layout: React.FC = () => {
       )}
       <AuthModal />
       
-      <header className={`fixed w-full z-50 bg-dark/80 backdrop-blur-2xl border-b border-white/5 transition-all ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'top-6' : 'top-0'}`}>
+      <header className={`fixed w-full z-50 transition-all duration-400 ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'top-6' : 'top-0'} ${scrolled ? 'bg-[#040406]/95 backdrop-blur-2xl border-b border-white/5 shadow-2.5xl' : 'bg-gradient-to-b from-black/95 via-black/40 to-transparent'}`}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-24 gap-8">
             <Link to="/" aria-label="KamiAnime Home" className="hover:opacity-90 transition-opacity">

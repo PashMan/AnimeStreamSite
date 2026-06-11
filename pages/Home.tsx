@@ -19,6 +19,7 @@ import CreateCollectionModal from '../components/CreateCollectionModal';
 const Home: React.FC = () => {
   const ongoingRef = useRef<HTMLDivElement>(null);
   const trendingRef = useRef<HTMLDivElement>(null);
+  const favoritesRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
   const { slugBlocks } = useSlugBlocks();
   const { dmcaBlocks } = useDmcaBlocks();
@@ -27,6 +28,8 @@ const Home: React.FC = () => {
   const [newAnimes, setNewAnimes] = useState<Anime[]>([]);
   const [trendingAnimes, setTrendingAnimes] = useState<Anime[]>([]);
   const [animes4k, setAnimes4k] = useState<Anime[]>([]);
+  const [favoritesAnimes, setFavoritesAnimes] = useState<Anime[]>([]);
+  const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [communityCollections, setCommunityCollections] = useState<CommunityCollection[]>([]);
   const [collectionType, setCollectionType] = useState<'official' | 'community'>('official');
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
@@ -123,6 +126,42 @@ const Home: React.FC = () => {
     return () => { isMounted = false; };
   }, []);
 
+  // Fetch logged-in user's favorites list for customized Netflix rows
+  useEffect(() => {
+    let isMounted = true;
+    if (user?.email) {
+      setIsLoadingFavorites(true);
+      db.getFavorites(user.email).then(async (ids) => {
+        if (!isMounted) return;
+        if (ids && ids.length > 0) {
+          try {
+            const promises = ids.slice(0, 12).map(id => fetchAnimeDetails(id));
+            const results = await Promise.all(promises);
+            if (isMounted) {
+              setFavoritesAnimes(results.filter(a => a !== null) as Anime[]);
+            }
+          } catch (e) {
+            console.error("Failed to fetch favorites details on Home:", e);
+          } finally {
+            if (isMounted) setIsLoadingFavorites(false);
+          }
+        } else {
+          if (isMounted) {
+            setFavoritesAnimes([]);
+            setIsLoadingFavorites(false);
+          }
+        }
+      }).catch(err => {
+        console.error("Error loading user favorites on Home:", err);
+        if (isMounted) setIsLoadingFavorites(false);
+      });
+    } else {
+      setFavoritesAnimes([]);
+      setIsLoadingFavorites(false);
+    }
+    return () => { isMounted = false; };
+  }, [user?.email]);
+
   useEffect(() => {
     if (heroAnimes.length === 0) return;
     const interval = setInterval(() => {
@@ -132,6 +171,7 @@ const Home: React.FC = () => {
   }, [heroAnimes.length]);
 
   const currentHero = heroAnimes[heroIndex];
+  const heroRating = currentHero ? (typeof currentHero.rating === 'number' ? currentHero.rating : parseFloat((currentHero.rating as any) || '0')) : 0;
 
   const scrollContainer = (ref: React.RefObject<HTMLDivElement>, direction: 'left' | 'right') => {
     if (ref.current) {
@@ -141,27 +181,27 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="space-y-24 pb-20">
+    <div className="space-y-16 pb-24 bg-[#040406]">
       <SEO 
         title="Смотреть аниме онлайн бесплатно в хорошем качестве - KamiAnime" 
         description="Смотрите аниме онлайн бесплатно в хорошем качестве. Новинки сезона, популярные тайтлы, удобный плеер и активное сообщество."
       />
       
-      {/* Hero Section */}
+      {/* Immersive Cinematic Hero Slider */}
       {isHeroLoading && heroAnimes.length === 0 ? (
-        <section className="relative h-[55vh] md:h-[75vh] w-full overflow-hidden bg-surface/50 animate-pulse">
-          <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent z-10" />
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-end pb-16 z-20">
+        <section className="relative h-[65vh] md:h-[88vh] w-full overflow-hidden bg-black/80 animate-pulse">
+          <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/60 to-transparent z-10" />
+          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-24 z-20">
             <div className="max-w-3xl space-y-6 w-full">
-              <div className="w-24 h-6 bg-white/10 rounded-lg"></div>
-              <div className="w-3/4 h-16 md:h-24 bg-white/10 rounded-2xl"></div>
-              <div className="w-full h-20 bg-white/10 rounded-xl"></div>
-              <div className="w-40 h-14 bg-white/10 rounded-2xl mt-4"></div>
+              <div className="w-24 h-6 bg-white/5 rounded-lg"></div>
+              <div className="w-3/4 h-16 md:h-24 bg-white/5 rounded-2xl"></div>
+              <div className="w-full h-20 bg-white/5 rounded-xl"></div>
+              <div className="w-40 h-14 bg-white/5 rounded-2xl mt-4"></div>
             </div>
           </div>
         </section>
       ) : currentHero ? (
-        <section className="relative h-[55vh] md:h-[80vh] w-full overflow-hidden group border-b border-white/5">
+        <section className="relative h-[65vh] md:h-[90vh] w-full overflow-hidden group select-none">
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               <Image 
@@ -171,93 +211,115 @@ const Home: React.FC = () => {
                 animeTitle={anime.originalName || anime.title}
                 priority={idx === 0}
                 onImageLoad={() => setLoadedImages(prev => ({...prev, [anime.id]: true}))}
-                className="w-full h-full object-cover transition-transform duration-[12s] ease-linear scale-100 group-hover:scale-105" 
+                className="w-full h-full object-cover transition-transform duration-[15s] ease-linear scale-100 group-hover:scale-105" 
               />
-              {/* Dual shade mapping for cinematic darkness & ultimate legibility */}
-              <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-dark/95 via-dark/60 md:via-dark/40 to-transparent" />
+              {/* Premium Netflix Gradient Masks for supreme contrast and legibility */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/50 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#040406]/95 via-[#040406]/70 md:via-[#040406]/20 to-transparent z-10" />
             </div>
           ))}
 
           {/* Side navigation arrows */}
           <button 
             onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)} 
-            className="absolute left-6 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-full text-white/80 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-2xl hover:scale-110 active:scale-95"
+            className="absolute left-8 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/5 rounded-full text-white/80 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-2xl hover:scale-110 active:scale-95 cursor-pointer"
             aria-label="Предыдущий слайд"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-6 h-6" />
           </button>
           <button 
             onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)} 
-            className="absolute right-6 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-full text-white/80 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-2xl hover:scale-110 active:scale-95"
+            className="absolute right-8 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/5 rounded-full text-white/80 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-2xl hover:scale-110 active:scale-95 cursor-pointer"
             aria-label="Следующий слайд"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-6 h-6" />
           </button>
 
           <input type="hidden" id="hero-slider" value={heroIndex} />
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-end pb-12 md:pb-20 z-20">
-            <div className="max-w-2xl space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="px-2.5 py-1 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded-md shadow-lg shadow-primary/20">Онгоинг</span>
-                {parseFloat(currentHero.rating || '0') > 0 && (
-                  <span className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase rounded-md backdrop-blur-md">
-                    ★ {parseFloat(currentHero.rating || '0').toFixed(1)}
+          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-24 md:pb-32 z-20">
+            <div className="max-w-3xl space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+              
+              {/* Meta tags / Badges row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-1 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded shadow-lg shadow-primary/25">Онгоинг</span>
+                {heroRating > 0 && (
+                  <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-extrabold uppercase rounded backdrop-blur-md">
+                     Рейтинг ★ {heroRating.toFixed(1)}
                   </span>
                 )}
-                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded-md backdrop-blur-md">
+                {currentHero.studio && (
+                  <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded backdrop-blur-md">
+                    Студия: {currentHero.studio}
+                  </span>
+                )}
+                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded backdrop-blur-md">
                   {currentHero.year || '2024'}
                 </span>
-                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded-md backdrop-blur-md">
-                  {currentHero.episodes || '?'} эп.
+                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded backdrop-blur-md">
+                  {currentHero.episodes || '?'} серий
                 </span>
               </div>
 
-              <h1 className="text-3xl md:text-6xl font-black text-white hover:text-primary transition-all duration-300 tracking-tight leading-[1.05] line-clamp-2 uppercase" style={{ WebkitTextStroke: '0.5px rgba(0, 0, 0, 0.1)' }}>
+              {/* Title with sleek shadows */}
+              <h1 className="text-4xl md:text-7xl font-sans font-black text-white hover:text-primary transition-all duration-300 tracking-tighter leading-[0.95] line-clamp-2 uppercase drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                 {currentHero.title}
               </h1>
 
-              <p className="text-slate-300 text-xs md:text-sm line-clamp-3 leading-relaxed max-w-xl font-medium drop-shadow-sm border-none p-0">
+              {/* Sub-meta (Genres) */}
+              {currentHero.genres && currentHero.genres.length > 0 && (
+                <div className="text-xs font-bold text-slate-400 flex items-center flex-wrap gap-2">
+                  {currentHero.genres.slice(0, 4).map((g, ind) => (
+                    <span key={g} className="flex items-center gap-2">
+                      <span className="hover:text-white transition-colors">{g}</span>
+                      {ind < Math.min(currentHero.genres.length, 4) - 1 && (
+                        <span className="w-1 h-1 rounded-full bg-slate-600 block" />
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Decription */}
+              <p className="text-slate-200 text-xs md:text-sm line-clamp-3 leading-relaxed max-w-2xl font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:pe-12">
                 {currentHero.description || "Описание загружается..."}
               </p>
 
+              {/* Buttons Row with premium interactive states */}
               <div className="flex flex-wrap gap-4 items-center pt-2">
-                {/* Watch Button */}
                 <Link 
                   to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} 
-                  className="px-7 py-3.5 bg-primary hover:bg-primary/90 text-white font-black rounded-xl flex items-center gap-3 w-fit uppercase text-[11px] tracking-widest shadow-xl shadow-primary/10 transition-all hover:scale-103 active:scale-97"
+                  className="px-8 py-4 bg-primary hover:bg-primary/95 text-white font-black rounded-lg flex items-center gap-3 w-fit uppercase text-[11px] tracking-widest shadow-2xl shadow-primary/20 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
                 >
                   <PlayCircle className="w-5 h-5 fill-current shrink-0" /> Смотреть
                 </Link>
 
-                {/* Details / Collect Button */}
                 <Link 
                   to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} 
-                  className="px-7 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-black rounded-xl flex items-center gap-2.5 w-fit uppercase text-[11px] tracking-widest transition-all backdrop-blur-md hover:scale-103 active:scale-97"
+                  className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-black rounded-lg flex items-center gap-2.5 w-fit uppercase text-[11px] tracking-widest transition-all backdrop-blur-md hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
                 >
-                  О тайтле
+                  Информация
                 </Link>
 
-                {/* Dots slider container */}
-                <div className="flex gap-2 items-center bg-black/30 backdrop-blur-md p-1.5 rounded-xl border border-white/5 ml-auto md:ml-4 select-none">
+                {/* Micro Slides Controls Container */}
+                <div className="flex gap-2 items-center bg-black/40 backdrop-blur-md p-1.5 rounded-lg border border-white/5 ml-auto md:ml-4 select-none">
                   <button 
                     onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)}
-                    className="p-1 px-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    className="p-1 px-1.5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90 cursor-pointer"
                     aria-label="Предыдущее аниме"
                   >
-                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <ChevronLeft className="w-4 h-4" />
                   </button>
                   <div className="flex gap-1.5 items-center">
                     {heroAnimes.map((_, i) => (
-                      <button aria-label={`Слайд ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1 rounded-full transition-all duration-300 ${i === heroIndex ? 'w-5 bg-primary' : 'w-1 bg-white/20 hover:bg-white/45'}`} />
+                      <button aria-label={`Слайд ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1 rounded transition-all duration-300 ${i === heroIndex ? 'w-6 bg-primary' : 'w-1.5 bg-white/30 hover:bg-white/60'}`} />
                     ))}
                   </div>
                   <button 
                     onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)}
-                    className="p-1 px-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    className="p-1 px-1.5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90 cursor-pointer"
                     aria-label="Следующее аниме"
                   >
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -265,12 +327,52 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : (
-        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-black uppercase tracking-widest text-[10px] border-b border-white/5 bg-surface/20">
+        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-[#040406]">
           Контент временно недоступен
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-24">
+      {/* Main Containers: Sliding over the darkened bottom hero edge */}
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 space-y-16 -mt-16 md:-mt-24 pb-20 relative z-30">
+
+        {/* My List / Favorites Section (Rendered dynamically for logged-in users) */}
+        {user && (favoritesAnimes.length > 0 || isLoadingFavorites) && (
+          <section className="relative z-10 animate-in fade-in duration-500">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+              <div>
+                <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-primary rounded-full inline-block" />
+                  Мой список
+                </h2>
+                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Твои персональные закладки и избранные тайтлы</p>
+              </div>
+              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                <div className="flex gap-2">
+                  <button aria-label="Scroll left" onClick={() => scrollContainer(favoritesRef, 'left')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
+                  <button aria-label="Scroll right" onClick={() => scrollContainer(favoritesRef, 'right')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
+                </div>
+              </div>
+            </div>
+            
+            <div ref={favoritesRef} className="flex gap-6 overflow-x-auto hide-scrollbar scroll-smooth pb-4 px-1 snap-x min-h-[360px]">
+              {isLoadingFavorites ? (
+                Array.from({length: 6}).map((_, i) => (
+                  <div key={`fav-pulse-${i}`} className="w-[180px] sm:w-[220px] flex-none snap-start animate-pulse">
+                    <div className="w-full aspect-[2/3] bg-white/5 rounded-2xl mb-3"></div>
+                    <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-white/5 rounded w-1/2"></div>
+                  </div>
+                ))
+              ) : (
+                favoritesAnimes.map((anime, idx) => (
+                  <div key={`fav-${anime.id}-${idx}`} className="w-[180px] sm:w-[220px] flex-none snap-start">
+                    <AnimeCard anime={anime} />
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        )}
         
         {/* Ongoing Section */}
         <section>

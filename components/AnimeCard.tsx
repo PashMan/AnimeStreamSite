@@ -22,7 +22,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
     ? `/anime/${anime.id}-watch` 
     : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
 
-  const ratingNum = parseFloat(anime.rating || '0');
+  const ratingNum = typeof anime.rating === 'number' ? anime.rating : parseFloat((anime.rating as any) || '0');
   let ratingColorClass = "text-slate-300 bg-black/60 border-white/10";
   if (ratingNum >= 7.4) {
     ratingColorClass = "text-emerald-400 bg-emerald-950/80 border-emerald-500/30";
