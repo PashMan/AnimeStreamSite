@@ -22,43 +22,58 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
     ? `/anime/${anime.id}-watch` 
     : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
 
+  const ratingNum = parseFloat(anime.rating || '0');
+  let ratingColorClass = "text-slate-300 bg-black/60 border-white/10";
+  if (ratingNum >= 7.4) {
+    ratingColorClass = "text-emerald-400 bg-emerald-950/80 border-emerald-500/30";
+  } else if (ratingNum > 0 && ratingNum < 6.0) {
+    ratingColorClass = "text-rose-400 bg-rose-950/80 border-rose-500/30";
+  } else if (ratingNum >= 6.0) {
+    ratingColorClass = "text-amber-400 bg-amber-950/80 border-amber-500/30";
+  }
+
   return (
     <Link to={targetUrl} className="group block relative w-full h-full">
-      <div className="relative w-full aspect-[2/3] rounded-[2.5rem] overflow-hidden mb-5 bg-surface border border-white/5 group-hover:border-primary/50 transition-all shadow-xl group-hover:shadow-primary/20">
+      <div className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden mb-3 bg-surface border border-white/5 group-hover:border-primary/40 transition-all duration-500 shadow-lg group-hover:shadow-primary/10">
         <Image 
           src={anime.image} 
           alt={`Смотреть аниме ${anime.title} онлайн`} 
           animeId={anime.id}
           animeTitle={anime.originalName || anime.title}
-          className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110 will-change-transform" 
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 will-change-transform" 
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-dark/90 via-dark/20 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
         
-        <div className="absolute top-5 right-5 px-3 py-1.5 bg-black/60 backdrop-blur-xl rounded-xl flex items-center gap-2 border border-white/10 shadow-2xl">
-          <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-          <span className="text-[10px] font-black text-white">{anime.rating}</span>
-        </div>
+        {/* Rating badge */}
+        {ratingNum > 0 && (
+          <div className={`absolute top-3 right-3 px-2 py-0.5 backdrop-blur-md rounded-lg flex items-center gap-1 border shadow-lg ${ratingColorClass}`}>
+            <Star className="w-3 h-3 fill-current shrink-0" />
+            <span className="text-[10px] font-black tracking-tight">{ratingNum.toFixed(1)}</span>
+          </div>
+        )}
 
+        {/* Rank badge */}
         {rank && (
-          <div className="absolute top-5 left-5 px-4 py-1.5 bg-primary text-[10px] font-black uppercase rounded-xl shadow-2xl text-white">
+          <div className="absolute top-3 left-3 px-2.5 py-1 bg-primary text-[10px] font-black uppercase rounded-lg shadow-lg text-white">
             #{rank}
           </div>
         )}
 
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-          <div className="w-20 h-20 bg-primary/90 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-glow backdrop-blur-sm">
-            <PlayCircle className="w-10 h-10 fill-current" />
+        {/* Hover Action Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="w-14 h-14 bg-primary/95 hover:bg-primary rounded-full flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-all duration-300 shadow-glow backdrop-blur-xs">
+            <PlayCircle className="w-7 h-7 fill-current ml-0.5" />
           </div>
         </div>
       </div>
       
-      <div className="px-3">
-        <h3 className="font-black text-base text-white group-hover:text-primary transition-colors line-clamp-1 uppercase tracking-tighter" title={anime.title}>
+      <div className="px-1 text-left space-y-1">
+        <h3 className="font-bold text-sm text-slate-100 group-hover:text-primary transition-colors line-clamp-1 truncate" title={anime.title}>
           {anime.title}
         </h3>
-        <div className="flex items-center gap-3 text-[9px] font-black text-slate-500 mt-2.5 uppercase tracking-widest">
-          <span className="text-accent">{episodeCount} ЭП.</span>
-          <span className="w-1 h-1 rounded-full bg-slate-800" />
+        <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
+          <span className="text-primary/90 font-semibold">{episodeCount} эп.</span>
+          <span className="w-1 h-1 rounded-full bg-slate-700" />
           <span>{anime.year}</span>
         </div>
       </div>

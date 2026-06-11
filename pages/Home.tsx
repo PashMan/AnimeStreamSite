@@ -149,9 +149,9 @@ const Home: React.FC = () => {
       
       {/* Hero Section */}
       {isHeroLoading && heroAnimes.length === 0 ? (
-        <section className="relative h-[62vh] w-full overflow-hidden bg-surface/50 animate-pulse">
+        <section className="relative h-[55vh] md:h-[75vh] w-full overflow-hidden bg-surface/50 animate-pulse">
           <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent z-10" />
-          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-16 z-20">
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-end pb-16 z-20">
             <div className="max-w-3xl space-y-6 w-full">
               <div className="w-24 h-6 bg-white/10 rounded-lg"></div>
               <div className="w-3/4 h-16 md:h-24 bg-white/10 rounded-2xl"></div>
@@ -161,7 +161,7 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : currentHero ? (
-        <section className="relative h-[62vh] w-full overflow-hidden group">
+        <section className="relative h-[55vh] md:h-[80vh] w-full overflow-hidden group border-b border-white/5">
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               <Image 
@@ -171,61 +171,93 @@ const Home: React.FC = () => {
                 animeTitle={anime.originalName || anime.title}
                 priority={idx === 0}
                 onImageLoad={() => setLoadedImages(prev => ({...prev, [anime.id]: true}))}
-                className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
+                className="w-full h-full object-cover transition-transform duration-[12s] ease-linear scale-100 group-hover:scale-105" 
               />
+              {/* Dual shade mapping for cinematic darkness & ultimate legibility */}
               <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
-              <div className="absolute inset-0 bg-black/20" />
+              <div className="absolute inset-0 bg-gradient-to-r from-dark/95 via-dark/60 md:via-dark/40 to-transparent" />
             </div>
           ))}
 
-          {/* Side manual navigation buttons */}
+          {/* Side navigation arrows */}
           <button 
             onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)} 
-            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-110 active:scale-95"
+            className="absolute left-6 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-full text-white/80 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-2xl hover:scale-110 active:scale-95"
             aria-label="Предыдущий слайд"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button 
             onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)} 
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-110 active:scale-95"
+            className="absolute right-6 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-full text-white/80 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-2xl hover:scale-110 active:scale-95"
             aria-label="Следующий слайд"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
-          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-16 z-20">
-            <div className="max-w-3xl space-y-4 md:space-y-6 animate-in slide-in-from-bottom-10 duration-700">
-              <span className="px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg">Выходит сейчас</span>
-              <h1 className="text-4xl md:text-6xl font-display font-black text-white drop-shadow-2xl uppercase tracking-tighter leading-[0.9] line-clamp-2">{currentHero.title}</h1>
-              <p className="text-slate-200 text-sm md:text-base line-clamp-2 md:line-clamp-3 font-medium max-w-2xl drop-shadow-md p-0 border-none">
+          <input type="hidden" id="hero-slider" value={heroIndex} />
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-end pb-12 md:pb-20 z-20">
+            <div className="max-w-2xl space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="px-2.5 py-1 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded-md shadow-lg shadow-primary/20">Онгоинг</span>
+                {parseFloat(currentHero.rating || '0') > 0 && (
+                  <span className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase rounded-md backdrop-blur-md">
+                    ★ {parseFloat(currentHero.rating || '0').toFixed(1)}
+                  </span>
+                )}
+                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded-md backdrop-blur-md">
+                  {currentHero.year || '2024'}
+                </span>
+                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded-md backdrop-blur-md">
+                  {currentHero.episodes || '?'} эп.
+                </span>
+              </div>
+
+              <h1 className="text-3xl md:text-6xl font-black text-white hover:text-primary transition-all duration-300 tracking-tight leading-[1.05] line-clamp-2 uppercase" style={{ WebkitTextStroke: '0.5px rgba(0, 0, 0, 0.1)' }}>
+                {currentHero.title}
+              </h1>
+
+              <p className="text-slate-300 text-xs md:text-sm line-clamp-3 leading-relaxed max-w-xl font-medium drop-shadow-sm border-none p-0">
                 {currentHero.description || "Описание загружается..."}
               </p>
+
               <div className="flex flex-wrap gap-4 items-center pt-2">
-                <Link to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} className="px-8 py-4 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
-                  <PlayCircle className="w-6 h-6 fill-current" /> Смотреть
+                {/* Watch Button */}
+                <Link 
+                  to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} 
+                  className="px-7 py-3.5 bg-primary hover:bg-primary/90 text-white font-black rounded-xl flex items-center gap-3 w-fit uppercase text-[11px] tracking-widest shadow-xl shadow-primary/10 transition-all hover:scale-103 active:scale-97"
+                >
+                  <PlayCircle className="w-5 h-5 fill-current shrink-0" /> Смотреть
                 </Link>
-                
-                {/* Manual control buttons directly embedded in the dots slider block */}
-                <div className="flex gap-2 items-center bg-black/30 backdrop-blur-md p-1.5 rounded-2xl border border-white/5">
+
+                {/* Details / Collect Button */}
+                <Link 
+                  to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} 
+                  className="px-7 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-black rounded-xl flex items-center gap-2.5 w-fit uppercase text-[11px] tracking-widest transition-all backdrop-blur-md hover:scale-103 active:scale-97"
+                >
+                  О тайтле
+                </Link>
+
+                {/* Dots slider container */}
+                <div className="flex gap-2 items-center bg-black/30 backdrop-blur-md p-1.5 rounded-xl border border-white/5 ml-auto md:ml-4 select-none">
                   <button 
                     onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)}
-                    className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    className="p-1 px-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
                     aria-label="Предыдущее аниме"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
                   <div className="flex gap-1.5 items-center">
                     {heroAnimes.map((_, i) => (
-                      <button aria-label={`Слайд ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-primary' : 'w-1.5 bg-white/10'}`} />
+                      <button aria-label={`Слайд ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1 rounded-full transition-all duration-300 ${i === heroIndex ? 'w-5 bg-primary' : 'w-1 bg-white/20 hover:bg-white/45'}`} />
                     ))}
                   </div>
                   <button 
                     onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)}
-                    className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    className="p-1 px-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
                     aria-label="Следующее аниме"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -233,40 +265,41 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : (
-        <div className="h-[40vh] flex items-center justify-center text-slate-700 font-black uppercase tracking-widest text-xs border-b border-white/5 bg-surface/20">
+        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-black uppercase tracking-widest text-[10px] border-b border-white/5 bg-surface/20">
           Контент временно недоступен
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-28">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-24">
         
         {/* Ongoing Section */}
         <section>
-          <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary shadow-lg shadow-primary/10">
-                    <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Онгоинги</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Выходят прямо сейчас</p>
-                </div>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
+                Онгоинги
+              </h2>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Новые серии выходят прямо сейчас</p>
             </div>
-            <div className="flex gap-3 items-center">
-               <Link to="/catalog?order=ranked&status=ongoing" className="px-6 py-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">Смотреть все</Link>
-               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
-               <button aria-label="Scroll left" onClick={() => scrollContainer(ongoingRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
-               <button aria-label="Scroll right" onClick={() => scrollContainer(ongoingRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+               <Link to="/catalog?order=ranked&status=ongoing" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-colors flex items-center gap-1.5 mr-3">
+                 Смотреть все <ChevronRight className="w-4 h-4" />
+               </Link>
+               <div className="hidden sm:block w-px h-6 bg-white/10" />
+               <div className="flex gap-2">
+                 <button aria-label="Scroll left" onClick={() => scrollContainer(ongoingRef, 'left')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                 <button aria-label="Scroll right" onClick={() => scrollContainer(ongoingRef, 'right')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
+               </div>
             </div>
           </div>
-          <div ref={ongoingRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
+          <div ref={ongoingRef} className="flex gap-6 overflow-x-auto hide-scrollbar scroll-smooth pb-4 px-1 snap-x min-h-[360px]">
             {newAnimes.length > 0 ? newAnimes.map((anime, idx) => (
-              <div key={`ongoing-${anime.id}-${idx}`} className="w-[220px] sm:w-[260px] flex-none snap-start">
+              <div key={`ongoing-${anime.id}-${idx}`} className="w-[180px] sm:w-[220px] flex-none snap-start">
                 <AnimeCard anime={anime} />
               </div>
-            )) : Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="w-[220px] sm:w-[260px] flex-none snap-start animate-pulse">
-                  <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
+            )) : Array.from({length: 6}).map((_, i) => (
+              <div key={i} className="w-[180px] sm:w-[220px] flex-none snap-start animate-pulse">
+                  <div className="w-full aspect-[2/3] bg-white/5 rounded-2xl mb-3"></div>
                   <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-white/5 rounded w-1/2"></div>
               </div>
@@ -276,30 +309,28 @@ const Home: React.FC = () => {
 
         {/* 4K Anime Section */}
         <section>
-          <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 shadow-lg shadow-purple-500/10">
-                    <MonitorPlay className="w-5 h-5" />
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Аниме в 4K</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Ультра-высокое качество</p>
-                </div>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
+                Аниме в 4K
+              </h2>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Шедевры в ультра-высоком качестве</p>
             </div>
-            <div className="flex gap-3 items-center">
-               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
-               <button aria-label="Scroll left" onClick={() => scrollContainer(anime4kRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
-               <button aria-label="Scroll right" onClick={() => scrollContainer(anime4kRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+               <div className="flex gap-2">
+                 <button aria-label="Scroll left" onClick={() => scrollContainer(anime4kRef, 'left')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                 <button aria-label="Scroll right" onClick={() => scrollContainer(anime4kRef, 'right')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
+               </div>
             </div>
           </div>
-          <div ref={anime4kRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
+          <div ref={anime4kRef} className="flex gap-6 overflow-x-auto hide-scrollbar scroll-smooth pb-4 px-1 snap-x min-h-[360px]">
             {animes4k.length > 0 ? animes4k.map((anime, idx) => (
-              <div key={`4k-${anime.id}-${idx}`} className="w-[220px] sm:w-[260px] flex-none snap-start">
+              <div key={`4k-${anime.id}-${idx}`} className="w-[180px] sm:w-[220px] flex-none snap-start">
                 <AnimeCard anime={anime} />
               </div>
-            )) : Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="w-[220px] sm:w-[260px] flex-none snap-start animate-pulse">
-                  <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
+            )) : Array.from({length: 6}).map((_, i) => (
+              <div key={i} className="w-[180px] sm:w-[220px] flex-none snap-start animate-pulse">
+                  <div className="w-full aspect-[2/3] bg-white/5 rounded-2xl mb-3"></div>
                   <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-white/5 rounded w-1/2"></div>
               </div>
@@ -309,31 +340,32 @@ const Home: React.FC = () => {
 
         {/* Trending Section */}
         <section>
-          <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-accent/20 rounded-xl flex items-center justify-center text-accent shadow-lg shadow-accent/10">
-                    <Crown className="w-5 h-5" />
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">В тренде</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Популярное сейчас</p>
-                </div>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
+                В тренде
+              </h2>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Самые обсуждаемые и популярные тайтлы дня</p>
             </div>
-            <div className="flex gap-3 items-center">
-               <Link to="/catalog?order=popularity" className="px-6 py-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">Смотреть все</Link>
-               <div className="w-px h-8 bg-white/5 mx-2 hidden sm:block"></div>
-               <button aria-label="Scroll left" onClick={() => scrollContainer(trendingRef, 'left')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronLeft className="w-6 h-6" /></button>
-               <button aria-label="Scroll right" onClick={() => scrollContainer(trendingRef, 'right')} className="p-4 rounded-2xl bg-surface border border-white/5 hover:bg-primary transition-all text-slate-400 hover:text-white"><ChevronRight className="w-6 h-6" /></button>
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+               <Link to="/catalog?order=popularity" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-colors flex items-center gap-1.5 mr-3">
+                 Смотреть все <ChevronRight className="w-4 h-4" />
+               </Link>
+               <div className="hidden sm:block w-px h-6 bg-white/10" />
+               <div className="flex gap-2">
+                 <button aria-label="Scroll left" onClick={() => scrollContainer(trendingRef, 'left')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                 <button aria-label="Scroll right" onClick={() => scrollContainer(trendingRef, 'right')} className="p-2.5 rounded-xl bg-surface border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
+               </div>
             </div>
           </div>
-          <div ref={trendingRef} className="flex gap-7 overflow-x-auto hide-scrollbar scroll-smooth pb-8 px-1 snap-x min-h-[400px]">
+          <div ref={trendingRef} className="flex gap-6 overflow-x-auto hide-scrollbar scroll-smooth pb-4 px-1 snap-x min-h-[360px]">
             {trendingAnimes.length > 0 ? trendingAnimes.map((anime, idx) => (
-              <div key={`trend-${anime.id}-${idx}`} className="w-[220px] sm:w-[260px] flex-none snap-start">
+              <div key={`trend-${anime.id}-${idx}`} className="w-[180px] sm:w-[220px] flex-none snap-start">
                 <AnimeCard anime={anime} rank={idx + 1} />
               </div>
-            )) : Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="w-[220px] sm:w-[260px] flex-none snap-start animate-pulse">
-                  <div className="w-full aspect-[2/3] bg-white/5 rounded-[2.5rem] mb-5"></div>
+            )) : Array.from({length: 6}).map((_, i) => (
+              <div key={i} className="w-[180px] sm:w-[220px] flex-none snap-start animate-pulse">
+                  <div className="w-full aspect-[2/3] bg-white/5 rounded-2xl mb-3"></div>
                   <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-white/5 rounded w-1/2"></div>
               </div>
@@ -343,88 +375,80 @@ const Home: React.FC = () => {
 
         {/* Schedule Section */}
         <LazySection fetchData={fetchCalendar}>
-          {(schedule: ScheduleItem[]) => (
-            <section className="relative z-20"> 
-              <div className="flex items-center gap-4 mb-8">
-                <div className="w-10 h-10 bg-accent/20 rounded-xl flex items-center justify-center text-accent shadow-lg shadow-accent/10">
-                    <Calendar className="w-5 h-5" />
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Расписание серий</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Обновления этой недели</p>
-                </div>
-              </div>
-              
-              <div className="hidden md:grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-                {schedule.map((day) => (
-                  <div key={day.day} className="relative h-[160px] group">
-                    <div className={`absolute top-0 left-0 right-0 w-full h-[160px] group-hover:h-[280px] overflow-hidden group-hover:overflow-y-auto bg-surface/90 border border-white/5 backdrop-blur-md rounded-[1.5rem] p-4 flex flex-col transition-all duration-300 ease-out origin-top z-10 group-hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] group-hover:bg-surface group-hover:border-white/10 ${day.day === currentDayName ? 'border-primary/50 ring-1 ring-primary/20' : ''} custom-scrollbar`}>
-                        {day.day === currentDayName && (
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-primary rounded-full animate-pulse z-20"></div>
-                        )}
-                        <h4 className={`text-[10px] font-black uppercase mb-3 text-center tracking-widest transition-colors shrink-0 ${day.day === currentDayName ? 'text-primary' : 'text-slate-500 group-hover:text-primary'}`}>{day.day}</h4>
-                        <div className="space-y-2.5 flex-1">
-                          {day.animes.length > 0 ? day.animes.map((item, idx) => {
-                            const isDmcaBlocked = dmcaBlocks.includes(item.id.toString());
-                            const isSlugBlocked = slugBlocks.includes(item.id.toString());
-                            const targetUrl = isDmcaBlocked ? `/anime/${item.id}-watch` : `/anime/${item.id}${item.slug && !isSlugBlocked ? `-${item.slug}` : ''}`;
-                            return (
-                            <Link key={idx} to={targetUrl} className="block group/item hover:bg-white/5 p-1 rounded-lg transition-colors">
-                              <div className="text-[7px] text-slate-500 font-black flex items-center gap-1 mb-0.5 group-hover/item:text-primary transition-colors uppercase"><Clock className="w-2.5 h-2.5" /> {item.time}</div>
-                              <p className="text-[10px] font-bold text-white/80 leading-tight line-clamp-1 group-hover/item:line-clamp-none transition-colors group-hover/item:text-white">{item.title}</p>
-                            </Link>
-                          )}) : <p className="text-[7px] text-slate-700 font-black uppercase text-center mt-2">Пусто</p>}
-                        </div>
-                    </div>
+          {(schedule: ScheduleItem[]) => {
+            const activeDayName = expandedDay || currentDayName;
+            const activeDayData = schedule.find(d => d.day === activeDayName) || schedule[0] || { day: activeDayName, animes: [] };
+            
+            return (
+              <section className="relative z-20"> 
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Расписание серий</h2>
+                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Релизы по дням недели</p>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              <div className="md:hidden flex flex-col gap-3">
-                {schedule.map((day) => {
-                  const isExpanded = expandedDay === day.day || (expandedDay === null && day.day === currentDayName);
-                  return (
-                    <div key={day.day} className={`bg-surface/50 border ${isExpanded ? 'border-primary/30 bg-surface' : 'border-white/5'} rounded-2xl overflow-hidden transition-all duration-300`}>
-                      <button 
-                        onClick={() => setExpandedDay(isExpanded ? null : day.day)}
-                        className="w-full p-4 flex items-center justify-between"
+                {/* Day Tabs */}
+                <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar select-none border-b border-white/5 mb-6">
+                  {schedule.map((day) => {
+                    const isActive = day.day === activeDayName;
+                    const isToday = day.day === currentDayName;
+                    return (
+                      <button
+                        key={day.day}
+                        onClick={() => setExpandedDay(day.day)}
+                        className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border shrink-0 flex items-center gap-2 ${
+                          isActive 
+                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]' 
+                            : 'bg-surface/60 border-white/5 hover:border-white/15 text-slate-400 hover:text-white'
+                        }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xs font-black uppercase tracking-widest ${day.day === currentDayName ? 'text-primary' : 'text-slate-400'}`}>{day.day}</span>
-                          {day.day === currentDayName && <span className="px-2 py-0.5 bg-primary/20 text-primary text-[8px] font-bold rounded uppercase tracking-wider">Сегодня</span>}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-bold text-slate-500">{day.animes.length} релизов</span>
-                          <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                        </div>
+                        {day.day}
+                        {isToday && (
+                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white animate-pulse' : 'bg-primary'}`} />
+                        )}
                       </button>
-                      
-                      {isExpanded && (
-                        <div className="px-4 pb-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                          {day.animes.length > 0 ? day.animes.map((item, idx) => {
-                            const isDmcaBlocked = dmcaBlocks.includes(item.id.toString());
-                            const isSlugBlocked = slugBlocks.includes(item.id.toString());
-                            const targetUrl = isDmcaBlocked ? `/anime/${item.id}-watch` : `/anime/${item.id}${item.slug && !isSlugBlocked ? `-${item.slug}` : ''}`;
-                            return (
-                            <Link key={idx} to={targetUrl} className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 active:scale-[0.98] transition-transform">
-                              <div className="mt-0.5 min-w-[40px] px-1.5 py-1 bg-black/40 rounded text-[9px] font-black text-primary text-center tracking-wider border border-white/5">
-                                {item.time}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-white leading-snug line-clamp-2">{item.title}</p>
-                              </div>
-                            </Link>
-                          )}) : (
-                            <div className="text-center py-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Нет релизов</div>
-                          )}
+                    );
+                  })}
+                </div>
+
+                {/* Day List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeDayData.animes.length > 0 ? activeDayData.animes.map((item, idx) => {
+                    const isDmcaBlocked = dmcaBlocks.includes(item.id.toString());
+                    const isSlugBlocked = slugBlocks.includes(item.id.toString());
+                    const targetUrl = isDmcaBlocked ? `/anime/${item.id}-watch` : `/anime/${item.id}${item.slug && !isSlugBlocked ? `-${item.slug}` : ''}`;
+                    
+                    return (
+                      <Link 
+                        key={idx} 
+                        to={targetUrl} 
+                        className="group flex items-center gap-4 bg-surface/30 hover:bg-surface/70 border border-white/5 hover:border-primary/25 rounded-xl p-4 transition-all duration-300"
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-extrabold text-primary bg-primary/10 border border-primary/15 px-3 py-1.5 rounded-lg shrink-0 group-hover:bg-primary group-hover:text-white transition-all">
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                          <span>{item.time}</span>
                         </div>
-                      )}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-bold text-slate-100 group-hover:text-primary transition-colors line-clamp-1">
+                            {item.title}
+                          </h4>
+                        </div>
+                        <div className="text-slate-500 group-hover:text-white transition-all transform group-hover:translate-x-1 duration-300">
+                          <ChevronRight className="w-4 h-4" />
+                        </div>
+                      </Link>
+                    );
+                  }) : (
+                    <div className="col-span-full py-12 flex flex-col items-center justify-center border border-dashed border-white/5 bg-surface/10 rounded-2xl">
+                      <Calendar className="w-8 h-8 text-slate-600 mb-2.5" />
+                      <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Нет запланированных релизов на этот день</p>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+                  )}
+                </div>
+              </section>
+            );
+          }}
         </LazySection>
 
         {/* News Section */}
@@ -432,41 +456,46 @@ const Home: React.FC = () => {
           {(news: NewsItem[]) => (
             <section className="relative z-10">
                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary shadow-lg shadow-primary/10">
-                          <Megaphone className="w-5 h-5" />
-                      </div>
-                      <div>
-                          <h3 className="text-xl font-black text-white uppercase tracking-tighter">Новости</h3>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">События индустрии</p>
-                      </div>
+                  <div>
+                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Новости</h2>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Свежие события аниме-индустрии</p>
                   </div>
-                  <Link to="/news" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-1">
+                  <Link to="/news" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors flex items-center gap-1">
                       Все новости <ChevronRight className="w-4 h-4" />
                   </Link>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {news.slice(0, 4).map((item) => (
-                     <div key={item.id} className="group bg-surface/30 border border-white/5 hover:border-primary/30 rounded-[2rem] overflow-hidden transition-all shadow-xl flex flex-col">
+                     <div key={item.id} className="group bg-surface/30 border border-white/5 hover:border-primary/20 rounded-2xl overflow-hidden transition-all duration-350 shadow-xl flex flex-col">
                         {item.video ? (
-                          <div className="aspect-video w-full bg-black">
+                          <div className="aspect-video w-full bg-black relative">
                              <iframe 
                                src={`https://www.youtube.com/embed/${item.video}`} 
                                className="w-full h-full" 
+                               loading="lazy"
+                               title={item.title}
                                frameBorder="0" 
                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                                allowFullScreen
                              ></iframe>
                           </div>
                         ) : null}
-                        <Link to={`/news/${item.id}`} className="p-6 flex-1 flex flex-col">
+                        <Link to={`/news/${item.id}`} className="p-5 flex-1 flex flex-col">
                            <div className="flex items-center justify-between mb-3">
-                              <div className="text-[9px] font-black text-primary uppercase tracking-widest">{item.category}</div>
-                              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{item.date}</div>
+                              <span className="text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded-md">
+                                {item.category}
+                              </span>
+                              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+                                {item.date}
+                              </span>
                            </div>
-                           <h4 className="text-base font-black text-white leading-tight uppercase tracking-tight group-hover:text-primary transition-colors mb-3">{item.title}</h4>
-                           <p className="text-slate-400 text-xs line-clamp-3 leading-relaxed">{item.summary?.replace(/<[^>]*>?/gm, '').replace(/\[.*?\]/g, '')}</p>
+                           <h3 className="text-sm font-bold text-slate-100 group-hover:text-primary transition-colors mb-2 line-clamp-2 leading-snug">
+                             {item.title}
+                           </h3>
+                           <p className="text-slate-400 text-xs line-clamp-3 leading-relaxed mt-1">
+                             {item.summary?.replace(/<[^>]*>?/gm, '').replace(/\[.*?\]/g, '')}
+                           </p>
                            <div className="mt-auto pt-4 flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
                               Читать далее <ChevronRight className="w-3 h-3" />
                            </div>
@@ -483,47 +512,42 @@ const Home: React.FC = () => {
           {(forumTopics: ForumTopic[]) => (
             <section className="relative z-10">
                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-violet-500/20 rounded-xl flex items-center justify-center text-violet-400 shadow-lg shadow-violet-500/10">
-                          <MessageSquare className="w-5 h-5" />
-                      </div>
-                      <div>
-                          <h3 className="text-xl font-black text-white uppercase tracking-tighter">Обсуждения</h3>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Свежее на форуме</p>
-                      </div>
+                  <div>
+                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Обсуждения</h2>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Активные темы на нашем форуме</p>
                   </div>
-                  <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-1">
+                  <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors flex items-center gap-1">
                       Весь форум <ChevronRight className="w-4 h-4" />
                   </Link>
                </div>
 
-               <div className="grid gap-4">
-                  {forumTopics.map(topic => (
-                    <Link key={topic.id} to={`/forum/${topic.id}`} className="group bg-surface/30 hover:bg-surface/50 border border-white/5 hover:border-primary/30 rounded-[1.5rem] p-6 transition-all cursor-pointer shadow-lg backdrop-blur-sm flex items-center gap-6">
-                      <div className="flex-1 min-w-0 space-y-2">
+                <div className="grid gap-3">
+                  {forumTopics.slice(0, 4).map(topic => (
+                    <Link key={topic.id} to={`/forum/${topic.id}`} className="group bg-surface/30 hover:bg-surface/70 border border-white/5 hover:border-primary/25 rounded-xl p-5 transition-all duration-300 cursor-pointer shadow-lg flex items-center gap-4">
+                      <div className="flex-1 min-w-0 space-y-1.5">
                         <div className="flex items-center gap-3">
-                          <span className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[9px] font-black uppercase tracking-widest">
+                          <span className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md text-[9px] font-black uppercase tracking-widest">
                             {topic.category}
                           </span>
-                          <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-slate-500">
                              {topic.author.name}
                           </span>
                           <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                              <Clock className="w-3 h-3" /> {new Date(topic.createdAt).toLocaleDateString('ru-RU')}
                           </span>
                         </div>
-                        <h4 className="text-base font-black text-white group-hover:text-primary transition-colors uppercase tracking-tight line-clamp-1">
+                        <h3 className="text-sm font-bold text-white group-hover:text-primary transition-colors line-clamp-1 leading-snug">
                           {topic.title}
-                        </h4>
+                        </h3>
                         <p className="text-slate-400 text-xs line-clamp-1">{topic.content}</p>
                       </div>
                       
-                      <div className="flex items-center gap-4 shrink-0 border-l border-white/5 pl-6">
-                         <div className="text-center">
-                            <div className="text-xs font-black text-white">{topic.repliesCount}</div>
+                      <div className="flex items-center gap-4 shrink-0 border-l border-white/5 pl-4">
+                         <div className="text-center min-w-[50px]">
+                            <div className="text-sm font-black text-white">{topic.repliesCount}</div>
                             <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Ответов</div>
                          </div>
-                         <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                         <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
                       </div>
                     </Link>
                   ))}
@@ -535,30 +559,32 @@ const Home: React.FC = () => {
         {/* Collections Section */}
         <LazyRender threshold={0.1}>
           <section className="mt-12">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
-                <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter font-display flex items-center gap-3">
-                  <Sparkles className="w-8 h-8 text-primary" />
-                  Подборки
-                </h2>
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                    Подборки
+                  </h2>
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Тематические коллекции для ценителей жанра</p>
+                </div>
                 
-                <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5 self-start sm:self-auto">
+                <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5 self-start sm:self-auto select-none">
                   <button 
                     onClick={() => setCollectionType('official')}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${collectionType === 'official' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${collectionType === 'official' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
                   >
                     Официальные
                   </button>
                   <button 
                     onClick={() => setCollectionType('community')}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${collectionType === 'community' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${collectionType === 'community' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
                   >
                     Сообщество
                   </button>
                 </div>
               </div>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 self-end sm:self-auto shrink-0">
                 {collectionType === 'community' && (
                   <button 
                     onClick={() => user ? setIsCreateModalOpen(true) : openAuthModal()}
@@ -567,7 +593,7 @@ const Home: React.FC = () => {
                     <Plus className="w-4 h-4" /> Создать подборку
                   </button>
                 )}
-                <Link to="/collections" className="text-sm font-bold text-slate-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-1">
+                <Link to="/collections" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-colors flex items-center gap-1">
                   Смотреть все <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -583,32 +609,33 @@ const Home: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {isLoadingCollections ? (
                   Array(4).fill(0).map((_, i) => (
-                    <div key={i} className="h-48 rounded-3xl bg-white/5 animate-pulse border border-white/5"></div>
+                    <div key={i} className="h-48 rounded-2xl bg-white/5 animate-pulse border border-white/5"></div>
                   ))
                 ) : communityCollections.length === 0 ? (
-                  <div className="col-span-full text-center py-10 text-slate-500 font-bold uppercase tracking-widest text-xs">
-                    Подборок от сообщества пока нет
+                  <div className="col-span-full text-center py-12 flex flex-col items-center justify-center border border-dashed border-white/5 bg-surface/10 rounded-2xl">
+                    <Sparkles className="w-8 h-8 text-slate-600 mb-2.5" />
+                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Подборок от сообщества пока нет</p>
                   </div>
                 ) : (
                   communityCollections.slice(0, 4).map((collection) => {
                     const coverImage = collection.coverImage || collection.items?.[0]?.animeImage;
                     return (
-                      <div key={collection.id} className="group relative h-48 rounded-3xl overflow-hidden shadow-xl border border-white/5">
+                      <div key={collection.id} className="group relative h-48 rounded-2xl overflow-hidden shadow-xl border border-white/5">
                         {coverImage ? (
                           <img 
                             src={coverImage} 
                             alt={collection.name} 
-                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
                           <div className="absolute inset-0 bg-gradient-to-br from-violet-900/40 to-black/80"></div>
                         )}
-                        <div className="absolute inset-0 bg-black/60 group-hover:bg-black/40 transition-colors duration-500"></div>
+                        <div className="absolute inset-0 bg-black/60 group-hover:bg-black/55 transition-colors duration-500"></div>
                         
                         <Link to={`/collections/community/${collection.id}`} className="absolute inset-0 z-10"></Link>
-
-                        <div className="absolute inset-0 p-6 flex flex-col justify-end z-20 pointer-events-none">
+ 
+                        <div className="absolute inset-0 p-5 flex flex-col justify-end z-20 pointer-events-none">
                           <div className="flex items-center gap-2 mb-2">
                             <div className="bg-primary/20 backdrop-blur-md px-2 py-0.5 rounded text-primary text-[9px] font-black uppercase tracking-widest border border-primary/20">
                               Community
@@ -617,7 +644,7 @@ const Home: React.FC = () => {
                               {collection.items?.length || 0} аниме
                             </div>
                           </div>
-                          <h3 className="text-white font-bold text-lg leading-tight drop-shadow-lg group-hover:text-primary transition-colors">{collection.name}</h3>
+                          <h3 className="text-white font-bold text-base leading-tight drop-shadow-lg group-hover:text-primary transition-colors">{collection.name}</h3>
                           <Link 
                             to={`/profile/${collection.creator?.email}`}
                             className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 truncate hover:text-white transition-colors pointer-events-auto"
