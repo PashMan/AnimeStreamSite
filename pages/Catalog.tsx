@@ -168,7 +168,7 @@ const Catalog: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Название аниме..." 
-              className="w-full bg-white border-0 rounded-2xl py-4 pl-14 pr-6 text-sm text-slate-900 outline-none focus:ring-4 focus:ring-primary/20 transition-all shadow-2xl font-medium"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-14 pr-6 text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xl font-medium"
             />
           </div>
 

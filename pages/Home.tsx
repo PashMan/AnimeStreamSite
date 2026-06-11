@@ -181,7 +181,7 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="space-y-16 pb-24 bg-[#040406]">
+    <div className="space-y-16 pb-24 bg-[#070709]">
       <SEO 
         title="Смотреть аниме онлайн бесплатно в хорошем качестве - KamiAnime" 
         description="Смотрите аниме онлайн бесплатно в хорошем качестве. Новинки сезона, популярные тайтлы, удобный плеер и активное сообщество."
@@ -189,9 +189,9 @@ const Home: React.FC = () => {
       
       {/* Immersive Cinematic Hero Slider */}
       {isHeroLoading && heroAnimes.length === 0 ? (
-        <section className="relative h-[65vh] md:h-[88vh] w-full overflow-hidden bg-black/80 animate-pulse">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/60 to-transparent z-10" />
-          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-24 z-20">
+        <section className="relative h-[75vh] min-h-[520px] md:h-[85vh] md:min-h-[620px] w-full overflow-hidden bg-black/80 animate-pulse">
+          <div className="absolute inset-0 bg-gradient-to-t from-[#070709] via-[#070709]/60 to-transparent z-10" />
+          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-16 z-20">
             <div className="max-w-3xl space-y-6 w-full">
               <div className="w-24 h-6 bg-white/5 rounded-lg"></div>
               <div className="w-3/4 h-16 md:h-24 bg-white/5 rounded-2xl"></div>
@@ -201,7 +201,7 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : currentHero ? (
-        <section className="relative h-[65vh] md:h-[90vh] w-full overflow-hidden group select-none">
+        <section className="relative h-[75vh] min-h-[520px] md:h-[85vh] md:min-h-[620px] w-full overflow-hidden group select-none">
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               <Image 
@@ -214,8 +214,8 @@ const Home: React.FC = () => {
                 className="w-full h-full object-cover transition-transform duration-[15s] ease-linear scale-100 group-hover:scale-105" 
               />
               {/* Premium Netflix Gradient Masks for supreme contrast and legibility */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/50 to-transparent z-10" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#040406]/95 via-[#040406]/70 md:via-[#040406]/20 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#070709] via-[#070709]/50 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#070709]/95 via-[#070709]/70 md:via-[#070709]/20 to-transparent z-10" />
             </div>
           ))}
 
@@ -236,40 +236,40 @@ const Home: React.FC = () => {
           </button>
 
           <input type="hidden" id="hero-slider" value={heroIndex} />
-          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-24 md:pb-32 z-20">
-            <div className="max-w-3xl space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-12 md:pb-20 z-20">
+            <div className="max-w-3xl space-y-3.5 md:space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-700">
               
               {/* Meta tags / Badges row */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-1 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded shadow-lg shadow-primary/25">Онгоинг</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="px-2 py-0.5 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded shadow-lg shadow-primary/25">Онгоинг</span>
                 {heroRating > 0 && (
-                  <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-extrabold uppercase rounded backdrop-blur-md">
+                  <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-extrabold uppercase rounded backdrop-blur-md">
                      Рейтинг ★ {heroRating.toFixed(1)}
                   </span>
                 )}
                 {currentHero.studio && (
-                  <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded backdrop-blur-md">
+                  <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded backdrop-blur-md">
                     Студия: {currentHero.studio}
                   </span>
                 )}
-                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded backdrop-blur-md">
+                <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded backdrop-blur-md">
                   {currentHero.year || '2024'}
                 </span>
-                <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded backdrop-blur-md">
+                <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-semibold rounded backdrop-blur-md">
                   {currentHero.episodes || '?'} серий
                 </span>
               </div>
 
               {/* Title with sleek shadows */}
-              <h1 className="text-4xl md:text-7xl font-sans font-black text-white hover:text-primary transition-all duration-300 tracking-tighter leading-[0.95] line-clamp-2 uppercase drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+              <h1 className="text-2xl sm:text-4xl md:text-6xl font-sans font-black text-white hover:text-primary transition-all duration-300 tracking-tighter leading-[0.95] line-clamp-2 uppercase drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                 {currentHero.title}
               </h1>
 
               {/* Sub-meta (Genres) */}
               {currentHero.genres && currentHero.genres.length > 0 && (
-                <div className="text-xs font-bold text-slate-400 flex items-center flex-wrap gap-2">
+                <div className="text-[11px] font-bold text-slate-400 flex items-center flex-wrap gap-1.5">
                   {currentHero.genres.slice(0, 4).map((g, ind) => (
-                    <span key={g} className="flex items-center gap-2">
+                    <span key={g} className="flex items-center gap-1.5">
                       <span className="hover:text-white transition-colors">{g}</span>
                       {ind < Math.min(currentHero.genres.length, 4) - 1 && (
                         <span className="w-1 h-1 rounded-full bg-slate-600 block" />
@@ -280,22 +280,22 @@ const Home: React.FC = () => {
               )}
 
               {/* Decription */}
-              <p className="text-slate-200 text-xs md:text-sm line-clamp-3 leading-relaxed max-w-2xl font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:pe-12">
+              <p className="text-slate-200 text-xs md:text-sm line-clamp-2 md:line-clamp-3 leading-relaxed max-w-2xl font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:pe-12">
                 {currentHero.description || "Описание загружается..."}
               </p>
 
               {/* Buttons Row with premium interactive states */}
-              <div className="flex flex-wrap gap-4 items-center pt-2">
+              <div className="flex flex-wrap gap-3 items-center pt-1">
                 <Link 
                   to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} 
-                  className="px-8 py-4 bg-primary hover:bg-primary/95 text-white font-black rounded-lg flex items-center gap-3 w-fit uppercase text-[11px] tracking-widest shadow-2xl shadow-primary/20 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+                  className="px-6 py-3 bg-primary hover:bg-primary/95 text-white font-black rounded-lg flex items-center gap-2 w-fit uppercase text-[10px] tracking-widest shadow-2xl shadow-primary/20 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
                 >
-                  <PlayCircle className="w-5 h-5 fill-current shrink-0" /> Смотреть
+                  <PlayCircle className="w-4 h-4 fill-current shrink-0" /> Смотреть
                 </Link>
 
                 <Link 
                   to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} 
-                  className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-black rounded-lg flex items-center gap-2.5 w-fit uppercase text-[11px] tracking-widest transition-all backdrop-blur-md hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+                  className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-black rounded-lg flex items-center gap-2 w-fit uppercase text-[10px] tracking-widest transition-all backdrop-blur-md hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
                 >
                   Информация
                 </Link>
@@ -327,7 +327,7 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : (
-        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-[#040406]">
+        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-[#070709]">
           Контент временно недоступен
         </div>
       )}

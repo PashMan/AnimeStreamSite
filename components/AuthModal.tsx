@@ -143,7 +143,7 @@ const AuthModal: React.FC = () => {
             <div className="mt-6">
                 <div className="relative flex items-center justify-center mb-4">
                     <div className="absolute inset-x-0 h-px bg-white/10"></div>
-                    <span className="relative bg-[#1a1625] px-2 text-xs text-slate-500 uppercase">Или</span>
+                    <span className="relative bg-[#111116] px-3 text-xs text-slate-500 uppercase">Или</span>
                 </div>
                 <button type="button" onClick={handleGoogleLogin} className="flex items-center justify-center w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-slate-200 transition-all gap-2">
                     <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
