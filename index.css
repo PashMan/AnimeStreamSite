@@ -168,3 +168,54 @@ html, body {
   }
 }
 
+/* Ambient Fluid Waveform & Bento designs inspired by mobile UI */
+.fluid-wave-gradient {
+  background: linear-gradient(135deg, #7c3aed 0%, #d946ef 35%, #06b6d4 70%, #fb923c 100%);
+  background-size: 200% 200%;
+  animation: flowWave 12s ease-in-out infinite;
+}
+
+@keyframes flowWave {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.ambient-mesh-wave {
+  position: relative;
+  overflow: hidden;
+}
+
+.ambient-mesh-wave::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(circle at 15% 15%, rgba(139, 92, 246, 0.45) 0%, transparent 45%),
+              radial-gradient(circle at 85% 20%, rgba(219, 39, 119, 0.4) 0%, transparent 40%),
+              radial-gradient(circle at 50% 80%, rgba(6, 182, 212, 0.35) 0%, transparent 45%),
+              radial-gradient(circle at 10% 80%, rgba(245, 158, 11, 0.25) 0%, transparent 35%);
+  filter: blur(60px);
+  z-index: 0;
+  pointer-events: none;
+  animation: bounceBlobs 16s infinite alternate ease-in-out;
+}
+
+@keyframes bounceBlobs {
+  0% { transform: translateY(0) scale(1) rotate(0deg); }
+  50% { transform: translateY(-20px) scale(1.08) rotate(3deg); }
+  100% { transform: translateY(20px) scale(0.92) rotate(-3deg); }
+}
+
+/* Glasscard blur enhancements for premium feeling */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.glass-panel:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+

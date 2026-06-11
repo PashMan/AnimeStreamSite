@@ -34,32 +34,44 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-70" />
         
-        <div className="absolute top-5 right-5 px-3 py-1.5 bg-black/60 backdrop-blur-xl rounded-xl flex items-center gap-2 border border-white/10 shadow-2xl">
-          <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-          <span className="text-[10px] font-black text-white">{anime.rating}</span>
+        <div className="absolute top-5 left-5 px-3 py-1.5 bg-cyan-950/80 backdrop-blur-xl rounded-xl flex items-center gap-1.5 border border-cyan-500/20 shadow-2xl">
+          <Star className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400" />
+          <span className="text-[10px] font-black text-cyan-400">{anime.rating}</span>
         </div>
 
+        {anime.ageRating ? (
+          <div className="absolute top-5 right-5 px-2.5 py-1 bg-black/60 backdrop-blur-xl rounded-lg text-[10px] font-black text-slate-300 border border-white/5 shadow-2xl">
+            {anime.ageRating}
+          </div>
+        ) : (
+          anime.episodesAired !== undefined && anime.episodes !== undefined && (
+            <div className="absolute top-5 right-5 px-2.5 py-1 bg-black/60 backdrop-blur-xl rounded-lg text-[10px] font-black text-slate-400 border border-white/5 shadow-2xl">
+              {anime.episodesAired}/{anime.episodes} эп.
+            </div>
+          )
+        )}
+
         {rank && (
-          <div className="absolute top-5 left-5 px-4 py-1.5 bg-primary text-[10px] font-black uppercase rounded-xl shadow-2xl text-white">
+          <div className="absolute bottom-5 left-5 px-3 py-1 bg-primary text-[10px] font-black uppercase rounded-lg shadow-2xl text-white">
             #{rank}
           </div>
         )}
 
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-          <div className="w-20 h-20 bg-primary/90 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-glow backdrop-blur-sm">
-            <PlayCircle className="w-10 h-10 fill-current" />
+          <div className="w-16 h-16 bg-primary/95 rounded-full flex items-center justify-center text-white scale-75 group-hover:scale-100 transition-transform shadow-glow backdrop-blur-sm">
+            <PlayCircle className="w-9 h-9 fill-current" />
           </div>
         </div>
       </div>
       
-      <div className="px-3">
-        <h3 className="font-black text-base text-white group-hover:text-primary transition-colors line-clamp-1 uppercase tracking-tighter" title={anime.title}>
+      <div className="px-1">
+        <h3 className="font-extrabold text-[15px] leading-tight text-white group-hover:text-primary transition-colors line-clamp-1 uppercase tracking-tight" title={anime.title}>
           {anime.title}
         </h3>
-        <div className="flex items-center gap-3 text-[9px] font-black text-slate-500 mt-2.5 uppercase tracking-widest">
-          <span className="text-accent">{episodeCount} ЭП.</span>
-          <span className="w-1 h-1 rounded-full bg-slate-800" />
+        <div className="flex items-center gap-2 text-[10.5px] font-bold text-slate-500 mt-1.5 uppercase tracking-wide">
           <span>{anime.year}</span>
+          <span className="w-1 h-1 rounded-full bg-slate-800" />
+          <span className="text-slate-400 truncate">{anime.studio || 'Shikimori'}</span>
         </div>
       </div>
     </Link>

@@ -151,7 +151,7 @@ const Layout: React.FC = () => {
                   onFocus={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   placeholder="Найти аниме..."
-                  className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
+                  className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-full text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
                 />
                 
                 {/* Search Suggestions */}
@@ -275,7 +275,7 @@ const Layout: React.FC = () => {
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Найти аниме..."
-              className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
+              className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-full text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
             />
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
