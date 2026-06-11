@@ -37,12 +37,12 @@ const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
 };
 
 export const Logo: React.FC<{ className?: string }> = ({ className }) => (
-  <div className={`flex items-center gap-3 select-none ${className}`}>
-    <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+  <div className={`flex items-center gap-2 select-none ${className}`}>
+    <div className="w-9 h-9 bg-gradient-to-tr from-primary to-[#ff3c00] rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20 hover:scale-105 transition-transform duration-300">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-white"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
     </div>
-    <div className="font-display text-[26px] font-black tracking-normal text-white leading-none hidden md:block">
-      Kami<span className="text-primary">Anime</span>
+    <div className="font-display text-[22px] font-black tracking-tighter text-white leading-none">
+      KAMI<span className="text-primary font-black">PLAY</span>
     </div>
   </div>
 );
@@ -144,15 +144,15 @@ const Layout: React.FC = () => {
       <AuthModal />
       
       <header className={`fixed w-full z-50 transition-all duration-400 ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'top-6' : 'top-0'} ${scrolled ? 'bg-[#040406]/95 backdrop-blur-2xl border-b border-white/5 shadow-2.5xl' : 'bg-gradient-to-b from-black/95 via-black/40 to-transparent'}`}>
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-24 gap-8">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12">
+          <div className="flex items-center justify-between h-20 gap-6">
             <Link to="/" aria-label="KamiAnime Home" className="hover:opacity-90 transition-opacity">
               <Logo />
             </Link>
 
-            <div className="flex-1 hidden md:flex justify-center max-w-xl gap-4">
+            <div className="flex-1 hidden md:flex justify-center max-w-lg gap-3">
               <form onSubmit={handleSearch} className="relative w-full group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
                 <input
                   type="text"
                   aria-label="Поиск аниме"
@@ -163,13 +163,13 @@ const Layout: React.FC = () => {
                   }}
                   onFocus={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder="Найти аниме..."
-                  className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
+                  placeholder="Быстрый поиск..."
+                  className="w-full h-10 pl-10 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:bg-white/10 focus:border-primary/50 focus:outline-none transition-all duration-300"
                 />
                 
                 {/* Search Suggestions */}
                 {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-[#0a0a0f] border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="p-2">
                       <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 py-2">Результаты поиска</div>
                       {suggestions.map((anime) => {
@@ -178,7 +178,7 @@ const Layout: React.FC = () => {
                         <Link
                           key={anime.id}
                           to={isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}`}
-                          className="flex items-center gap-4 p-2 hover:bg-white/5 rounded-xl transition-colors group/item"
+                          className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg transition-colors group/item"
                           onClick={() => setShowSuggestions(false)}
                         >
                           <img 
@@ -186,20 +186,20 @@ const Layout: React.FC = () => {
                             alt={anime.title} 
                             loading="lazy"
                             onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
-                            className="w-10 h-14 object-cover rounded-lg shadow-sm group-hover/item:scale-105 transition-transform" 
+                            className="w-9 h-12 object-cover rounded shadow-sm group-hover/item:scale-105 transition-transform" 
                           />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold text-slate-200 group-hover/item:text-primary transition-colors truncate">{anime.title}</span>
-                            <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
-                              <span className="uppercase">
+                            <span className="text-xs font-bold text-slate-200 group-hover/item:text-primary transition-colors truncate">{anime.title}</span>
+                            <div className="flex items-center gap-2 text-[9px] font-extrabold uppercase text-slate-500 tracking-wider">
+                              <span>
                                 {anime.type === 'TV Series' ? 'TV' : 
                                  anime.type === 'Movie' ? 'Фильм' : 
                                  anime.type === 'Special' ? 'Спешл' : 
                                  anime.type === 'Music' ? 'Клип' : 
                                  anime.type}
                               </span>
-                              <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                              <span className="flex items-center gap-1 text-yellow-500"><Crown className="w-3 h-3" /> {anime.rating}</span>
+                              <span className="w-0.5 h-0.5 rounded-full bg-slate-600"></span>
+                              <span className="flex items-center gap-0.5 text-yellow-500"><Crown className="w-2.5 h-2.5" /> {anime.rating}</span>
                             </div>
                           </div>
                         </Link>
@@ -213,42 +213,39 @@ const Layout: React.FC = () => {
                   const id = await findRandomAnimeWithPlayer();
                   if (id) navigate(`/anime/${id}`);
                 }}
-                className="p-3 bg-white/5 hover:bg-primary hover:text-white rounded-2xl transition-all group"
+                className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all group shrink-0"
                 title="Случайное аниме"
               >
-                <Shuffle className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                <Shuffle className="w-4 h-4 group-hover:rotate-12 transition-transform" />
               </button>
             </div>
 
-            <nav className="hidden lg:flex items-center gap-8 text-[11px] font-black uppercase tracking-[0.2em]">
-              <Link to="/" className={`${isActive('/') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Главная</Link>
-              <Link to="/catalog" className={`${isActive('/catalog') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Каталог</Link>
-              <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Новости</Link>
-              <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Форум</Link>
-              <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'text-slate-400 hover:text-white'} transition-all`}>Сообщество</Link>
+            <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <Link to="/" className={`${isActive('/') ? 'text-primary' : 'hover:text-white'} transition-all`}>Главная</Link>
+              <Link to="/catalog" className={`${isActive('/catalog') ? 'text-primary' : 'hover:text-white'} transition-all`}>Каталог</Link>
+              <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'hover:text-white'} transition-all`}>Новости</Link>
+              <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'hover:text-white'} transition-all`}>Форум</Link>
+              <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'hover:text-white'} transition-all`}>Сообщество</Link>
               {user?.role === 'admin' && (
                 <Link to="/admin" className={`${isActive('/admin') ? 'text-primary' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
               )}
             </nav>
 
-            <div className="flex items-center gap-4">
-              {/* <Link aria-label="Premium" to="/premium" title="Премиум" className="p-2.5 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-white rounded-xl transition-all relative group">
-                <Crown className="w-5 h-5 group-hover:scale-110 transition-transform" />
-              </Link> */}
+            <div className="flex items-center gap-3">
               {user && (
                 <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
-                   <MessageSquareText className="w-5 h-5" />
+                   <MessageSquareText className="w-4.5 h-4.5" />
                 </Link>
               )}
               {user ? (
-                <div className="flex items-center gap-4">
-                  <Link to="/profile" className="w-10 h-10 rounded-2xl overflow-hidden ring-2 ring-primary/20 hover:ring-primary transition-all">
+                <div className="flex items-center gap-3">
+                  <Link to="/profile" className="w-9 h-9 rounded-xl overflow-hidden ring-2 ring-primary/20 hover:ring-primary transition-all">
                     <img src={user.avatar} loading="lazy" alt="User" className="w-full h-full object-cover" />
                   </Link>
                   <button onClick={logout} className="text-[9px] font-black uppercase text-slate-500 hover:text-red-400 transition-colors tracking-widest hidden sm:block">Выйти</button>
                 </div>
               ) : (
-                <button onClick={openAuthModal} className="h-11 px-8 bg-primary hover:bg-violet-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20 hover:scale-105 active:scale-95">
+                <button onClick={openAuthModal} className="h-10 px-6 bg-primary hover:bg-[#ff6e1a] text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/25 hover:scale-102 active:scale-95">
                   Войти
                 </button>
               )}

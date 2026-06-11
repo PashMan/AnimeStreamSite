@@ -30,57 +30,58 @@ const News: React.FC = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
       <SEO 
         title="Новости аниме" 
         description="Последние новости из мира аниме: анонсы, трейлеры, даты выхода и важные события индустрии."
       />
-      <Link to="/" className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors group">
-        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" /> На главную
-      </Link>
-
-      <div className="flex items-center gap-4 border-b border-white/5 pb-10">
-        <div className="w-14 h-14 bg-primary/20 rounded-[1.5rem] flex items-center justify-center text-primary shadow-lg shadow-primary/10">
-            <Megaphone className="w-8 h-8" />
-        </div>
+      
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-white/5">
         <div>
-            <h1 className="font-display text-4xl font-black text-white uppercase tracking-tighter">Все новости</h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Будь в курсе событий аниме-индустрии</p>
+          <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tight font-display flex items-center gap-3">
+            <span className="w-2 h-10 bg-primary rounded-full inline-block animate-pulse" />
+            Новости индустрии
+          </h1>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1.5">
+            Будьте в курсе последних анонсов, дат выхода, трейлеров и ключевых новостей из мира аниме
+          </p>
         </div>
       </div>
 
       {newsList.length === 0 ? (
-        <div className="text-center py-20 text-white">Новости не найдены</div>
+        <div className="text-center py-20 text-slate-500 text-xs font-bold uppercase tracking-widest">Новости не найдены</div>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            {newsList.map((item, idx) => (
               <LazyRender key={item.id + idx} threshold={0.1}>
                 <Link 
                   to={`/news/${item.id}`}
-                  className="group flex flex-col p-8 glass rounded-[2rem] border border-white/5 hover:border-primary/30 transition-all hover:-translate-y-1 relative overflow-hidden shadow-xl"
+                  className="group flex flex-col p-6 bg-surface/30 rounded-2xl border border-white/5 hover:border-primary/40 transition-all duration-300 hover:-translate-y-1 relative overflow-hidden backdrop-blur-md shadow-xl h-full justify-between"
                 >
                    <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-primary/5 to-transparent rounded-full blur-3xl -mr-32 -mt-32 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                    
-                   <div className="relative z-10 flex-1 flex flex-col">
-                       <div className="flex items-center gap-4 mb-4">
-                           <span className="px-3 py-1 bg-primary/10 border border-primary/20 rounded-xl text-[10px] font-black text-primary uppercase tracking-widest">
-                               {item.category}
-                           </span>
-                           <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest flex items-center gap-1.5">
-                               <Calendar className="w-3.5 h-3.5" /> {item.date}
-                           </span>
+                   <div className="relative z-10 flex-grow flex flex-col justify-between">
+                       <div>
+                           <div className="flex items-center gap-3 mb-4">
+                               <span className="px-2.5 py-0.5 bg-primary/10 border border-primary/20 rounded text-[9.5px] font-black text-primary uppercase tracking-wider">
+                                   {item.category}
+                               </span>
+                               <span className="text-[9px] text-slate-500 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                   <Calendar className="w-3 h-3" /> {item.date}
+                               </span>
+                           </div>
+
+                           <h2 className="text-base md:text-lg font-black text-white mb-3 group-hover:text-primary transition-colors uppercase tracking-tight leading-tight line-clamp-2">
+                               {item.title}
+                           </h2>
+
+                           <p className="text-slate-400 text-xs leading-relaxed mb-6 line-clamp-3 font-medium border-l-2 border-white/15 pl-3.5">
+                               {item.summary?.replace(/<[^>]*>/g, '')}
+                           </p>
                        </div>
 
-                       <h2 className="text-xl md:text-2xl font-black text-white mb-4 group-hover:text-primary transition-colors uppercase tracking-tight leading-tight">
-                           {item.title}
-                       </h2>
-
-                       <p className="text-slate-400 text-sm leading-relaxed mb-6 line-clamp-2 font-medium border-l-2 border-white/10 pl-4">
-                           {item.summary?.replace(/<[^>]*>/g, '')}
-                       </p>
-
-                       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-white mt-auto w-fit transition-all">
-                          Читать статью <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                       <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 group-hover:text-white transition-colors w-fit pt-4 border-t border-white/5 mt-4">
+                          Читать материал <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                        </div>
                    </div>
                 </Link>

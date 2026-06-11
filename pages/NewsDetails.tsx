@@ -145,7 +145,7 @@ const NewsDetails: React.FC = () => {
   const videoUrl = newsItem.video ? getEmbedUrl(newsItem.video) : null;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className="max-w-[1200px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 bg-[#040406]">
       <SEO 
         title={newsItem.title} 
         description={newsItem.summary.replace(/<[^>]*>?/gm, '').slice(0, 160)}
@@ -172,7 +172,7 @@ const NewsDetails: React.FC = () => {
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
         }
         .news-content a {
-            color: #8B5CF6;
+            color: #ff5a00;
             text-decoration: none;
             font-weight: 700;
             transition: color 0.2s;
@@ -185,23 +185,23 @@ const NewsDetails: React.FC = () => {
             margin-bottom: 1.5rem;
         }
         .news-content span.text-primary {
-            color: #8B5CF6;
+            color: #ff5a00;
         }
       `}</style>
       
-      <Link to="/news" className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors mb-10 group">
-        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" /> Вернуться к списку
+      <Link to="/news" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors mb-8 group">
+        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" /> Вернуться к новостям
       </Link>
 
-      <article className="glass rounded-[2.5rem] border border-white/5 p-8 md:p-14 relative overflow-hidden shadow-2xl mb-16">
+      <article className="bg-[#0b0b10] rounded-3xl border border-white/5 p-6 md:p-12 relative overflow-hidden shadow-2xl mb-16">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none -mr-40 -mt-40"></div>
         
-        <header className="mb-10 relative z-10 border-b border-white/5 pb-10">
-             <div className="flex items-center gap-4 text-sm mb-6">
-                 <span className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-black uppercase tracking-widest text-[10px]">{newsItem.category}</span>
-                 <span className="flex items-center gap-2 text-slate-500 font-black uppercase tracking-widest text-[10px]"><Calendar className="w-4 h-4" /> {newsItem.date}</span>
+        <header className="mb-10 relative z-10 border-b border-white/5 pb-8">
+             <div className="flex items-center gap-4 text-sm mb-5">
+                 <span className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded font-black uppercase tracking-wider text-[9px]">{newsItem.category}</span>
+                 <span className="flex items-center gap-1.5 text-slate-500 font-bold uppercase tracking-wider text-[9px]"><Calendar className="w-3.5 h-3.5" /> {newsItem.date}</span>
              </div>
-             <h1 className="text-3xl md:text-5xl font-display font-black text-white leading-tight tracking-tight uppercase tracking-tighter">{newsItem.title}</h1>
+             <h1 className="text-2xl md:text-4xl font-display font-black text-white leading-tight uppercase tracking-tight">{newsItem.title}</h1>
         </header>
 
         <div className="relative z-10">

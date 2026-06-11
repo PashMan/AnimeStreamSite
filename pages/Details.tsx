@@ -1286,8 +1286,8 @@ const Details: React.FC = () => {
 
           <div className="space-y-16">
             <section className="bg-surface/30 p-8 md:p-10 rounded-[2.5rem] border border-white/5 shadow-xl backdrop-blur-sm">
-              <h3 className="text-[10px] font-black text-slate-500 mb-6 uppercase tracking-widest flex items-center gap-2">
-                <div className="w-4 h-[2px] bg-primary"></div> Описание
+              <h3 className="text-[10px] font-black text-slate-500 mb-6 uppercase tracking-widest flex items-center gap-2.5">
+                <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" /> Описание
               </h3>
               <div className="relative">
                 <p
@@ -1314,8 +1314,8 @@ const Details: React.FC = () => {
 
             {/* SEO Long-Tail Promotion Block (НЧ-оптимизация) */}
             <section className="bg-gradient-to-br from-primary/10 via-white/5 to-transparent p-8 md:p-10 rounded-[2.5rem] border border-primary/25 shadow-xl backdrop-blur-sm space-y-4">
-              <h3 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-3">
-                <Shield className="w-4 h-4 text-primary animate-pulse" /> Где смотреть аниме в 4К и без рекламы казино?
+              <h3 className="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-2.5">
+                <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" /> Где смотреть аниме в 4К и без рекламы казино?
               </h3>
               <p className="text-slate-300 leading-relaxed text-sm md:text-base font-normal">
                 {generatedSEO.promoText.split("**").map((part, index) => 
@@ -1332,10 +1332,8 @@ const Details: React.FC = () => {
 
             <section className="scroll-mt-24" id="watch">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
-                <h3 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/20">
-                    <Film className="w-6 h-6" />
-                  </div>{" "}
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5">
+                  <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
                   Смотреть онлайн
                 </h3>
                 <div className="flex flex-wrap gap-2.5 items-center w-full md:w-auto">
@@ -1562,7 +1560,7 @@ const Details: React.FC = () => {
               <div className="grid gap-6 transition-all duration-500 grid-cols-1">
                 {/* Inline selector of episodes and translations for Custom Player (AnimeGo style) */}
                 {selectedPlayer === "KamiPlayer (4K)" && (
-                  <div className="mb-6 bg-[#1a1c24]/90 border border-white/5 p-5 sm:p-6 rounded-[2rem] shadow-2xl backdrop-blur-md flex flex-col gap-6 font-sans">
+                  <div className="mb-6 bg-[#0a0a0f]/95 border border-white/5 p-5 sm:p-6 rounded-[2rem] shadow-2xl backdrop-blur-md flex flex-col gap-6 font-sans">
                     {/* Voice Actors (Translations) */}
                     {translations.length > 0 && (
                       <div>

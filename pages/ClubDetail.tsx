@@ -248,12 +248,12 @@ const ClubDetail: React.FC = () => {
   if (!club) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-h-screen">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
       <SEO title={`${club.name} - Клуб Сообщества`} description={club.description || ''} />
       
       <button 
         onClick={() => navigate('/social')}
-        className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-8 group"
+        className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4 group"
       >
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
         <span className="text-xs font-black uppercase tracking-widest">Назад к сообществу</span>
@@ -301,7 +301,7 @@ const ClubDetail: React.FC = () => {
                 <button 
                   onClick={handleJoin}
                   disabled={isJoining}
-                  className="w-full py-4 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-violet-600 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-4 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-[#ff6e1a] transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isJoining ? <Loader2 className="animate-spin" /> : <Plus className="w-4 h-4" />} 
                   {club.isPrivate ? 'Подать заявку' : 'Вступить в клуб'}

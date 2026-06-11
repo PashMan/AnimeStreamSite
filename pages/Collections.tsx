@@ -26,23 +26,21 @@ const Collections: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark pt-24 pb-20 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-[#040406] pt-28 pb-20 animate-in fade-in duration-700">
       <SEO 
         title="Подборки аниме" 
         description="Лучшие подборки аниме по жанрам, темам и настроению. Найдите что посмотреть на вечер."
       />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-4 mb-12">
-          <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/10">
-            <Sparkles className="w-8 h-8" />
-          </div>
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-white/5 mb-10">
           <div>
-            <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter font-display">
-              Подборки аниме
+            <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tight font-display flex items-center gap-3">
+              <span className="w-2 h-10 bg-primary rounded-full inline-block animate-pulse" />
+              Коллекции и Подборки
             </h1>
-            <p className="text-slate-400 font-medium mt-2">
-              Специально собранные коллекции для любого настроения
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1.5">
+              Специально собранные коллекции и тематические списки аниме на любой вкус
             </p>
           </div>
         </div>
@@ -54,12 +52,12 @@ const Collections: React.FC = () => {
         </div>
 
         {hasMore && (
-          <div className="flex justify-center mt-12">
+          <div className="flex justify-center mt-16">
             <button 
               onClick={loadMore}
-              className="px-12 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
+              className="px-10 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl text-white font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg"
             >
-              Загрузить еще
+              Показать больше коллекций
             </button>
           </div>
         )}

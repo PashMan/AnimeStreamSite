@@ -51,14 +51,18 @@ const CollectionCard: React.FC<CollectionCardProps> = ({ collection }) => {
   }, [collection.id, collection.defaultGenre]);
 
   return (
-    <Link to={`/collections/${collection.id}`} className="group relative h-56 rounded-3xl overflow-hidden block shadow-xl border border-white/5 animate-in fade-in zoom-in duration-500">
-      <img src={coverImage} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
-      <div className={`absolute inset-0 bg-gradient-to-t ${collection.color} mix-blend-multiply opacity-80 group-hover:opacity-90 transition-opacity`}></div>
-      <div className="absolute inset-0 p-6 flex flex-col justify-end z-10">
-        <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-white text-xs font-black w-fit mb-2 shadow-lg border border-white/10">
+    <Link to={`/collections/${collection.id}`} className="group relative h-56 rounded-2xl overflow-hidden block shadow-xl border border-white/5 bg-[#0a0a0f] animate-in fade-in zoom-in duration-500">
+      <img src={coverImage} alt={collection.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" referrerPolicy="no-referrer" />
+      
+      {/* Cinematic gradient overlay directly on the cover, matching Netflix collection style */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent opacity-85 group-hover:opacity-95 transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-black/10 mix-blend-overlay" />
+
+      <div className="absolute inset-0 p-5 flex flex-col justify-end z-10">
+        <div className="bg-primary/20 backdrop-blur-md px-2.5 py-1 rounded text-primary text-[9px] font-black w-fit mb-2 border border-primary/25 tracking-wider uppercase">
           {collection.count}
         </div>
-        <h3 className="text-white font-bold text-xl leading-tight drop-shadow-lg">{collection.title}</h3>
+        <h3 className="text-white font-extrabold text-lg leading-tight tracking-tight drop-shadow-md group-hover:text-primary transition-colors duration-300">{collection.title}</h3>
       </div>
     </Link>
   );

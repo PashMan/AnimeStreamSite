@@ -12,7 +12,7 @@ interface AnimeCardProps {
 }
 
 const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
-  const episodeCount = `${anime.episodesAired || 0} / ${anime.episodes || '?'}`;
+  const episodeCount = `${anime.episodesAired || 0}/${anime.episodes || '?'}`;
   const { slugBlocks } = useSlugBlocks();
   const { dmcaBlocks } = useDmcaBlocks();
   const isSlugBlocked = slugBlocks.includes(anime.id);
@@ -23,18 +23,18 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
     : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
 
   const ratingNum = typeof anime.rating === 'number' ? anime.rating : parseFloat((anime.rating as any) || '0');
-  let ratingColorClass = "text-slate-300 bg-black/60 border-white/10";
+  let ratingColorClass = "text-white/90 bg-neutral-900/80 border-white/10";
   if (ratingNum >= 7.4) {
-    ratingColorClass = "text-emerald-400 bg-emerald-950/80 border-emerald-500/30";
+    ratingColorClass = "text-emerald-400 bg-emerald-950/70 border-emerald-500/20";
   } else if (ratingNum > 0 && ratingNum < 6.0) {
-    ratingColorClass = "text-rose-400 bg-rose-950/80 border-rose-500/30";
+    ratingColorClass = "text-rose-400 bg-rose-950/70 border-rose-500/20";
   } else if (ratingNum >= 6.0) {
-    ratingColorClass = "text-amber-400 bg-amber-950/80 border-amber-500/30";
+    ratingColorClass = "text-amber-400 bg-amber-950/70 border-amber-500/20";
   }
 
   return (
     <Link to={targetUrl} className="group block relative w-full h-full">
-      <div className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden mb-3 bg-surface border border-white/5 group-hover:border-primary/40 transition-all duration-500 shadow-lg group-hover:shadow-primary/10">
+      <div className="relative w-full aspect-[2/3] rounded-xl overflow-hidden mb-2.5 bg-neutral-900/40 border border-white/5 group-hover:border-primary/50 transition-all duration-500 ease-out shadow-lg group-hover:shadow-[0_12px_24px_rgba(255,90,0,0.15)] group-hover:-translate-y-1">
         <Image 
           src={anime.image} 
           alt={`Смотреть аниме ${anime.title} онлайн`} 
@@ -42,39 +42,46 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
           animeTitle={anime.originalName || anime.title}
           className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 will-change-transform" 
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-dark/90 via-dark/20 to-transparent opacity-90 transition-opacity group-hover:opacity-100" />
         
-        {/* Rating badge */}
-        {ratingNum > 0 && (
-          <div className={`absolute top-3 right-3 px-2 py-0.5 backdrop-blur-md rounded-lg flex items-center gap-1 border shadow-lg ${ratingColorClass}`}>
-            <Star className="w-3 h-3 fill-current shrink-0" />
-            <span className="text-[10px] font-black tracking-tight">{ratingNum.toFixed(1)}</span>
-          </div>
-        )}
+        {/* Soft immersive dark vignette around edges */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-transparent to-[#040406]/30 opacity-70 group-hover:opacity-90 transition-opacity duration-300" />
+        
+        {/* Top Badges Row */}
+        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-20 pointer-events-none">
+          {rank ? (
+            <div className="px-2 py-0.5 bg-primary text-[9px] font-black uppercase tracking-wider rounded shadow-md text-white">
+              ТОП {rank}
+            </div>
+          ) : (
+            <div className="px-2 py-0.5 bg-[#040406]/60 backdrop-blur-md text-[8px] font-extrabold uppercase text-slate-400 tracking-wider rounded border border-white/5">
+              {anime.type || 'TV'}
+            </div>
+          )}
 
-        {/* Rank badge */}
-        {rank && (
-          <div className="absolute top-3 left-3 px-2.5 py-1 bg-primary text-[10px] font-black uppercase rounded-lg shadow-lg text-white">
-            #{rank}
-          </div>
-        )}
+          {ratingNum > 0 && (
+            <div className={`px-2 py-0.5 backdrop-blur-md rounded flex items-center gap-0.5 border shadow-md ${ratingColorClass}`}>
+              <Star className="w-2.5 h-2.5 fill-current shrink-0 text-amber-500" />
+              <span className="text-[9px] font-black tracking-tight">{ratingNum.toFixed(1)}</span>
+            </div>
+          )}
+        </div>
 
-        {/* Hover Action Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="w-14 h-14 bg-primary/95 hover:bg-primary rounded-full flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-all duration-300 shadow-glow backdrop-blur-xs">
-            <PlayCircle className="w-7 h-7 fill-current ml-0.5" />
+        {/* Play Icon and Info overlay on hover */}
+        <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-10">
+          <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center scale-75 group-hover:scale-100 transition-all duration-300 shadow-[0_0_15px_rgba(255,90,0,0.6)]">
+            <PlayCircle className="w-6 h-6 fill-current ml-0.5 shrink-0" />
           </div>
         </div>
       </div>
       
-      <div className="px-1 text-left space-y-1">
-        <h3 className="font-bold text-sm text-slate-100 group-hover:text-primary transition-colors line-clamp-1 truncate" title={anime.title}>
+      <div className="px-0.5 text-left space-y-0.5">
+        <h3 className="font-bold text-[13px] text-slate-200 group-hover:text-primary transition-colors line-clamp-1 truncate leading-tight" title={anime.title}>
           {anime.title}
         </h3>
-        <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
-          <span className="text-primary/90 font-semibold">{episodeCount} эп.</span>
-          <span className="w-1 h-1 rounded-full bg-slate-700" />
-          <span>{anime.year}</span>
+        <div className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-slate-500">
+          <span className="text-primary/90 font-black">{episodeCount} эп</span>
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-700" />
+          <span>{anime.year || '2024'}</span>
         </div>
       </div>
     </Link>
