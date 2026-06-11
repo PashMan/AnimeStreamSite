@@ -11,6 +11,8 @@ import Home from './pages/Home';
 
 // Lazy load non-critical pages as requested
 const Catalog = React.lazy(() => import('./pages/Catalog'));
+const Manga = React.lazy(() => import('./pages/Manga'));
+const Games = React.lazy(() => import('./pages/Games'));
 const Collections = React.lazy(() => import('./pages/Collections'));
 const CollectionDetail = React.lazy(() => import('./pages/CollectionDetail'));
 const CommunityCollectionDetail = React.lazy(() => import('./pages/CommunityCollectionDetail'));
@@ -70,6 +72,8 @@ const App: React.FC = () => {
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="catalog" element={<Catalog />} />
+            <Route path="manga" element={<Manga />} />
+            <Route path="games" element={<Games />} />
             <Route path="collections" element={<Collections />} />
             <Route path="collections/:id" element={<CollectionDetail />} />
             <Route path="collections/community/:id" element={<CommunityCollectionDetail />} />

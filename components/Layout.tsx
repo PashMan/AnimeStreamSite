@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown } from 'lucide-react';
+import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown, Bookmark, BookOpen, Gamepad2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import AuthModal from './AuthModal';
-import { fetchAnimes } from '../services/shikimori';
+import { fetchAnimes, fetchAnimeDetails } from '../services/shikimori';
 import { FALLBACK_IMAGE } from '../constants';
 import { AIChatBot } from './AIChatBot';
 
@@ -38,11 +38,11 @@ const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
 
 export const Logo: React.FC<{ className?: string }> = ({ className }) => (
   <div className={`flex items-center gap-2 select-none ${className}`}>
-    <div className="w-9 h-9 bg-gradient-to-tr from-primary to-[#ff3c00] rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20 hover:scale-105 transition-transform duration-300">
+    <div className="w-9 h-9 bg-gradient-to-tr from-[#F47521] to-[#ff3c00] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#F47521]/20 hover:scale-105 transition-transform duration-300">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-white"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
     </div>
-    <div className="font-display text-[22px] font-black tracking-tighter text-white leading-none">
-      KAMI<span className="text-primary font-black">PLAY</span>
+    <div className="font-display text-[22px] font-black tracking-tighter text-white leading-none uppercase">
+      KAMI<span className="text-[#F47521] font-black">ANIME</span>
     </div>
   </div>
 );
@@ -58,6 +58,34 @@ const Layout: React.FC = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+  
+  // Crunchyroll Watchlist
+  const [watchlist, setWatchlist] = useState<any[]>([]);
+  const [showWatchlistDropdown, setShowWatchlistDropdown] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (user?.email) {
+      db.getFavorites(user.email).then(async (ids) => {
+        if (!ids || ids.length === 0) {
+          if (isMounted) setWatchlist([]);
+          return;
+        }
+        try {
+          const promises = ids.slice(0, 5).map(id => fetchAnimeDetails(id.toString()));
+          const results = await Promise.all(promises);
+          if (isMounted) {
+            setWatchlist(results.filter(a => a !== null));
+          }
+        } catch (e) {
+          console.error("Layout watchlist error", e);
+        }
+      });
+    } else {
+      setWatchlist([]);
+    }
+    return () => { isMounted = false; };
+  }, [user?.email, pathname]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -220,32 +248,118 @@ const Layout: React.FC = () => {
               </button>
             </div>
 
-            <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
-              <Link to="/" className={`${isActive('/') ? 'text-primary' : 'hover:text-white'} transition-all`}>Главная</Link>
-              <Link to="/catalog" className={`${isActive('/catalog') ? 'text-primary' : 'hover:text-white'} transition-all`}>Каталог</Link>
-              <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'hover:text-white'} transition-all`}>Новости</Link>
-              <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'hover:text-white'} transition-all`}>Форум</Link>
-              <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'hover:text-white'} transition-all`}>Сообщество</Link>
+            <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400 relative">
+              <Link to="/" className={`${isActive('/') ? 'text-[#F47521]' : 'hover:text-white'} transition-all`}>Главная</Link>
+              
+              {/* Browse Dropdown */}
+              <div 
+                className="relative group py-2"
+                onMouseEnter={() => setIsCatalogOpen(true)}
+                onMouseLeave={() => setIsCatalogOpen(false)}
+              >
+                <button 
+                  className={`flex items-center gap-1.5 ${isActive('/catalog') ? 'text-[#F47521]' : 'hover:text-white'} transition-all font-black uppercase`}
+                >
+                  Просмотр <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:rotate-180" />
+                </button>
+                {isCatalogOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 w-64 bg-[#141519]/95 border border-white/10 rounded-2xl p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150 z-50">
+                    <div className="space-y-3">
+                      <Link to="/catalog" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-[#F47521] transition-colors">Все Аниме</Link>
+                      <Link to="/catalog?sort=popularity" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-[#F47521] transition-colors">Популярные</Link>
+                      <Link to="/catalog?sort=new" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-[#F47521] transition-colors">Новинки Сезона</Link>
+                      <Link to="/catalog?status=ongoing" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-[#F47521] transition-colors">Онгоинги</Link>
+                      <div className="h-px bg-white/5 my-2" />
+                      <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">Рекомендуемые жанры</div>
+                      <Link to="/catalog?genre=Экшен" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Экшен</Link>
+                      <Link to="/catalog?genre=Комедия" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Комедия</Link>
+                      <Link to="/catalog?genre=Фэнтези" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Фэнтези</Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Link to="/manga" className={`${isActive('/manga') ? 'text-[#F47521]' : 'hover:text-white'} transition-all flex items-center gap-1`}><BookOpen className="w-3.5 h-3.5" /> Манга</Link>
+              <Link to="/games" className={`${isActive('/games') ? 'text-[#F47521]' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
+              <Link to="/news" className={`${isActive('/news') ? 'text-[#F47521]' : 'hover:text-white'} transition-all`}>Новости</Link>
+              <Link to="/forum" className={`${isActive('/forum') ? 'text-[#F47521]' : 'hover:text-white'} transition-all`}>Форум</Link>
+              <Link to="/community" className={`${isActive('/community') ? 'text-[#F47521]' : 'hover:text-white'} transition-all`}>Сообщество</Link>
+              <Link to="/premium" className={`flex items-center gap-1.5 ${isActive('/premium') ? 'text-yellow-400' : 'text-yellow-500/80 hover:text-yellow-400'} transition-all animate-pulse`}>
+                <Crown className="w-3.5 h-3.5 fill-current" /> Премиум
+              </Link>
+              
               {user?.role === 'admin' && (
-                <Link to="/admin" className={`${isActive('/admin') ? 'text-primary' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
+                <Link to="/admin" className={`${isActive('/admin') ? 'text-red-500' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
               )}
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 relative">
+              {/* Watchlist Ribbon Hover Popover */}
               {user && (
-                <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative">
+                <div 
+                  className="relative"
+                  onMouseEnter={() => setShowWatchlistDropdown(true)}
+                  onMouseLeave={() => setShowWatchlistDropdown(false)}
+                >
+                  <button 
+                    aria-label="My Watchlist" 
+                    className="p-2.5 bg-white/5 hover:bg-[#F47521] hover:text-black rounded-xl transition-all relative text-slate-300"
+                  >
+                    <Bookmark className="w-4.5 h-4.5" />
+                    {watchlist.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#F47521] text-black text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#141519]">
+                        {watchlist.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {showWatchlistDropdown && (
+                    <div className="absolute right-0 top-full mt-1 w-80 bg-[#1c1d21] border border-white/10 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/5">
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Моя лента (Очередь)</span>
+                        <Link to="/profile" className="text-[9px] font-black uppercase text-[#F47521] hover:underline">Все</Link>
+                      </div>
+
+                      {watchlist.length === 0 ? (
+                        <div className="py-6 text-center text-xs text-slate-500">
+                          Ваша очередь пуста. Добавьте аниме в закладки на страницах деталей.
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                          {watchlist.map((anime) => (
+                            <Link 
+                              key={anime.id} 
+                              to={`/anime/${anime.id}`}
+                              className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors group/watchlist-item"
+                            >
+                              <img src={anime.image} alt={anime.title} className="w-9 h-12 object-cover rounded shadow-md shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-black text-white truncate group-hover/watchlist-item:text-[#F47521] transition-colors">{anime.title}</div>
+                                <div className="text-[9px] text-slate-500 font-extrabold uppercase">{anime.type || 'TV'} • {anime.episodes || '?'} эп</div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {user && (
+                <Link aria-label="Messages" to="/messages" title="Сообщения" className="p-2.5 bg-white/5 hover:bg-[#F47521] hover:text-black rounded-xl transition-all relative text-slate-300">
                    <MessageSquareText className="w-4.5 h-4.5" />
                 </Link>
               )}
               {user ? (
                 <div className="flex items-center gap-3">
-                  <Link to="/profile" className="w-9 h-9 rounded-xl overflow-hidden ring-2 ring-primary/20 hover:ring-primary transition-all">
+                  <Link to="/profile" className="w-9 h-9 rounded-xl overflow-hidden ring-2 ring-[#F47521]/20 hover:ring-[#F47521] transition-all">
                     <img src={user.avatar} loading="lazy" alt="User" className="w-full h-full object-cover" />
                   </Link>
                   <button onClick={logout} className="text-[9px] font-black uppercase text-slate-500 hover:text-red-400 transition-colors tracking-widest hidden sm:block">Выйти</button>
                 </div>
               ) : (
-                <button onClick={openAuthModal} className="h-10 px-6 bg-primary hover:bg-[#ff6e1a] text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/25 hover:scale-102 active:scale-95">
+                <button onClick={openAuthModal} className="h-10 px-6 bg-[#F47521] hover:bg-[#ff863b] text-black rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-[#F47521]/15 hover:scale-102 active:scale-95">
                   Войти
                 </button>
               )}
@@ -310,14 +424,14 @@ const Layout: React.FC = () => {
         </div>
         
         <nav className="flex-1 overflow-y-auto p-6 flex flex-col gap-2">
-          <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+          <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-[#F47521] text-black' : 'text-slate-300 hover:bg-white/5'}`}>
             Главная
           </Link>
           
           <div className="flex flex-col">
             <button 
               onClick={() => setIsCatalogOpen(!isCatalogOpen)}
-              className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors flex items-center justify-between ${isActive('/catalog') ? 'text-primary' : 'text-slate-300 hover:bg-white/5'}`}
+              className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors flex items-center justify-between ${isActive('/catalog') ? 'text-[#F47521]' : 'text-slate-300 hover:bg-white/5'}`}
             >
               Каталог
               <ChevronDown className={`w-4 h-4 transition-transform ${isCatalogOpen ? 'rotate-180' : ''}`} />
@@ -336,7 +450,7 @@ const Layout: React.FC = () => {
                   <Shuffle className="w-3 h-3" /> Случайное
                 </button>
                 <Link to="/catalog?status=ongoing" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2">
-                  <Crown className="w-3 h-3 text-green-500" /> Онгоинги
+                  <Crown className="w-3 h-3 text-[#F47521]" /> Онгоинги
                 </Link>
                 <Link to="/catalog" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5">
                   Все аниме
@@ -345,15 +459,23 @@ const Layout: React.FC = () => {
             )}
           </div>
 
-          <Link to="/news" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/news') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+          <Link to="/manga" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/manga') ? 'bg-[#F47521] text-black' : 'text-slate-300 hover:bg-white/5'}`}>
+            Манга
+          </Link>
+
+          <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-[#F47521] text-black' : 'text-slate-300 hover:bg-white/5'}`}>
+            Игры
+          </Link>
+
+          <Link to="/news" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/news') ? 'bg-[#F47521] text-black' : 'text-slate-300 hover:bg-white/5'}`}>
             Новости
           </Link>
           
-          <Link to="/forum" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/forum') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+          <Link to="/forum" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/forum') ? 'bg-[#F47521] text-black' : 'text-slate-300 hover:bg-white/5'}`}>
             Форум
           </Link>
 
-          <Link to="/community" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/community') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+          <Link to="/community" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/community') ? 'bg-[#F47521] text-black' : 'text-slate-300 hover:bg-white/5'}`}>
             Сообщество
           </Link>
           

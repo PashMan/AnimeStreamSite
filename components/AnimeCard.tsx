@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Star, PlayCircle } from 'lucide-react';
+import { Star, PlayCircle, Crown } from 'lucide-react';
 import { Anime } from '../types';
 import { Image } from './Image';
 import { useSlugBlocks } from '../store/slugBlocks';
@@ -53,8 +53,15 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
               ТОП {rank}
             </div>
           ) : (
-            <div className="px-2 py-0.5 bg-[#040406]/60 backdrop-blur-md text-[8px] font-extrabold uppercase text-slate-400 tracking-wider rounded border border-white/5">
-              {anime.type || 'TV'}
+            <div className="flex gap-1.5 items-center">
+              <div className="px-2 py-0.5 bg-[#040406]/60 backdrop-blur-md text-[8px] font-extrabold uppercase text-slate-400 tracking-wider rounded border border-white/5">
+                {anime.type || 'TV'}
+              </div>
+              {Number(anime.id) % 2 === 0 && (
+                <div className="p-1 bg-[#F47521] rounded text-[8px] text-black font-extrabold shadow-md flex items-center gap-0.5 leading-none px-1.5 uppercase tracking-wider" title="Доступно с подпиской Premium">
+                  <Crown className="w-2.5 h-2.5 fill-current" /> Premium
+                </div>
+              )}
             </div>
           )}
 

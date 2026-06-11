@@ -460,10 +460,20 @@ export const getAnimeById = async (id: string | number) => {
 
 export const fetchAnimeDetails = async (id: string, includeScreenshots = true): Promise<Anime | null> => {
   if (!id) return null;
+  const cacheKey = `anime_details_v3_${id}`;
+  const cached = getFromStorage(cacheKey);
+  if (cached) {
+    const isCompleted = cached.data?.status === 'Completed';
+    const ttl = isCompleted ? 30 * 24 * 60 * 60 * 1000 : 3 * 60 * 60 * 1000;
+    if (Date.now() - cached.timestamp < ttl) {
+      return cached.data;
+    }
+  }
   try {
     const data = await getAnimeById(id);
     if (!data) {
-        return null;
+      if (cached) return cached.data;
+      return null;
     }
     
     let anime = await mapAnime(data);
@@ -503,44 +513,87 @@ export const fetchAnimeDetails = async (id: string, includeScreenshots = true): 
         }
     }
 
+    saveToStorage(cacheKey, anime);
     return anime;
   } catch (e) {
     console.warn(`[Anime Details] Failed to load API. Error:`, e);
+    if (cached) {
+      console.warn(`[Shikimori Service] Using stale cache for details of ID ${id} after error.`);
+      return cached.data;
+    }
     return null;
   }
 };
 
 export const fetchAnimeScreenshots = async (id: string): Promise<string[]> => {
   if (!id) return [];
+  
+  const cacheKey = `anime_screenshots_v3_${id}`;
+  const cached = getFromStorage(cacheKey);
+  
+  const ttl = 30 * 24 * 60 * 60 * 1000; // 30 days
+  if (cached && (Date.now() - cached.timestamp < ttl)) {
+    return cached.data;
+  }
+
   try {
     // Priority 0 for secondary data
     const data = await fetchApi(`/animes/${id}/screenshots`, 1, false, CACHE_TTL, 0);
-    return Array.isArray(data) ? data.map((s: any) => proxyImage(s.original)) : [];
+    const results = Array.isArray(data) ? data.map((s: any) => proxyImage(s.original)) : [];
+    if (results.length > 0) {
+      saveToStorage(cacheKey, results);
+    }
+    return results;
   } catch (e) {
+    if (cached) return cached.data;
     return [];
   }
 };
 
 export const fetchAnimeVideos = async (id: string): Promise<{ name: string; url: string; image: string }[]> => {
   if (!id) return [];
+  
+  const cacheKey = `anime_videos_v3_${id}`;
+  const cached = getFromStorage(cacheKey);
+  
+  const ttl = 15 * 24 * 60 * 60 * 1000; // 15 days
+  if (cached && (Date.now() - cached.timestamp < ttl)) {
+    return cached.data;
+  }
+
   try {
     // Priority 0 for secondary data
     const data = await fetchApi(`/animes/${id}/videos`, 2, false, CACHE_TTL, 0);
     if (Array.isArray(data)) {
-      return data.map((v: any) => ({
+      const results = data.map((v: any) => ({
         name: v.name || 'Трейлер',
         url: v.url,
         image: v.image_url
       }));
+      if (results.length > 0) {
+        saveToStorage(cacheKey, results);
+      }
+      return results;
     }
+    if (cached) return cached.data;
     return [];
   } catch (e) {
+    if (cached) return cached.data;
     return [];
   }
 };
 
 export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string; anime: Anime }[]> => {
   if (!id) return [];
+  
+  const cacheKey = `anime_related_v3_${id}`;
+  const cached = getFromStorage(cacheKey);
+  
+  const ttl = 7 * 24 * 60 * 60 * 1000; // 7 days
+  if (cached && (Date.now() - cached.timestamp < ttl)) {
+    return cached.data;
+  }
+
   try {
     // Priority 0 for secondary data
     const data = await fetchApi(`/animes/${id}/related`, 2, false, CACHE_TTL, 0);
@@ -549,25 +602,45 @@ export const fetchRelatedAnimes = async (id: string): Promise<{ relation: string
         .filter((item: any) => !!item.anime)
         .slice(0, 10);
       
-      return Promise.all(items.map(async (item: any) => ({
+      const results = await Promise.all(items.map(async (item: any) => ({
           relation: item.relation_russian || item.relation || 'Связанное',
           anime: await mapAnime(item.anime)
       })));
+      
+      saveToStorage(cacheKey, results);
+      return results;
     }
+    if (cached) return cached.data;
     return [];
   } catch (e) {
+    if (cached) return cached.data;
     return [];
   }
 };
 
 export const fetchSimilarAnimes = async (id: string): Promise<Anime[]> => {
   if (!id) return [];
+  
+  const cacheKey = `anime_similar_v3_${id}`;
+  const cached = getFromStorage(cacheKey);
+  
+  const ttl = 7 * 24 * 60 * 60 * 1000; // 7 days
+  if (cached && (Date.now() - cached.timestamp < ttl)) {
+    return cached.data;
+  }
+
   try {
     // Priority 0 for secondary data
     const data = await fetchApi(`/animes/${id}/similar`, 2, false, CACHE_TTL, 0);
-    if (!data || !Array.isArray(data)) return MOCK_ANIME.slice(0, 4);
-    return Promise.all(data.slice(0, 10).map(mapAnime));
+    if (!data || !Array.isArray(data)) {
+      if (cached) return cached.data;
+      return MOCK_ANIME.slice(0, 4);
+    }
+    const results = await Promise.all(data.slice(0, 10).map(mapAnime));
+    saveToStorage(cacheKey, results);
+    return results;
   } catch (e) {
+    if (cached) return cached.data;
     return MOCK_ANIME.slice(0, 4);
   }
 };
