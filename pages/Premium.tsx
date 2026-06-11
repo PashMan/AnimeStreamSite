@@ -54,62 +54,72 @@ const Premium: React.FC = () => {
 
       {!user?.isPremium ? (
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8 mb-20">
-          <div className="bg-surface/30 border border-white/5 rounded-[3rem] p-10 shadow-2xl backdrop-blur-sm">
-            <h3 className="text-2xl font-black text-white uppercase mb-8">Базовый</h3>
+          <div className="bg-surface/30 border border-white/5 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm">
+            <h3 className="text-2xl font-black text-white uppercase mb-4">Фан</h3>
+            <p className="text-xs text-slate-400 mb-8 font-medium">Для тех, кто хочет наслаждаться аниме без рекламы на одном экране.</p>
             <ul className="space-y-6 mb-10">
-              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-primary" /> Просмотр в 1080p</li>
-              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-primary" /> Совместный просмотр</li>
-              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-primary" /> Общение на форуме</li>
-              <li className="flex items-center gap-4 text-slate-500"><XCircle className="w-6 h-6" /> Заказ апскейла до 4K</li>
-              <li className="flex items-center gap-4 text-slate-500"><XCircle className="w-6 h-6" /> Выделение в чате</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Просмотр без рекламы</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Безграничный доступ к библиотеке KamiAnime</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Доступ сразу после трансляции в Японии (Simulcast)</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Качество Full HD (1080p)</li>
+              <li className="flex items-center gap-4 text-slate-500"><XCircle className="w-6 h-6" /> Оффлайн-просмотр (скачивание серий)</li>
+              <li className="flex items-center gap-4 text-slate-500"><XCircle className="w-6 h-6" /> Одновременный просмотр на 4 устройствах</li>
             </ul>
-            <div className="text-3xl font-black text-white mb-6">Бесплатно</div>
-            <button disabled className="w-full py-4 bg-white/5 text-slate-400 font-black rounded-2xl uppercase tracking-widest text-xs">Текущий план</button>
-          </div>
-
-          <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-[3rem] p-10 shadow-2xl backdrop-blur-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-            <div className="absolute top-6 right-6 px-4 py-1 bg-yellow-500 text-black font-black text-[10px] uppercase tracking-widest rounded-full">Хит</div>
-            <h3 className="text-2xl font-black text-yellow-500 uppercase mb-8">Premium</h3>
-            <ul className="space-y-6 mb-10 relative z-10">
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-yellow-500" /> Всё из базового плана</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-yellow-500" /> Заказ апскейла любого аниме до 4K</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-yellow-500" /> Уникальный значок в профиле</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-yellow-500" /> Выделение сообщений в чате</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-yellow-500" /> Приоритетная поддержка</li>
-            </ul>
-            <div className="text-3xl font-black text-white mb-6">199 ₽ <span className="text-sm text-slate-400 font-medium">/ мес</span></div>
+            <div className="text-3xl font-black text-white mb-6">299 ₽ <span className="text-xs text-slate-400 font-medium">/ мес</span></div>
             <button 
               onClick={handleBuyPremium}
               disabled={isBuying}
-              className="w-full py-4 bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-300 hover:to-yellow-500 text-black font-black rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-yellow-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="w-full py-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black rounded-xl uppercase tracking-widest text-[10px] transition-all"
             >
-              {isBuying ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Crown className="w-4 h-4" /> Оформить подписку</>}
+              Выбрать тариф Фан
+            </button>
+          </div>
+
+          <div className="bg-gradient-to-br from-[#F47521]/15 to-orange-500/10 border border-[#F47521]/30 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#F47521]/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
+            <div className="absolute top-6 right-6 px-4 py-1 bg-[#F47521] text-black font-black text-[9px] uppercase tracking-widest rounded-full">Рекомендуем</div>
+            <h3 className="text-2xl font-black text-[#F47521] uppercase mb-4 font-display">Мега Фан</h3>
+            <p className="text-xs text-slate-300 mb-8 font-medium">Максимальный доступ для истинных ценителей аниме. Скачивайте серии и смотрите на любых устройствах.</p>
+            <ul className="space-y-6 mb-10 relative z-10">
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Просмотр без рекламы</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Оффлайн-просмотр (скачать серию в приложении)</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Одновременный просмотр на 4 устройствах</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Доступ к качеству Ultra HD (4K)</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Интегрированный заказ апскейла тайтлов</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Скидки на мерч в магазине и значок профиля</li>
+            </ul>
+            <div className="text-3xl font-black text-white mb-6">399 ₽ <span className="text-xs text-slate-300 font-medium font-sans">/ мес</span></div>
+            <button 
+              onClick={handleBuyPremium}
+              disabled={isBuying}
+              className="w-full py-4 bg-gradient-to-r from-[#F47521] to-[#ff5100] hover:from-[#ff8134] hover:to-[#F47521] text-black font-black rounded-xl uppercase tracking-widest text-[10px] shadow-xl shadow-[#F47521]/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              {isBuying ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Crown className="w-4 h-4 fill-current" /> Выбрать Мега Фан</>}
             </button>
           </div>
         </div>
       ) : (
-        <div className="max-w-4xl mx-auto mb-20">
-          <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-[3rem] p-10 shadow-2xl backdrop-blur-sm text-center">
-            <Crown className="w-16 h-16 text-yellow-500 mx-auto mb-6" />
-            <h2 className="text-3xl font-black text-white uppercase mb-4">Вы Premium пользователь!</h2>
-            <p className="text-yellow-200/70 mb-8">Спасибо за поддержку проекта. Все эксклюзивные функции активированы.</p>
+        <div className="max-w-4xl mx-auto mb-20 animate-in fade-in zoom-in-95 duration-300">
+          <div className="bg-gradient-to-br from-[#F47521]/20 to-orange-500/20 border border-[#F47521]/30 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm text-center">
+            <Crown className="w-16 h-16 text-[#F47521] mx-auto mb-6 fill-current animate-bounce" />
+            <h2 className="text-3xl font-black text-white uppercase mb-4 font-display">Вы Мега Фан пользователь!</h2>
+            <p className="text-slate-300 mb-8 max-w-sm mx-auto text-xs">Спасибо за то, что вы являетесь подписчиком KamiAnime Premium. Наслаждайтесь просмотром серий без рекламы на любых девайсах!</p>
             
             <div className="grid md:grid-cols-3 gap-6 text-left">
-              <div className="bg-black/20 p-6 rounded-2xl border border-white/5">
-                <Sparkles className="w-8 h-8 text-yellow-500 mb-4" />
-                <h4 className="text-white font-bold mb-2">Апскейл 4K</h4>
-                <p className="text-xs text-slate-400">Заказывайте улучшение качества для любимых тайтлов.</p>
+              <div className="bg-black/20 p-6 rounded-xl border border-white/5">
+                <Sparkles className="w-8 h-8 text-[#F47521] mb-4" />
+                <h4 className="text-white font-bold mb-2 text-sm uppercase">Апскейл 4K</h4>
+                <p className="text-[11px] text-slate-400">Улучшайте качество любимых серий мгновенно с помощью натренированных нейросетей.</p>
               </div>
-              <div className="bg-black/20 p-6 rounded-2xl border border-white/5">
-                <Star className="w-8 h-8 text-yellow-500 mb-4" />
-                <h4 className="text-white font-bold mb-2">Выделение в чате</h4>
-                <p className="text-xs text-slate-400">Ваши сообщения теперь заметнее для всех.</p>
+              <div className="bg-black/20 p-6 rounded-xl border border-white/5">
+                <Star className="w-8 h-8 text-[#F47521] mb-4" />
+                <h4 className="text-white font-bold mb-2 text-sm uppercase">4 устройства</h4>
+                <p className="text-[11px] text-slate-400">Делитесь просмотром с друзьями на любых экранах и смартфонах одновременно.</p>
               </div>
-              <div className="bg-black/20 p-6 rounded-2xl border border-white/5">
-                <Shield className="w-8 h-8 text-yellow-500 mb-4" />
-                <h4 className="text-white font-bold mb-2">Значок профиля</h4>
-                <p className="text-xs text-slate-400">Эксклюзивная корона в вашем личном кабинете.</p>
+              <div className="bg-black/20 p-6 rounded-xl border border-white/5">
+                <Shield className="w-8 h-8 text-[#F47521] mb-4" />
+                <h4 className="text-white font-bold mb-2 text-sm uppercase">Оффлайн Режим</h4>
+                <p className="text-[11px] text-slate-400">Закачивайте серии на мобильные девайсы и продолжайте просмотр в дороге.</p>
               </div>
             </div>
           </div>

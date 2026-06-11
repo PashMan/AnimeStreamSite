@@ -171,7 +171,7 @@ const Layout: React.FC = () => {
       )}
       <AuthModal />
       
-      <header className={`fixed w-full z-50 transition-all duration-400 ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'top-6' : 'top-0'} ${scrolled ? 'bg-[#040406]/95 backdrop-blur-2xl border-b border-white/5 shadow-2.5xl' : 'bg-gradient-to-b from-black/95 via-black/40 to-transparent'}`}>
+      <header className={`fixed w-full z-50 transition-all duration-400 ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'top-6' : 'top-0'} ${scrolled ? 'bg-[#141519]/95 backdrop-blur-2xl border-b border-white/5 shadow-2.5xl' : 'bg-[#141519]/80 border-b border-white/5 backdrop-blur-md'}`}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12">
           <div className="flex items-center justify-between h-20 gap-6">
             <Link to="/" aria-label="KamiAnime Home" className="hover:opacity-90 transition-opacity">

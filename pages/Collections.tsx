@@ -26,7 +26,7 @@ const Collections: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#040406] pt-28 pb-20 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-[#141519] pt-28 pb-20 animate-in fade-in duration-700">
       <SEO 
         title="Подборки аниме" 
         description="Лучшие подборки аниме по жанрам, темам и настроению. Найдите что посмотреть на вечер."

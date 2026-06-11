@@ -120,7 +120,7 @@ const Social: React.FC = () => {
   if (!user) return <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">Авторизуйтесь для доступа к социальным функциям</div>;
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#141519]">
       <SEO title="Сообщество - Люди и Клубы" description="Находите друзей, вступайте в клубы и общайтесь с единомышленниками." />
       
       {/* Immersive Category Header */}

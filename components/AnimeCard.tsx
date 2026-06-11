@@ -44,7 +44,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
         />
         
         {/* Soft immersive dark vignette around edges */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-transparent to-[#040406]/30 opacity-70 group-hover:opacity-90 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#141519] via-transparent to-[#141519]/30 opacity-70 group-hover:opacity-90 transition-opacity duration-300" />
         
         {/* Top Badges Row */}
         <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-20 pointer-events-none">
@@ -54,7 +54,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
             </div>
           ) : (
             <div className="flex gap-1.5 items-center">
-              <div className="px-2 py-0.5 bg-[#040406]/60 backdrop-blur-md text-[8px] font-extrabold uppercase text-slate-400 tracking-wider rounded border border-white/5">
+              <div className="px-2 py-0.5 bg-[#141519]/60 backdrop-blur-md text-[8px] font-extrabold uppercase text-slate-400 tracking-wider rounded border border-white/5">
                 {anime.type || 'TV'}
               </div>
               {Number(anime.id) % 2 === 0 && (

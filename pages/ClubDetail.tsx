@@ -248,7 +248,7 @@ const ClubDetail: React.FC = () => {
   if (!club) return null;
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#141519]">
       <SEO title={`${club.name} - Клуб Сообщества`} description={club.description || ''} />
       
       <button 

@@ -30,7 +30,7 @@ const News: React.FC = () => {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#141519]">
       <SEO 
         title="Новости аниме" 
         description="Последние новости из мира аниме: анонсы, трейлеры, даты выхода и важные события индустрии."

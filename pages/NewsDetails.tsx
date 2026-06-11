@@ -145,7 +145,7 @@ const NewsDetails: React.FC = () => {
   const videoUrl = newsItem.video ? getEmbedUrl(newsItem.video) : null;
 
   return (
-    <div className="max-w-[1200px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 bg-[#040406]">
+    <div className="max-w-[1200px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 bg-[#141519]">
       <SEO 
         title={newsItem.title} 
         description={newsItem.summary.replace(/<[^>]*>?/gm, '').slice(0, 160)}

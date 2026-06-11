@@ -387,7 +387,7 @@ const Manga: React.FC = () => {
             </div>
 
             {/* Comic panel canvas stage */}
-            <div className="flex-1 overflow-y-auto flex items-center justify-center p-6 bg-[#040406]">
+            <div className="flex-1 overflow-y-auto flex items-center justify-center p-6 bg-[#141519]">
               <div className="relative max-w-2xl w-full h-[75vh] flex items-center justify-center border border-white/5 rounded-3xl bg-[#141519]/40 p-4 shadow-2xl group overflow-hidden">
                 <img 
                   src={selectedManga.pages[mangaReaderPage]} 

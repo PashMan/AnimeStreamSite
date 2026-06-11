@@ -566,7 +566,7 @@ const Forum: React.FC = () => {
 
   // --- TOPIC LIST VIEW ---
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#141519]">
       <SEO 
         title="Форум сообщества" 
         description="Обсуждайте любимые аниме, делитесь мнениями и находите новых друзей на нашем форуме."

@@ -181,7 +181,7 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="space-y-16 pb-24 bg-[#040406]">
+    <div className="space-y-16 pb-24 bg-[#141519]">
       <SEO 
         title="Смотреть аниме онлайн бесплатно в хорошем качестве - KamiAnime" 
         description="Смотрите аниме онлайн бесплатно в хорошем качестве. Новинки сезона, популярные тайтлы, удобный плеер и активное сообщество."
@@ -190,7 +190,7 @@ const Home: React.FC = () => {
       {/* Immersive Cinematic Hero Slider */}
       {isHeroLoading && heroAnimes.length === 0 ? (
         <section className="relative h-[75vh] min-h-[520px] md:h-[85vh] md:min-h-[620px] w-full overflow-hidden bg-black/80 animate-pulse">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/60 to-transparent z-10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#141519] via-[#141519]/60 to-transparent z-10" />
           <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-16 z-20">
             <div className="max-w-3xl space-y-6 w-full">
               <div className="w-24 h-6 bg-white/5 rounded-lg"></div>
@@ -214,8 +214,8 @@ const Home: React.FC = () => {
                 className="w-full h-full object-cover transition-transform duration-[15s] ease-linear scale-100 group-hover:scale-105" 
               />
               {/* Premium Netflix Gradient Masks for supreme contrast and legibility */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/50 to-transparent z-10" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#040406]/95 via-[#040406]/70 md:via-[#040406]/20 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#141519] via-[#141519]/50 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#141519]/95 via-[#141519]/70 md:via-[#141519]/20 to-transparent z-10" />
             </div>
           ))}
 
@@ -329,7 +329,7 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : (
-        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-[#040406]">
+        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-[#141519]">
           Контент временно недоступен
         </div>
       )}
