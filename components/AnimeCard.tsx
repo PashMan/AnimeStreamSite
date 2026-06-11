@@ -17,6 +17,7 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
   const { dmcaBlocks } = useDmcaBlocks();
   const isSlugBlocked = slugBlocks.includes(anime.id);
   const isDmcaBlocked = dmcaBlocks.includes(anime.id);
+  const isWatchedLocal = localStorage.getItem(`anime_watched_${anime.id}`) !== null;
 
   const targetUrl = isDmcaBlocked 
     ? `/anime/${anime.id}-watch` 
@@ -79,16 +80,26 @@ const AnimeCard: React.FC<AnimeCardProps> = ({ anime, rank }) => {
             <PlayCircle className="w-6 h-6 fill-current ml-0.5 shrink-0" />
           </div>
         </div>
+
+        {/* Crunchyroll Orange Watch Progress Line */}
+        {isWatchedLocal && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#141519]/80 z-20">
+            <div className="h-full w-full bg-primary" />
+          </div>
+        )}
       </div>
       
       <div className="px-0.5 text-left space-y-0.5">
         <h3 className="font-bold text-[13px] text-slate-200 group-hover:text-primary transition-colors line-clamp-1 truncate leading-tight" title={anime.title}>
           {anime.title}
         </h3>
-        <div className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-slate-500">
-          <span className="text-primary/90 font-black">{episodeCount} эп</span>
-          <span className="w-0.5 h-0.5 rounded-full bg-slate-700" />
-          <span>{anime.year || '2024'}</span>
+        <div className="flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-tight text-slate-500">
+          <span className="text-primary font-black shrink-0">{episodeCount} эп</span>
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-700 shrink-0" />
+          <span className="text-[7.5px] px-1 py-0.5 bg-white/5 border border-white/5 rounded text-slate-400 font-black leading-none uppercase tracking-widest shrink-0">Суб</span>
+          <span className="text-[7.5px] px-1 py-0.5 bg-white/5 border border-white/5 rounded text-slate-400 font-black leading-none uppercase tracking-widest shrink-0">Дуб</span>
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-700 shrink-0" />
+          <span className="shrink-0">{anime.year || '2024'}</span>
         </div>
       </div>
     </Link>

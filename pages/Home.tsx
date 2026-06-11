@@ -18,6 +18,7 @@ import CreateCollectionModal from '../components/CreateCollectionModal';
 
 const Home: React.FC = () => {
   const ongoingRef = useRef<HTMLDivElement>(null);
+  const latestRef = useRef<HTMLDivElement>(null);
   const trendingRef = useRef<HTMLDivElement>(null);
   const favoritesRef = useRef<HTMLDivElement>(null);
   const { user, openAuthModal } = useAuth();
@@ -242,6 +243,7 @@ const Home: React.FC = () => {
               {/* Meta tags / Badges row */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="px-2 py-0.5 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded shadow-lg shadow-primary/25">Онгоинг</span>
+                <span className="px-2 py-0.5 bg-primary/10 border border-primary/25 text-primary text-[10px] font-black uppercase rounded backdrop-blur-md">Субтитры | Озвучка</span>
                 {heroRating > 0 && (
                   <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-extrabold uppercase rounded backdrop-blur-md">
                      Рейтинг ★ {heroRating.toFixed(1)}
@@ -261,7 +263,7 @@ const Home: React.FC = () => {
               </div>
 
               {/* Title with sleek shadows */}
-              <h1 className="text-2xl sm:text-4xl md:text-6xl font-sans font-black text-white hover:text-primary transition-all duration-300 tracking-tighter leading-[0.95] line-clamp-2 uppercase drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+              <h1 className="text-2xl sm:text-4xl md:text-6xl font-display font-black text-white hover:text-primary transition-all duration-300 tracking-tight leading-[0.95] line-clamp-2 uppercase drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                 {currentHero.title}
               </h1>
 
@@ -342,11 +344,10 @@ const Home: React.FC = () => {
           <section className="relative z-10 animate-in fade-in duration-500">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                  <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+                <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                   Мой список
                 </h2>
-                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Твои персональные закладки и избранные тайтлы</p>
+                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Твои персональные закладки и избранные тайтлы</p>
               </div>
               <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                 <div className="flex gap-2">
@@ -360,9 +361,9 @@ const Home: React.FC = () => {
               {isLoadingFavorites ? (
                 Array.from({length: 6}).map((_, i) => (
                   <div key={`fav-pulse-${i}`} className="w-[180px] sm:w-[220px] flex-none snap-start animate-pulse">
-                    <div className="w-full aspect-[2/3] bg-white/5 rounded-xl mb-3"></div>
-                    <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
-                    <div className="h-3 bg-white/5 rounded w-1/2"></div>
+                     <div className="w-full aspect-[2/3] bg-white/5 rounded-xl mb-3"></div>
+                     <div className="h-4 bg-white/5 rounded w-3/4 mb-2"></div>
+                     <div className="h-3 bg-white/5 rounded w-1/2"></div>
                   </div>
                 ))
               ) : (
@@ -375,16 +376,108 @@ const Home: React.FC = () => {
             </div>
           </section>
         )}
+
+        {/* Widescreen Recently Updated (Свежие серии) Section */}
+        <section className="relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-xl md:text-2xl font-display font-extrabold text-[#F47521] tracking-tight flex items-center gap-3 border-l-4 border-[#F47521] pl-3">
+                Свежие серии
+              </h2>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Последние обновления озвучки и субтитров на сегодня</p>
+            </div>
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+               <div className="flex gap-2">
+                 <button aria-label="Scroll left" onClick={() => scrollContainer(latestRef, 'left')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-[#F47521] transition-all cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
+                 <button aria-label="Scroll right" onClick={() => scrollContainer(latestRef, 'right')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-[#F47521] transition-all cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
+               </div>
+            </div>
+          </div>
+          
+          <div ref={latestRef} className="flex gap-6 overflow-x-auto hide-scrollbar scroll-smooth pb-4 px-1 snap-x">
+            {newAnimes.length > 0 ? (
+              newAnimes.slice(0, 10).map((anime, idx) => {
+                const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
+                const isSlugBlocked = slugBlocks.includes(anime.id.toString());
+                const targetUrl = isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}${anime.slug && !isSlugBlocked ? `-${anime.slug}` : ''}`;
+                const randomTime = idx === 0 ? "5 минут назад" : idx === 1 ? "27 минут назад" : idx === 2 ? "1 час назад" : idx < 5 ? "2 часа назад" : "Сегодня, 11:20";
+                const isPremium = Number(anime.id) % 3 === 0;
+
+                return (
+                  <div key={`latest-ep-${anime.id}-${idx}`} className="w-[280px] sm:w-[320px] flex-none snap-start text-left">
+                    <Link to={targetUrl} className="group block relative w-full h-full">
+                      {/* Image Frame aspect-video */}
+                      <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-3 bg-neutral-900/40 border border-white/5 group-hover:border-primary/50 transition-all duration-400 ease-out shadow-lg group-hover:shadow-[0_12px_24px_rgba(255,90,0,0.15)]">
+                        <Image 
+                          src={anime.image} 
+                          alt={anime.title} 
+                          animeId={anime.id}
+                          animeTitle={anime.originalName || anime.title}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" 
+                        />
+                        {/* Immersive background overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                        
+                        {/* Widescreen play icon */}
+                        <div className="absolute inset-0 bg-[#FF5A00]/10 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center z-10">
+                          <div className="w-12 h-12 bg-[#FF5A00] text-white rounded-full flex items-center justify-center scale-90 group-hover:scale-100 transition-all duration-300 shadow-[0_0_20px_rgba(255,90,0,0.7)]">
+                            <PlayCircle className="w-6 h-6 fill-current ml-0.5" />
+                          </div>
+                        </div>
+
+                        {/* Premium label or audio track language badge */}
+                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-20">
+                          {isPremium && (
+                            <span className="bg-[#F47521] text-black text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
+                              <Crown className="w-2.5 h-2.5 fill-current" /> Premium
+                            </span>
+                          )}
+                          <span className="bg-black/60 backdrop-blur-md text-white text-[7.5px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/5">
+                            Эп. {anime.episodesAired || Math.floor(Math.random() * 4) + 1}
+                          </span>
+                        </div>
+
+                        {/* Duration or Timestamp corner */}
+                        <div className="absolute bottom-2.5 right-2.5 z-20 bg-black/70 backdrop-blur-md text-[8px] font-extrabold uppercase tracking-widest text-[#F47521] px-1.5 py-0.5 rounded border border-[#F47521]/10">
+                          {randomTime}
+                        </div>
+                      </div>
+
+                      {/* Details structure below the landscape frame */}
+                      <div className="px-0.5">
+                        <h3 className="font-bold text-xs sm:text-[13px] text-slate-100 group-hover:text-[#F47521] transition-colors line-clamp-1 leading-snug">
+                          {anime.title}
+                        </h3>
+                        <div className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-tight text-slate-500 mt-1">
+                          <span className="text-slate-400 font-bold">Озвучка + Субтитры</span>
+                          <span className="w-0.5 h-0.5 rounded-full bg-slate-700" />
+                          <span className="text-[#F47521] font-black">Full HD 1080p</span>
+                        </div>
+                      </div>
+                    </Link>
+                  </div>
+                );
+              })
+            ) : (
+              Array.from({length: 4}).map((_, i) => (
+                <div key={i} className="w-[280px] sm:w-[320px] flex-none snap-start animate-pulse">
+                  <div className="w-full aspect-video bg-white/5 rounded-xl mb-3"></div>
+                  <div className="h-4 bg-white/5 rounded w-3/4 mb-1.5"></div>
+                  <div className="h-3 bg-white/5 rounded w-1/2"></div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
         
         {/* Ongoing Section */}
         <section>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+              <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                 Онгоинги
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Новые серии выходят прямо сейчас</p>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Новые серии выходят прямо сейчас</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <Link to="/catalog?order=ranked&status=ongoing" className="text-[10px] font-black uppercase tracking-widest text-[#F47521] hover:text-white transition-colors flex items-center gap-1.5 mr-3">
@@ -416,11 +509,10 @@ const Home: React.FC = () => {
         <section>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+              <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                 Аниме в 4K
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Шедевры в ультра-высоком качестве</p>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Шедевры в ультра-высоком качестве</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <div className="flex gap-2">
@@ -448,11 +540,10 @@ const Home: React.FC = () => {
         <section>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+              <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                 В тренде
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Самые обсуждаемые и популярные тайтлы дня</p>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Самые обсуждаемые и популярные тайтлы дня</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <Link to="/catalog?order=popularity" className="text-[10px] font-black uppercase tracking-widest text-[#F47521] hover:text-white transition-colors flex items-center gap-1.5 mr-3">
@@ -490,11 +581,10 @@ const Home: React.FC = () => {
               <section className="relative z-20"> 
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                   <div>
-                    <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                      <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+                    <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                       Расписание серий
                     </h2>
-                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Релизы по дням недели</p>
+                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Релизы по дням недели</p>
                   </div>
                 </div>
 
@@ -565,11 +655,10 @@ const Home: React.FC = () => {
             <section className="relative z-10">
                <div className="flex items-center justify-between mb-6">
                   <div>
-                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                        <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+                      <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                         Новости
                       </h2>
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Свежие события аниме-индустрии</p>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Свежие события аниме-индустрии</p>
                   </div>
                   <Link to="/news" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#F47521] transition-colors flex items-center gap-1">
                       Все новости <ChevronRight className="w-4 h-4" />
@@ -626,11 +715,10 @@ const Home: React.FC = () => {
             <section className="relative z-10">
                <div className="flex items-center justify-between mb-6">
                   <div>
-                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                        <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+                      <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                         Обсуждения
                       </h2>
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Активные темы на нашем форуме</p>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Активные темы на нашем форуме</p>
                   </div>
                   <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#F47521] transition-colors flex items-center gap-1">
                       Весь форум <ChevronRight className="w-4 h-4" />
@@ -678,11 +766,10 @@ const Home: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
                 <div>
-                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                    <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
+                  <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
                     Подборки
                   </h2>
-                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Тематические коллекции для ценителей жанра</p>
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Тематические коллекции для ценителей жанра</p>
                 </div>
                 
                 <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5 self-start sm:self-auto select-none">

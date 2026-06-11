@@ -125,6 +125,7 @@ const Details: React.FC = () => {
   const [isRelatedExpanded, setIsRelatedExpanded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [epSearchVal, setEpSearchVal] = useState("");
+  const [isNotifierOpen, setIsNotifierOpen] = useState(false);
 
   // Auto scroll to active episode on change
   useEffect(() => {
