@@ -566,13 +566,13 @@ const Forum: React.FC = () => {
 
   // --- TOPIC LIST VIEW ---
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
       <SEO 
         title="Форум сообщества" 
         description="Обсуждайте любимые аниме, делитесь мнениями и находите новых друзей на нашем форуме."
       />
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
-        <div className="space-y-2">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pb-6 border-b border-white/5">
+        <div className="space-y-1.5">
           {anime ? (
             <div className="flex items-center gap-6 mb-4">
               <img 
@@ -592,18 +592,19 @@ const Forum: React.FC = () => {
               </div>
             </div>
           ) : (
-            <h1 className="text-4xl md:text-5xl font-display font-black text-white uppercase tracking-tighter">
+            <h1 className="text-3xl md:text-5xl font-display font-black text-white uppercase tracking-tight flex items-center gap-3">
+              <span className="w-2 h-10 bg-primary rounded-full inline-block animate-pulse" />
               Форум сообщества
             </h1>
           )}
-          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em]">Делитесь мнениями и создавайте темы</p>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1.5">Делитесь мнениями, общайтесь и создавайте новые обсуждения</p>
         </div>
         
         <button 
           onClick={() => user ? setIsCreating(!isCreating) : openAuthModal()}
-          className="px-8 py-4 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 transition-all active:scale-95 shadow-xl shadow-primary/20 uppercase text-[10px] tracking-widest"
+          className="px-8 py-4 bg-primary hover:bg-[#ff6e1a] hover:scale-[1.02] text-white font-black rounded-2xl flex items-center gap-3 transition-all active:scale-95 shadow-xl shadow-primary/20 uppercase text-[10px] tracking-widest shrink-0"
         >
-          <Plus className="w-5 h-5" /> Создать тему
+          <Plus className="w-5 h-5 animate-pulse" /> Создать тему
         </button>
       </div>
 

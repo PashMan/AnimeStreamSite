@@ -181,7 +181,7 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="space-y-16 pb-24 bg-[#070709]">
+    <div className="space-y-16 pb-24 bg-[#040406]">
       <SEO 
         title="Смотреть аниме онлайн бесплатно в хорошем качестве - KamiAnime" 
         description="Смотрите аниме онлайн бесплатно в хорошем качестве. Новинки сезона, популярные тайтлы, удобный плеер и активное сообщество."
@@ -190,7 +190,7 @@ const Home: React.FC = () => {
       {/* Immersive Cinematic Hero Slider */}
       {isHeroLoading && heroAnimes.length === 0 ? (
         <section className="relative h-[75vh] min-h-[520px] md:h-[85vh] md:min-h-[620px] w-full overflow-hidden bg-black/80 animate-pulse">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#070709] via-[#070709]/60 to-transparent z-10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/60 to-transparent z-10" />
           <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-16 z-20">
             <div className="max-w-3xl space-y-6 w-full">
               <div className="w-24 h-6 bg-white/5 rounded-lg"></div>
@@ -201,7 +201,7 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : currentHero ? (
-        <section className="relative h-[75vh] min-h-[520px] md:h-[85vh] md:min-h-[620px] w-full overflow-hidden group select-none">
+        <section className="relative h-[75vh] min-h-[600px] md:h-[85vh] md:min-h-[720px] w-full overflow-hidden group select-none">
           {heroAnimes.map((anime, idx) => (
             <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
               <Image 
@@ -214,8 +214,8 @@ const Home: React.FC = () => {
                 className="w-full h-full object-cover transition-transform duration-[15s] ease-linear scale-100 group-hover:scale-105" 
               />
               {/* Premium Netflix Gradient Masks for supreme contrast and legibility */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#070709] via-[#070709]/50 to-transparent z-10" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#070709]/95 via-[#070709]/70 md:via-[#070709]/20 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#040406] via-[#040406]/50 to-transparent z-10" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#040406]/95 via-[#040406]/70 md:via-[#040406]/20 to-transparent z-10" />
             </div>
           ))}
 
@@ -236,7 +236,7 @@ const Home: React.FC = () => {
           </button>
 
           <input type="hidden" id="hero-slider" value={heroIndex} />
-          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex items-end pb-12 md:pb-20 z-20">
+          <div className="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 h-full flex flex-col justify-end pb-10 md:pb-16 pt-24 z-20">
             <div className="max-w-3xl space-y-3.5 md:space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-700">
               
               {/* Meta tags / Badges row */}
@@ -266,18 +266,20 @@ const Home: React.FC = () => {
               </h1>
 
               {/* Sub-meta (Genres) */}
-              {currentHero.genres && currentHero.genres.length > 0 && (
-                <div className="text-[11px] font-bold text-slate-400 flex items-center flex-wrap gap-1.5">
-                  {currentHero.genres.slice(0, 4).map((g, ind) => (
+              <div className="text-[11px] font-bold text-slate-400 flex items-center flex-wrap gap-1.5 h-5 min-h-[20px]">
+                {currentHero.genres && currentHero.genres.length > 0 ? (
+                  currentHero.genres.slice(0, 4).map((g, ind) => (
                     <span key={g} className="flex items-center gap-1.5">
                       <span className="hover:text-white transition-colors">{g}</span>
                       {ind < Math.min(currentHero.genres.length, 4) - 1 && (
                         <span className="w-1 h-1 rounded-full bg-slate-600 block" />
                       )}
                     </span>
-                  ))}
-                </div>
-              )}
+                  ))
+                ) : (
+                  <span className="text-slate-500 font-medium">Загрузка жанров...</span>
+                )}
+              </div>
 
               {/* Decription */}
               <p className="text-slate-200 text-xs md:text-sm line-clamp-2 md:line-clamp-3 leading-relaxed max-w-2xl font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:pe-12">
@@ -327,7 +329,7 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : (
-        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-[#070709]">
+        <div className="h-[40vh] flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px] bg-[#040406]">
           Контент временно недоступен
         </div>
       )}

@@ -117,26 +117,39 @@ const Social: React.FC = () => {
     }
   };
 
-  if (!user) return <div className="text-center py-20">Авторизуйтесь для доступа к социальным функциям</div>;
+  if (!user) return <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">Авторизуйтесь для доступа к социальным функциям</div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-h-screen">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-10 min-h-screen pt-28 space-y-12 bg-[#040406]">
       <SEO title="Сообщество - Люди и Клубы" description="Находите друзей, вступайте в клубы и общайтесь с единомышленниками." />
       
-      {/* Tabs */}
-      <div className="flex gap-4 mb-10">
-        <button 
-          onClick={() => setActiveTab('people')}
-          className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${activeTab === 'people' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-surface/50 text-slate-400 hover:text-white border border-white/5'}`}
-        >
-          Люди
-        </button>
-        <button 
-          onClick={() => setActiveTab('clubs')}
-          className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${activeTab === 'clubs' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-surface/50 text-slate-400 hover:text-white border border-white/5'}`}
-        >
-          Клубы
-        </button>
+      {/* Immersive Category Header */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-white/5">
+        <div>
+          <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tight font-display flex items-center gap-3">
+            <span className="w-2 h-10 bg-primary rounded-full inline-block animate-pulse" />
+            Сообщество
+          </h1>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1.5">
+            Находите друзей, создавайте союзы, вступайте в клубы и делитесь эмоциями
+          </p>
+        </div>
+
+        {/* Quick status tabs inside header for true premium feel */}
+        <div className="flex bg-white/5 border border-white/10 p-1.5 rounded-xl gap-1 select-none w-fit">
+          <button
+            onClick={() => setActiveTab('people')}
+            className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${activeTab === 'people' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+          >
+            Люди
+          </button>
+          <button
+            onClick={() => setActiveTab('clubs')}
+            className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${activeTab === 'clubs' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+          >
+            Клубы
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
