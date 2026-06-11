@@ -38,7 +38,7 @@ const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
 
 export const Logo: React.FC<{ className?: string }> = ({ className }) => (
   <div className={`flex items-center gap-3 select-none ${className}`}>
-    <div className="w-10 h-10 bg-gradient-to-br from-[#8B5CF6] to-[#06B6D4] rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+    <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
     </div>
     <div className="font-display text-[26px] font-black tracking-normal text-white leading-none hidden md:block">
@@ -151,7 +151,7 @@ const Layout: React.FC = () => {
                   onFocus={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   placeholder="Найти аниме..."
-                  className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-full text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
+                  className="w-full h-12 pl-12 pr-12 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
                 />
                 
                 {/* Search Suggestions */}
@@ -275,7 +275,7 @@ const Layout: React.FC = () => {
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Найти аниме..."
-              className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-full text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
+              className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:bg-white focus:text-slate-900 focus:outline-none transition-all duration-500 shadow-inner"
             />
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">

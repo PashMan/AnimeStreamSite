@@ -1073,18 +1073,16 @@ const Details: React.FC = () => {
           ],
         }}
       />
-      <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0 pointer-events-none">
-        {/* macOS-inspired fluid wave animated backdrop layer */}
-        <div className="absolute inset-0 fluid-wave-gradient opacity-85 z-0" />
+      <div className="absolute top-0 left-0 w-full h-[60vh] overflow-hidden z-0">
         <Image
           src={anime.cover || anime.image}
           alt=""
           animeId={anime.id}
           animeTitle={anime.originalName || anime.title}
           priority
-          className="w-full h-full object-cover opacity-35 mix-blend-luminosity scale-105 filter blur-[1px]"
+          className="w-full h-full object-cover blur-[2px] brightness-[0.4] scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/65 to-transparent z-10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/60 to-transparent" />
       </div>
 
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-24 md:pt-32">
@@ -1106,45 +1104,35 @@ const Details: React.FC = () => {
           </span>
         </nav>
 
-        <div className="mb-12 animate-in slide-in-from-bottom-5 duration-700">
-          <div className="flex flex-wrap items-center gap-3.5 mb-6">
-            {/* Cyan Rating score chip */}
-            <div className="px-4 py-2 bg-[#0e2c35]/80 text-cyan-400 border border-cyan-500/20 rounded-2xl text-[11px] font-extrabold uppercase tracking-wide flex items-center gap-2 shadow-lg shadow-cyan-950/20">
-              <Star className="w-3.5 h-3.5 fill-cyan-400 text-cyan-400" />
-              <span>{anime.rating} Score</span>
-            </div>
-
-            {/* Magenta Studio chip */}
-            <div className="px-4 py-2 bg-[#310e20]/80 text-[#ec4899] border border-[#ec4899]/20 rounded-2xl text-[11px] font-extrabold uppercase tracking-wide shadow-lg shadow-pink-950/20">
-              {anime.studio || "Shikimori Studio"}
-            </div>
-
-            {/* Grey Year chip */}
-            <div className="px-4 py-2 bg-slate-900/80 text-slate-300 border border-white/5 rounded-2xl text-[11px] font-extrabold uppercase tracking-wide shadow-lg">
-              {anime.year} год
-            </div>
-
-            {/* Status indicators */}
+        <div className="mb-10 animate-in slide-in-from-bottom-5 duration-700">
+          <div className="flex flex-wrap items-center gap-4 mb-4">
+            <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white">
+              {anime.type}
+            </span>
+            <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white">
+              {anime.year}
+            </span>
             <span
-              className={`px-4 py-2 rounded-2xl text-[11px] font-extrabold uppercase tracking-wide border ${anime.status === "Ongoing" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-primary/10 text-primary border-primary/20"}`}
+              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${anime.status === "Ongoing" ? "bg-green-500/20 text-green-400" : "bg-primary/20 text-primary"}`}
             >
-              • {anime.status === "Ongoing" ? "Онгоинг" : "Завершен"}
+              {anime.status}
             </span>
           </div>
-
-          <h1 className="text-4xl md:text-6xl font-display font-black text-white leading-[0.95] mb-2 uppercase tracking-tighter drop-shadow-2xl">
+          <h1 className="text-4xl md:text-6xl font-display font-black text-white leading-tight mb-2 uppercase tracking-tighter drop-shadow-2xl">
             {isYourName ? "Твоё имя (Kimi no Na wa) в 4K" : 
              isSuzume ? "Судзумэ, закрывающая двери в 4K" :
              isWeathering ? "Дитя погоды в 4K" :
              isGardenOfWords ? "Сад изящных слов в 4K" :
              generatedSEO.h1Text}
           </h1>
-
           {anime.originalName && (
-            <h2 className="text-base md:text-lg font-bold text-slate-400/80 tracking-wide mt-2">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-400 mb-6">
               {anime.originalName}
             </h2>
           )}
+          <div className="flex items-center gap-2 text-yellow-400 font-black text-lg bg-black/40 px-4 py-2 rounded-xl border border-white/5 w-fit shadow-xl">
+            <Star className="w-5 h-5 fill-current" /> {anime.rating}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-12 items-stretch">

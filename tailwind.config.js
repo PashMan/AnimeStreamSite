@@ -13,10 +13,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#8B5CF6',
-        accent: '#06B6D4',
-        dark: '#020617',
-        surface: '#0f172a'
+        primary: '#FF5A00',
+        accent: '#F59E0B',
+        dark: '#070709',
+        surface: '#111116'
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],

@@ -161,89 +161,77 @@ const Home: React.FC = () => {
           </div>
         </section>
       ) : currentHero ? (
-        <div className="max-w-[1600px] mx-auto px-0 md:px-6 lg:px-8 md:pt-6">
-          <section className="relative h-[65vh] md:h-[70vh] w-full overflow-hidden group rounded-none md:rounded-[3.5rem] border-b md:border border-white/5 shadow-2xl">
-            {/* Ambient Animated Wave Background Overlay */}
-            <div className="absolute inset-0 fluid-wave-gradient opacity-80 z-0" />
-            <div className="absolute inset-0 bg-black/30 z-0" />
+        <section className="relative h-[62vh] w-full overflow-hidden group">
+          {heroAnimes.map((anime, idx) => (
+            <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
+              <Image 
+                src={anime.cover || anime.image} 
+                alt={anime.title} 
+                animeId={anime.id}
+                animeTitle={anime.originalName || anime.title}
+                priority={idx === 0}
+                onImageLoad={() => setLoadedImages(prev => ({...prev, [anime.id]: true}))}
+                className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent" />
+              <div className="absolute inset-0 bg-black/20" />
+            </div>
+          ))}
 
-            {/* Anime cover images that fade over the wavy gradient backdrop */}
-            {heroAnimes.map((anime, idx) => (
-              <div key={anime.id} className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === heroIndex && loadedImages[anime.id] ? 'opacity-80 z-10' : 'opacity-0 z-0'}`}>
-                <Image 
-                  src={anime.cover || anime.image} 
-                  alt={anime.title} 
-                  animeId={anime.id}
-                  animeTitle={anime.originalName || anime.title}
-                  priority={idx === 0}
-                  onImageLoad={() => setLoadedImages(prev => ({...prev, [anime.id]: true}))}
-                  className="w-full h-full object-cover opacity-60 transition-transform duration-[10s] ease-linear scale-105 group-hover:scale-110 mix-blend-luminosity" 
-                />
-              </div>
-            ))}
-            
-            {/* Master Gradient Shade on top */}
-            <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/40 to-transparent z-10 pointer-events-none" />
+          {/* Side manual navigation buttons */}
+          <button 
+            onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)} 
+            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-110 active:scale-95"
+            aria-label="Предыдущий слайд"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button 
+            onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)} 
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-110 active:scale-95"
+            aria-label="Следующий слайд"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
 
-            {/* Side manual navigation buttons */}
-            <button 
-              onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)} 
-              className="absolute left-6 top-1/2 -translate-y-1/2 p-3.5 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-115 active:scale-95"
-              aria-label="Предыдущий слайд"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)} 
-              className="absolute right-6 top-1/2 -translate-y-1/2 p-3.5 bg-black/40 hover:bg-primary border border-white/10 rounded-2xl text-white/70 hover:text-white transition-all z-30 opacity-0 group-hover:opacity-100 hidden md:flex items-center justify-center backdrop-blur-md shadow-lg hover:scale-115 active:scale-95"
-              aria-label="Следующий слайд"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-
-            <div className="relative max-w-[1400px] mx-auto px-6 md:px-12 h-full flex items-end pb-16 z-20">
-              <div className="max-w-3xl space-y-4 md:space-y-6 animate-in slide-in-from-bottom-10 duration-700">
-                <span className="px-3.5 py-1.5 bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1.5 w-fit shadow-lg shadow-amber-400/20">
-                  <span className="animate-pulse">🔥</span> Тренды сезона
-                </span>
-                <h1 className="text-4xl md:text-6xl font-display font-black text-white drop-shadow-2xl uppercase tracking-tighter leading-[0.95] line-clamp-2">
-                  {currentHero.title}
-                </h1>
-                <p className="text-slate-200 text-sm md:text-base line-clamp-2 md:line-clamp-3 font-medium max-w-2xl drop-shadow-md p-0 border-none">
-                  {currentHero.description || "Описание загружается..."}
-                </p>
-                <div className="flex flex-wrap gap-4 items-center pt-2">
-                  <Link to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} className="px-8 py-4 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
-                    <PlayCircle className="w-6 h-6 fill-current" /> Смотреть
-                  </Link>
-                  
-                  {/* Manual control buttons directly embedded in the dots slider block */}
-                  <div className="flex gap-2 items-center bg-black/30 backdrop-blur-md p-1.5 rounded-2xl border border-white/5">
-                    <button 
-                      onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)}
-                      className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
-                      aria-label="Предыдущее аниме"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <div className="flex gap-1.5 items-center">
-                      {heroAnimes.map((_, i) => (
-                        <button aria-label={`Слайд ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-amber-400' : 'w-1.5 bg-white/10'}`} />
-                      ))}
-                    </div>
-                    <button 
-                      onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)}
-                      className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
-                      aria-label="Следующее аниме"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
+          <div className="relative max-w-7xl mx-auto px-4 h-full flex items-end pb-16 z-20">
+            <div className="max-w-3xl space-y-4 md:space-y-6 animate-in slide-in-from-bottom-10 duration-700">
+              <span className="px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg">Выходит сейчас</span>
+              <h1 className="text-4xl md:text-6xl font-display font-black text-white drop-shadow-2xl uppercase tracking-tighter leading-[0.9] line-clamp-2">{currentHero.title}</h1>
+              <p className="text-slate-200 text-sm md:text-base line-clamp-2 md:line-clamp-3 font-medium max-w-2xl drop-shadow-md p-0 border-none">
+                {currentHero.description || "Описание загружается..."}
+              </p>
+              <div className="flex flex-wrap gap-4 items-center pt-2">
+                <Link to={dmcaBlocks.includes(currentHero.id.toString()) ? `/anime/${currentHero.id}-watch` : `/anime/${currentHero.id}${currentHero.slug && !slugBlocks.includes(currentHero.id.toString()) ? `-${currentHero.slug}` : ''}`} className="px-8 py-4 bg-primary hover:bg-violet-600 text-white font-black rounded-2xl flex items-center gap-3 w-fit uppercase text-xs tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95">
+                  <PlayCircle className="w-6 h-6 fill-current" /> Смотреть
+                </Link>
+                
+                {/* Manual control buttons directly embedded in the dots slider block */}
+                <div className="flex gap-2 items-center bg-black/30 backdrop-blur-md p-1.5 rounded-2xl border border-white/5">
+                  <button 
+                    onClick={() => setHeroIndex(prev => (prev - 1 + heroAnimes.length) % heroAnimes.length)}
+                    className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    aria-label="Предыдущее аниме"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="flex gap-1.5 items-center">
+                    {heroAnimes.map((_, i) => (
+                      <button aria-label={`Слайд ${i + 1}`} key={i} onClick={() => setHeroIndex(i)} className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-primary' : 'w-1.5 bg-white/10'}`} />
+                    ))}
                   </div>
+                  <button 
+                    onClick={() => setHeroIndex(prev => (prev + 1) % heroAnimes.length)}
+                    className="p-1 px-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all active:scale-90"
+                    aria-label="Следующее аниме"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       ) : (
         <div className="h-[40vh] flex items-center justify-center text-slate-700 font-black uppercase tracking-widest text-xs border-b border-white/5 bg-surface/20">
           Контент временно недоступен
@@ -251,81 +239,6 @@ const Home: React.FC = () => {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-28">
-        
-        {/* Bento Genre Collections Section from Screenshot 3 */}
-        <section className="relative pt-4">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="w-10 h-10 bg-[#ec4899]/20 rounded-xl flex items-center justify-center text-[#ec4899] shadow-lg shadow-[#ec4899]/15 animate-pulse">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display">🍱 ЖАНРОВЫЕ КОЛЛЕКЦИИ (BENTO)</h3>
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Быстрый переход по популярным категориям</p>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Bento block 1: Action */}
-            <Link to="/catalog?genre=Экшен" className="group relative h-44 rounded-[2.2rem] overflow-hidden bg-gradient-to-br from-blue-600/90 via-indigo-600 to-indigo-800 p-8 flex flex-col justify-between border border-blue-400/20 shadow-xl hover:shadow-[0_20px_40px_rgba(37,99,235,0.3)] transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
-              <div className="relative z-10">
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-100/70">Коллекция</span>
-                <h4 className="text-2xl font-black text-white uppercase tracking-tight mt-0.5">Экшен</h4>
-              </div>
-              <div className="flex justify-between items-end relative z-10">
-                <span className="text-xs font-bold text-blue-200/80">Твои любимые битвы</span>
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white scale-90 group-hover:scale-100 group-hover:bg-white/20 transition-all duration-300">
-                  <PlayCircle className="w-5 h-5 fill-current" />
-                </div>
-              </div>
-            </Link>
-
-            {/* Bento block 2: Fantasy */}
-            <Link to="/catalog?genre=Фэнтези" className="group relative h-44 rounded-[2.2rem] overflow-hidden bg-gradient-to-br from-purple-600/90 via-pink-600 to-fuchsia-800 p-8 flex flex-col justify-between border border-pink-400/20 shadow-xl hover:shadow-[0_20px_40px_rgba(219,39,119,0.3)] transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
-              <div className="relative z-10">
-                <span className="text-[10px] font-black uppercase tracking-widest text-pink-100/70">Коллекция</span>
-                <h4 className="text-2xl font-black text-white uppercase tracking-tight mt-0.5">Фэнтези</h4>
-              </div>
-              <div className="flex justify-between items-end relative z-10">
-                <span className="text-xs font-bold text-pink-200/80">Магические миры</span>
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white scale-90 group-hover:scale-100 group-hover:bg-white/20 transition-all duration-300">
-                  <Sparkles className="w-5 h-5 fill-current" />
-                </div>
-              </div>
-            </Link>
-
-            {/* Bento block 3: Shounen */}
-            <Link to="/catalog?genre=Сёнен" className="group relative h-44 rounded-[2.2rem] overflow-hidden bg-gradient-to-br from-fuchsia-600/90 via-rose-500 to-red-700 p-8 flex flex-col justify-between border border-rose-400/20 shadow-xl hover:shadow-[0_20px_40px_rgba(244,63,94,0.3)] transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
-              <div className="relative z-10">
-                <span className="text-[10px] font-black uppercase tracking-widest text-rose-100/70">Коллекция</span>
-                <h4 className="text-2xl font-black text-white uppercase tracking-tight mt-0.5">Сёнен</h4>
-              </div>
-              <div className="flex justify-between items-end relative z-10">
-                <span className="text-xs font-bold text-rose-200/80">Путь героя</span>
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white scale-90 group-hover:scale-100 group-hover:bg-white/20 transition-all duration-300">
-                  <Crown className="w-5 h-5 fill-current" />
-                </div>
-              </div>
-            </Link>
-
-            {/* Bento block 4: Thriller */}
-            <Link to="/catalog?genre=Триллер" className="group relative h-44 rounded-[2.2rem] overflow-hidden bg-gradient-to-br from-red-600/90 via-orange-500 to-amber-700 p-8 flex flex-col justify-between border border-orange-400/20 shadow-xl hover:shadow-[0_20px_40px_rgba(234,88,12,0.3)] transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500" />
-              <div className="relative z-10">
-                <span className="text-[10px] font-black uppercase tracking-widest text-amber-100/70">Коллекция</span>
-                <h4 className="text-2xl font-black text-white uppercase tracking-tight mt-0.5">Триллер</h4>
-              </div>
-              <div className="flex justify-between items-end relative z-10">
-                <span className="text-xs font-bold text-amber-200/80">Загадки и интриги</span>
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white scale-90 group-hover:scale-100 group-hover:bg-white/20 transition-all duration-300">
-                  <Clock className="w-5 h-5" />
-                </div>
-              </div>
-            </Link>
-          </div>
-        </section>
         
         {/* Ongoing Section */}
         <section>
@@ -335,8 +248,8 @@ const Home: React.FC = () => {
                     <Clock className="w-5 h-5" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display">🔥 Новые серии (Онгоинги)</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Эпизоды выходят прямо сейчас</p>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Онгоинги</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Выходят прямо сейчас</p>
                 </div>
             </div>
             <div className="flex gap-3 items-center">
@@ -369,8 +282,8 @@ const Home: React.FC = () => {
                     <MonitorPlay className="w-5 h-5" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display">⚡ Эксклюзивы в 4K</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Ультра-высокое кинематографичное качество</p>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Аниме в 4K</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Ультра-высокое качество</p>
                 </div>
             </div>
             <div className="flex gap-3 items-center">
@@ -402,8 +315,8 @@ const Home: React.FC = () => {
                     <Crown className="w-5 h-5" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display">📈 Самые популярные</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Наибольшее количество просмотров</p>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">В тренде</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Популярное сейчас</p>
                 </div>
             </div>
             <div className="flex gap-3 items-center">
@@ -437,8 +350,8 @@ const Home: React.FC = () => {
                     <Calendar className="w-5 h-5" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display">📅 Расписание серий</h3>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Обновления и график релизов</p>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Расписание серий</h3>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Обновления этой недели</p>
                 </div>
               </div>
               
@@ -524,8 +437,8 @@ const Home: React.FC = () => {
                           <Megaphone className="w-5 h-5" />
                       </div>
                       <div>
-                          <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display font-extrabold">📰 Свежие новости</h3>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Важнейшие события индустрии</p>
+                          <h3 className="text-xl font-black text-white uppercase tracking-tighter">Новости</h3>
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">События индустрии</p>
                       </div>
                   </div>
                   <Link to="/news" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-1">
@@ -575,8 +488,8 @@ const Home: React.FC = () => {
                           <MessageSquare className="w-5 h-5" />
                       </div>
                       <div>
-                          <h3 className="text-xl font-black text-white uppercase tracking-tighter font-display font-extrabold">💬 Свежее на форуме</h3>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Обсуждения аниме-сообщества</p>
+                          <h3 className="text-xl font-black text-white uppercase tracking-tighter">Обсуждения</h3>
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Свежее на форуме</p>
                       </div>
                   </div>
                   <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-1">

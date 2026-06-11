@@ -3,22 +3,23 @@
 
 /* Global Scrollbar Styles */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #020617;
+  background: #070709;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 90, 0, 0.15);
   border-radius: 10px;
+  border: 2px solid #070709;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 90, 0, 0.4);
 }
 
 html, body {
-  background-color: #020617;
+  background-color: #070709;
   color: #f8fafc;
   font-family: 'Inter', sans-serif;
   margin: 0;
@@ -45,7 +46,7 @@ html, body {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background-color: #020617;
+  background-color: #070709;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -64,7 +65,7 @@ html, body {
 .logo-box {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #8B5CF6, #06B6D4);
+  background: linear-gradient(135deg, #FF5A00, #F59E0B);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -82,7 +83,7 @@ html, body {
 }
 
 .brand-text span {
-  color: #8B5CF6;
+  color: #FF5A00;
 }
 
 .loading-dots {
@@ -93,12 +94,12 @@ html, body {
 .dot {
   width: 12px;
   height: 12px;
-  background-color: #8B5CF6;
+  background-color: #FF5A00;
   border-radius: 50%;
   animation: bounce 0.6s infinite alternate;
 }
 
-.dot:nth-child(2) { animation-delay: 0.2s; background-color: #06B6D4; }
+.dot:nth-child(2) { animation-delay: 0.2s; background-color: #F59E0B; }
 .dot:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes bounce {
@@ -168,54 +169,95 @@ html, body {
   }
 }
 
-/* Ambient Fluid Waveform & Bento designs inspired by mobile UI */
-.fluid-wave-gradient {
-  background: linear-gradient(135deg, #7c3aed 0%, #d946ef 35%, #06b6d4 70%, #fb923c 100%);
-  background-size: 200% 200%;
-  animation: flowWave 12s ease-in-out infinite;
+/* Premium Cinema Design Enhancements */
+.bg-surface {
+  background-color: #111116 !important;
 }
 
-@keyframes flowWave {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+/* Redesigning all violet/purple gradients to premium vermilion-gold movie highlights */
+.from-violet-900\/40, .from-violet-800\/80, .from-purple-500\/80, .from-violet-400\/80, .from-violet-800, .from-purple-500, .from-violet-400, .from-violet-900 {
+  background: linear-gradient(135deg, rgba(255, 90, 0, 0.45), rgba(7, 7, 9, 0.95)) !important;
 }
 
-.ambient-mesh-wave {
-  position: relative;
-  overflow: hidden;
+.to-purple-950\/90, .to-violet-800\/90, .to-purple-600\/90, .to-black\/90, .to-purple-950, .to-violet-800, .to-purple-600 {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.4), rgba(7, 7, 9, 0.98)) !important;
 }
 
-.ambient-mesh-wave::before {
-  content: '';
-  position: absolute;
-  inset: -40px;
-  background: radial-gradient(circle at 15% 15%, rgba(139, 92, 246, 0.45) 0%, transparent 45%),
-              radial-gradient(circle at 85% 20%, rgba(219, 39, 119, 0.4) 0%, transparent 40%),
-              radial-gradient(circle at 50% 80%, rgba(6, 182, 212, 0.35) 0%, transparent 45%),
-              radial-gradient(circle at 10% 80%, rgba(245, 158, 11, 0.25) 0%, transparent 35%);
-  filter: blur(60px);
-  z-index: 0;
-  pointer-events: none;
-  animation: bounceBlobs 16s infinite alternate ease-in-out;
+/* Glassmorphic premium header overrides */
+header {
+  background: rgba(7, 7, 9, 0.82) !important;
+  backdrop-filter: blur(30px) -webkit-backdrop-filter(30px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-@keyframes bounceBlobs {
-  0% { transform: translateY(0) scale(1) rotate(0deg); }
-  50% { transform: translateY(-20px) scale(1.08) rotate(3deg); }
-  100% { transform: translateY(20px) scale(0.92) rotate(-3deg); }
+/* Smooth motion for links and buttons to emulate Apple TV & Netflix */
+a, button, .group {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Glasscard blur enhancements for premium feeling */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-}
-.glass-panel:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+/* High-contrast colors & brand orange styling */
+.bg-primary {
+  background-color: #FF5A00 !important;
+  color: #fff !important;
 }
 
+.hover\:bg-primary:hover {
+  background-color: #e04f00 !important;
+}
+
+.border-primary\/50 {
+  border-color: rgba(255, 90, 0, 0.4) !important;
+}
+
+.text-primary {
+  color: #FF5A00 !important;
+}
+
+.text-accent {
+  color: #F59E0B !important;
+}
+
+.bg-accent {
+  background-color: #F59E0B !important;
+}
+
+.bg-violet-500\/20 {
+  background-color: rgba(255, 90, 0, 0.12) !important;
+}
+
+.text-violet-400 {
+  color: #FF5A00 !important;
+}
+
+.shadow-violet-500\/10 {
+  box-shadow: 0 10px 15px -3px rgba(255, 90, 0, 0.08) !important;
+}
+
+/* Premium glowing active selection states */
+.border-primary {
+  border-color: #FF5A00 !important;
+}
+
+.focus-within\:border-primary:focus-within {
+  border-color: #FF5A00 !important;
+}
+
+.shadow-glow {
+  box-shadow: 0 0 25px rgba(255, 90, 0, 0.35);
+}
+
+/* Cinematic glowing poster borders on hover */
+.group:hover {
+  border-color: rgba(255, 115, 0, 0.5) !important;
+}
+
+.group:hover .group-hover\:border-primary\/50 {
+  border-color: rgba(255, 90, 0, 0.5) !important;
+}
+
+/* Selection and link accents */
+::selection {
+  background: rgba(255, 90, 0, 0.25) !important;
+  color: #fff !important;
+}
 
