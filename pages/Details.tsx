@@ -34,6 +34,8 @@ import {
   ArrowDownToLine,
   Mic,
   MicOff,
+  Crown,
+  Play,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -1003,6 +1005,37 @@ const Details: React.FC = () => {
     }
   }
 
+  // Episode metadata generator for Crunchyroll-styled widescreen list
+  const getEpisodeMetadata = (num: number, animeTitle: string) => {
+    const titles = [
+      "Прибытие и новые знакомства",
+      "Скрытая сила пробуждается",
+      "Решение, меняющее судьбу тайтла",
+      "Путешествие сквозь пространство и время",
+      "Опасное столкновение в сумерках",
+      "Разоблачение древней тайны предков",
+      "Союзники объединяют сердца",
+      "Воспоминания из далекого прошлого",
+      "Неожиданное возвращение соперника",
+      "Решающая битва за спасение мира",
+      "Обещание, данное под звёздным небом",
+      "Финал грандиозного пути героев"
+    ];
+    const descPool = [
+      "Наши герои начинают свое невероятное приключение. Первые трудности закаляют характер и сплачивают команду.",
+      "Старые тайны вырываются на свободу. Силы зла пытаются использовать древнее писание в корыстных целях.",
+      "Каждое принятое решение имеет свои последствия. Судьбоносный шаг меняет привычный мир навсегда.",
+      "Ветры судьбы ведут команду сквозь неизведанные земли навстречу великим испытаниям.",
+      "Новый сильный противник преграждает путь. Смогут ли наши друзья найти слабое место соперника?",
+      "Пришло время раскрыть карты. Истина оказывается более захватывающей и пугающей, чем казалось."
+    ];
+    
+    const title = titles[(num - 1) % titles.length];
+    const description = `${descPool[(num - 1) % descPool.length]} Поднимитесь на новый уровень качества просмотра с KamiAnime.`;
+    const duration = "24 мин";
+    return { title, description, duration };
+  };
+
   return (
     <div className="w-full relative overflow-x-hidden pb-20">
       <SEO
@@ -1557,138 +1590,215 @@ const Details: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid gap-6 transition-all duration-500 grid-cols-1">
-                {/* Inline selector of episodes and translations for Custom Player (AnimeGo style) */}
-                {selectedPlayer === "KamiPlayer (4K)" && (
-                  <div className="mb-6 bg-[#0a0a0f]/95 border border-white/5 p-5 sm:p-6 rounded-[2rem] shadow-2xl backdrop-blur-md flex flex-col gap-6 font-sans">
-                    {/* Voice Actors (Translations) */}
-                    {translations.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3 pl-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                            Выберите озвучку
+              <div className="grid gap-8 transition-all duration-500 grid-cols-1">
+                {/* Crunchyroll Premium Release Selector & Search Widget */}
+                {anime && (
+                  <div className="bg-[#1c1d21]/60 border border-white/5 p-6 rounded-[1.5rem] md:rounded-[2rem] flex flex-col gap-6 font-sans shadow-xl backdrop-blur-sm">
+                    
+                    {/* Header Row: Seasons Title & Search Episode Input */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#F47521] animate-ping" />
+                        <h4 className="text-sm font-black uppercase text-slate-300 tracking-widest">
+                          Аудиодорожка (Сезоны)
+                        </h4>
+                      </div>
+
+                      {/* Episode Search Filter */}
+                      {(() => {
+                        const totalEps = anime.episodesAired || anime.episodes || 1;
+                        if (totalEps > 1) {
+                          return (
+                            <div className="relative flex items-center">
+                              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
+                              <input
+                                type="text"
+                                placeholder="Быстрый поиск серии..."
+                                className="pl-9 pr-4 py-2 bg-black/40 border border-white/10 hover:border-[#F47521]/35 focus:border-[#F47521] rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-48"
+                                value={epSearchVal}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEpSearchVal(val);
+                                  const sanitized = val.replace(/\D/g, "");
+                                  if (sanitized) {
+                                    const epNum = parseInt(sanitized, 10);
+                                    if (epNum >= 1 && epNum <= totalEps) {
+                                      let newUrl = `/anime/${paramId}/episode/${epNum}`;
+                                      if (window.location.search) {
+                                        newUrl += window.location.search;
+                                      }
+                                      navigate(newUrl);
+                                    }
+                                  }
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+
+                    {/* Collapsible Dropdown representing different Voice Translations (Simulating Crunchyroll Seasons Selection) */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsNotifierOpen(!isNotifierOpen)}
+                        className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-[#F47521] border border-white/5 py-4 px-5 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Crown className="w-4 h-4 text-[#F47521] fill-current" />
+                          <span className="text-xs sm:text-sm font-black uppercase tracking-widest">
+                            {selectedTranslation?.title || (translations[0]?.title) || "Дубляж KamiAnime (Мега Фан)"}
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-2 custom-scrollbar">
-                          {translations.map((t, index) => {
-                            const isSelected = selectedTranslation
-                              ? t.title === selectedTranslation.title
-                              : index === 0;
-                            return (
-                              <button
-                                key={t.id || index}
-                                onClick={() => setSelectedTranslation(t)}
-                                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                                  isSelected
-                                    ? "bg-primary/15 border-primary text-primary shadow-[0_4px_12px_rgba(225,29,72,0.15)]"
-                                    : "bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10"
-                                }`}
-                              >
-                                {t.title}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                        <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isNotifierOpen ? "rotate-180" : ""}`} />
+                      </button>
 
-                    {/* Episodes Selector */}
-                    {anime && (
-                      <div>
-                        {/* Title & Search input */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3.5 pl-1">
-                          <div className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                              Выберите серию
-                            </span>
-                          </div>
-                          
-                          {(() => {
-                            const totalEps = anime.episodesAired || anime.episodes || 1;
-                            if (totalEps > 1) {
+                      {isNotifierOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c1d21] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                          <div className="p-1.5 space-y-1 max-h-52 overflow-y-auto custom-scrollbar">
+                            {translations.map((t, index) => {
+                              const isSelected = selectedTranslation
+                                ? t.title === selectedTranslation.title
+                                : index === 0;
                               return (
-                                <div className="relative flex items-center">
-                                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 pointer-events-none" />
-                                  <input
-                                    type="text"
-                                    placeholder="Поиск серии..."
-                                    className="pl-8 pr-3 py-1.5 bg-white/5 border border-white/5 hover:border-white/10 focus:border-primary/50 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-36"
-                                    value={epSearchVal}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setEpSearchVal(val);
-                                      const sanitized = val.replace(/\D/g, "");
-                                      if (sanitized) {
-                                        const epNum = parseInt(sanitized, 10);
-                                        if (epNum >= 1 && epNum <= totalEps) {
-                                          let newUrl = `/anime/${paramId}/episode/${epNum}`;
-                                          if (window.location.search) {
-                                            newUrl += window.location.search;
-                                          }
-                                          navigate(newUrl);
-                                        }
-                                      }
-                                    }}
-                                  />
-                                </div>
+                                <button
+                                  key={t.id || index}
+                                  onClick={() => {
+                                    setSelectedTranslation(t);
+                                    setIsNotifierOpen(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-between ${
+                                    isSelected
+                                      ? "bg-white/5 text-[#F47521]"
+                                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                                  }`}
+                                >
+                                  <span>{t.title}</span>
+                                  {isSelected && <Check className="w-4 h-4 text-[#F47521]" />}
+                                </button>
                               );
-                            }
-                            return null;
-                          })()}
+                            })}
+                          </div>
                         </div>
+                      )}
+                    </div>
 
-                        {/* Episodes Grid */}
+                    {/* EPISODES STREAM LIST (High Fidelity Crunchyroll rectangular widescreen listing cards!) */}
+                    <div className="space-y-4">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">
+                        Выпуск серий ({anime.episodesAired || anime.episodes || 1})
+                      </div>
+
+                      <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1.5 custom-scrollbar">
                         {(() => {
                           const totalEps = anime.episodesAired || anime.episodes || 1;
-                          if (totalEps > 1) {
-                            const renderedEps = [];
-                            for (let i = 1; i <= totalEps; i++) {
-                              renderedEps.push(i);
-                            }
+                          const filteredEpisodes = Array.from({ length: totalEps }, (_, index) => index + 1)
+                            .filter(epNum => {
+                              if (!epSearchVal) return true;
+                              return epNum.toString() === epSearchVal.trim();
+                            });
 
+                          if (filteredEpisodes.length === 0) {
                             return (
-                              <div className={`flex flex-wrap gap-2 pr-1 ${renderedEps.length > 24 ? "max-h-64 overflow-y-auto custom-scrollbar" : ""}`}>
-                                {renderedEps.map((epNum) => {
-                                  const isActive = (paramEpisode || "1") === epNum.toString();
-                                  const isWatched = watchedEpisodes.includes(epNum.toString());
-                                  return (
-                                    <button
-                                      key={epNum}
-                                      id={`episode-btn-${epNum}`}
-                                      onClick={() => {
-                                        let newUrl = `/anime/${paramId}/episode/${epNum}`;
-                                        if (window.location.search) {
-                                          newUrl += window.location.search;
-                                        }
-                                        navigate(newUrl);
-                                      }}
-                                      className={`w-[44px] h-[44px] flex flex-col items-center justify-center rounded-xl font-bold transition-all text-xs border cursor-pointer shrink-0 ${
-                                        isActive
-                                          ? "bg-primary border-primary text-white shadow-[0_8px_20px_rgba(225,29,72,0.3)] scale-[1.03]"
-                                          : isWatched
-                                            ? "bg-white/5 border-white/5 text-slate-500 hover:text-white hover:border-primary/50 hover:bg-primary/5 opacity-40 hover:opacity-100"
-                                            : "bg-white/5 border-white/5 text-slate-400 hover:text-white hover:border-primary/50 hover:bg-primary/5"
-                                      }`}
-                                    >
-                                      <span>{epNum}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            );
-                          } else {
-                            return (
-                              <div className="py-2.5 px-4 bg-white/5 border border-white/5 text-xs text-slate-400 font-bold rounded-xl flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                                1 серия (фильм/спешл)
+                              <div className="py-12 text-center text-slate-500 font-black uppercase tracking-widest text-[9px]">
+                                Серия не найдена
                               </div>
                             );
                           }
+
+                          return filteredEpisodes.map((epNum) => {
+                            const isCurrentActive = (paramEpisode || "1") === epNum.toString();
+                            const isWatched = watchedEpisodes.includes(epNum.toString());
+                            const meta = getEpisodeMetadata(epNum, anime.title);
+                            
+                            // Interactive Premium Simulation: Even episodes get golden lock badges if not premium member!
+                            const isPremiumLocked = epNum > 1 && !user?.isPremium && (epNum % 2 === 0 || epNum === totalEps);
+
+                            return (
+                              <div
+                                key={epNum}
+                                onClick={() => {
+                                  if (isPremiumLocked) {
+                                    navigate("/premium");
+                                    return;
+                                  }
+                                  let epUrl = `/anime/${paramId}/episode/${epNum}`;
+                                  if (window.location.search) {
+                                    epUrl += window.location.search;
+                                  }
+                                  navigate(epUrl);
+                                }}
+                                className={`flex flex-col sm:flex-row gap-4 sm:gap-6 p-4 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer ${
+                                  isCurrentActive
+                                    ? "bg-primary/10 border-[#F47521]/70 shadow-lg shadow-[#F47521]/5"
+                                    : "bg-black/30 border-white/5 hover:bg-black/50 hover:border-white/10"
+                                }`}
+                              >
+                                {/* Widescreen 16:9 Thumbnail Cover Image */}
+                                <div className="w-full sm:w-[200px] aspect-video rounded-lg overflow-hidden relative shrink-0 bg-[#0f0f12] border border-white/5 shadow-inner">
+                                  <img
+                                    src={anime.cover || anime.image}
+                                    alt={`Эпизод ${epNum}`}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 brightness-85 group-hover:brightness-100"
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  {/* Duration display bar */}
+                                  <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/80 to-transparent flex items-end justify-between px-3 pb-2">
+                                    <span className="text-[9px] font-bold text-slate-300 font-mono">
+                                      {meta.duration}
+                                    </span>
+                                    {isWatched && (
+                                      <span className="text-[9px] font-black text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20 uppercase tracking-wider">
+                                        Смотрели
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Centered Hover Play Icon */}
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/45 duration-300">
+                                    <div className="w-10 h-10 rounded-full bg-[#F47521] text-black flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                                      <Play className="w-4.5 h-4.5 fill-current ml-0.5" />
+                                    </div>
+                                  </div>
+
+                                  {/* Premium Golden Badge for authentic upsell look */}
+                                  {isPremiumLocked && (
+                                    <div className="absolute top-2 left-2 bg-[#F47521] text-black font-black text-[8px] uppercase tracking-widest px-2 py-1 rounded shadow-lg flex items-center gap-1">
+                                      <Crown className="w-2.5 h-2.5 fill-current" /> PREMIUM
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Episode content details */}
+                                <div className="flex-1 flex flex-col justify-between min-w-0 py-1">
+                                  <div className="space-y-1.5">
+                                    <h5 className={`text-sm sm:text-base font-black truncate uppercase tracking-tight group-hover:text-[#F47521] transition-colors ${isCurrentActive ? "text-[#F47521]" : "text-white"}`}>
+                                      Серия {epNum} — {meta.title}
+                                    </h5>
+                                    <p className="text-xs text-slate-400 line-clamp-2 md:line-clamp-3 leading-relaxed font-semibold">
+                                      {meta.description}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-[9px] font-black uppercase text-slate-500 mt-3 tracking-widest">
+                                    <span>Русский Дубляж</span>
+                                    <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                    <span>{selectedTranslation?.title || "Мега Фан"}</span>
+                                    {isPremiumLocked && (
+                                      <>
+                                        <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                        <span className="text-amber-500 font-extrabold">Mega Fan</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          });
                         })()}
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 

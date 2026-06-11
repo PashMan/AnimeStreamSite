@@ -342,16 +342,16 @@ const Home: React.FC = () => {
           <section className="relative z-10 animate-in fade-in duration-500">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5">
-                  <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
+                <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                  <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                   Мой список
                 </h2>
-                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Твои персональные закладки и избранные тайтлы</p>
+                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Твои персональные закладки и избранные тайтлы</p>
               </div>
               <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                 <div className="flex gap-2">
-                  <button aria-label="Scroll left" onClick={() => scrollContainer(favoritesRef, 'left')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
-                  <button aria-label="Scroll right" onClick={() => scrollContainer(favoritesRef, 'right')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-white transition-all cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
+                  <button aria-label="Scroll left" onClick={() => scrollContainer(favoritesRef, 'left')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-[#F47521] transition-all cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
+                  <button aria-label="Scroll right" onClick={() => scrollContainer(favoritesRef, 'right')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/50 hover:text-[#F47521] transition-all cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
@@ -380,20 +380,20 @@ const Home: React.FC = () => {
         <section>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5">
-                <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
+              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                 Онгоинги
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Новые серии выходят прямо сейчас</p>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Новые серии выходят прямо сейчас</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-               <Link to="/catalog?order=ranked&status=ongoing" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-colors flex items-center gap-1.5 mr-3">
+               <Link to="/catalog?order=ranked&status=ongoing" className="text-[10px] font-black uppercase tracking-widest text-[#F47521] hover:text-white transition-colors flex items-center gap-1.5 mr-3">
                  Смотреть все <ChevronRight className="w-4 h-4" />
                </Link>
                <div className="hidden sm:block w-px h-6 bg-white/10" />
                <div className="flex gap-2">
-                 <button aria-label="Scroll left" onClick={() => scrollContainer(ongoingRef, 'left')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                 <button aria-label="Scroll right" onClick={() => scrollContainer(ongoingRef, 'right')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
+                 <button aria-label="Scroll left" onClick={() => scrollContainer(ongoingRef, 'left')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                 <button aria-label="Scroll right" onClick={() => scrollContainer(ongoingRef, 'right')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
                </div>
             </div>
           </div>
@@ -416,16 +416,16 @@ const Home: React.FC = () => {
         <section>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5">
-                <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
+              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                 Аниме в 4K
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Шедевры в ультра-высоком качестве</p>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Шедевры в ультра-высоком качестве</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <div className="flex gap-2">
-                 <button aria-label="Scroll left" onClick={() => scrollContainer(anime4kRef, 'left')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                 <button aria-label="Scroll right" onClick={() => scrollContainer(anime4kRef, 'right')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
+                 <button aria-label="Scroll left" onClick={() => scrollContainer(anime4kRef, 'left')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-[#F47521] transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                 <button aria-label="Scroll right" onClick={() => scrollContainer(anime4kRef, 'right')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-[#F47521] transition-all"><ChevronRight className="w-4 h-4" /></button>
                </div>
             </div>
           </div>
@@ -448,20 +448,20 @@ const Home: React.FC = () => {
         <section>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5">
-                <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
+              <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                 В тренде
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Самые обсуждаемые и популярные тайтлы дня</p>
+              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Самые обсуждаемые и популярные тайтлы дня</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-               <Link to="/catalog?order=popularity" className="text-[10px] font-black uppercase tracking-widest text-[#ff6e1a] hover:text-white transition-colors flex items-center gap-1.5 mr-3">
+               <Link to="/catalog?order=popularity" className="text-[10px] font-black uppercase tracking-widest text-[#F47521] hover:text-white transition-colors flex items-center gap-1.5 mr-3">
                  Смотреть все <ChevronRight className="w-4 h-4" />
                </Link>
                <div className="hidden sm:block w-px h-6 bg-white/10" />
                <div className="flex gap-2">
-                 <button aria-label="Scroll left" onClick={() => scrollContainer(trendingRef, 'left')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                 <button aria-label="Scroll right" onClick={() => scrollContainer(trendingRef, 'right')} className="p-2.5 rounded-xl bg-[#0a0a0f] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></button>
+                 <button aria-label="Scroll left" onClick={() => scrollContainer(trendingRef, 'left')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-[#F47521] transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                 <button aria-label="Scroll right" onClick={() => scrollContainer(trendingRef, 'right')} className="p-2.5 rounded-xl bg-[#1c1d21] border border-white/5 hover:border-white/10 hover:bg-white/5 text-white/40 hover:text-[#F47521] transition-all"><ChevronRight className="w-4 h-4" /></button>
                </div>
             </div>
           </div>
@@ -490,11 +490,11 @@ const Home: React.FC = () => {
               <section className="relative z-20"> 
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                   <div>
-                    <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5 font-display">
-                      <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
+                    <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                      <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                       Расписание серий
                     </h2>
-                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 font-sans">Релизы по дням недели</p>
+                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Релизы по дням недели</p>
                   </div>
                 </div>
 
@@ -509,13 +509,13 @@ const Home: React.FC = () => {
                         onClick={() => setExpandedDay(day.day)}
                         className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border shrink-0 flex items-center gap-2 cursor-pointer ${
                           isActive 
-                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]' 
-                            : 'bg-white/5 border-white/5 hover:border-white/12 text-slate-400 hover:text-white'
+                            ? 'bg-[#F47521] text-white border-[#F47521] shadow-lg shadow-[#F47521]/25 scale-[1.02]' 
+                            : 'bg-[#1c1d21]/60 border-white/5 hover:border-white/12 text-slate-400 hover:text-white'
                         }`}
                       >
                         {day.day}
                         {isToday && (
-                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white animate-pulse' : 'bg-primary'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white animate-pulse' : 'bg-[#F47521]'}`} />
                         )}
                       </button>
                     );
@@ -533,14 +533,14 @@ const Home: React.FC = () => {
                       <Link 
                         key={idx} 
                         to={targetUrl} 
-                        className="group flex items-center gap-4 bg-[#0a0a0f] hover:bg-[#0f0f15] border border-white/5 hover:border-[#ff6e1a]/25 rounded-xl p-4 transition-all duration-300"
+                        className="group flex items-center gap-4 bg-[#1c1d21]/40 hover:bg-[#1c1d21]/80 border border-white/5 hover:border-[#F47521]/30 rounded-xl p-4 transition-all duration-300"
                       >
-                        <div className="flex items-center gap-1.5 text-xs font-extrabold text-primary bg-primary/10 border border-primary/15 px-3 py-1.5 rounded-lg shrink-0 group-hover:bg-primary group-hover:text-white transition-all">
+                        <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#F47521] bg-[#F47521]/15 border border-[#F47521]/20 px-3 py-1.5 rounded-lg shrink-0 group-hover:bg-[#F47521] group-hover:text-black transition-all">
                           <Clock className="w-3.5 h-3.5 shrink-0" />
                           <span>{item.time}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-bold text-slate-100 group-hover:text-primary transition-colors line-clamp-1">
+                          <h4 className="text-sm font-bold text-slate-100 group-hover:text-[#F47521] transition-colors line-clamp-1">
                             {item.title}
                           </h4>
                         </div>
@@ -560,27 +560,25 @@ const Home: React.FC = () => {
             );
           }}
         </LazySection>
-
-        {/* News Section */}
         <LazySection fetchData={fetchNews}>
           {(news: NewsItem[]) => (
             <section className="relative z-10">
                <div className="flex items-center justify-between mb-6">
                   <div>
-                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5 font-display">
-                        <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
+                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                        <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                         Новости
                       </h2>
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 font-sans">Свежие события аниме-индустрии</p>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Свежие события аниме-индустрии</p>
                   </div>
-                  <Link to="/news" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors flex items-center gap-1">
+                  <Link to="/news" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#F47521] transition-colors flex items-center gap-1">
                       Все новости <ChevronRight className="w-4 h-4" />
                   </Link>
                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {news.slice(0, 4).map((item) => (
-                     <div key={item.id} className="group bg-[#0a0a0f] border border-white/5 hover:border-[#ff6e1a]/20 rounded-xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col">
+                     <div key={item.id} className="group bg-[#1c1d21]/30 border border-white/5 hover:border-[#F47521]/20 rounded-xl overflow-hidden transition-all duration-300 shadow-xl flex flex-col">
                         {item.video ? (
                           <div className="aspect-video w-full bg-black relative">
                              <iframe 
@@ -597,22 +595,22 @@ const Home: React.FC = () => {
                         <Link to={`/news/${item.id}`} className="p-5 flex-1 flex flex-col justify-between">
                            <div>
                               <div className="flex items-center justify-between mb-3">
-                                 <span className="text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded">
+                                 <span className="text-[9px] font-black text-[#F47521] uppercase tracking-widest bg-[#F47521]/10 px-2 py-0.5 rounded">
                                    {item.category}
                                  </span>
                                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
                                    {item.date}
                                  </span>
                               </div>
-                              <h3 className="text-sm font-bold text-slate-100 group-hover:text-primary transition-colors mb-2 line-clamp-2 leading-snug">
+                              <h3 className="text-sm font-bold text-slate-100 group-hover:text-[#F47521] transition-colors mb-2 line-clamp-2 leading-snug">
                                 {item.title}
                               </h3>
                               <p className="text-slate-400 text-xs line-clamp-3 leading-relaxed mt-1">
                                 {item.summary?.replace(/<[^>]*>?/gm, '').replace(/\[.*?\]/g, '')}
                               </p>
                            </div>
-                           <div className="pt-4 flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                              Читать далее <ChevronRight className="w-3 h-3" />
+                           <div className="pt-4 flex items-center gap-1 text-[9px] font-black text-[#F47521] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                               Читать далее <ChevronRight className="w-3 h-3" />
                            </div>
                         </Link>
                      </div>
@@ -628,23 +626,23 @@ const Home: React.FC = () => {
             <section className="relative z-10">
                <div className="flex items-center justify-between mb-6">
                   <div>
-                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5 font-display">
-                        <span className="w-1.5 h-6 bg-primary rounded-full inline-block animate-pulse" />
+                      <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                        <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                         Обсуждения
                       </h2>
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Активные темы на нашем форуме</p>
+                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Активные темы на нашем форуме</p>
                   </div>
-                  <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors flex items-center gap-1">
+                  <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#F47521] transition-colors flex items-center gap-1">
                       Весь форум <ChevronRight className="w-4 h-4" />
                   </Link>
                </div>
 
-                <div className="grid gap-3">
+                 <div className="grid gap-3">
                   {forumTopics.slice(0, 4).map(topic => (
-                     <Link key={topic.id} to={`/forum/${topic.id}`} className="group bg-[#0a0a0f] hover:bg-[#0f0f15] border border-white/5 hover:border-primary/25 rounded-xl p-5 transition-all duration-300 cursor-pointer shadow-lg flex items-center gap-4">
+                     <Link key={topic.id} to={`/forum/${topic.id}`} className="group bg-[#1c1d21]/30 hover:bg-[#1c1d21]/60 border border-white/5 hover:border-[#F47521]/30 rounded-xl p-5 transition-all duration-300 cursor-pointer shadow-lg flex items-center gap-4">
                        <div className="flex-1 min-w-0 space-y-1.5">
                          <div className="flex items-center gap-3">
-                           <span className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[9px] font-black uppercase tracking-widest">
+                           <span className="px-2 py-0.5 bg-[#F47521]/15 text-[#F47521] border border-[#F47521]/20 rounded text-[9px] font-black uppercase tracking-widest">
                              {topic.category}
                            </span>
                            <span className="text-[10px] font-bold text-slate-500">
@@ -654,7 +652,7 @@ const Home: React.FC = () => {
                               <Clock className="w-3 h-3" /> {new Date(topic.createdAt).toLocaleDateString('ru-RU')}
                            </span>
                          </div>
-                         <h3 className="text-sm font-bold text-white group-hover:text-primary transition-colors line-clamp-1 leading-snug">
+                         <h3 className="text-sm font-bold text-white group-hover:text-[#F47521] transition-colors line-clamp-1 leading-snug">
                            {topic.title}
                          </h3>
                          <p className="text-slate-400 text-xs line-clamp-1">{topic.content}</p>
@@ -680,22 +678,23 @@ const Home: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
                 <div>
-                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                    <span className="w-1.5 h-6 bg-[#F47521] inline-block shrink-0" />
                     Подборки
                   </h2>
-                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1">Тематические коллекции для ценителей жанра</p>
+                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-4">Тематические коллекции для ценителей жанра</p>
                 </div>
                 
                 <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5 self-start sm:self-auto select-none">
                   <button 
                     onClick={() => setCollectionType('official')}
-                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${collectionType === 'official' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${collectionType === 'official' ? 'bg-[#F47521] text-white shadow-lg shadow-[#F47521]/20' : 'text-slate-500 hover:text-white'}`}
                   >
                     Официальные
                   </button>
                   <button 
                     onClick={() => setCollectionType('community')}
-                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${collectionType === 'community' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-white'}`}
+                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${collectionType === 'community' ? 'bg-[#F47521] text-white shadow-lg shadow-[#F47521]/20' : 'text-slate-500 hover:text-white'}`}
                   >
                     Сообщество
                   </button>
@@ -711,7 +710,7 @@ const Home: React.FC = () => {
                     <Plus className="w-4 h-4" /> Создать подборку
                   </button>
                 )}
-                <Link to="/collections" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-colors flex items-center gap-1">
+                <Link to="/collections" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#F47521] transition-colors flex items-center gap-1">
                   Смотреть все <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -755,14 +754,14 @@ const Home: React.FC = () => {
  
                         <div className="absolute inset-0 p-5 flex flex-col justify-end z-20 pointer-events-none">
                           <div className="flex items-center gap-2 mb-2">
-                            <div className="bg-primary/20 backdrop-blur-md px-2 py-0.5 rounded text-primary text-[9px] font-black uppercase tracking-widest border border-primary/20">
+                            <div className="bg-[#F47521]/15 backdrop-blur-md px-2 py-0.5 rounded text-[#F47521] text-[9px] font-black uppercase tracking-widest border border-[#F47521]/20">
                               Community
                             </div>
                             <div className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
                               {collection.items?.length || 0} аниме
                             </div>
                           </div>
-                          <h3 className="text-white font-bold text-base leading-tight drop-shadow-lg group-hover:text-primary transition-colors">{collection.name}</h3>
+                          <h3 className="text-white font-bold text-base leading-tight drop-shadow-lg group-hover:text-[#F47521] transition-colors">{collection.name}</h3>
                           <Link 
                             to={`/profile/${collection.creator?.email}`}
                             className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 truncate hover:text-white transition-colors pointer-events-auto"
