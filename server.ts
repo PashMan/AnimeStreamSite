@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
 import { makeRoomWebSocketHandler } from './utils/socketServer';
-import { createNodeWebSocket } from '@hono/node-server/websocket';
+import { upgradeWebSocket as nodeUpgradeWebSocket } from '@hono/node-server';
 import { upgradeWebSocket as cfUpgradeWebSocket } from 'hono/cloudflare-workers';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -18,8 +18,6 @@ type Bindings = {
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
-
-const { injectWebSocket, upgradeWebSocket: nodeUpgradeWebSocket } = createNodeWebSocket({ app });
 
 // Check if running on Cloudflare Workers / Pages
 const isCloudflare = typeof WebSocketPair !== 'undefined';
@@ -1912,13 +1910,11 @@ const isCloudflareEnvironment = typeof WebSocketPair !== 'undefined';
 if (!isCloudflareEnvironment) {
   const port = 3000;
   console.log(`[HONO NODE SERVER] Starting backend listener on port ${port}...`);
-  const server = serve({
+  serve({
     fetch: app.fetch,
     port,
     hostname: '0.0.0.0'
   });
-
-  injectWebSocket(server);
 }
 
 export default {

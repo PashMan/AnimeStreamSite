@@ -1715,8 +1715,8 @@ const Details: React.FC = () => {
                             const isWatched = watchedEpisodes.includes(epNum.toString());
                             const meta = getEpisodeMetadata(epNum, anime.title);
                             
-                            // Interactive Premium Simulation: Even episodes get golden lock badges if not premium member!
-                            const isPremiumLocked = epNum > 1 && !user?.isPremium && (epNum % 2 === 0 || epNum === totalEps);
+                            // Interactive Premium Simulation is disabled to ensure smooth clicks to play
+                            const isPremiumLocked = false;
 
                             return (
                               <div
@@ -1732,14 +1732,14 @@ const Details: React.FC = () => {
                                   }
                                   navigate(epUrl);
                                 }}
-                                className={`flex flex-col sm:flex-row gap-4 sm:gap-6 p-4 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer ${
+                                className={`flex gap-4 sm:gap-6 p-3 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer ${
                                   isCurrentActive
-                                    ? "bg-primary/10 border-[#F47521]/70 shadow-lg shadow-[#F47521]/5"
+                                    ? "bg-[#F47521]/10 border-[#F47521]/70 shadow-lg shadow-[#F47521]/5"
                                     : "bg-black/30 border-white/5 hover:bg-black/50 hover:border-white/10"
                                 }`}
                               >
-                                {/* Widescreen 16:9 Thumbnail Cover Image */}
-                                <div className="w-full sm:w-[200px] aspect-video rounded-lg overflow-hidden relative shrink-0 bg-[#0f0f12] border border-white/5 shadow-inner">
+                                {/* Compact Portrait Thumbnail Cover Image - No cropped photos anymore! */}
+                                <div className="w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden relative shrink-0 bg-[#0f0f12] border border-white/5 shadow-inner">
                                   <img
                                     src={anime.cover || anime.image}
                                     alt={`Эпизод ${epNum}`}
@@ -1748,52 +1748,39 @@ const Details: React.FC = () => {
                                     referrerPolicy="no-referrer"
                                   />
                                   {/* Duration display bar */}
-                                  <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/80 to-transparent flex items-end justify-between px-3 pb-2">
-                                    <span className="text-[9px] font-bold text-slate-300 font-mono">
+                                  <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/95 to-transparent flex items-end justify-center pb-1">
+                                    <span className="text-[9px] font-black text-slate-300 font-mono">
                                       {meta.duration}
                                     </span>
-                                    {isWatched && (
-                                      <span className="text-[9px] font-black text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20 uppercase tracking-wider">
-                                        Смотрели
-                                      </span>
-                                    )}
                                   </div>
 
                                   {/* Centered Hover Play Icon */}
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/45 duration-300">
-                                    <div className="w-10 h-10 rounded-full bg-[#F47521] text-black flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                                      <Play className="w-4.5 h-4.5 fill-current ml-0.5" />
+                                    <div className="w-8 h-8 rounded-full bg-[#F47521] text-black flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                                      <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                                     </div>
                                   </div>
-
-                                  {/* Premium Golden Badge for authentic upsell look */}
-                                  {isPremiumLocked && (
-                                    <div className="absolute top-2 left-2 bg-[#F47521] text-black font-black text-[8px] uppercase tracking-widest px-2 py-1 rounded shadow-lg flex items-center gap-1">
-                                      <Crown className="w-2.5 h-2.5 fill-current" /> PREMIUM
-                                    </div>
-                                  )}
                                 </div>
 
                                 {/* Episode content details */}
-                                <div className="flex-1 flex flex-col justify-between min-w-0 py-1">
-                                  <div className="space-y-1.5">
-                                    <h5 className={`text-sm sm:text-base font-black truncate uppercase tracking-tight group-hover:text-[#F47521] transition-colors ${isCurrentActive ? "text-[#F47521]" : "text-white"}`}>
-                                      Серия {epNum} — {meta.title}
+                                <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5">
+                                  <div className="space-y-1">
+                                    <h5 className={`text-sm sm:text-base font-black truncate uppercase tracking-tight group-hover:text-[#F47521] transition-colors flex items-center gap-2 ${isCurrentActive ? "text-[#F47521]" : "text-white"}`}>
+                                      <span>Серия {epNum}</span>
+                                      {isWatched && (
+                                        <span className="px-1.5 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[8px] font-black uppercase tracking-wider rounded">
+                                          Просмотрено
+                                        </span>
+                                      )}
                                     </h5>
                                     <p className="text-xs text-slate-400 line-clamp-2 md:line-clamp-3 leading-relaxed font-semibold">
                                       {meta.description}
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-3 text-[9px] font-black uppercase text-slate-500 mt-3 tracking-widest">
+                                  <div className="flex items-center gap-3 text-[9px] font-black uppercase text-slate-500 mt-2 tracking-widest">
                                     <span>Русский Дубляж</span>
                                     <span className="w-1 h-1 rounded-full bg-slate-700"></span>
                                     <span>{selectedTranslation?.title || "Мега Фан"}</span>
-                                    {isPremiumLocked && (
-                                      <>
-                                        <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                        <span className="text-amber-500 font-extrabold">Mega Fan</span>
-                                      </>
-                                    )}
                                   </div>
                                 </div>
                               </div>

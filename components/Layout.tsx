@@ -280,7 +280,9 @@ const Layout: React.FC = () => {
               </div>
 
               <Link to="/manga" className={`${isActive('/manga') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><BookOpen className="w-3.5 h-3.5" /> Манга</Link>
-              <Link to="/games" className={`${isActive('/games') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
+              {user?.role === 'admin' && (
+                <Link to="/games" className={`${isActive('/games') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
+              )}
               <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'hover:text-white'} transition-all`}>Новости</Link>
               <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'hover:text-white'} transition-all`}>Форум</Link>
               <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'hover:text-white'} transition-all`}>Сообщество</Link>
@@ -460,9 +462,11 @@ const Layout: React.FC = () => {
             Манга
           </Link>
 
-          <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-            Игры
-          </Link>
+          {user?.role === 'admin' && (
+            <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+              Игры
+            </Link>
+          )}
 
           <Link to="/news" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/news') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
             Новости

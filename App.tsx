@@ -5,6 +5,16 @@ import { supabase } from './services/db';
 import Layout from './components/Layout';
 import ScrollToTop from './components/ScrollToTop';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from './context/AuthContext';
+
+// Simple guard for admin roles only
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  if (user?.role === 'admin') {
+    return <>{children}</>;
+  }
+  return <Navigate to="/" replace />;
+};
 
 // Eager load critical pages (test)
 import Home from './pages/Home';
@@ -73,7 +83,7 @@ const App: React.FC = () => {
             <Route index element={<Home />} />
             <Route path="catalog" element={<Catalog />} />
             <Route path="manga" element={<Manga />} />
-            <Route path="games" element={<Games />} />
+            <Route path="games" element={<AdminRoute><Games /></AdminRoute>} />
             <Route path="collections" element={<Collections />} />
             <Route path="collections/:id" element={<CollectionDetail />} />
             <Route path="collections/community/:id" element={<CommunityCollectionDetail />} />
