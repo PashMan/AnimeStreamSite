@@ -42,6 +42,15 @@ const Manga: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeMangaId = searchParams.get('mangaId');
 
+  useEffect(() => {
+    if (searchParams.get('clear_cache') === 'true') {
+      localStorage.clear();
+      fetch('/api/clear-server-cache', { method: 'POST' }).finally(() => {
+        window.location.href = window.location.pathname;
+      });
+    }
+  }, [searchParams]);
+
   // --- Dynamic Procedural Infinite Generator Fallback ---
   const generateProceduralManga = (index: number): MangaItem => {
     const titles = [
