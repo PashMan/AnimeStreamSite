@@ -772,6 +772,9 @@ app.get('/api/manga/search', async (c) => {
         }
 
         if (title === 'Без названия' || !hasCyrillic(title)) return null; // We only want cleanly translated/titled entries
+        
+        let description = attrs.description?.ru;
+        if (!description) return null; // Must have Russian description
 
         const originalTitle = attrs.title?.['ja-ro'] || attrs.title?.ja || attrs.title?.en || '';
         let cover = '';
@@ -782,7 +785,6 @@ app.get('/api/manga/search', async (c) => {
         } else {
           cover = `https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80`;
         }
-        let description = attrs.description?.ru || attrs.description?.en || 'Описание отсутствует.';
         description = description.replace(/\[\w+=\w+\]/g, '').replace(/\[\/\w+\]/g, '').replace(/\[hr\]/g, '');
         const genres = attrs.tags
           ?.filter((t: any) => t.attributes?.group === 'genre')
@@ -896,7 +898,8 @@ app.get('/api/manga/:id', async (c) => {
       if (content) {
         const title = content.rus_name || 'Без названия';
         const originalTitle = content.en_name || content.dir || '';
-        const cover = content.img?.high ? `https://remanga.org${content.img.high}` : (content.img?.mid ? `https://remanga.org${content.img.mid}` : 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80');
+        let coverUrl = content.img?.high ? `https://remanga.org${content.img.high}` : (content.img?.mid ? `https://remanga.org${content.img.mid}` : '');
+        const cover = coverUrl ? `/api/manga/page-proxy?url=${encodeURIComponent(coverUrl)}&_cb=3` : 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80';
         const description = content.description || 'Описание отсутствует.';
         const genres = content.categories?.map((c: any) => c.name) || ["Манга"];
         const status = content.status?.name || 'Статус неизвестен';
@@ -1025,7 +1028,7 @@ app.get('/api/manga/:id', async (c) => {
     } else {
       cover = `https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80`;
     }
-    let description = attrs.description?.ru || attrs.description?.en || 'Описание отсутствует.';
+    let description = attrs.description?.ru || 'Описание отсутствует.';
     description = description.replace(/\[\w+=\w+\]/g, '').replace(/\[\/\w+\]/g, '').replace(/\[hr\]/g, '');
     const genres = attrs.tags
       ?.filter((t: any) => t.attributes?.group === 'genre')
@@ -1368,12 +1371,14 @@ app.get('/api/manga/:id/chapters', async (c) => {
         
         chapters.reverse();
 
-        return c.json({
-          mangaId,
-          chapters,
-          total: chapters.length,
-          source: 'ReadManga (ZazaZa)'
-        });
+        if (chapters.length > 0) {
+          return c.json({
+            mangaId,
+            chapters,
+            total: chapters.length,
+            source: 'ReadManga (ZazaZa)'
+          });
+        }
       } catch (e) {
         console.error('ZazaZa chapters fetch failed', e);
       }
