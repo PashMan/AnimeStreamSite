@@ -1140,6 +1140,8 @@ app.get('/api/manga/page-proxy', async (c) => {
       referer = 'https://mangadex.org/';
     } else if (url.includes('shikimori.one') || url.includes('shikimori.org')) {
       referer = 'https://shikimori.one/';
+    } else if (c.req.query('_zaza') || url.includes('rmr.rocks') || url.includes('one-way.work')) {
+      referer = 'https://a.zazaza.me/';
     }
     let res = await fetch(url, {
       headers: {
@@ -1320,6 +1322,61 @@ app.get('/api/manga/:id/chapters', async (c) => {
       }
     } catch (e) {
       console.error('[API] Shikimori details fetch for chapters failed:', e);
+    }
+
+    let zazaPath = '';
+    for (const title of searchTitles) {
+      if (!title) continue;
+      try {
+        const suggRes = await fetch('https://a.zazaza.me/search/suggestion?query=' + encodeURIComponent(title));
+        const suggData = await suggRes.json();
+        const suggestion = suggData?.suggestions?.find((s: any) => s.link && s.link.startsWith('/'));
+        if (suggestion) {
+          zazaPath = suggestion.link;
+          break;
+        }
+      } catch(e) {}
+    }
+
+    if (zazaPath) {
+      try {
+        const htmlRes = await fetch('https://a.zazaza.me' + zazaPath + '?mtr=1', {
+           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        });
+        const html = await htmlRes.text();
+        const chapters: any[] = [];
+        const regex = /href="(\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            if (match[2].includes('Читать')) continue;
+            if (!match[1].includes('/vol')) continue;
+            let path = match[1];
+            if (path.includes('?')) path = path.split('?')[0];
+            
+            let chTitle = match[2].trim().replace(/<[^>]+>/g, '').trim();
+            chapters.push({
+               id: `zaza-${Buffer.from(path).toString('base64')}`, // Use base64 for safe IDs
+               title: chTitle || 'Глава',
+               volume: path.match(/vol(\d+)/)?.[1] || '1',
+               chapter: path.match(/vol\d+\/([\d.,]+)/)?.[1] || '0',
+               groupId: '',
+               groupName: 'ReadManga',
+               translatedLanguage: 'ru',
+               updatedAt: new Date().toISOString()
+            });
+        }
+        
+        chapters.reverse();
+
+        return c.json({
+          mangaId,
+          chapters,
+          total: chapters.length,
+          source: 'ReadManga (ZazaZa)'
+        });
+      } catch (e) {
+        console.error('ZazaZa chapters fetch failed', e);
+      }
     }
 
     let matchedId = '';
@@ -1518,6 +1575,34 @@ app.get('/api/manga/chapter/:chapterId/pages', async (c) => {
     ];
     const pages = backgroundUrls.map((url) => `/api/manga/page-proxy?url=${encodeURIComponent(url)}`);
     return c.json({ pages });
+  }
+
+  // ZazaZa chapters resolution
+  if (chapterId.startsWith('zaza-')) {
+    const rawPath = Buffer.from(chapterId.replace('zaza-', ''), 'base64').toString('utf8');
+    try {
+      const pageRes = await fetch(`https://a.zazaza.me${rawPath}?mtr=1`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      const pageHtml = await pageRes.text();
+      const pagesMatch = pageHtml.match(/rm_h\.readerInit\([^,]*,\s*(\[\[.*?\]\])/);
+      if (pagesMatch) {
+        const arrayText = pagesMatch[1];
+        const parsedArray = new Function("return " + arrayText)();
+        
+        const pages = parsedArray.map((item: any) => {
+          const fullUrl = `${item[0] || ''}${item[2] || ''}`;
+          // Wrap with page-proxy since ZazaZa images require a Referer
+          return `/api/manga/page-proxy?url=${encodeURIComponent(fullUrl)}&_zaza=1`;
+        });
+        return c.json({ pages });
+      } else {
+        return c.json({ pages: [] });
+      }
+    } catch(e) {
+      console.error('ZazaZa pages fetch failed', e);
+      return c.json({ pages: [] });
+    }
   }
 
   // ReManga chapters resolution
