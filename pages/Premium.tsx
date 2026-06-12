@@ -58,10 +58,10 @@ const Premium: React.FC = () => {
             <h3 className="text-2xl font-black text-white uppercase mb-4">Фан</h3>
             <p className="text-xs text-slate-400 mb-8 font-medium">Для тех, кто хочет наслаждаться аниме без рекламы на одном экране.</p>
             <ul className="space-y-6 mb-10">
-              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Просмотр без рекламы</li>
-              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Безграничный доступ к библиотеке KamiAnime</li>
-              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Доступ сразу после трансляции в Японии (Simulcast)</li>
-              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Качество Full HD (1080p)</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Просмотр без рекламы</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Безграничный доступ к библиотеке KamiAnime</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Доступ сразу после трансляции в Японии (Simulcast)</li>
+              <li className="flex items-center gap-4 text-slate-300"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Качество Full HD (1080p)</li>
               <li className="flex items-center gap-4 text-slate-500"><XCircle className="w-6 h-6" /> Оффлайн-просмотр (скачивание серий)</li>
               <li className="flex items-center gap-4 text-slate-500"><XCircle className="w-6 h-6" /> Одновременный просмотр на 4 устройствах</li>
             </ul>
@@ -75,24 +75,24 @@ const Premium: React.FC = () => {
             </button>
           </div>
 
-          <div className="bg-gradient-to-br from-[#F47521]/15 to-orange-500/10 border border-[#F47521]/30 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-[#F47521]/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-            <div className="absolute top-6 right-6 px-4 py-1 bg-[#F47521] text-black font-black text-[9px] uppercase tracking-widest rounded-full">Рекомендуем</div>
-            <h3 className="text-2xl font-black text-[#F47521] uppercase mb-4 font-display">Мега Фан</h3>
+          <div className="bg-gradient-to-br from-[#8B5CF6]/15 to-violet-500/10 border border-[#8B5CF6]/30 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#8B5CF6]/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
+            <div className="absolute top-6 right-6 px-4 py-1 bg-[#8B5CF6] text-white font-black text-[9px] uppercase tracking-widest rounded-full">Рекомендуем</div>
+            <h3 className="text-2xl font-black text-[#8B5CF6] uppercase mb-4 font-display">Мега Фан</h3>
             <p className="text-xs text-slate-300 mb-8 font-medium">Максимальный доступ для истинных ценителей аниме. Скачивайте серии и смотрите на любых устройствах.</p>
             <ul className="space-y-6 mb-10 relative z-10">
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Просмотр без рекламы</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Оффлайн-просмотр (скачать серию в приложении)</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Одновременный просмотр на 4 устройствах</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Доступ к качеству Ultra HD (4K)</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Интегрированный заказ апскейла тайтлов</li>
-              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#F47521]" /> Скидки на мерч в магазине и значок профиля</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Просмотр без рекламы</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Оффлайн-просмотр (скачать серию в приложении)</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Одновременный просмотр на 4 устройствах</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Доступ к качеству Ultra HD (4K)</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Интегрированный заказ апскейла тайтлов</li>
+              <li className="flex items-center gap-4 text-white"><CheckCircle className="w-6 h-6 text-[#8B5CF6]" /> Скидки на мерч в магазине и значок профиля</li>
             </ul>
             <div className="text-3xl font-black text-white mb-6">399 ₽ <span className="text-xs text-slate-300 font-medium font-sans">/ мес</span></div>
             <button 
               onClick={handleBuyPremium}
               disabled={isBuying}
-              className="w-full py-4 bg-gradient-to-r from-[#F47521] to-[#ff5100] hover:from-[#ff8134] hover:to-[#F47521] text-black font-black rounded-xl uppercase tracking-widest text-[10px] shadow-xl shadow-[#F47521]/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="w-full py-4 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#9D71FD] hover:to-[#8B5CF6] text-black font-black rounded-xl uppercase tracking-widest text-[10px] shadow-xl shadow-[#8B5CF6]/20 transition-all active:scale-95 flex items-center justify-center gap-2"
             >
               {isBuying ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Crown className="w-4 h-4 fill-current" /> Выбрать Мега Фан</>}
             </button>
@@ -100,24 +100,24 @@ const Premium: React.FC = () => {
         </div>
       ) : (
         <div className="max-w-4xl mx-auto mb-20 animate-in fade-in zoom-in-95 duration-300">
-          <div className="bg-gradient-to-br from-[#F47521]/20 to-orange-500/20 border border-[#F47521]/30 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm text-center">
-            <Crown className="w-16 h-16 text-[#F47521] mx-auto mb-6 fill-current animate-bounce" />
+          <div className="bg-gradient-to-br from-[#8B5CF6]/20 to-violet-500/20 border border-[#8B5CF6]/30 rounded-[2rem] p-10 shadow-2xl backdrop-blur-sm text-center">
+            <Crown className="w-16 h-16 text-[#8B5CF6] mx-auto mb-6 fill-current animate-bounce" />
             <h2 className="text-3xl font-black text-white uppercase mb-4 font-display">Вы Мега Фан пользователь!</h2>
             <p className="text-slate-300 mb-8 max-w-sm mx-auto text-xs">Спасибо за то, что вы являетесь подписчиком KamiAnime Premium. Наслаждайтесь просмотром серий без рекламы на любых девайсах!</p>
             
             <div className="grid md:grid-cols-3 gap-6 text-left">
               <div className="bg-black/20 p-6 rounded-xl border border-white/5">
-                <Sparkles className="w-8 h-8 text-[#F47521] mb-4" />
+                <Sparkles className="w-8 h-8 text-[#8B5CF6] mb-4" />
                 <h4 className="text-white font-bold mb-2 text-sm uppercase">Апскейл 4K</h4>
                 <p className="text-[11px] text-slate-400">Улучшайте качество любимых серий мгновенно с помощью натренированных нейросетей.</p>
               </div>
               <div className="bg-black/20 p-6 rounded-xl border border-white/5">
-                <Star className="w-8 h-8 text-[#F47521] mb-4" />
+                <Star className="w-8 h-8 text-[#8B5CF6] mb-4" />
                 <h4 className="text-white font-bold mb-2 text-sm uppercase">4 устройства</h4>
                 <p className="text-[11px] text-slate-400">Делитесь просмотром с друзьями на любых экранах и смартфонах одновременно.</p>
               </div>
               <div className="bg-black/20 p-6 rounded-xl border border-white/5">
-                <Shield className="w-8 h-8 text-[#F47521] mb-4" />
+                <Shield className="w-8 h-8 text-[#8B5CF6] mb-4" />
                 <h4 className="text-white font-bold mb-2 text-sm uppercase">Оффлайн Режим</h4>
                 <p className="text-[11px] text-slate-400">Закачивайте серии на мобильные девайсы и продолжайте просмотр в дороге.</p>
               </div>

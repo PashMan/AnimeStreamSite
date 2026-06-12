@@ -172,7 +172,7 @@ const NewsDetails: React.FC = () => {
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
         }
         .news-content a {
-            color: #ff5a00;
+            color: #8B5CF6;
             text-decoration: none;
             font-weight: 700;
             transition: color 0.2s;
@@ -185,7 +185,7 @@ const NewsDetails: React.FC = () => {
             margin-bottom: 1.5rem;
         }
         .news-content span.text-primary {
-            color: #ff5a00;
+            color: #8B5CF6;
         }
       `}</style>
       

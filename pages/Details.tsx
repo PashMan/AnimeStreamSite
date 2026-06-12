@@ -1601,7 +1601,7 @@ const Details: React.FC = () => {
                     {/* Header Row: Seasons Title & Search Episode Input */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-[#F47521] animate-ping" />
+                        <span className="w-2 h-2 rounded-full bg-[#8B5CF6] animate-ping" />
                         <h4 className="text-sm font-black uppercase text-slate-300 tracking-widest">
                           Аудиодорожка (Сезоны)
                         </h4>
@@ -1617,7 +1617,7 @@ const Details: React.FC = () => {
                               <input
                                 type="text"
                                 placeholder="Быстрый поиск серии..."
-                                className="pl-9 pr-4 py-2 bg-black/40 border border-white/10 hover:border-[#F47521]/35 focus:border-[#F47521] rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-48"
+                                className="pl-9 pr-4 py-2 bg-black/40 border border-white/10 hover:border-[#8B5CF6]/35 focus:border-[#8B5CF6] rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-48"
                                 value={epSearchVal}
                                 onChange={(e) => {
                                   const val = e.target.value;
@@ -1646,10 +1646,10 @@ const Details: React.FC = () => {
                     <div className="relative">
                       <button
                         onClick={() => setIsNotifierOpen(!isNotifierOpen)}
-                        className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-[#F47521] border border-white/5 py-4 px-5 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
+                        className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-[#8B5CF6] border border-white/5 py-4 px-5 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <Crown className="w-4 h-4 text-[#F47521] fill-current" />
+                          <Crown className="w-4 h-4 text-[#8B5CF6] fill-current" />
                           <span className="text-xs sm:text-sm font-black uppercase tracking-widest">
                             {selectedTranslation?.title || (translations[0]?.title) || "Дубляж KamiAnime (Мега Фан)"}
                           </span>
@@ -1673,12 +1673,12 @@ const Details: React.FC = () => {
                                   }}
                                   className={`w-full text-left px-4 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-between ${
                                     isSelected
-                                      ? "bg-white/5 text-[#F47521]"
+                                      ? "bg-white/5 text-[#8B5CF6]"
                                       : "text-slate-400 hover:text-white hover:bg-white/5"
                                   }`}
                                 >
                                   <span>{t.title}</span>
-                                  {isSelected && <Check className="w-4 h-4 text-[#F47521]" />}
+                                  {isSelected && <Check className="w-4 h-4 text-[#8B5CF6]" />}
                                 </button>
                               );
                             })}
@@ -1732,48 +1732,16 @@ const Details: React.FC = () => {
                                   }
                                   navigate(epUrl);
                                 }}
-                                className={`flex gap-4 sm:gap-6 p-3 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer ${
+                                className={`flex p-4 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer ${
                                   isCurrentActive
-                                    ? "bg-[#F47521]/10 border-[#F47521]/70 shadow-lg shadow-[#F47521]/5"
+                                    ? "bg-[#8B5CF6]/10 border-[#8B5CF6]/70 shadow-lg shadow-[#8B5CF6]/5"
                                     : "bg-black/30 border-white/5 hover:bg-black/50 hover:border-white/10"
                                 }`}
                               >
-                                {/* Compact Portrait Thumbnail Cover Image - No cropped photos anymore! */}
-                                <div className="w-24 sm:w-36 aspect-video rounded-xl overflow-hidden relative shrink-0 bg-[#07070a] border border-white/5 shadow-[inset_0_4px_12px_rgba(0,0,0,0.8)]">
-                                  {/* 1. Blur backing */}
-                                  <img
-                                    src={anime.cover || anime.image}
-                                    alt=""
-                                    className="absolute inset-0 w-full h-full object-cover blur-md scale-110 opacity-40 brightness-50 pointer-events-none"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  {/* 2. Absolute high precision contain foreground with zero crop */}
-                                  <img
-                                    src={anime.cover || anime.image}
-                                    alt={`Эпизод ${epNum}`}
-                                    className="absolute inset-0 w-full h-full object-contain z-10 transition-transform duration-500 group-hover:scale-[1.03] brightness-90 group-hover:brightness-100"
-                                    loading="lazy"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  {/* Duration display bar */}
-                                  <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/95 to-transparent flex items-end justify-center pb-1">
-                                    <span className="text-[9px] font-black text-slate-300 font-mono">
-                                      {meta.duration}
-                                    </span>
-                                  </div>
-
-                                  {/* Centered Hover Play Icon */}
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/45 duration-300">
-                                    <div className="w-8 h-8 rounded-full bg-[#F47521] text-black flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                                      <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Episode content details */}
+                                {/* Episode content details without big thumbnail cover image */}
                                 <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5">
                                   <div className="space-y-1">
-                                    <h5 className={`text-sm sm:text-base font-black truncate uppercase tracking-tight group-hover:text-[#F47521] transition-colors flex items-center gap-2 ${isCurrentActive ? "text-[#F47521]" : "text-white"}`}>
+                                    <h5 className={`text-sm sm:text-base font-black truncate uppercase tracking-tight group-hover:text-[#8B5CF6] transition-colors flex items-center gap-2 ${isCurrentActive ? "text-[#8B5CF6]" : "text-white"}`}>
                                       <span>Серия {epNum}</span>
                                       {isWatched && (
                                         <span className="px-1.5 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[8px] font-black uppercase tracking-wider rounded">
@@ -1781,7 +1749,7 @@ const Details: React.FC = () => {
                                         </span>
                                       )}
                                     </h5>
-                                    <p className="text-xs text-slate-400 line-clamp-2 md:line-clamp-3 leading-relaxed font-semibold">
+                                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed font-semibold">
                                       {meta.description}
                                     </p>
                                   </div>
@@ -1789,6 +1757,8 @@ const Details: React.FC = () => {
                                     <span>Русский Дубляж</span>
                                     <span className="w-1 h-1 rounded-full bg-slate-700"></span>
                                     <span>{selectedTranslation?.title || "Мега Фан"}</span>
+                                    <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                    <span className="text-slate-400">{meta.duration}</span>
                                   </div>
                                 </div>
                               </div>

@@ -426,7 +426,7 @@ const Manga: React.FC = () => {
             {/* Comic panel canvas stage */}
             {pagesLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#141519]">
-                <Loader2 className="w-12 h-12 text-[#F47521] animate-spin mb-4" />
+                <Loader2 className="w-12 h-12 text-[#8B5CF6] animate-spin mb-4" />
                 <span className="text-sm font-black uppercase text-slate-400 tracking-widest animate-pulse">
                   Открываем страницы тома...
                 </span>
