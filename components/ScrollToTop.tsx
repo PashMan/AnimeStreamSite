@@ -12,7 +12,7 @@ const ScrollToTop = () => {
     const scrollGroupKey = animeMatch ? `anime:${animeMatch[1]}` : pathname;
 
     if (prevGroupKeyRef.current !== scrollGroupKey) {
-      window.scrollTo(0, 0);
+      // Automatic scroll removed per user request: only human scrolling
       prevGroupKeyRef.current = scrollGroupKey;
     }
 

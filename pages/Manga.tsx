@@ -259,7 +259,6 @@ const Manga: React.FC = () => {
           setSelectedManga(data.manga);
           // Load chapter details
           selectMangaItem(data.manga);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
       }
@@ -269,7 +268,6 @@ const Manga: React.FC = () => {
       mockItem.id = id;
       setSelectedManga(mockItem);
       selectMangaItem(mockItem);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
       console.error(e);
     } finally {
@@ -558,7 +556,7 @@ const Manga: React.FC = () => {
   const FALLBACK_COVER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600&auto=format&fit=crop";
 
   return (
-    <div className="bg-[#121316] min-h-screen text-[#a5a7b1] font-sans selection:bg-[#FF5C00]/30 selection:text-white select-none relative custom-scrollbar">
+    <div className="bg-[#121316] min-h-screen text-[#a5a7b1] font-sans selection:bg-[#8B5CF6]/30 selection:text-white select-none relative custom-scrollbar">
       <SEO 
         title="KamiManga - Читать Мангу Онлайн на русском языке бесплатно"
         description="Крупнейший портал лицензионной и фанатской манги KamiManga. Умный ридер, подробные каталоги, оценки, отзывы."
@@ -575,7 +573,7 @@ const Manga: React.FC = () => {
           <div className="flex items-center justify-between py-4 border-b border-white/5 mb-8">
             <button 
               onClick={() => setSearchParams({})}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/5 rounded-xl text-xs font-black uppercase text-white hover:text-[#FF5C00] hover:bg-white/10 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white/5 rounded-xl text-xs font-black uppercase text-white hover:text-[#8B5CF6] hover:bg-white/10 transition-all cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" /> Назад к каталогу
             </button>
@@ -588,7 +586,7 @@ const Manga: React.FC = () => {
             </div>
 
             {/* Column 1 - Cover Poster and Quick Action Triggers */}
-            <div className="col-span-1 md:col-span-4 space-y-5 relative z-10">
+            <div className="col-span-1 md:col-span-4 space-y-5 relative z-40">
               <div className="aspect-[2/3] rounded-3xl overflow-hidden shadow-2xl border border-white/5 select-none relative group max-w-sm mx-auto">
                 <img 
                   src={selectedManga.cover} 
@@ -609,20 +607,20 @@ const Manga: React.FC = () => {
                   }
                 }}
                 disabled={chaptersLoading}
-                className="w-full max-w-sm mx-auto py-4 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] disabled:opacity-50 text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-[#FF5C00]/10 transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+                className="w-full max-w-sm mx-auto py-4 bg-[#8B5CF6] text-black hover:bg-[#A855F7] disabled:opacity-50 text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-[#8B5CF6]/10 transition-all flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 <BookOpen className="w-4 h-4 text-black font-bold" />
                 <span>{chaptersLoading ? 'Поиск глав...' : 'Читать с первой главы'}</span>
               </button>
 
               {/* Add Bookmark category layout */}
-              <div className="relative w-full max-w-sm mx-auto z-30">
+              <div className="relative w-full max-w-sm mx-auto z-50">
                 <button
                   onClick={() => setIsBookmarkDropdownOpen(prev => !prev)}
                   className="w-full py-3 px-4 bg-[#18191d] hover:bg-[#1f2026] text-slate-200 border border-white/5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-between cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <Heart className={`w-3.5 h-3.5 ${bookmarkCategory[selectedManga.id] ? 'fill-current text-[#FF5C00]' : ''}`} />
+                    <Heart className={`w-3.5 h-3.5 ${bookmarkCategory[selectedManga.id] ? 'fill-current text-[#8B5CF6]' : ''}`} />
                     <span className="truncate">{bookmarkCategory[selectedManga.id] ? `В закладках: ${bookmarkCategory[selectedManga.id]}` : 'Добавить в закладки'}</span>
                   </span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBookmarkDropdownOpen ? 'rotate-180' : ''}`} />
@@ -636,7 +634,7 @@ const Manga: React.FC = () => {
                         onClick={() => updateBookmark(cat)}
                         className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:bg-white/5 ${
                           bookmarkCategory[selectedManga.id] === cat 
-                            ? 'text-[#FF5C00] bg-[#FF5C00]/10 font-bold' 
+                            ? 'text-[#8B5CF6] bg-[#8B5CF6]/10 font-bold' 
                             : 'text-slate-300'
                         }`}
                       >
@@ -667,7 +665,7 @@ const Manga: React.FC = () => {
               <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-3.5 max-w-sm mx-auto select-none">
                 <div className="flex items-center justify-between border-b border-white/5 pb-2">
                   <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Оценка тайтла</span>
-                  <span className="text-[9px] text-[#FF5C00] font-black uppercase tracking-wider">Позиция №42</span>
+                  <span className="text-[9px] text-[#8B5CF6] font-black uppercase tracking-wider">Позиция №42</span>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-3xl font-black text-white flex items-baseline gap-1">
@@ -692,7 +690,7 @@ const Manga: React.FC = () => {
             {/* Column 2 - Core Info Tabs Description & Chapters */}
             <div className="col-span-1 md:col-span-8 flex flex-col space-y-6 relative z-10">
               <div>
-                <span className="text-xs font-black text-[#FF5C00] uppercase tracking-widest block mb-1">Манга проект</span>
+                <span className="text-xs font-black text-[#8B5CF6] uppercase tracking-widest block mb-1">Манга проект</span>
                 <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight uppercase">
                   {selectedManga.title}
                 </h1>
@@ -713,7 +711,7 @@ const Manga: React.FC = () => {
                     onClick={() => setActiveDetailTab(tab.id as any)}
                     className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                       activeDetailTab === tab.id
-                        ? 'border-[#FF5C00] text-white bg-[#FF5C00]/5 rounded-t-xl'
+                        ? 'border-[#8B5CF6] text-white bg-[#8B5CF6]/5 rounded-t-xl'
                         : 'border-transparent text-[#7d8291] hover:text-white'
                     }`}
                   >
@@ -727,7 +725,7 @@ const Manga: React.FC = () => {
                 {activeDetailTab === 'info' && (
                   <div className="space-y-6 animate-in fade-in duration-200">
                     <div className="space-y-2">
-                      <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Аннотация / Синопсис</h4>
+                      <h4 className="text-[10px] font-black text-[#8B5CF6] uppercase tracking-widest pl-2 border-l border-[#8B5CF6]">Аннотация / Синопсис</h4>
                       <p className="text-slate-300 text-sm leading-relaxed font-semibold">
                         {selectedManga.description || "У этого тайтла пока нет детального описания."}
                       </p>
@@ -741,7 +739,7 @@ const Manga: React.FC = () => {
                       <input 
                         type="text" 
                         placeholder="Поиск по главе... (напр. 1 или 5)"
-                        className="w-full pl-11 pr-4 py-3 bg-[#18191d] border border-white/5 focus:border-[#FF5C00] rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
+                        className="w-full pl-11 pr-4 py-3 bg-[#18191d] border border-white/5 focus:border-[#8B5CF6] rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
                         value={chapterSearchQuery}
                         onChange={(e) => setChapterSearchQuery(e.target.value)}
                       />
@@ -750,7 +748,7 @@ const Manga: React.FC = () => {
 
                     {chaptersLoading ? (
                       <div className="py-16 flex flex-col items-center justify-center">
-                        <Loader2 className="w-8 h-8 text-[#FF5C00] animate-spin mb-3" />
+                        <Loader2 className="w-8 h-8 text-[#8B5CF6] animate-spin mb-3" />
                         <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Инициализация структуры глав...</span>
                       </div>
                     ) : (() => {
@@ -781,7 +779,7 @@ const Manga: React.FC = () => {
                                   onClick={() => setSelectedTranslationGroup('')}
                                   className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
                                     !selectedTranslationGroup
-                                      ? 'bg-[#FF5C00]/10 border-[#FF5C00] text-[#FF5C00]'
+                                      ? 'bg-[#8B5CF6]/10 border-[#8B5CF6] text-[#8B5CF6]'
                                       : 'bg-[#121316] border-white/5 text-slate-400 hover:text-white hover:border-white/10'
                                   }`}
                                 >
@@ -793,7 +791,7 @@ const Manga: React.FC = () => {
                                     onClick={() => setSelectedTranslationGroup(gName)}
                                     className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
                                       selectedTranslationGroup === gName
-                                        ? 'bg-[#FF5C00]/10 border-[#FF5C00] text-[#FF5C00]'
+                                        ? 'bg-[#8B5CF6]/10 border-[#8B5CF6] text-[#8B5CF6]'
                                         : 'bg-[#121316] border-white/5 text-slate-400 hover:text-white hover:border-white/10'
                                     }`}
                                   >
@@ -824,10 +822,10 @@ const Manga: React.FC = () => {
                                 <button
                                   key={ch.id}
                                   onClick={() => startReadingChapter(ch)}
-                                  className="p-3.5 bg-[#18191d] border border-white/5 rounded-2xl hover:border-[#FF5C00] hover:bg-[#FF5C00]/5 text-left transition-all active:scale-[0.98] flex items-center justify-between cursor-pointer"
+                                  className="p-3.5 bg-[#18191d] border border-white/5 rounded-2xl hover:border-[#8B5CF6] hover:bg-[#8B5CF6]/5 text-left transition-all active:scale-[0.98] flex items-center justify-between cursor-pointer"
                                 >
                                   <div className="min-w-0 pr-2">
-                                    <span className="text-[8px] font-black uppercase text-[#FF5C00] tracking-wider block">ГРУППА: {ch.group || "KamiManga Trans"}</span>
+                                    <span className="text-[8px] font-black uppercase text-[#8B5CF6] tracking-wider block">ГРУППА: {ch.group || "KamiManga Trans"}</span>
                                     <h4 className="text-xs font-black text-white mt-0.5">Глава {ch.chapter}</h4>
                                     <p className="text-[10px] text-slate-500 font-semibold truncate mt-0.5">{ch.title || `Раздел`}</p>
                                   </div>
@@ -850,13 +848,13 @@ const Manga: React.FC = () => {
                         placeholder="Поделитесь вашим отзывом о сюжете или переводе..."
                         value={newCommentText}
                         onChange={(e) => setNewCommentText(e.target.value)}
-                        className="w-full bg-[#121316] border border-white/5 hover:border-white/12 focus:border-[#FF5C00] rounded-xl p-3.5 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none transition-all outline-none resize-none"
+                        className="w-full bg-[#121316] border border-white/5 hover:border-white/12 focus:border-[#8B5CF6] rounded-xl p-3.5 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none transition-all outline-none resize-none"
                       />
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] text-[#7d8291] font-black uppercase">Выпускщик: {(user as any)?.username || user?.email?.split('@')[0] || "Гость"}</span>
                         <button 
                           onClick={leaveComment}
-                          className="px-4 py-2 bg-[#FF5C00] hover:bg-[#ff6c1a] text-black font-black uppercase text-[10px] tracking-widest rounded-xl shadow cursor-pointer transition-all"
+                          className="px-4 py-2 bg-[#8B5CF6] hover:bg-[#A855F7] text-black font-black uppercase text-[10px] tracking-widest rounded-xl shadow cursor-pointer transition-all"
                         >
                           Send comment
                         </button>
@@ -882,9 +880,9 @@ const Manga: React.FC = () => {
                             </div>
                             <button 
                               onClick={() => likeComment(comment.id)}
-                              className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-[#FF5C00]/10 hover:text-[#FF5C00] rounded-lg text-[10px] transition-all select-none"
+                              className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-[#8B5CF6]/10 hover:text-[#8B5CF6] rounded-lg text-[10px] transition-all select-none"
                             >
-                              <ThumbsUp className="w-3 h-3 text-[#FF5C00] fill-current" />
+                              <ThumbsUp className="w-3 h-3 text-[#8B5CF6] fill-current" />
                               <span>{comment.likes}</span>
                             </button>
                           </div>
@@ -904,11 +902,11 @@ const Manga: React.FC = () => {
         <div className="animate-in fade-in duration-300">
           
           {/* Section: Head Welcome Block */}
-          <div className="bg-gradient-to-r from-[#FF5C00]/5 via-[#18191d]/90 to-[#121316] border-b border-white/5 py-10 px-4 sm:px-8 lg:px-12">
+          <div className="bg-gradient-to-r from-[#8B5CF6]/5 via-[#18191d]/90 to-[#121316] border-b border-white/5 py-10 px-4 sm:px-8 lg:px-12">
             <div className="max-w-[1440px] mx-auto flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
               <div className="space-y-1">
                 <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-                  KamiManga <span className="text-[#FF5C00] font-light">Portal</span>
+                  KamiManga <span className="text-[#8B5CF6] font-light">Portal</span>
                 </h1>
                 <p className="text-xs text-[#7d8291] font-semibold max-w-2xl">
                   Мгновенный доступ ко всем мировым каталогам манги на русском языке. Плавный свитковый ридер, закладки, бесконечный скролл и умный поиск.
@@ -921,7 +919,7 @@ const Manga: React.FC = () => {
                   <input
                     type="text"
                     placeholder="Быстрый поиск по каталогу..."
-                    className="w-full pl-10 pr-4 py-3 bg-[#18191d] border border-white/5 hover:border-[#FF5C00]/40 focus:border-[#FF5C00] rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
+                    className="w-full pl-10 pr-4 py-3 bg-[#18191d] border border-white/5 hover:border-[#8B5CF6]/40 focus:border-[#8B5CF6] rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -933,18 +931,39 @@ const Manga: React.FC = () => {
 
           <div className="max-w-[1440px] mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-12">
 
+            {/* Minimalist Portal Selector */}
+            <div className="flex items-center justify-center gap-4 text-xs font-bold py-2 border-b border-white/5 max-w-xs mx-auto mb-10 select-none animate-in fade-in duration-300">
+              <button
+                onClick={() => {
+                  if (window.location.hostname.includes('kamianime.club')) {
+                    window.location.href = 'https://kamianime.club/';
+                  } else {
+                    localStorage.removeItem('kami_manga_mode');
+                    window.location.reload();
+                  }
+                }}
+                className="text-slate-500 hover:text-white transition-colors cursor-pointer uppercase tracking-widest font-bold"
+              >
+                Аниме
+              </button>
+              <span className="text-white/20">/</span>
+              <span className="text-[#8B5CF6] font-black uppercase tracking-widest relative after:absolute after:bottom-[-4px] after:left-0 after:right-0 after:h-[2px] after:bg-[#8B5CF6]">
+                Манга
+              </span>
+            </div>
+
             {/* SECTION 1: СВЕРХУ НЕДАВНИЕ ДОБАВЛЕНИЯ */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-[#FF5C00] rounded-full inline-block animate-pulse" />
+                  <span className="w-1.5 h-4 bg-[#8B5CF6] rounded-full inline-block animate-pulse" />
                   Недавние добавления
                 </h2>
               </div>
 
               {loadingRecent && recentAdditions.length === 0 ? (
                 <div className="py-12 flex items-center gap-3 justify-center bg-[#18191d] rounded-2xl border border-white/5">
-                  <Loader2 className="w-5 h-5 animate-spin text-[#FF5C00]" />
+                  <Loader2 className="w-5 h-5 animate-spin text-[#8B5CF6]" />
                   <span className="text-xs text-[#7d8291] font-bold">Синхронизация свежих баз...</span>
                 </div>
               ) : (
@@ -968,21 +987,21 @@ const Manga: React.FC = () => {
                           referrerPolicy="no-referrer"
                           loading="lazy"
                         />
-                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-[8px] font-black text-[#FF5C00] uppercase">
+                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-[8px] font-black text-[#8B5CF6] uppercase">
                           NEW
                         </div>
                         <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/85 rounded text-[8.5px] font-black text-white flex items-center gap-0.5">
                           <Star className="w-2.5 h-2.5 fill-current text-yellow-500" /> {item.rating}
                         </div>
                       </div>
-                      <h4 className="text-[11px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-2">
+                      <h4 className="text-[11px] font-bold text-slate-300 group-hover:text-[#8B5CF6] transition-colors leading-tight line-clamp-2">
                         {item.title}
                       </h4>
                     </div>
                   ))}
                   {loadingRecent && (
                     <div className="w-[140px] shrink-0 flex flex-col items-center justify-center p-3 text-center bg-white/5 rounded-2xl">
-                      <Loader2 className="w-5 h-5 text-[#FF5C00] animate-spin" />
+                      <Loader2 className="w-5 h-5 text-[#8B5CF6] animate-spin" />
                       <span className="text-[9px] text-slate-500 font-bold uppercase mt-2">Loading more...</span>
                     </div>
                   )}
@@ -993,7 +1012,7 @@ const Manga: React.FC = () => {
             {/* SECTION 2: НИЖЕ СКРОЛЛОМ В БОК ПРОДОЛЖИТЬ ЧТЕНИЕ (мини карточки) */}
             <div className="space-y-4">
               <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#FF5C00]" /> Продолжить чтение <span className="text-xs text-[#7d8291] uppercase font-semibold">({readingHistory.length})</span>
+                <Clock className="w-4 h-4 text-[#8B5CF6]" /> Продолжить чтение <span className="text-xs text-[#7d8291] uppercase font-semibold">({readingHistory.length})</span>
               </h2>
 
               {readingHistory.length === 0 ? (
@@ -1026,7 +1045,7 @@ const Manga: React.FC = () => {
                         <h4 className="text-[11px] font-black text-white truncate leading-snug">
                           {hist.manga.title}
                         </h4>
-                        <span className="text-[9px] text-[#FF5C00] font-black uppercase block mt-0.5">
+                        <span className="text-[9px] text-[#8B5CF6] font-black uppercase block mt-0.5">
                           Глава {hist.chapter.chapter}
                         </span>
                         <span className="text-[8px] text-slate-500 font-semibold block uppercase tracking-wide truncate mt-1">
@@ -1041,7 +1060,7 @@ const Manga: React.FC = () => {
 
             {/* SECTION 3: НИЖЕ СКРОЛЛОМ В БОК СПИСКОМ ПО 5 Новинки, Сейчас читают, Популярное */}
             <div className="space-y-4">
-              <h2 className="text-sm font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2">
+              <h2 className="text-sm font-black uppercase tracking-widest text-[#8B5CF6] flex items-center gap-2">
                 <Sparkles className="w-4 h-4" /> Топ Списки КамиМанга
               </h2>
 
@@ -1087,7 +1106,7 @@ const Manga: React.FC = () => {
 
                   {/* Column B: Сейчас читают */}
                   <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-4">
-                    <h3 className="text-xs font-black uppercase text-[#FF5C00] border-b border-white/5 pb-2 flex justify-between items-center">
+                    <h3 className="text-xs font-black uppercase text-[#8B5CF6] border-b border-white/5 pb-2 flex justify-between items-center">
                       <span>СЕЙЧАС ЧИТАЮТ</span>
                       <span className="text-[9px] text-amber-500">АКТИВНО</span>
                     </h3>
@@ -1120,7 +1139,7 @@ const Manga: React.FC = () => {
                   <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-4">
                     <h3 className="text-xs font-black uppercase text-white border-b border-white/5 pb-2 flex justify-between items-center">
                       <span>ПОПУЛЯРНОЕ</span>
-                      <span className="text-[9px] text-[#FF5C00]">RECOMMENDED</span>
+                      <span className="text-[9px] text-[#8B5CF6]">RECOMMENDED</span>
                     </h3>
                     <div className="space-y-3">
                       {popular5.map((item, idx) => (
@@ -1140,7 +1159,7 @@ const Manga: React.FC = () => {
                           />
                           <div className="min-w-0 pr-1">
                             <h4 className="text-[11px] font-bold text-slate-300 truncate leading-snug">{item.title}</h4>
-                            <span className="text-[8.5px] font-black text-[#FF5C00]">{item.rating}</span>
+                            <span className="text-[8.5px] font-black text-[#8B5CF6]">{item.rating}</span>
                           </div>
                         </div>
                       ))}
@@ -1154,7 +1173,7 @@ const Manga: React.FC = () => {
             {/* SECTION 4: НИЖЕ НОВИНКИ */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2">
+                <h2 className="text-sm font-black uppercase tracking-widest text-[#8B5CF6] flex items-center gap-2">
                   <Flame className="w-4 h-4" /> Лента новинок (бесконечно)
                 </h2>
               </div>
@@ -1201,7 +1220,7 @@ const Manga: React.FC = () => {
                             {item.genres[0]}
                           </div>
                         </div>
-                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-1">
+                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#8B5CF6] transition-colors leading-tight line-clamp-1">
                           {item.title}
                         </h4>
                       </div>
@@ -1226,7 +1245,7 @@ const Manga: React.FC = () => {
                             {item.genres[0]}
                           </div>
                         </div>
-                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-1">
+                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#8B5CF6] transition-colors leading-tight line-clamp-1">
                           {item.title}
                         </h4>
                       </div>
@@ -1276,19 +1295,19 @@ const Manga: React.FC = () => {
                 <div className="flex items-center gap-3 min-w-0">
                   <button 
                     onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
-                    className="p-2.5 bg-white/5 text-slate-300 hover:text-[#FF5C00] hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer"
+                    className="p-2.5 bg-white/5 text-slate-300 hover:text-[#8B5CF6] hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   
                   <div className="min-w-0">
-                    <h3 className="font-extrabold text-[9px] text-[#FF5C00] uppercase tracking-wider truncate max-w-[120px] md:max-w-[200px]">
+                    <h3 className="font-extrabold text-[9px] text-[#8B5CF6] uppercase tracking-wider truncate max-w-[120px] md:max-w-[200px]">
                       {selectedManga.title}
                     </h3>
                     
                     {/* Chapter Select menu */}
                     <div className="relative inline-block text-left mt-0.5 group/chdrop select-none">
-                      <button className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-white hover:text-[#FF5C00] transition-colors focus:outline-none">
+                      <button className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-white hover:text-[#8B5CF6] transition-colors focus:outline-none">
                         <span>Глава {activeChapter.chapter}</span>
                         <ChevronDown className="w-3.5 h-3.5" />
                       </button>
@@ -1304,7 +1323,7 @@ const Manga: React.FC = () => {
                               onClick={() => startReadingChapter(ch)}
                               className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex flex-col ${
                                 ch.id === activeChapter.id
-                                  ? "bg-[#FF5C00] text-black"
+                                  ? "bg-[#8B5CF6] text-black"
                                   : "text-slate-300 hover:bg-white/5"
                               }`}
                             >
@@ -1332,7 +1351,7 @@ const Manga: React.FC = () => {
                     <button
                       onClick={() => setReaderMode('pages')}
                       className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                        readerMode === 'pages' ? 'bg-[#FF5C00] text-black' : 'text-[#7d8291]'
+                        readerMode === 'pages' ? 'bg-[#8B5CF6] text-black' : 'text-[#7d8291]'
                       }`}
                     >
                       Постранично
@@ -1340,7 +1359,7 @@ const Manga: React.FC = () => {
                     <button
                       onClick={() => setReaderMode('scroll')}
                       className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                        readerMode === 'scroll' ? 'bg-[#FF5C00] text-black' : 'text-[#7d8291]'
+                        readerMode === 'scroll' ? 'bg-[#8B5CF6] text-black' : 'text-[#7d8291]'
                       }`}
                     >
                       Свиток
@@ -1349,7 +1368,7 @@ const Manga: React.FC = () => {
 
                   <button 
                     onClick={() => setIsSettingsOpen(prev => !prev)}
-                    className={`p-2 bg-white/5 text-slate-300 rounded-xl transition-all ${isSettingsOpen ? 'text-[#FF5C00] bg-[#FF5C00]/10' : 'hover:bg-white/10'}`}
+                    className={`p-2 bg-white/5 text-slate-300 rounded-xl transition-all ${isSettingsOpen ? 'text-[#8B5CF6] bg-[#8B5CF6]/10' : 'hover:bg-white/10'}`}
                   >
                     <Settings className="w-4 h-4" />
                   </button>
@@ -1358,7 +1377,7 @@ const Manga: React.FC = () => {
                   <button
                     disabled={!nextChapter}
                     onClick={() => nextChapter && startReadingChapter(nextChapter)}
-                    className="px-3 py-2 bg-[#FF5C00] hover:bg-[#ff6c1a] text-xs font-black uppercase text-black disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                    className="px-3 py-2 bg-[#8B5CF6] hover:bg-[#A855F7] text-xs font-black uppercase text-black disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1"
                   >
                     <span className="hidden sm:inline text-[9px]">След.</span> <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -1370,7 +1389,7 @@ const Manga: React.FC = () => {
                 <div className="flex-1 overflow-y-auto flex flex-col items-center custom-scrollbar relative z-10 w-full">
                   {pagesLoading ? (
                     <div className="m-auto flex flex-col items-center justify-center p-6 text-center">
-                      <Loader2 className="w-10 h-10 text-[#FF5C00] animate-spin mb-4" />
+                      <Loader2 className="w-10 h-10 text-[#8B5CF6] animate-spin mb-4" />
                       <span className="text-xs font-black uppercase text-slate-400 tracking-widest animate-pulse">Загрузка страниц из API...</span>
                     </div>
                   ) : pages.length === 0 ? (
@@ -1411,7 +1430,7 @@ const Manga: React.FC = () => {
                           {nextChapter && (
                             <button
                               onClick={() => startReadingChapter(nextChapter)}
-                              className="px-5 py-2 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md"
+                              className="px-5 py-2 bg-[#8B5CF6] text-black hover:bg-[#A855F7] text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md"
                             >
                               Гл. {nextChapter.chapter}
                             </button>
@@ -1460,8 +1479,8 @@ const Manga: React.FC = () => {
                             onClick={() => setMangaReaderPage(idx)}
                             className={`w-2.5 h-2.5 rounded-full transition-all duration-300 shrink-0 ${
                               idx === mangaReaderPage 
-                                ? 'bg-[#FF5C00] scale-125' 
-                                : 'bg-slate-700 hover:bg-[#FF5C00]/40'
+                                ? 'bg-[#8B5CF6] scale-125' 
+                                : 'bg-slate-700 hover:bg-[#8B5CF6]/40'
                             }`}
                           />
                         ))}
@@ -1483,7 +1502,7 @@ const Manga: React.FC = () => {
                       <div className="space-y-6">
                         <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
                           <span className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-1.5">
-                            <Sliders className="w-3.5 h-3.5 text-[#FF5C00]" /> Настройки Ридера
+                            <Sliders className="w-3.5 h-3.5 text-[#8B5CF6]" /> Настройки Ридера
                           </span>
                           <button 
                             onClick={() => setIsSettingsOpen(false)}
@@ -1507,7 +1526,7 @@ const Manga: React.FC = () => {
                                 key={theme.id}
                                 onClick={() => setReadingBg(theme.id as any)}
                                 className={`p-1.5 py-2.5 rounded text-[9px] font-black uppercase tracking-wider border transition-all ${theme.cls} ${
-                                  readingBg === theme.id ? 'ring-1 ring-[#FF5C00]' : 'opacity-60'
+                                  readingBg === theme.id ? 'ring-1 ring-[#8B5CF6]' : 'opacity-60'
                                 }`}
                               >
                                 {theme.label}
@@ -1530,7 +1549,7 @@ const Manga: React.FC = () => {
                                 key={width.id}
                                 onClick={() => setReadingWidth(width.id as any)}
                                 className={`py-1.5 border rounded text-[9px] font-extrabold uppercase bg-black/45 border-white/10 text-slate-300 transition-all ${
-                                  readingWidth === width.id ? 'text-[#FF5C00] border-[#FF5C00]/40 bg-[#FF5C00]/5' : ''
+                                  readingWidth === width.id ? 'text-[#8B5CF6] border-[#8B5CF6]/40 bg-[#8B5CF6]/5' : ''
                                 }`}
                               >
                                 {width.label}
@@ -1552,7 +1571,7 @@ const Manga: React.FC = () => {
                                 key={gap.id}
                                 onClick={() => setReadingGap(gap.id as any)}
                                 className={`py-1.5 border rounded text-[9px] font-extrabold uppercase bg-black/45 border-white/10 text-slate-300 transition-all ${
-                                  readingGap === gap.id ? 'text-[#FF5C00] border-[#FF5C00]/40 bg-[#FF5C00]/5' : ''
+                                  readingGap === gap.id ? 'text-[#8B5CF6] border-[#8B5CF6]/40 bg-[#8B5CF6]/5' : ''
                                 }`}
                               >
                                 {gap.label}
@@ -1566,7 +1585,7 @@ const Manga: React.FC = () => {
                         <span className="text-[8px] font-black uppercase tracking-widest text-[#7d8291] block text-center">Плеер KamiManga v1.2</span>
                         <button 
                           onClick={() => setIsSettingsOpen(false)}
-                          className="w-full py-2 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-wider rounded-lg transition-all text-center shrink-0 block cursor-pointer"
+                          className="w-full py-2 bg-[#8B5CF6] text-black hover:bg-[#A855F7] text-xs font-black uppercase tracking-wider rounded-lg transition-all text-center shrink-0 block cursor-pointer"
                         >
                           Сохранить параметры
                         </button>

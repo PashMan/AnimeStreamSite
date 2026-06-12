@@ -236,3 +236,15 @@ export interface Review {
   };
   createdAt: string;
 }
+
+export interface MangaItem {
+  id: string;
+  title: string;
+  originalTitle: string;
+  rating: number;
+  genres: string[];
+  status: string;
+  description: string;
+  cover: string;
+  isPremium?: boolean;
+}
