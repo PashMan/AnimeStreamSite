@@ -75,6 +75,13 @@ app.get('/api/test-log', (c) => {
   return c.json({ status: 'ok', message: 'Test log added' });
 });
 
+// API Route to clear server-side in-memory cache
+app.post('/api/clear-server-cache', (c) => {
+  console.log('[API] POST /api/clear-server-cache');
+  jikanImageCache.clear();
+  return c.json({ status: 'ok', message: 'Серверный кэш успешно сброшен!' });
+});
+
 // API Route for AI Anime Recommendation (Supports DeepSeek and Gemini API)
 app.post('/api/ai/recommend', async (c) => {
   try {
