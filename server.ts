@@ -756,6 +756,8 @@ app.get('/api/manga/search', async (c) => {
       }).then(r => r.ok ? r.json() : null) : Promise.resolve(null)
     ]);
 
+    const hasCyrillic = (str: string) => /[а-яА-ЯёЁ]/.test(str);
+
     let mdResults: any[] = [];
     if (mdRes.status === 'fulfilled' && mdRes.value && mdRes.value.data) {
       mdResults = mdRes.value.data.map((manga: any) => {
@@ -769,7 +771,7 @@ app.get('/api/manga/search', async (c) => {
           if (ruTitleObj) title = ruTitleObj.ru;
         }
 
-        if (title === 'Без названия') return null; // We only want cleanly translated/titled entries
+        if (title === 'Без названия' || !hasCyrillic(title)) return null; // We only want cleanly translated/titled entries
 
         const originalTitle = attrs.title?.['ja-ro'] || attrs.title?.ja || attrs.title?.en || '';
         let cover = '';
@@ -806,7 +808,7 @@ app.get('/api/manga/search', async (c) => {
       shikiResults = shikiRes.value.map((m: any) => {
         const originalTitle = m.name || '';
         const title = m.russian || 'Без названия';
-        if (title === 'Без названия' && !m.russian) return null; // Force Russian
+        if (title === 'Без названия' || !hasCyrillic(title)) return null; // Force Russian
 
         const id = `shiki-${m.id}`;
         let cover = '';
@@ -833,9 +835,12 @@ app.get('/api/manga/search', async (c) => {
     let rmResults: any[] = [];
     if (rmRes.status === 'fulfilled' && rmRes.value && rmRes.value.content) {
       rmResults = rmRes.value.content.map((m: any) => {
+        let title = m.rus_name || 'Без названия';
+        if (!hasCyrillic(title)) return null;
+        
         return {
           id: `remanga-${m.dir}`,
-          title: m.rus_name || m.en_name || 'Без названия',
+          title,
           originalTitle: m.en_name || '',
           rating: m.avg_rating ? parseFloat(m.avg_rating) : 8.0,
           status: m.issue_year ? `С ${m.issue_year}` : 'Статус неизвестен',
@@ -844,7 +849,7 @@ app.get('/api/manga/search', async (c) => {
           genres: m.categories ? m.categories.map((c: any) => c.name) : ["Манга"],
           chapters: m.count_chapters || 0
         };
-      }).filter((x: any) => x.title !== 'Без названия');
+      }).filter(Boolean);
     }
 
     // Merge & de-duplicate preserving order
@@ -1091,6 +1096,22 @@ app.get('/api/manga/page-proxy', async (c) => {
           console.error('[Proxy] Node refresh failed', e);
         }
       }
+
+      if (!res.ok) {
+        const index = url.indexOf('/data/');
+        const indexSaver = url.indexOf('/data-saver/');
+        const marker = indexSaver !== -1 ? '/data-saver/' : '/data/';
+        const markerIndex = indexSaver !== -1 ? indexSaver : index;
+        if (markerIndex !== -1) {
+          try {
+            const remainingPath = url.substring(markerIndex + marker.length);
+            const fallbackUrl = `https://uploads.mangadex.org${marker}${remainingPath}`;
+            res = await fetch(fallbackUrl, {
+              headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://mangadex.org/' }
+            });
+          } catch(e) {}
+        }
+      }
     }
 
     if (!res.ok) {
@@ -1132,6 +1153,26 @@ app.get('/api/manga/page-proxy', async (c) => {
         } catch(e) {
           console.error('[Proxy Recovery Exception] Node refresh failed', e);
         }
+      }
+
+      const index = url.indexOf('/data/');
+      const indexSaver = url.indexOf('/data-saver/');
+      const marker = indexSaver !== -1 ? '/data-saver/' : '/data/';
+      const markerIndex = indexSaver !== -1 ? indexSaver : index;
+      if (markerIndex !== -1) {
+        try {
+          const remainingPath = url.substring(markerIndex + marker.length);
+          const fallbackUrl = `https://uploads.mangadex.org${marker}${remainingPath}`;
+          const fallbackRes = await fetch(fallbackUrl, {
+             headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://mangadex.org/' }
+          });
+          if (fallbackRes.ok) {
+            const blob = await fallbackRes.arrayBuffer();
+            const ct = fallbackRes.headers.get('content-type') || 'image/jpeg';
+            c.header('Content-Type', ct);
+            return c.body(blob);
+          }
+        } catch(e) {}
       }
     }
     return c.json({ error: err.message }, 500);
@@ -1247,29 +1288,32 @@ app.get('/api/manga/:id/chapters', async (c) => {
   let remangaChapters: any[] = [];
 
   const fetchMD = async () => {
-    if (mangaId && !mangaId.startsWith('shiki-')) {
-      const url = `https://api.mangadex.org/manga/${mangaId}/feed?translatedLanguage[]=ru&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
-      try {
-        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const data = await res.json();
-        if (data && data.data) {
-          return data.data.map((ch: any) => {
-            const attrs = ch.attributes || {};
-            const sg = ch.relationships?.find((r: any) => r.type === 'scanlation_group');
-            const groupName = sg?.attributes?.name || 'Внешний переводчик';
-            return {
-              id: ch.id,
-              chapter: attrs.chapter || '0',
-              volume: attrs.volume || '',
-              title: attrs.title || `Глава ${attrs.chapter || ''}`,
-              group: `MangaDex: ${groupName}`,
-              publishAt: attrs.publishAt
-            };
-          });
-        }
-      } catch (e) {
-        console.error('[API] MangaDex chapters fetch failed:', e);
-      }
+    if (mangaId && !mangaId.startsWith('shiki-') && !mangaId.startsWith('remanga-')) {
+      const getChapters = async (lang: string) => {
+        const url = `https://api.mangadex.org/manga/${mangaId}/feed?translatedLanguage[]=${lang}&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
+        try {
+          const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          const data = await res.json();
+          if (data && data.data && data.data.length > 0) {
+            return data.data.map((ch: any) => {
+              const attrs = ch.attributes || {};
+              const sg = ch.relationships?.find((r: any) => r.type === 'scanlation_group');
+              const groupName = sg?.attributes?.name || 'Внешний переводчик';
+              return {
+                id: ch.id,
+                chapter: attrs.chapter || '0',
+                volume: attrs.volume || '',
+                title: attrs.title || `Глава ${attrs.chapter || ''}`,
+                group: `MangaDex: ${groupName}`,
+                publishAt: attrs.publishAt
+              };
+            });
+          }
+        } catch(e) {}
+        return [];
+      };
+
+      return await getChapters('ru');
     }
     return [];
   };
