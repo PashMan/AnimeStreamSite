@@ -512,9 +512,12 @@ const Manga: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setPages(data.pages || []);
+      } else if (res.status === 403) {
+        setIsMangaLicensed(true);
+        setActiveChapter(null);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Failed to parse load pages', e);
     } finally {
       setPagesLoading(false);
     }

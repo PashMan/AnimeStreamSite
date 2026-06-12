@@ -693,7 +693,7 @@ app.get('/api/manga/search', async (c) => {
   // mangalib, readmanga, mangahub, inkstory -> Mocked using aggregate of ReManga/MangaDex + name rewrite
   
   // 1. Build MangaDex request URL (Only Russian translated available)
-  let mdUrl = `https://api.mangadex.org/manga?limit=${limitVal}&offset=${offsetVal}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=ru`;
+  let mdUrl = `https://api.mangadex.org/manga?limit=${limitVal}&offset=${offsetVal}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=ru&hasAvailableChapters=true`;
   if (query) {
     mdUrl += `&title=${encodeURIComponent(query)}`;
   } else if (order) {
@@ -803,40 +803,12 @@ app.get('/api/manga/search', async (c) => {
           description,
           cover,
           genres: genres.slice(0, 3) || ["Манга"],
-          chapters: 0
+          chapters: attrs.lastChapter ? Number(attrs.lastChapter) : (attrs.lastVolume ? Number(attrs.lastVolume)*10 : 12)
         };
       }).filter(Boolean); // Filter out nulls
     }
 
     let shikiResults: any[] = [];
-    if (shikiRes.status === 'fulfilled' && shikiRes.value && Array.isArray(shikiRes.value)) {
-      shikiResults = shikiRes.value.map((m: any) => {
-        const originalTitle = m.name || '';
-        const title = m.russian || 'Без названия';
-        if (title === 'Без названия' || !hasCyrillic(title)) return null; // Force Russian
-
-        const id = `shiki-${m.id}`;
-        let cover = '';
-        if (m.image?.original) {
-          const cleanPath = m.image.original.replace(/^\//, '');
-          cover = `/api/image/${cleanPath}`;
-        } else {
-          cover = `https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80`;
-        }
-        return {
-          id,
-          title,
-          originalTitle,
-          rating: m.score ? parseFloat(m.score) : Number((7.8 + Math.random() * 1.8).toFixed(1)),
-          status: m.status === 'released' ? 'Завершен' : (m.status === 'ongoing' ? 'Онгоинг' : 'Анонсирован'),
-          description: 'Описание подгружается во вкладке подробностей.',
-          cover,
-          genres: m.genres ? m.genres.map((g: any) => g.russian || g.name) : ["Манга"],
-          chapters: m.chapters || 0
-        };
-      }).filter(Boolean);
-    }
-
     let rmResults: any[] = [];
     if (rmRes.status === 'fulfilled' && rmRes.value && rmRes.value.content) {
       rmResults = rmRes.value.content.map((m: any) => {
@@ -1330,61 +1302,6 @@ app.get('/api/manga/:id/chapters', async (c) => {
       console.error('[API] Shikimori details fetch for chapters failed:', e);
     }
 
-    let zazaPath = '';
-    for (const title of searchTitles) {
-      if (!title) continue;
-      try {
-        const suggRes = await fetch('https://a.zazaza.me/search/suggestion?query=' + encodeURIComponent(title));
-        const suggData = await suggRes.json();
-        const suggestion = suggData?.suggestions?.find((s: any) => s.link && s.link.startsWith('/'));
-        if (suggestion) {
-          zazaPath = suggestion.link;
-          break;
-        }
-      } catch(e) {}
-    }
-
-    if (zazaPath) {
-      try {
-        const htmlRes = await fetch('https://a.zazaza.me' + zazaPath + '?mtr=1', {
-           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-        });
-        const html = await htmlRes.text();
-        const chapters: any[] = [];
-        const regex = /href="(\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-        let match;
-        while ((match = regex.exec(html)) !== null) {
-            if (match[2].includes('Читать')) continue;
-            if (!match[1].includes('/vol')) continue;
-            let path = match[1];
-            if (path.includes('?')) path = path.split('?')[0];
-            
-            let chTitle = match[2].trim().replace(/<[^>]+>/g, '').trim();
-            chapters.push({
-               id: `zaza-${Buffer.from(path).toString('base64')}`, // Use base64 for safe IDs
-               title: chTitle || 'Глава',
-               volume: path.match(/vol(\d+)/)?.[1] || '1',
-               chapter: path.match(/vol\d+\/([\d.,]+)/)?.[1] || '0',
-               group: 'ReadManga',
-               publishAt: new Date().toISOString()
-            });
-        }
-        
-        chapters.reverse();
-
-        if (chapters.length > 0) {
-          return c.json({
-            mangaId,
-            chapters,
-            total: chapters.length,
-            source: 'ReadManga (ZazaZa)'
-          });
-        }
-      } catch (e) {
-        console.error('ZazaZa chapters fetch failed', e);
-      }
-    }
-
     let matchedId = '';
     // Search MangaDex using titles in order of accuracy
     for (const title of searchTitles) {
@@ -1428,6 +1345,69 @@ app.get('/api/manga/:id/chapters', async (c) => {
       }
     } catch (e) {
       console.error('[API] MangaDex details fetch for titles failed:', e);
+    }
+  }
+
+  // Attempt ZazaZa fallback resolving globally before generic fetchMD
+  let zazaPath = '';
+  for (const title of searchTitles) {
+    if (!title) continue;
+    try {
+      const suggRes = await fetch('https://a.zazaza.me/search/suggestion?query=' + encodeURIComponent(title));
+      const suggData = await suggRes.json();
+      const suggestion = suggData?.suggestions?.find((s: any) => s.link && (s.link.startsWith('/') || s.link.startsWith('http')));
+      if (suggestion) {
+        zazaPath = suggestion.link;
+        break;
+      }
+    } catch(e) {}
+  }
+
+  if (zazaPath) {
+    try {
+      const fullUrl = zazaPath.startsWith('http') ? zazaPath + '?mtr=1' : 'https://a.zazaza.me' + zazaPath + '?mtr=1';
+      const htmlRes = await fetch(fullUrl, {
+         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+      });
+      const html = await htmlRes.text();
+      const chapters: any[] = [];
+      const regex = /href="(\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+      let match;
+      const seen = new Set();
+      while ((match = regex.exec(html)) !== null) {
+          if (match[2].includes('Читать')) continue;
+          if (!match[1].includes('/vol')) continue;
+          let path = match[1];
+          if (path.includes('?')) path = path.split('?')[0];
+          if (path.includes('#')) path = path.split('#')[0];
+          
+          if (seen.has(path)) continue;
+          seen.add(path);
+
+          let chTitle = match[2].trim().replace(/<[^>]+>/g, '').trim();
+          const targetUrl = zazaPath.startsWith('http') ? (new URL(zazaPath).origin + path) : path;
+          chapters.push({
+             id: `zaza-${Buffer.from(targetUrl).toString('base64')}`,
+             title: chTitle || 'Глава',
+             volume: path.match(/vol(\d+)/)?.[1] || '1',
+             chapter: path.match(/vol\d+\/([\d.,]+)/)?.[1] || '0',
+             group: 'ReadManga',
+             publishAt: new Date().toISOString()
+          });
+      }
+      
+      chapters.reverse();
+
+      if (chapters.length > 0) {
+        return c.json({
+          mangaId,
+          chapters,
+          total: chapters.length,
+          source: 'ReadManga (ZazaZa)'
+        });
+      }
+    } catch (e) {
+      console.error('ZazaZa chapters fetch failed', e);
     }
   }
 
@@ -1587,7 +1567,8 @@ app.get('/api/manga/chapter/:chapterId/pages', async (c) => {
   if (chapterId.startsWith('zaza-')) {
     const rawPath = Buffer.from(chapterId.replace('zaza-', ''), 'base64').toString('utf8');
     try {
-      const pageRes = await fetch(`https://a.zazaza.me${rawPath}?mtr=1`, {
+      const fullPath = rawPath.startsWith('http') ? `${rawPath}?mtr=1` : `https://a.zazaza.me${rawPath}?mtr=1`;
+      const pageRes = await fetch(fullPath, {
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
       const pageHtml = await pageRes.text();
@@ -1596,11 +1577,20 @@ app.get('/api/manga/chapter/:chapterId/pages', async (c) => {
         const arrayText = pagesMatch[1];
         const parsedArray = new Function("return " + arrayText)();
         
+        let isDeleted = false;
         const pages = parsedArray.map((item: any) => {
           const fullUrl = `${item[0] || ''}${item[2] || ''}`;
+          if (fullUrl.includes('deleted1.png')) {
+             isDeleted = true;
+          }
           // Wrap with page-proxy since ZazaZa images require a Referer
           return `/api/manga/page-proxy?url=${encodeURIComponent(fullUrl)}&_zaza=1`;
         });
+        
+        if (isDeleted) {
+          return c.json({ error: 'Издательская блокировка: Главы удалены правообладателем в РФ.', isLicensed: true, pages: [] }, 403);
+        }
+
         return c.json({ pages });
       } else {
         return c.json({ pages: [] });
