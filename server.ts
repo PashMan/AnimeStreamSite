@@ -674,7 +674,7 @@ app.get('/api/manga/search', async (c) => {
   const limit = c.req.query('limit') || '60';
   const offset = c.req.query('offset') || '0';
   const order = c.req.query('order') || '';
-  let url = `https://api.mangadex.org/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
+  let url = `https://api.mangadex.org/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=ru`;
   if (query) {
     url += `&title=${encodeURIComponent(query)}`;
   } else if (order) {
@@ -827,20 +827,10 @@ app.get('/api/manga/:id/chapters', async (c) => {
   };
 
   try {
-    // Stage 1: Try Russian Chapters
+    // Only retrieve chapters translated strictly to Russian language
     chapters = await fetchChaptersForLang('translatedLanguage[]=ru&');
 
-    // Stage 2: Try English Fallback Chapters
-    if (chapters.length === 0) {
-      chapters = await fetchChaptersForLang('translatedLanguage[]=en&');
-    }
-
-    // Stage 3: Try Any Translation
-    if (chapters.length === 0) {
-      chapters = await fetchChaptersForLang('');
-    }
-
-    // If completely empty, mark as licensed
+    // If completely empty, mark as licensed/unavailable
     if (chapters.length === 0) {
       isLicensed = true;
     }

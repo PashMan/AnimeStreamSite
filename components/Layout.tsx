@@ -353,6 +353,7 @@ const Layout: React.FC = () => {
             {isMangaMode ? (
               <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400 relative">
                 <Link to="/" className={`${isActive('/') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all`}>Главная</Link>
+                <Link to="/catalog" className={`${isActive('/catalog') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all`}>Каталог</Link>
                 {user?.role === 'admin' && (
                   <Link to="/games" className={`${isActive('/games') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
                 )}

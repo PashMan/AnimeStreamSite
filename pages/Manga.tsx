@@ -155,6 +155,7 @@ const Manga: React.FC = () => {
   const [selectedManga, setSelectedManga] = useState<MangaItem | null>(null);
   const [chapters, setChapters] = useState<ChapterItem[]>([]);
   const [chaptersLoading, setChaptersLoading] = useState<boolean>(false);
+  const [selectedTranslationGroup, setSelectedTranslationGroup] = useState<string>('');
   const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'chapters' | 'comments'>('info');
   const [chapterSearchQuery, setChapterSearchQuery] = useState<string>('');
   const [isMangaLicensed, setIsMangaLicensed] = useState<boolean>(false);
@@ -436,12 +437,33 @@ const Manga: React.FC = () => {
     setChaptersLoading(true);
     setChapters([]);
     setIsMangaLicensed(false);
+    setSelectedTranslationGroup('');
     try {
       const res = await fetch(`/api/manga/${manga.id}/chapters`);
       if (res.ok) {
         const data = await res.json();
-        setChapters(data.chapters || []);
+        const chList: ChapterItem[] = data.chapters || [];
+        setChapters(chList);
         setIsMangaLicensed(!!data.isLicensed);
+
+        // Group by translator name to find scanlator with most chapters
+        if (chList.length > 0) {
+          const groupsMap: Record<string, number> = {};
+          chList.forEach((ch) => {
+            const grp = ch.group || "Внешний переводчик";
+            groupsMap[grp] = (groupsMap[grp] || 0) + 1;
+          });
+          
+          let maxGroup = "";
+          let maxCount = -1;
+          Object.entries(groupsMap).forEach(([gName, count]) => {
+            if (count > maxCount) {
+              maxCount = count;
+              maxGroup = gName;
+            }
+          });
+          setSelectedTranslationGroup(maxGroup);
+        }
       }
     } catch (e) {
       console.error("Chapters load error", e);
@@ -557,9 +579,6 @@ const Manga: React.FC = () => {
             >
               <ArrowLeft className="w-4 h-4" /> Назад к каталогу
             </button>
-            <span className="text-[10px] text-[#FF5C00] font-black uppercase tracking-widest border border-[#FF5C00]/30 px-2.5 py-1 bg-[#FF5C00]/5 rounded-lg select-none">
-              KamiManga Core v3.4
-            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-8 relative">
@@ -597,7 +616,7 @@ const Manga: React.FC = () => {
               </button>
 
               {/* Add Bookmark category layout */}
-              <div className="relative w-full max-w-sm mx-auto">
+              <div className="relative w-full max-w-sm mx-auto z-30">
                 <button
                   onClick={() => setIsBookmarkDropdownOpen(prev => !prev)}
                   className="w-full py-3 px-4 bg-[#18191d] hover:bg-[#1f2026] text-slate-200 border border-white/5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-between cursor-pointer"
@@ -610,7 +629,7 @@ const Manga: React.FC = () => {
                 </button>
 
                 {isBookmarkDropdownOpen && (
-                  <div className="absolute left-0 right-0 mt-2 bg-[#18191d] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 space-y-0.5 select-none">
+                  <div className="absolute left-0 right-0 mt-2 bg-[#18191d] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-[9999] space-y-0.5 select-none animate-in fade-in duration-100">
                     {['Читаю', 'Хочу прочитать', 'Прочитано', 'Любимое', 'Отложено', 'Брошено'].map((cat) => (
                       <button
                         key={cat}
@@ -710,50 +729,7 @@ const Manga: React.FC = () => {
                     <div className="space-y-2">
                       <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Аннотация / Синопсис</h4>
                       <p className="text-slate-300 text-sm leading-relaxed font-semibold">
-                        {selectedManga.description || "У этого тайтла пока нет детальной аннотации на русском языке. Загрузите главы, чтобы прочитать первый любительский перевод."}
-                      </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Информация KamiManga</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 bg-[#18191d] p-4 sm:p-5 rounded-2xl border border-white/5 text-xs font-semibold">
-                        <div className="flex justify-between py-1.5 border-b border-white/5">
-                          <span className="text-slate-500 uppercase">Формат</span>
-                          <span className="text-white">Манга (Япония)</span>
-                        </div>
-                        <div className="flex justify-between py-1.5 border-b border-white/5">
-                          <span className="text-slate-500 uppercase">Статус выпуска</span>
-                          <span className="text-[#FF5C00]">{selectedManga.status}</span>
-                        </div>
-                        <div className="flex justify-between py-1.5 border-b border-white/5">
-                          <span className="text-slate-500 uppercase">Локализация</span>
-                          <span className="text-green-400">Продолжается</span>
-                        </div>
-                        <div className="flex justify-between py-1.5 border-b border-white/5">
-                          <span className="text-slate-500 uppercase">Возрастной порог</span>
-                          <span className="text-red-400 font-extrabold">16+</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Genres pill list */}
-                    <div className="space-y-2.5">
-                      <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Жанровые теги</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedManga.genres.map(genre => (
-                          <span 
-                            key={genre} 
-                            className="px-3.5 py-1.5 bg-[#18191d] border border-white/5 text-[#a5a7b1] rounded-xl text-[10px] font-black uppercase tracking-wider"
-                          >
-                            {genre}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeDetailTab === 'chapters' && (
+                        {selectedManga.description || "У этого тайтла пока нет дет�                {activeDetailTab === 'chapters' && (
                   <div className="space-y-4 animate-in fade-in duration-200">
                     <div className="relative">
                       <input 
@@ -772,18 +748,96 @@ const Manga: React.FC = () => {
                         <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Инициализация структуры глав...</span>
                       </div>
                     ) : (() => {
-                      const filtered = chapters.filter(ch => 
-                        ch.chapter.toLowerCase().includes(chapterSearchQuery.toLowerCase()) || 
-                        (ch.title && ch.title.toLowerCase().includes(chapterSearchQuery.toLowerCase()))
-                      );
+                      // Collect all unique translator groups and counts
+                      const groupsMap: Record<string, number> = {};
+                      chapters.forEach((ch) => {
+                        const gName = ch.group || "Внешний переводчик";
+                        groupsMap[gName] = (groupsMap[gName] || 0) + 1;
+                      });
+                      const availableGroups = Object.keys(groupsMap);
 
-                      if (filtered.length === 0) {
-                        return isMangaLicensed ? (
-                          <div className="py-8 px-5 text-center border border-red-500/15 bg-red-500/5 text-slate-300 rounded-3xl flex flex-col items-center gap-2">
-                            <ShieldAlert className="w-8 h-8 text-red-500" />
-                            <div className="font-black text-red-500 text-xs uppercase tracking-widest">Издательская блокировка</div>
-                            <div className="text-[10px] text-slate-500 max-w-sm font-semibold">
-                              По требованию дистрибьютора в регионе главы закрыты для свободного чтения. Для получения официального контента обратитесь к правообладателю.
+                      // Filter chapters by both translation group and chapter search query
+                      const filtered = chapters.filter((ch) => {
+                        const matchGroup = !selectedTranslationGroup || (ch.group || "Внешний переводчик") === selectedTranslationGroup;
+                        const matchSearch = ch.chapter.toLowerCase().includes(chapterSearchQuery.toLowerCase()) || 
+                          (ch.title && ch.title.toLowerCase().includes(chapterSearchQuery.toLowerCase()));
+                        return matchGroup && matchSearch;
+                      });
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Translator translation group option selectors */}
+                          {availableGroups.length > 1 && (
+                            <div className="bg-[#18191d]/60 border border-white/5 p-3.5 rounded-2xl space-y-2 select-none">
+                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">Выбор команды перевода:</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  onClick={() => setSelectedTranslationGroup('')}
+                                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                                    !selectedTranslationGroup
+                                      ? 'bg-[#FF5C00]/10 border-[#FF5C00] text-[#FF5C00]'
+                                      : 'bg-[#121316] border-white/5 text-slate-400 hover:text-white hover:border-white/10'
+                                  }`}
+                                >
+                                  Все команды ({chapters.length})
+                                </button>
+                                {availableGroups.map((gName) => (
+                                  <button
+                                    key={gName}
+                                    onClick={() => setSelectedTranslationGroup(gName)}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                                      selectedTranslationGroup === gName
+                                        ? 'bg-[#FF5C00]/10 border-[#FF5C00] text-[#FF5C00]'
+                                        : 'bg-[#121316] border-white/5 text-slate-400 hover:text-white hover:border-white/10'
+                                    }`}
+                                  >
+                                    {gName} ({groupsMap[gName]})
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {filtered.length === 0 ? (
+                            isMangaLicensed ? (
+                              <div className="py-8 px-5 text-center border border-red-500/15 bg-red-500/5 text-slate-300 rounded-3xl flex flex-col items-center gap-2">
+                                <ShieldAlert className="w-8 h-8 text-red-500" />
+                                <div className="font-black text-red-500 text-xs uppercase tracking-widest">Издательская блокировка</div>
+                                <div className="text-[10px] text-slate-500 max-w-sm font-semibold">
+                                  По требованию дистрибьютора в регионе главы закрыты для свободного просмотра. Пожалуйста, обратитесь к правообладателю.
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="py-12 text-center text-slate-500 font-extrabold text-xs uppercase tracking-widest border border-white/5 border-dashed rounded-3xl">
+                                Главы этого произведения еще не переведены в нашей базе
+                              </div>
+                            )
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                              {filtered.map((ch) => (
+                                <button
+                                  key={ch.id}
+                                  onClick={() => startReadingChapter(ch)}
+                                  className="p-3.5 bg-[#18191d] border border-white/5 rounded-2xl hover:border-[#FF5C00] hover:bg-[#FF5C00]/5 text-left transition-all active:scale-[0.98] flex items-center justify-between cursor-pointer"
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <span className="text-[8px] font-black uppercase text-[#FF5C00] tracking-wider block">ГРУППА: {ch.group || "KamiManga Trans"}</span>
+                                    <h4 className="text-xs font-black text-white mt-0.5">Глава {ch.chapter}</h4>
+                                    <p className="text-[10px] text-slate-500 font-semibold truncate mt-0.5">{ch.title || `Раздел`}</p>
+                                  </div>
+                                  <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}  );
+                    })()}
+                  </div>
+                )}     )}�ратитесь к правообладателю.
                             </div>
                           </div>
                         ) : (
@@ -880,9 +934,6 @@ const Manga: React.FC = () => {
           <div className="bg-gradient-to-r from-[#FF5C00]/5 via-[#18191d]/90 to-[#121316] border-b border-white/5 py-10 px-4 sm:px-8 lg:px-12">
             <div className="max-w-[1440px] mx-auto flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
               <div className="space-y-1">
-                <span className="px-2.5 py-0.5 bg-[#FF5C00] text-black text-[9px] font-black uppercase tracking-wider rounded-md flex items-center gap-1.5 w-fit">
-                  <BookOpen className="w-3.5 h-3.5 fill-current" /> KAMIMANGA COMPUTE ENGINE
-                </span>
                 <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tight flex items-center gap-2">
                   KamiManga <span className="text-[#FF5C00] font-light">Portal</span>
                 </h1>
@@ -909,14 +960,13 @@ const Manga: React.FC = () => {
 
           <div className="max-w-[1440px] mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-12">
 
-            {/* SECTION 1: СВЕРХУ НЕДАВНИЕ ДОБАВЛЕНИЯ СКРОЛЛОМ В БОК ДО БЕСКОНЕЧНОСТИ */}
+            {/* SECTION 1: СВЕРХУ НЕДАВНИЕ ДОБАВЛЕНИЯ */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
                   <span className="w-1.5 h-4 bg-[#FF5C00] rounded-full inline-block animate-pulse" />
-                  Недавние добавления <span className="text-[#FF5C00] font-light text-xs uppercase normal-case lowercase font-sans">({recentAdditions.length}+)</span>
+                  Недавние добавления
                 </h2>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Скролл вбок →</span>
               </div>
 
               {loadingRecent && recentAdditions.length === 0 ? (
@@ -1128,13 +1178,12 @@ const Manga: React.FC = () => {
               )}
             </div>
 
-            {/* SECTION 4: НИЖЕ НОВИНКИ БЕСКОНЕЧНЫМ СКРОЛЛБАРОМ ВЛЕВО */}
+            {/* SECTION 4: НИЖЕ НОВИНКИ */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2">
                   <Flame className="w-4 h-4" /> Лента новинок (бесконечно)
                 </h2>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Прокрутка →</span>
               </div>
 
               {loadingNovinki && novinkiEndless.length === 0 ? (
@@ -1142,205 +1191,77 @@ const Manga: React.FC = () => {
                   Загрузка новинок...
                 </div>
               ) : (
-                <div 
-                  ref={novinkiScrollRef}
-                  onScroll={handleNovinkiScroll}
-                  className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar select-none scroll-smooth min-h-[200px]"
-                >
-                  {novinkiEndless.map((item, idx) => (
-                    <div
-                      key={`novinki-endless-${item.id}-${idx}`}
-                      onClick={() => setSearchParams({ mangaId: item.id })}
-                      className="w-[125px] sm:w-[145px] shrink-0 group cursor-pointer space-y-1.5"
-                    >
-                      <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-md border border-white/5 relative bg-[#18191d]">
-                        <img 
-                          src={item.cover} 
-                          alt="" 
-                          onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          referrerPolicy="no-referrer"
-                          loading="lazy"
-                        />
-                        <div className="absolute top-1.5 left-1.5 px-1 bg-[#121316] rounded-md text-[8px] border border-white/5 font-bold text-slate-300">
-                          {item.genres[0]}
+                <div className="relative overflow-hidden w-full bg-[#18191d]/40 rounded-3xl p-5 border border-white/5">
+                  <style>{`
+                    @keyframes slideMarqueeLeft {
+                      0% { transform: translateX(0); }
+                      100% { transform: translateX(-50%); }
+                    }
+                    .animate-marquee-left {
+                      display: flex;
+                      gap: 16px;
+                      width: max-content;
+                      animation: slideMarqueeLeft 45s linear infinite;
+                    }
+                    .animate-marquee-left:hover {
+                      animation-play-state: paused;
+                    }
+                  `}</style>
+                  <div className="animate-marquee-left">
+                    {/* Original copy */}
+                    {novinkiEndless.map((item, idx) => (
+                      <div
+                        key={`novinki-endless-${item.id}-${idx}`}
+                        onClick={() => setSearchParams({ mangaId: item.id })}
+                        className="w-[125px] sm:w-[145px] shrink-0 group cursor-pointer space-y-1.5"
+                      >
+                        <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-md border border-white/5 relative bg-[#18191d]">
+                          <img 
+                            src={item.cover} 
+                            alt="" 
+                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                          />
+                          <div className="absolute top-1.5 left-1.5 px-1 bg-[#121316] rounded-md text-[8px] border border-white/5 font-bold text-slate-300">
+                            {item.genres[0]}
+                          </div>
                         </div>
+                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-1">
+                          {item.title}
+                        </h4>
                       </div>
-                      <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-1">
-                        {item.title}
-                      </h4>
-                    </div>
-                  ))}
-                  {loadingNovinki && (
-                    <div className="w-[145px] shrink-0 flex flex-col items-center justify-center p-3 text-center bg-white/5 rounded-2xl">
-                      <Loader2 className="w-5 h-5 text-[#FF5C00] animate-spin" />
-                      <span className="text-[9px] text-slate-500 font-bold uppercase mt-2">Loading...</span>
-                    </div>
-                  )}
+                    ))}
+                    {/* Duplicate copy for a perfect seamless infinite look */}
+                    {novinkiEndless.map((item, idx) => (
+                      <div
+                        key={`novinki-endless-dup-${item.id}-${idx}`}
+                        onClick={() => setSearchParams({ mangaId: item.id })}
+                        className="w-[125px] sm:w-[145px] shrink-0 group cursor-pointer space-y-1.5"
+                      >
+                        <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-md border border-white/5 relative bg-[#18191d]">
+                          <img 
+                            src={item.cover} 
+                            alt="" 
+                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                          />
+                          <div className="absolute top-1.5 left-1.5 px-1 bg-[#121316] rounded-md text-[8px] border border-white/5 font-bold text-slate-300">
+                            {item.genres[0]}
+                          </div>
+                        </div>
+                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-1">
+                          {item.title}
+                        </h4>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* SECTION 5: КАТАЛОГ С БЕСКОНЕЧНЫМ СКРОЛЛОМ, ТИПАМИ И СОРТИРОВКОЙ */}
-            <div className="pt-8 border-t border-white/5 space-y-6">
-              
-              {/* Filter tools toolbar block */}
-              <div className="bg-[#18191d] rounded-3xl border border-white/5 p-5 md:p-6 space-y-5">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-4">
-                  <div className="space-y-1">
-                    <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                      <Sliders className="w-4 h-4 text-[#FF5C00]" /> Каталог KamiManga
-                    </h2>
-                    <p className="text-[10px] text-[#7d8291] font-semibold">Используйте фильтры для тонкой сортировки по жанрам, странам и актуальным статусам.</p>
-                  </div>
-                  
-                  <button 
-                    onClick={() => {
-                      setFilterType('all');
-                      setFilterStatus('all');
-                      setFilterGenre('all');
-                      setCatalogSort('followedCount');
-                      setSearchQuery('');
-                    }}
-                    className="text-[10px] font-black text-[#FF5C00] uppercase tracking-wider hover:opacity-80 transition-opacity border border-[#FF5C00]/30 px-3 py-1.5 rounded-lg bg-[#FF5C00]/5 cursor-pointer"
-                  >
-                    Сбросить фильтры
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                  
-                  {/* Filter A: Type */}
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Тип произведения</span>
-                    <select
-                      value={filterType}
-                      onChange={(e) => setFilterType(e.target.value)}
-                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
-                    >
-                      <option value="all">Все форматы</option>
-                      <option value="manga">Манга (Япония)</option>
-                      <option value="manhwa">Манхва (Корея)</option>
-                      <option value="manhua">Маньхуа (Китай)</option>
-                    </select>
-                  </div>
-
-                  {/* Filter B: Status */}
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Статус релиза</span>
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
-                    >
-                      <option value="all">Все статусы</option>
-                      <option value="ongoing">Онгоинг (Выпуск)</option>
-                      <option value="completed">Завершен полностью</option>
-                    </select>
-                  </div>
-
-                  {/* Filter C: Genre tags */}
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Тематика и Жанры</span>
-                    <select
-                      value={filterGenre}
-                      onChange={(e) => setFilterGenre(e.target.value)}
-                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
-                    >
-                      <option value="all">Любой жанр</option>
-                      {allUniqueGenres.map(g => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Filter D: Sorting parameters */}
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Сортировка списка</span>
-                    <select
-                      value={catalogSort}
-                      onChange={(e) => setCatalogSort(e.target.value)}
-                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
-                    >
-                      <option value="followedCount">По популярности</option>
-                      <option value="rating">По рейтингу</option>
-                      <option value="createdAt">По новизне добавления</option>
-                    </select>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Feed Card Grid layout catalog */}
-              {catalogMangas.length === 0 && !catalogLoading ? (
-                <div className="py-20 text-center text-slate-500 uppercase font-black text-xs tracking-widest border border-white/5 border-dashed rounded-3xl bg-[#18191d]">
-                  По заданным параметрам ничего не найдено
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                    {catalogMangas.map((m, idx) => {
-                      const isFaved = favorites.includes(m.id);
-                      return (
-                        <div 
-                          key={`catmanga-${m.id}-${idx}`}
-                          onClick={() => setSearchParams({ mangaId: m.id })}
-                          className="group bg-[#18191d] border border-white/5 rounded-2xl overflow-hidden hover:border-[#FF5C00]/40 transition-all duration-300 flex flex-col justify-between cursor-pointer shadow-lg hover:shadow-2xl"
-                        >
-                          <div className="relative aspect-[2/3] w-full overflow-hidden bg-black/40">
-                            <img 
-                              src={m.cover} 
-                              alt={m.title} 
-                              onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                              referrerPolicy="no-referrer"
-                              loading="lazy"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
-
-                            {/* Hearts bookmark toggle indicator */}
-                            <button 
-                              onClick={(e) => toggleFavoriteItem(m.id, e)}
-                              className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 hover:bg-[#FF5C00] text-white hover:text-black transition-all z-20"
-                            >
-                              <Heart className={`w-3.5 h-3.5 ${isFaved ? 'fill-current text-[#FF5C00]' : ''}`} />
-                            </button>
-
-                            {/* Floating indicators of status */}
-                            <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 text-[8px] font-black text-[#FF5C00] uppercase rounded">
-                              {m.status}
-                            </span>
-
-                            {/* Average rate */}
-                            <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/50 backdrop-blur-sm rounded text-[8.5px] text-white font-bold flex items-center gap-0.5 border border-white/5">
-                              <Star className="w-2.5 h-2.5 fill-current text-yellow-500" /> {m.rating}
-                            </div>
-                          </div>
-
-                          <div className="p-3.5 space-y-1.5 flex-grow flex flex-col justify-between h-20 bg-[#18191d]">
-                            <h4 className="font-extrabold text-[8.5px] text-[#FF5C00] uppercase tracking-widest truncate">
-                              {m.originalTitle || "MANGA INDEX"}
-                            </h4>
-                            <h3 className="font-black text-xs text-white group-hover:text-[#FF5C00] transition-colors leading-snug line-clamp-1">
-                              {m.title}
-                            </h3>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Vertical Infinite Scroll Indicator block */}
-                  {catalogLoading && (
-                    <div className="py-8 flex flex-col items-center justify-center">
-                      <Loader2 className="w-8 h-8 text-[#FF5C00] animate-spin mb-2" />
-                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest animate-pulse">
-                        Загрузка бесконечного количества материалов...
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
 
             </div>
 
