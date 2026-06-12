@@ -153,7 +153,7 @@ const Manga: React.FC = () => {
   const [catalogHasMore, setCatalogHasMore] = useState<boolean>(true);
   const [catalogLimit] = useState<number>(24);
   const [catalogSort, setCatalogSort] = useState<string>('followedCount'); // followedCount, createdAt, rating
-  const [catalogSource, setCatalogSource] = useState<string>('remanga'); // all, mangadex, shikimori, remanga, mangalib, readmanga
+  const [catalogSource, setCatalogSource] = useState<string>('mangadex'); // all, mangadex, shikimori, remanga, mangalib, readmanga
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Catalog Filters
@@ -292,23 +292,23 @@ const Manga: React.FC = () => {
     setLoadingLists5(true);
     try {
       // 1. Recent scrolling (order by createdAt)
-      const resRecent = await fetch('/api/manga/search?limit=24&order=createdAt&source=remanga');
+      const resRecent = await fetch('/api/manga/search?limit=24&order=createdAt&source=mangadex');
       if (resRecent.ok) {
         const data = await resRecent.json();
         setRecentAdditions(data.results || []);
       }
 
       // 2. Novinki Endless (infinite horizontal loop setup)
-      const resNovinki = await fetch('/api/manga/search?limit=24&offset=24&order=createdAt&source=remanga');
+      const resNovinki = await fetch('/api/manga/search?limit=24&offset=24&order=createdAt&source=mangadex');
       if (resNovinki.ok) {
         const data = await resNovinki.json();
         setNovinkiEndless(data.results || []);
       }
 
       // 3. Three Columns of 5
-      const resNov5 = await fetch('/api/manga/search?limit=5&order=createdAt&source=remanga');
-      const resRead5 = await fetch('/api/manga/search?limit=5&order=latestUploadedChapter&source=remanga');
-      const resPop5 = await fetch('/api/manga/search?limit=5&order=followedCount&source=remanga');
+      const resNov5 = await fetch('/api/manga/search?limit=5&order=createdAt&source=mangadex');
+      const resRead5 = await fetch('/api/manga/search?limit=5&order=latestUploadedChapter&source=mangadex');
+      const resPop5 = await fetch('/api/manga/search?limit=5&order=followedCount&source=mangadex');
 
       if (resNov5.ok) setNovinki5((await resNov5.json()).results || []);
       if (resRead5.ok) setNowReading5((await resRead5.json()).results || []);
@@ -385,7 +385,7 @@ const Manga: React.FC = () => {
     setLoadingRecent(true);
     const nextOfs = recentOffset + 24;
     try {
-      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=remanga`);
+      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=mangadex`);
       if (res.ok) {
         const data = await res.json();
         const results = data.results || [];
@@ -407,7 +407,7 @@ const Manga: React.FC = () => {
     setLoadingNovinki(true);
     const nextOfs = novinkiOffset + 24;
     try {
-      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=remanga`);
+      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=mangadex`);
       if (res.ok) {
         const data = await res.json();
         const results = data.results || [];
