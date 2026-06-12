@@ -286,9 +286,8 @@ const Layout: React.FC = () => {
                   <Link to="/admin" className={`${isActive('/admin') ? 'text-red-500' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
                 )}
 
-                {/* Tactile Toggle */}
-                <div className="flex items-center gap-2 bg-black/45 border border-white/5 rounded-full p-1 pl-3.5 pr-1 hover:border-white/10 transition-all select-none">
-                  <span className="text-[8.5px] font-black uppercase tracking-wider text-[#FF5C00]">МАНГА</span>
+                {/* Minimalist Switch */}
+                <div className="flex items-center gap-2 text-[10px] font-bold select-none border-l border-white/10 pl-5">
                   <button
                     onClick={() => {
                       if (window.location.hostname.includes('kamianime.club')) {
@@ -298,11 +297,13 @@ const Layout: React.FC = () => {
                         window.location.reload();
                       }
                     }}
-                    className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#FF5C00]"
+                    className="text-slate-500 hover:text-white transition-colors cursor-pointer uppercase tracking-wider"
                     title="Переключить на Аниме"
                   >
-                    <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-all duration-300 translate-x-[16px]" />
+                    Аниме
                   </button>
+                  <span className="text-white/20 select-none">/</span>
+                  <span className="text-[#FF5C00] font-black uppercase tracking-wider relative after:absolute after:bottom-[-4px] after:left-0 after:right-0 after:h-[2px] after:bg-[#FF5C00]">Манга</span>
                 </div>
               </nav>
             ) : (
@@ -348,9 +349,10 @@ const Layout: React.FC = () => {
                   <Link to="/admin" className={`${isActive('/admin') ? 'text-red-500' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
                 )}
 
-                {/* Tactile Toggle */}
-                <div className="flex items-center gap-2 bg-black/45 border border-white/5 rounded-full p-1 pl-3.5 pr-1 hover:border-white/10 transition-all select-none">
-                  <span className="text-[8.5px] font-black uppercase tracking-wider text-primary">АНИМЕ</span>
+                {/* Minimalist Switch */}
+                <div className="flex items-center gap-2 text-[10px] font-bold select-none border-l border-white/10 pl-5">
+                  <span className="text-primary font-black uppercase tracking-wider relative after:absolute after:bottom-[-4px] after:left-0 after:right-0 after:h-[2px] after:bg-primary">Аниме</span>
+                  <span className="text-white/20 select-none">/</span>
                   <button
                     onClick={() => {
                       if (window.location.hostname.includes('kamianime.club')) {
@@ -360,10 +362,10 @@ const Layout: React.FC = () => {
                         window.location.reload();
                       }
                     }}
-                    className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#8B5CF6]"
+                    className="text-slate-500 hover:text-white transition-colors cursor-pointer uppercase tracking-wider"
                     title="Переключить на Мангу"
                   >
-                    <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-all duration-300 translate-x-0" />
+                    Манга
                   </button>
                 </div>
               </nav>
@@ -501,34 +503,43 @@ const Layout: React.FC = () => {
         
         <nav className="flex-grow overflow-y-auto p-6 flex flex-col gap-2">
           {/* Mobile Selector Toggle */}
-          <div className="flex items-center justify-between bg-black/45 border border-white/5 rounded-2xl p-3 mb-4 select-none">
-            <span className={`text-[10px] font-black uppercase tracking-wider ${isMangaMode ? 'text-[#FF5C00]' : 'text-primary'}`}>
-              {isMangaMode ? "Режим: Манга" : "Режим: Аниме"}
-            </span>
-            <button
-              onClick={() => {
-                const isKami = window.location.hostname.includes('kamianime.club');
-                if (isMangaMode) {
-                  if (isKami) {
-                    window.location.href = 'https://kamianime.club/';
-                  } else {
-                    localStorage.removeItem('kami_manga_mode');
-                    window.location.reload();
+          <div className="flex items-center justify-between text-xs font-bold select-none border-b border-white/5 pb-4 mb-4">
+            <span className="text-slate-500 uppercase tracking-wider text-[10px]">Режим:</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const isKami = window.location.hostname.includes('kamianime.club');
+                  if (isMangaMode) {
+                    if (isKami) {
+                      window.location.href = 'https://kamianime.club/';
+                    } else {
+                      localStorage.removeItem('kami_manga_mode');
+                      window.location.reload();
+                    }
                   }
-                } else {
-                  if (isKami) {
-                    window.location.href = 'https://manga.kamianime.club/';
-                  } else {
-                    localStorage.setItem('kami_manga_mode', 'true');
-                    window.location.reload();
+                }}
+                className={`text-[10px] uppercase tracking-wider transition-colors pt-0.5 ${!isMangaMode ? 'text-primary font-black scale-105' : 'text-slate-500 hover:text-white'}`}
+              >
+                Аниме
+              </button>
+              <span className="text-white/10">/</span>
+              <button
+                onClick={() => {
+                  const isKami = window.location.hostname.includes('kamianime.club');
+                  if (!isMangaMode) {
+                    if (isKami) {
+                      window.location.href = 'https://manga.kamianime.club/';
+                    } else {
+                      localStorage.setItem('kami_manga_mode', 'true');
+                      window.location.reload();
+                    }
                   }
-                }
-              }}
-              className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${isMangaMode ? 'bg-[#FF5C00]' : 'bg-[#8B5CF6]'}`}
-              title="Переключить режим"
-            >
-              <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-all duration-300 ${isMangaMode ? 'translate-x-[16px]' : 'translate-x-0'}`} />
-            </button>
+                }}
+                className={`text-[10px] uppercase tracking-wider transition-colors pt-0.5 ${isMangaMode ? 'text-[#FF5C00] font-black scale-105' : 'text-slate-500 hover:text-white'}`}
+              >
+                Манга
+              </button>
+            </div>
           </div>
 
           {isMangaMode ? (
