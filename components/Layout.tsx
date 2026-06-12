@@ -36,16 +36,35 @@ const findRandomAnimeWithPlayer = async (): Promise<string | null> => {
   return null;
 };
 
-export const Logo: React.FC<{ className?: string }> = ({ className }) => (
-  <div className={`flex items-center gap-2 select-none ${className}`}>
-    <div className="w-9 h-9 bg-gradient-to-tr from-primary to-accent rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20 hover:scale-105 transition-transform duration-300">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-white"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+export const Logo: React.FC<{ className?: string }> = ({ className }) => {
+  const isMangaMode = typeof window !== 'undefined' && (
+    window.location.hostname.startsWith('manga.') || 
+    localStorage.getItem('kami_manga_mode') === 'true'
+  );
+
+  return (
+    <div className={`flex items-center gap-2 select-none ${className}`}>
+      <div className={`w-9 h-9 ${isMangaMode ? 'bg-gradient-to-tr from-[#FF5C00] to-[#FF8C00] shadow-[#FF5C00]/25' : 'bg-gradient-to-tr from-primary to-accent shadow-primary/20'} rounded-lg flex items-center justify-center text-white shadow-lg hover:scale-105 transition-transform duration-300`}>
+        {isMangaMode ? (
+          <BookOpen className="w-5 h-5 text-white" />
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-white"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+        )}
+      </div>
+      <div className="font-display text-[20px] font-black tracking-tighter text-white leading-none uppercase">
+        {isMangaMode ? (
+          <>
+            KAMI<span className="text-[#FF5C00] font-black">MANGA</span>
+          </>
+        ) : (
+          <>
+            KAMI<span className="text-primary font-black">ANIME</span>
+          </>
+        )}
+      </div>
     </div>
-    <div className="font-display text-[22px] font-black tracking-tighter text-white leading-none uppercase">
-      KAMI<span className="text-primary font-black">ANIME</span>
-    </div>
-  </div>
-);
+  );
+};
 
 const Layout: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -58,6 +77,11 @@ const Layout: React.FC = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+
+  const isMangaMode = typeof window !== 'undefined' && (
+    window.location.hostname.startsWith('manga.') || 
+    localStorage.getItem('kami_manga_mode') === 'true'
+  );
   
   // Crunchyroll Watchlist
   const [watchlist, setWatchlist] = useState<any[]>([]);
@@ -248,49 +272,104 @@ const Layout: React.FC = () => {
               </button>
             </div>
 
-            <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400 relative">
-              <Link to="/" className={`${isActive('/') ? 'text-primary' : 'hover:text-white'} transition-all`}>Главная</Link>
-              
-              {/* Browse Dropdown */}
-              <div 
-                className="relative group py-2"
-                onMouseEnter={() => setIsCatalogOpen(true)}
-                onMouseLeave={() => setIsCatalogOpen(false)}
-              >
-                <button 
-                  className={`flex items-center gap-1.5 ${isActive('/catalog') ? 'text-primary' : 'hover:text-white'} transition-all font-black uppercase`}
-                >
-                  Просмотр <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:rotate-180" />
-                </button>
-                {isCatalogOpen && (
-                  <div className="absolute top-full left-0 mt-1.5 w-64 bg-[#141519]/95 border border-white/10 rounded-2xl p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150 z-50">
-                    <div className="space-y-3">
-                      <Link to="/catalog" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Все Аниме</Link>
-                      <Link to="/catalog?sort=popularity" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Популярные</Link>
-                      <Link to="/catalog?sort=new" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Новинки Сезона</Link>
-                      <Link to="/catalog?status=ongoing" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Онгоинги</Link>
-                      <div className="h-px bg-white/5 my-2" />
-                      <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">Рекомендуемые жанры</div>
-                      <Link to="/catalog?genre=Экшен" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Экшен</Link>
-                      <Link to="/catalog?genre=Комедия" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Комедия</Link>
-                      <Link to="/catalog?genre=Фэнтези" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Фэнтези</Link>
-                    </div>
-                  </div>
+            {isMangaMode ? (
+              <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400 relative">
+                <Link to="/" className={`${isActive('/') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all`}>Главная</Link>
+                <Link to="/manga" className={`${isActive('/manga') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all flex items-center gap-1`}><BookOpen className="w-3.5 h-3.5" /> Каталог Манги</Link>
+                {user?.role === 'admin' && (
+                  <Link to="/games" className={`${isActive('/games') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
                 )}
-              </div>
+                <Link to="/news" className={`${isActive('/news') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all`}>Новости</Link>
+                <Link to="/forum" className={`${isActive('/forum') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all`}>Форум</Link>
+                <Link to="/community" className={`${isActive('/community') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all`}>Сообщество</Link>
+                
+                {user?.role === 'admin' && (
+                  <Link to="/admin" className={`${isActive('/admin') ? 'text-red-500' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
+                )}
 
-              <Link to="/manga" className={`${isActive('/manga') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><BookOpen className="w-3.5 h-3.5" /> Манга</Link>
-              {user?.role === 'admin' && (
-                <Link to="/games" className={`${isActive('/games') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
-              )}
-              <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'hover:text-white'} transition-all`}>Новости</Link>
-              <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'hover:text-white'} transition-all`}>Форум</Link>
-              <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'hover:text-white'} transition-all`}>Сообщество</Link>
-              
-              {user?.role === 'admin' && (
-                <Link to="/admin" className={`${isActive('/admin') ? 'text-red-500' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
-              )}
-            </nav>
+                {/* Tactile Toggle */}
+                <div className="flex items-center gap-2 bg-black/45 border border-white/5 rounded-full p-1 pl-3.5 pr-1 hover:border-white/10 transition-all select-none">
+                  <span className="text-[8.5px] font-black uppercase tracking-wider text-[#FF5C00]">МАНГА</span>
+                  <button
+                    onClick={() => {
+                      if (window.location.hostname.includes('kamianime.club')) {
+                        window.location.href = 'https://kamianime.club';
+                      } else {
+                        localStorage.removeItem('kami_manga_mode');
+                        window.location.reload();
+                      }
+                    }}
+                    className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#FF5C00]"
+                    title="Переключить на Аниме"
+                  >
+                    <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-all duration-300 translate-x-[16px]" />
+                  </button>
+                </div>
+              </nav>
+            ) : (
+              <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400 relative">
+                <Link to="/" className={`${isActive('/') ? 'text-primary' : 'hover:text-white'} transition-all`}>Главная</Link>
+                
+                {/* Browse Dropdown */}
+                <div 
+                  className="relative group py-2"
+                  onMouseEnter={() => setIsCatalogOpen(true)}
+                  onMouseLeave={() => setIsCatalogOpen(false)}
+                >
+                  <button 
+                    className={`flex items-center gap-1.5 ${isActive('/catalog') ? 'text-primary' : 'hover:text-white'} transition-all font-black uppercase`}
+                  >
+                    Просмотр <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:rotate-180" />
+                  </button>
+                  {isCatalogOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-64 bg-[#141519]/95 border border-white/10 rounded-2xl p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-150 z-50">
+                      <div className="space-y-3">
+                        <Link to="/catalog" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Все Аниме</Link>
+                        <Link to="/catalog?sort=popularity" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Популярные</Link>
+                        <Link to="/catalog?sort=new" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Новинки Сезона</Link>
+                        <Link to="/catalog?status=ongoing" className="block text-[10px] font-black uppercase tracking-wider text-slate-300 hover:text-primary transition-colors">Онгоинги</Link>
+                        <div className="h-px bg-white/5 my-2" />
+                        <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">Рекомендуемые жанры</div>
+                        <Link to="/catalog?genre=Экшен" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Экшен</Link>
+                        <Link to="/catalog?genre=Комедия" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Комедия</Link>
+                        <Link to="/catalog?genre=Фэнтези" className="block text-[9px] font-bold text-slate-400 hover:text-white transition-colors">Фэнтези</Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Link to="/manga" className={`${isActive('/manga') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><BookOpen className="w-3.5 h-3.5" /> Манга</Link>
+                {user?.role === 'admin' && (
+                  <Link to="/games" className={`${isActive('/games') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
+                )}
+                <Link to="/news" className={`${isActive('/news') ? 'text-primary' : 'hover:text-white'} transition-all`}>Новости</Link>
+                <Link to="/forum" className={`${isActive('/forum') ? 'text-primary' : 'hover:text-white'} transition-all`}>Форум</Link>
+                <Link to="/community" className={`${isActive('/community') ? 'text-primary' : 'hover:text-white'} transition-all`}>Сообщество</Link>
+                
+                {user?.role === 'admin' && (
+                  <Link to="/admin" className={`${isActive('/admin') ? 'text-red-500' : 'text-red-400 hover:text-red-300'} transition-all`}>Админ</Link>
+                )}
+
+                {/* Tactile Toggle */}
+                <div className="flex items-center gap-2 bg-black/45 border border-white/5 rounded-full p-1 pl-3.5 pr-1 hover:border-white/10 transition-all select-none">
+                  <span className="text-[8.5px] font-black uppercase tracking-wider text-primary">АНИМЕ</span>
+                  <button
+                    onClick={() => {
+                      if (window.location.hostname.includes('kamianime.club')) {
+                        window.location.href = 'https://manga.kamianime.club';
+                      } else {
+                        localStorage.setItem('kami_manga_mode', 'true');
+                        window.location.reload();
+                      }
+                    }}
+                    className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#8B5CF6]"
+                    title="Переключить на Мангу"
+                  >
+                    <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-all duration-300 translate-x-0" />
+                  </button>
+                </div>
+              </nav>
+            )}
 
             <div className="flex items-center gap-3 relative">
               {/* Watchlist Ribbon Hover Popover */}
@@ -422,63 +501,120 @@ const Layout: React.FC = () => {
           </form>
         </div>
         
-        <nav className="flex-1 overflow-y-auto p-6 flex flex-col gap-2">
-          <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-            Главная
-          </Link>
-          
-          <div className="flex flex-col">
-            <button 
-              onClick={() => setIsCatalogOpen(!isCatalogOpen)}
-              className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors flex items-center justify-between ${isActive('/catalog') ? 'text-primary' : 'text-slate-300 hover:bg-white/5'}`}
+        <nav className="flex-grow overflow-y-auto p-6 flex flex-col gap-2">
+          {/* Mobile Selector Toggle */}
+          <div className="flex items-center justify-between bg-black/45 border border-white/5 rounded-2xl p-3 mb-4 select-none">
+            <span className={`text-[10px] font-black uppercase tracking-wider ${isMangaMode ? 'text-[#FF5C00]' : 'text-primary'}`}>
+              {isMangaMode ? "Режим: Манга" : "Режим: Аниме"}
+            </span>
+            <button
+              onClick={() => {
+                if (isMangaMode) {
+                  if (window.location.hostname.includes('kamianime.club')) {
+                    window.location.href = 'https://kamianime.club';
+                  } else {
+                    localStorage.removeItem('kami_manga_mode');
+                    window.location.reload();
+                  }
+                } else {
+                  if (window.location.hostname.includes('kamianime.club')) {
+                    window.location.href = 'https://manga.kamianime.club';
+                  } else {
+                    localStorage.setItem('kami_manga_mode', 'true');
+                    window.location.reload();
+                  }
+                }
+              }}
+              className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${isMangaMode ? 'bg-[#FF5C00]' : 'bg-[#8B5CF6]'}`}
+              title="Переключить режим"
             >
-              Каталог
-              <ChevronDown className={`w-4 h-4 transition-transform ${isCatalogOpen ? 'rotate-180' : ''}`} />
+              <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-all duration-300 ${isMangaMode ? 'translate-x-[16px]' : 'translate-x-0'}`} />
             </button>
-            
-            {isCatalogOpen && (
-              <div className="flex flex-col gap-1 pl-4 pb-2 animate-in slide-in-from-top-2 duration-200">
-                <button 
-                  onClick={async () => {
-                    const id = await findRandomAnimeWithPlayer();
-                    if (id) navigate(`/anime/${id}`);
-                    setIsMenuOpen(false);
-                  }}
-                  className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 text-left flex items-center gap-2"
-                >
-                  <Shuffle className="w-3 h-3" /> Случайное
-                </button>
-                <Link to="/catalog?status=ongoing" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2">
-                  <Crown className="w-3 h-3 text-primary" /> Онгоинги
-                </Link>
-                <Link to="/catalog" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5">
-                  Все аниме
-                </Link>
-              </div>
-            )}
           </div>
 
-          <Link to="/manga" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/manga') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-            Манга
-          </Link>
+          {isMangaMode ? (
+            <>
+              <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Главная
+              </Link>
+              <Link to="/manga" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/manga') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Каталог Манги
+              </Link>
+              {user?.role === 'admin' && (
+                <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                  Игры
+                </Link>
+              )}
+              <Link to="/news" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/news') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Новости
+              </Link>
+              <Link to="/forum" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/forum') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Форум
+              </Link>
+              <Link to="/community" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/community') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Сообщество
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Главная
+              </Link>
+              
+              <div className="flex flex-col">
+                <button 
+                  onClick={() => setIsCatalogOpen(!isCatalogOpen)}
+                  className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors flex items-center justify-between ${isActive('/catalog') ? 'text-primary' : 'text-slate-300 hover:bg-white/5'}`}
+                >
+                  Каталог
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isCatalogOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {isCatalogOpen && (
+                  <div className="flex flex-col gap-1 pl-4 pb-2 animate-in slide-in-from-top-2 duration-200">
+                    <button 
+                      onClick={async () => {
+                        const id = await findRandomAnimeWithPlayer();
+                        if (id) navigate(`/anime/${id}`);
+                        setIsMenuOpen(false);
+                      }}
+                      className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 text-left flex items-center gap-2"
+                    >
+                      <Shuffle className="w-3 h-3" /> Случайное
+                    </button>
+                    <Link to="/catalog?status=ongoing" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2">
+                      <Crown className="w-3 h-3 text-primary" /> Онгоинги
+                    </Link>
+                    <Link to="/catalog" className="p-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5">
+                      Все аниме
+                    </Link>
+                  </div>
+                )}
+              </div>
 
-          {user?.role === 'admin' && (
-            <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-              Игры
-            </Link>
+              <Link to="/manga" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/manga') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Манга
+              </Link>
+
+              {user?.role === 'admin' && (
+                <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                  Игры
+                </Link>
+              )}
+
+              <Link to="/news" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/news') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Новости
+              </Link>
+              
+              <Link to="/forum" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/forum') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Форум
+              </Link>
+
+              <Link to="/community" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/community') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
+                Сообщество
+              </Link>
+            </>
           )}
-
-          <Link to="/news" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/news') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-            Новости
-          </Link>
-          
-          <Link to="/forum" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/forum') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-            Форум
-          </Link>
-
-          <Link to="/community" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/community') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-            Сообщество
-          </Link>
           
           {user?.role === 'admin' && (
             <Link to="/admin" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/admin') ? 'bg-red-500 text-white' : 'text-red-400 hover:bg-white/5'}`}>

@@ -71,6 +71,11 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const isMangaMode = typeof window !== 'undefined' && (
+    window.location.hostname.startsWith('manga.') || 
+    localStorage.getItem('kami_manga_mode') === 'true'
+  );
+
   return (
     <Router>
       <AuthEventHandler />
@@ -80,7 +85,7 @@ const App: React.FC = () => {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/debug-logs" element={<DebugLogs />} />
           <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
+            <Route index element={isMangaMode ? <Manga /> : <Home />} />
             <Route path="catalog" element={<Catalog />} />
             <Route path="manga" element={<Manga />} />
             <Route path="games" element={<AdminRoute><Games /></AdminRoute>} />

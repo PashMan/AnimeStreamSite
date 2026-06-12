@@ -733,8 +733,11 @@ app.get('/api/manga/search', async (c) => {
 
 app.get('/api/manga/:id/chapters', async (c) => {
   const mangaId = c.req.param('id');
-  const url = `https://api.mangadex.org/manga/${mangaId}/feed?translatedLanguage[]=ru&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
-  try {
+  let chapters: any[] = [];
+  let isLicensed = false;
+
+  const fetchChaptersForLang = async (langParam: string) => {
+    const url = `https://api.mangadex.org/manga/${mangaId}/feed?${langParam}order[chapter]=asc&limit=500&includes[]=scanlation_group`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -742,12 +745,18 @@ app.get('/api/manga/:id/chapters', async (c) => {
     });
     const data = await res.json();
     if (!data || !data.data) {
-      return c.json({ chapters: [] });
+      return [];
     }
-    const chapters = data.data.map((ch: any) => {
+    return data.data.map((ch: any) => {
       const attrs = ch.attributes || {};
       const sg = ch.relationships?.find((r: any) => r.type === 'scanlation_group');
-      const groupName = sg?.attributes?.name || 'Внешний переводчик';
+      let groupName = sg?.attributes?.name || 'Внешний переводчик';
+      const rawLang = attrs.translatedLanguage;
+      if (rawLang === 'en') {
+        groupName += ' (Английский источник)';
+      } else if (rawLang && rawLang !== 'ru') {
+        groupName += ` (${rawLang.toUpperCase()} источник)`;
+      }
       return {
         id: ch.id,
         chapter: attrs.chapter || '0',
@@ -757,15 +766,37 @@ app.get('/api/manga/:id/chapters', async (c) => {
         publishAt: attrs.publishAt
       };
     });
+  };
+
+  try {
+    // Stage 1: Try Russian Chapters
+    chapters = await fetchChaptersForLang('translatedLanguage[]=ru&');
+
+    // Stage 2: Try English Fallback Chapters
+    if (chapters.length === 0) {
+      chapters = await fetchChaptersForLang('translatedLanguage[]=en&');
+    }
+
+    // Stage 3: Try Any Translation
+    if (chapters.length === 0) {
+      chapters = await fetchChaptersForLang('');
+    }
+
+    // If completely empty, mark as licensed
+    if (chapters.length === 0) {
+      isLicensed = true;
+    }
+
     // Sort chapters numerically
     chapters.sort((a: any, b: any) => {
       const numA = parseFloat(a.chapter) || 0;
       const numB = parseFloat(b.chapter) || 0;
       return numA - numB;
     });
-    return c.json({ chapters });
+
+    return c.json({ chapters, isLicensed });
   } catch (err: any) {
-    return c.json({ error: err.message }, 500);
+    return c.json({ chapters: [], isLicensed: true, error: err.message });
   }
 });
 

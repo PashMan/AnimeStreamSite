@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Star, Sparkles, ArrowLeft, ChevronRight, ChevronLeft, Heart, Search, Loader2 } from 'lucide-react';
+import { BookOpen, Star, Sparkles, ArrowLeft, ChevronRight, ChevronLeft, Heart, Search, Loader2, ShieldAlert, BookX, ChevronDown, Layers, Settings, AlignJustify } from 'lucide-react';
 import SEO from '../components/SEO';
 import { useAuth } from '../context/AuthContext';
 
@@ -35,6 +35,8 @@ const Manga: React.FC = () => {
   const [selectedManga, setSelectedManga] = useState<MangaItem | null>(null);
   const [chapters, setChapters] = useState<ChapterItem[]>([]);
   const [chaptersLoading, setChaptersLoading] = useState<boolean>(false);
+  const [isMangaLicensed, setIsMangaLicensed] = useState<boolean>(false);
+  const [readerMode, setReaderMode] = useState<'pages' | 'scroll'>('scroll'); // Default to popular vertical continuous scroll
   
   const [activeChapter, setActiveChapter] = useState<ChapterItem | null>(null);
   const [pages, setPages] = useState<string[]>([]);
@@ -75,12 +77,14 @@ const Manga: React.FC = () => {
   const selectMangaItem = async (manga: MangaItem) => {
     setSelectedManga(manga);
     setChapters([]);
+    setIsMangaLicensed(false);
     setChaptersLoading(true);
     try {
       const res = await fetch(`/api/manga/${manga.id}/chapters`);
       if (res.ok) {
         const data = await res.json();
         setChapters(data.chapters || []);
+        setIsMangaLicensed(!!data.isLicensed);
       }
     } catch (e) {
       console.error("Failed to load chapters", e);
@@ -332,29 +336,43 @@ const Manga: React.FC = () => {
 
                   {/* Chapters List */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-primary">Русский перевод глав</h4>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-[#FF5C00]">Перевод глав (MangaDex)</h4>
                     
                     {chaptersLoading ? (
                       <div className="py-12 flex flex-col items-center justify-center">
-                        <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
+                        <Loader2 className="w-8 h-8 text-[#FF5C00] animate-spin mb-3" />
                         <span className="text-xs font-black uppercase text-slate-500 tracking-widest">
-                          Загрузка русского перевода глав...
+                          Загрузка перевода глав...
                         </span>
                       </div>
                     ) : chapters.length === 0 ? (
-                      <div className="py-8 text-center text-slate-500 text-sm font-bold uppercase tracking-wider border border-white/5 border-dashed rounded-2xl">
-                        Русские главы не найдены для этого тайтла. Попробуйте другой!
-                      </div>
+                      isMangaLicensed ? (
+                        <div className="py-8 px-6 text-center border-2 border-red-500/20 bg-red-500/5 text-slate-300 text-sm font-bold uppercase tracking-wider rounded-2xl flex flex-col items-center gap-3">
+                          <ShieldAlert className="w-10 h-10 text-red-500 animate-pulse" />
+                          <div className="font-black text-red-500 text-base">Лицензировано правообладателем</div>
+                          <div className="text-[11px] text-slate-400 normal-case font-semibold max-w-md leading-relaxed">
+                            К сожалению, данный тайтл был официально лицензирован правообладателем на территории РФ, и доступ к главам на внешних источниках закрыт.
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-8 px-6 text-center border border-white/5 border-dashed rounded-2xl flex flex-col items-center gap-3">
+                          <BookX className="w-10 h-10 text-slate-600" />
+                          <div className="font-extrabold text-slate-500">Копии не найдены</div>
+                          <div className="text-[11px] text-slate-500 normal-case font-semibold max-w-sm leading-relaxed">
+                            Не удалось получить переводы для этого тайтла. Возможно, он лицензирован или удален.
+                          </div>
+                        </div>
+                      )
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                         {chapters.map((ch) => (
                           <button
                             key={ch.id}
                             onClick={() => startReadingChapter(ch)}
-                            className="p-4 bg-[#23252b] border border-white/5 rounded-2xl hover:border-primary hover:bg-primary/10 text-left transition-all active:scale-95 group/chapter flex items-center justify-between"
+                            className="p-4 bg-[#23252b] border border-white/5 rounded-2xl hover:border-[#FF5C00] hover:bg-[#FF5C00]/10 text-left transition-all active:scale-[0.98] group/chapter flex items-center justify-between cursor-pointer"
                           >
                             <div className="min-w-0 pr-2">
-                              <div className="text-[9px] font-extrabold uppercase text-slate-500 group-hover/chapter:text-primary truncate">
+                              <div className="text-[9px] font-extrabold uppercase text-slate-500 group-hover/chapter:text-[#FF5C00] truncate">
                                 {ch.group}
                               </div>
                               <div className="text-sm font-black text-white">Глава {ch.chapter}</div>
@@ -362,7 +380,7 @@ const Manga: React.FC = () => {
                                 {ch.title}
                               </div>
                             </div>
-                            <ChevronRight className="w-4 h-4 text-slate-600 group-hover/chapter:text-primary transition-transform group-hover/chapter:translate-x-1 shrink-0" />
+                            <ChevronRight className="w-4 h-4 text-slate-600 group-hover/chapter:text-[#FF5C00] transition-transform group-hover/chapter:translate-x-1 shrink-0" />
                           </button>
                         ))}
                       </div>
@@ -375,114 +393,229 @@ const Manga: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Fullscreen Manga Page reader */}
+      {/* Fullscreen Manga Page reader (Mangalib-inspired) */}
       <AnimatePresence>
-        {selectedManga && activeChapter !== null && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0c0d10] z-[120] flex flex-col justify-between"
-          >
-            {/* Top Toolbar */}
-            <div className="bg-[#141519] px-6 py-4 border-b border-white/5 flex items-center justify-between z-50">
-              <div className="flex items-center gap-4 min-w-0">
-                <button 
-                  onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
-                  className="p-2 bg-[#23252b] text-white hover:text-primary rounded-xl transition-colors shrink-0"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div className="min-w-0">
-                  <h3 className="font-extrabold text-xs text-primary uppercase tracking-wider truncate max-w-[200px]">
-                    {selectedManga.title}
-                  </h3>
-                  <h4 className="font-extrabold text-sm text-white truncate">
-                    Глава {activeChapter.chapter}: {activeChapter.title || 'Чтение'}, страница {pagesLoading ? '...' : `${mangaReaderPage + 1}/${pages.length}`}
-                  </h4>
+        {selectedManga && activeChapter !== null && (() => {
+          const activeIndex = chapters.findIndex(c => c.id === activeChapter.id);
+          const prevChapter = activeIndex > 0 ? chapters[activeIndex - 1] : null;
+          const nextChapter = activeIndex < chapters.length - 1 ? chapters[activeIndex + 1] : null;
+
+          return (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-[#0a0a0c] z-[125] flex flex-col justify-between overflow-hidden"
+            >
+              {/* Top Control Toolbar */}
+              <div className="bg-[#121316] px-4 py-3 border-b border-white/5 flex flex-wrap items-center justify-between gap-3 z-50 shadow-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button 
+                    onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
+                    className="p-2.5 bg-white/5 text-slate-300 hover:text-[#FF5C00] hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer"
+                    title="Назад к деталям"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  
+                  <div className="min-w-0">
+                    <h3 className="font-extrabold text-[10px] text-[#FF5C00] uppercase tracking-wider truncate max-w-[140px] md:max-w-[200px]">
+                      {selectedManga.title}
+                    </h3>
+                    
+                    {/* Chapter Select dropdown */}
+                    <div className="relative inline-block text-left mt-0.5 group/chdrop select-none">
+                      <button className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-white hover:text-[#FF5C00] transition-colors focus:outline-none">
+                        <span>Глава {activeChapter.chapter}</span>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Dropdown element */}
+                      <div className="absolute left-0 top-full mt-2 w-64 bg-[#18191d] border border-white/10 rounded-2xl p-2 shadow-2xl overflow-hidden hidden group-hover/chdrop:block hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="text-[9px] font-black tracking-wider text-slate-500 uppercase px-3 py-1.5 border-b border-white/5">
+                          Перейти к главе
+                        </div>
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar p-1 space-y-0.5 mt-1">
+                          {chapters.map((ch) => (
+                            <button
+                              key={ch.id}
+                              onClick={() => startReadingChapter(ch)}
+                              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex flex-col ${
+                                ch.id === activeChapter.id
+                                  ? "bg-[#FF5C00] text-white"
+                                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+                              }`}
+                            >
+                              <span>Глава {ch.chapter}</span>
+                              <span className="text-[9px] opacity-75 truncate">{ch.title || 'Оглавление'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chapter Navigation controls */}
+                <div className="flex items-center gap-2 select-none">
+                  {/* Prev chapter */}
+                  <button
+                    disabled={!prevChapter}
+                    onClick={() => prevChapter && startReadingChapter(prevChapter)}
+                    className="px-3 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-[#FF5C00] disabled:opacity-20 disabled:hover:text-slate-300 disabled:hover:bg-white/5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">Пред.</span>
+                  </button>
+
+                  {/* Mode switcher tab controls (Pages vs Continuous vertical scroll) */}
+                  <div className="bg-black/45 border border-white/5 rounded-xl p-0.5 flex">
+                    <button
+                      onClick={() => setReaderMode('pages')}
+                      className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        readerMode === 'pages'
+                          ? 'bg-[#FF5C00] text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Постранично
+                    </button>
+                    <button
+                      onClick={() => setReaderMode('scroll')}
+                      className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        readerMode === 'scroll'
+                          ? 'bg-[#FF5C00] text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Свиток
+                    </button>
+                  </div>
+
+                  {/* Next chapter */}
+                  <button
+                    disabled={!nextChapter}
+                    onClick={() => nextChapter && startReadingChapter(nextChapter)}
+                    className="px-3 py-2 bg-[#FF5C00]/10 hover:bg-[#FF5C00]/20 text-xs font-black uppercase tracking-wider text-[#FF5C00] disabled:opacity-20 disabled:hover:bg-[#FF5C00]/10 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="hidden sm:inline">След.</span> <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
-              {!pagesLoading && pages.length > 0 && (
-                <div className="flex items-center gap-3 shrink-0">
-                  <button 
-                    disabled={mangaReaderPage === 0}
-                    onClick={() => setMangaReaderPage(prev => prev - 1)}
-                    className="p-3 bg-[#23252b] hover:bg-primary/20 rounded-xl text-white hover:text-primary disabled:opacity-30 disabled:hover:bg-[#23252b] disabled:hover:text-white transition-colors"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button 
-                    disabled={mangaReaderPage === pages.length - 1}
-                    onClick={() => setMangaReaderPage(prev => prev + 1)}
-                    className="p-3 bg-[#23252b] hover:bg-primary/20 rounded-xl text-white hover:text-primary disabled:opacity-30 disabled:hover:bg-[#23252b] disabled:hover:text-white transition-colors"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
+              {/* Reader canvas space */}
+              {pagesLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#0e0f11]">
+                  <Loader2 className="w-12 h-12 text-[#FF5C00] animate-spin mb-4" />
+                  <span className="text-sm font-black uppercase text-slate-400 tracking-widest animate-pulse">
+                    Загрузка страниц главы {activeChapter.chapter}...
+                  </span>
+                </div>
+              ) : pages.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#0e0f11]">
+                  <BookOpen className="w-16 h-16 text-slate-600 mb-4" />
+                  <h3 className="text-lg font-black text-white">Страницы не получены</h3>
+                  <p className="text-xs text-slate-500 mt-2 max-w-sm font-medium">не удалось получить изображения с серверов MangaDex. Пожалуйста, сотрите кэш или попробуйте другую главу.</p>
+                </div>
+              ) : readerMode === 'scroll' ? (
+                /* Mode A: CONTINUOUS VERTICAL SCROLL */
+                <div className="flex-1 overflow-y-auto bg-[#070709] py-6 px-4 flex flex-col items-center gap-6 custom-scrollbar scroll-smooth">
+                  {pages.map((p, idx) => (
+                    <div 
+                      key={idx} 
+                      className="relative max-w-2xl w-full border border-white/5 rounded-2xl bg-black/40 shadow-2xl overflow-hidden"
+                    >
+                      <img 
+                        src={p} 
+                        alt={`Manga page ${idx + 1}`} 
+                        className="w-full object-contain"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                      />
+                      <div className="absolute bottom-3 right-4 bg-black/75 backdrop-blur-md text-[9px] font-bold uppercase tracking-wider text-slate-300 py-1.5 px-3 border border-white/10 rounded-lg">
+                        Страница {idx + 1} / {pages.length}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* End of Chapter notice and Next chapter launcher */}
+                  <div className="w-full max-w-2xl py-12 px-6 bg-white/5 border border-white/5 rounded-3xl text-center space-y-4 mb-8">
+                    <h4 className="text-lg font-black text-white uppercase tracking-tight">Вы прочитали эту главу!</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
+                      Понравилась глава? Вы можете продолжить чтение следующей или вернуться к выбору тайтлов.
+                    </p>
+                    <div className="flex justify-center gap-3">
+                      <button
+                        onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
+                        className="px-5 py-3 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest text-white rounded-xl transition-all cursor-pointer"
+                      >
+                        Закончить чтение
+                      </button>
+                      {nextChapter && (
+                        <button
+                          onClick={() => startReadingChapter(nextChapter)}
+                          className="px-6 py-3 bg-[#FF5C00] hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-widest text-white rounded-xl shadow-lg shadow-[#FF5C00]/20 transition-all cursor-pointer"
+                        >
+                          Следующая глава {nextChapter.chapter}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Mode B: CLASSIC PAGE BY PAGE SWIPER */
+                <div className="flex-1 flex flex-col justify-between bg-[#0e0f11]">
+                  <div className="flex-1 overflow-y-auto flex items-center justify-center p-4">
+                    <div className="relative max-w-2xl w-full h-[73vh] flex items-center justify-center border border-white/5 rounded-3xl bg-black/20 p-4 shadow-2xl group overflow-hidden">
+                      <img 
+                        src={pages[mangaReaderPage]} 
+                        alt={`Page ${mangaReaderPage + 1}`} 
+                        className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl group-hover:scale-[1.01] transition-transform duration-500"
+                        referrerPolicy="no-referrer"
+                      />
+                      
+                      {/* Interactive hot areas */}
+                      <button 
+                        disabled={mangaReaderPage === 0}
+                        onClick={() => { if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1); }}
+                        className="absolute left-0 top-0 bottom-0 w-1/4 cursor-w-resize z-10 flex items-center justify-start pl-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-black/60 to-transparent duration-300 disabled:opacity-0 disabled:cursor-default"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-white">
+                          <ChevronLeft className="w-6 h-6" />
+                        </div>
+                      </button>
+
+                      <button 
+                        disabled={mangaReaderPage === pages.length - 1}
+                        onClick={() => { if (mangaReaderPage < pages.length - 1) setMangaReaderPage(prev => prev + 1); }}
+                        className="absolute right-0 top-0 bottom-0 w-1/4 cursor-e-resize z-10 flex items-center justify-end pr-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-l from-black/60 to-transparent duration-300 disabled:opacity-0 disabled:cursor-default"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-white">
+                          <ChevronRight className="w-6 h-6" />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Page selector indicators */}
+                  <div className="bg-[#121316] p-4 flex items-center justify-center gap-2 border-t border-white/5 overflow-x-auto hide-scrollbar select-none z-10">
+                    {pages.map((_, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => setMangaReaderPage(idx)}
+                        className={`w-3.5 h-3.5 rounded-full transition-all duration-300 shrink-0 ${
+                          idx === mangaReaderPage 
+                            ? 'bg-[#FF5C00] scale-125' 
+                            : 'bg-slate-700 hover:bg-[#FF5C00]/40'
+                        }`}
+                        title={`Страница ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
-            </div>
-
-            {/* Comic panel canvas stage */}
-            {pagesLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#141519]">
-                <Loader2 className="w-12 h-12 text-[#8B5CF6] animate-spin mb-4" />
-                <span className="text-sm font-black uppercase text-slate-400 tracking-widest animate-pulse">
-                  Открываем страницы тома...
-                </span>
-              </div>
-            ) : pages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#141519]">
-                <BookOpen className="w-16 h-16 text-slate-600 mb-4" />
-                <h3 className="text-lg font-black text-white">Страницы не получены</h3>
-                <p className="text-xs text-slate-500 mt-2 max-w-sm font-medium">не удалось получить изображения с серверов MangaDex. Пожалуйста, сотрите кэш или попробуйте другую главу.</p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto flex items-center justify-center p-6 bg-[#141519]">
-                <div className="relative max-w-2xl w-full h-[75vh] flex items-center justify-center border border-white/5 rounded-3xl bg-[#141519]/40 p-4 shadow-2xl group overflow-hidden">
-                  <img 
-                    src={pages[mangaReaderPage]} 
-                    alt="Manga Comic Strip Panel Artwork" 
-                    className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl group-hover:scale-[1.01] transition-transform duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                  
-                  {/* Interactive hot areas */}
-                  <div 
-                    onClick={() => { if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1); }}
-                    className="absolute left-0 top-0 bottom-0 w-1/4 cursor-w-resize z-10 flex items-center justify-start pl-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-black/45 to-transparent duration-300"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center text-white">
-                      <ChevronLeft className="w-6 h-6" />
-                    </div>
-                  </div>
-
-                  <div 
-                    onClick={() => { if (mangaReaderPage < pages.length - 1) setMangaReaderPage(prev => prev + 1); }}
-                    className="absolute right-0 top-0 bottom-0 w-1/4 cursor-e-resize z-10 flex items-center justify-end pr-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-l from-black/45 to-transparent duration-300"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center text-white">
-                      <ChevronRight className="w-6 h-6" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Bottom quick navigation bar */}
-            {!pagesLoading && pages.length > 0 && (
-              <div className="bg-[#141519] p-4 flex items-center justify-center gap-2 border-t border-white/5 overflow-x-auto hide-scrollbar">
-                {pages.map((_, idx) => (
-                  <button 
-                    key={idx}
-                    onClick={() => setMangaReaderPage(idx)}
-                    className={`w-3.5 h-3.5 rounded-full transition-all duration-300 shrink-0 ${idx === mangaReaderPage ? 'bg-primary scale-125' : 'bg-slate-700 hover:bg-slate-500'}`}
-                  />
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

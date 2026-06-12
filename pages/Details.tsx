@@ -1721,6 +1721,7 @@ const Details: React.FC = () => {
                             return (
                               <div
                                 key={epNum}
+                                id={`episode-btn-${epNum}`}
                                 onClick={() => {
                                   if (isPremiumLocked) {
                                     navigate("/premium");
@@ -1739,27 +1740,33 @@ const Details: React.FC = () => {
                                 }`}
                               >
                                 {/* Episode content details without big thumbnail cover image */}
-                                <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5">
-                                  <div className="space-y-1">
-                                    <h5 className={`text-sm sm:text-base font-black truncate uppercase tracking-tight group-hover:text-[#8B5CF6] transition-colors flex items-center gap-2 ${isCurrentActive ? "text-[#8B5CF6]" : "text-white"}`}>
-                                      <span>Серия {epNum}</span>
+                                <div className="flex-1 flex flex-col justify-center min-w-0 py-1">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
+                                    <h5 className={`text-sm sm:text-base font-black uppercase tracking-tight leading-normal group-hover:text-[#8B5CF6] transition-colors flex items-center gap-2 ${isCurrentActive ? "text-[#8B5CF6]" : "text-white"}`}>
+                                      <span className="pb-0.5">Серия {epNum}</span>
                                       {isWatched && (
-                                        <span className="px-1.5 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[8px] font-black uppercase tracking-wider rounded">
+                                        <span className="px-1.5 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[8px] font-black uppercase tracking-wider rounded shrink-0">
                                           Просмотрено
                                         </span>
                                       )}
                                     </h5>
-                                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed font-semibold">
+                                    <div className="flex items-center gap-2 text-[9px] font-black uppercase text-slate-500 tracking-widest shrink-0">
+                                      <span>Дубляж</span>
+                                      <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                      <span>{selectedTranslation?.title || "Мега Фан"}</span>
+                                      {meta.duration && (
+                                        <>
+                                          <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                          <span className="text-slate-400">{meta.duration}</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {meta.description && (
+                                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed font-semibold mt-1.5">
                                       {meta.description}
                                     </p>
-                                  </div>
-                                  <div className="flex items-center gap-3 text-[9px] font-black uppercase text-slate-500 mt-2 tracking-widest">
-                                    <span>Русский Дубляж</span>
-                                    <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                    <span>{selectedTranslation?.title || "Мега Фан"}</span>
-                                    <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                    <span className="text-slate-400">{meta.duration}</span>
-                                  </div>
+                                  )}
                                 </div>
                               </div>
                             );

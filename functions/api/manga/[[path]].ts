@@ -130,25 +130,30 @@ export const onRequest = async (context: any) => {
   const chaptersMatch = pathname.match(/^\/([a-zA-Z0-9\-]+)\/chapters\/?$/);
   if (chaptersMatch) {
     const mangaId = chaptersMatch[1];
-    const targetUrl = `https://api.mangadex.org/manga/${mangaId}/feed?translatedLanguage[]=ru&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
+    let chapters: any[] = [];
+    let isLicensed = false;
 
-    try {
-      const res = await fetch(targetUrl, {
+    const fetchChaptersForLang = async (langParam: string) => {
+      const url = `https://api.mangadex.org/manga/${mangaId}/feed?${langParam}order[chapter]=asc&limit=500&includes[]=scanlation_group`;
+      const res = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
       });
       const data: any = await res.json();
       if (!data || !data.data) {
-        return new Response(JSON.stringify({ chapters: [] }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
+        return [];
       }
-
-      const chapters = data.data.map((ch: any) => {
+      return data.data.map((ch: any) => {
         const attrs = ch.attributes || {};
         const sg = ch.relationships?.find((r: any) => r.type === 'scanlation_group');
-        const groupName = sg?.attributes?.name || 'Внешний переводчик';
+        let groupName = sg?.attributes?.name || 'Внешний переводчик';
+        const rawLang = attrs.translatedLanguage;
+        if (rawLang === 'en') {
+          groupName += ' (Английский источник)';
+        } else if (rawLang && rawLang !== 'ru') {
+          groupName += ` (${rawLang.toUpperCase()} источник)`;
+        }
         return {
           id: ch.id,
           chapter: attrs.chapter || '0',
@@ -158,6 +163,26 @@ export const onRequest = async (context: any) => {
           publishAt: attrs.publishAt
         };
       });
+    };
+
+    try {
+      // Stage 1: Try Russian Chapters
+      chapters = await fetchChaptersForLang('translatedLanguage[]=ru&');
+
+      // Stage 2: Try English Fallback Chapters
+      if (chapters.length === 0) {
+        chapters = await fetchChaptersForLang('translatedLanguage[]=en&');
+      }
+
+      // Stage 3: Try Any Translation
+      if (chapters.length === 0) {
+        chapters = await fetchChaptersForLang('');
+      }
+
+      // If completely empty, mark as licensed
+      if (chapters.length === 0) {
+        isLicensed = true;
+      }
 
       // Sort chapters numerically
       chapters.sort((a: any, b: any) => {
@@ -166,12 +191,11 @@ export const onRequest = async (context: any) => {
         return numA - numB;
       });
 
-      return new Response(JSON.stringify({ chapters }), {
+      return new Response(JSON.stringify({ chapters, isLicensed }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     } catch (err: any) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 500,
+      return new Response(JSON.stringify({ chapters: [], isLicensed: true, error: err.message }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     }
