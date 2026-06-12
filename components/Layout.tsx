@@ -85,6 +85,35 @@ const Layout: React.FC = () => {
   
   // Crunchyroll Watchlist
   const [watchlist, setWatchlist] = useState<any[]>([]);
+
+  // Manga Bookmarks for Ribbon
+  const [mangaBookmarks, setMangaBookmarks] = useState<any[]>([]);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('kami_manga_bookmarks');
+      const cached = localStorage.getItem('kami_manga_meta_cache');
+      if (saved) {
+        const parsedSaved = JSON.parse(saved);
+        const parsedCached = cached ? JSON.parse(cached) : {};
+        const list = Object.entries(parsedSaved).map(([id, cat]) => {
+          const meta = parsedCached[id] || {};
+          return {
+            id,
+            category: cat,
+            title: meta.title || "Тайтл из закладок",
+            cover: meta.cover || "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600&auto=format&fit=crop",
+            rating: meta.rating || 9.1
+          };
+        });
+        setMangaBookmarks(list);
+      } else {
+        setMangaBookmarks([]);
+      }
+    } catch (e) {
+      console.error(e);
+      setMangaBookmarks([]);
+    }
+  }, [pathname, isMangaMode]);
   const [showWatchlistDropdown, setShowWatchlistDropdown] = useState(false);
 
   useEffect(() => {
@@ -166,8 +195,24 @@ const Layout: React.FC = () => {
       }
 
       try {
-        const results = await fetchAnimes({ search: searchQuery, limit: 5 });
-        setSuggestions(results);
+        if (isMangaMode) {
+          const res = await fetch(`/api/manga/search?q=${encodeURIComponent(searchQuery)}&limit=5`);
+          if (res.ok) {
+            const data = await res.json();
+            const mapped = (data.results || []).map((m: any) => ({
+              id: m.id,
+              title: m.title,
+              image: m.cover,
+              isManga: true,
+              originalTitle: m.originalTitle || '',
+              rating: m.rating || 9.2
+            }));
+            setSuggestions(mapped);
+          }
+        } else {
+          const results = await fetchAnimes({ search: searchQuery, limit: 5 });
+          setSuggestions(results);
+        }
       } catch (error) {
         console.error("Error fetching suggestions:", error);
       }
@@ -175,19 +220,23 @@ const Layout: React.FC = () => {
 
     const timeoutId = setTimeout(fetchSuggestions, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [searchQuery, isMangaMode]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/catalog?q=${encodeURIComponent(searchQuery)}`);
+      if (isMangaMode) {
+        navigate(`/?q=${encodeURIComponent(searchQuery)}`);
+      } else {
+        navigate(`/catalog?q=${encodeURIComponent(searchQuery)}`);
+      }
       setIsMenuOpen(false);
       setShowSuggestions(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-dark text-slate-200 font-sans selection:bg-primary/30">
+    <div className={`min-h-screen flex flex-col ${isMangaMode ? 'bg-[#121316] text-[#a5a7b1]' : 'bg-dark text-slate-200'} font-sans ${isMangaMode ? 'selection:bg-[#FF5C00]/30 selection:text-white' : 'selection:bg-primary/30'}`}>
       {(import.meta as any).env?.VITE_ENV === 'staging' && (
         <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-black text-[10px] font-black uppercase tracking-widest text-center py-1 z-[100]">
           Staging Environment (Тестовый сервер)
@@ -204,10 +253,10 @@ const Layout: React.FC = () => {
 
             <div className="flex-1 hidden md:flex justify-center max-w-lg gap-3">
               <form onSubmit={handleSearch} className="relative w-full group">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+                <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 ${isMangaMode ? 'group-focus-within:text-[#FF5C00]' : 'group-focus-within:text-primary'} transition-colors`} />
                 <input
                   type="text"
-                  aria-label="Поиск аниме"
+                  aria-label={isMangaMode ? "Поиск манги" : "Поиск аниме"}
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -215,47 +264,76 @@ const Layout: React.FC = () => {
                   }}
                   onFocus={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder="Быстрый поиск..."
-                  className="w-full h-10 pl-10 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:bg-white/10 focus:border-primary/50 focus:outline-none transition-all duration-300"
+                  placeholder={isMangaMode ? "Поиск по манге..." : "Быстрый поиск..."}
+                  className={`w-full h-10 pl-10 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:bg-white/10 ${isMangaMode ? 'focus:border-[#FF5C00]/50' : 'focus:border-primary/50'} focus:outline-none transition-all duration-300`}
                 />
                 
                 {/* Search Suggestions */}
                 {showSuggestions && suggestions.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-[#0a0a0f] border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="p-2">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 py-2">Результаты поиска</div>
-                      {suggestions.map((anime) => {
-                        const isDmcaBlocked = dmcaBlocks.includes(anime.id.toString());
-                        return (
-                        <Link
-                          key={anime.id}
-                          to={isDmcaBlocked ? `/anime/${anime.id}-watch` : `/anime/${anime.id}`}
-                          className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg transition-colors group/item"
-                          onClick={() => setShowSuggestions(false)}
-                        >
-                          <img 
-                            src={anime.image} 
-                            alt={anime.title} 
-                            loading="lazy"
-                            onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
-                            className="w-9 h-12 object-cover rounded shadow-sm group-hover/item:scale-105 transition-transform" 
-                          />
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-bold text-slate-200 group-hover/item:text-primary transition-colors truncate">{anime.title}</span>
-                            <div className="flex items-center gap-2 text-[9px] font-extrabold uppercase text-slate-500 tracking-wider">
-                              <span>
-                                {anime.type === 'TV Series' ? 'TV' : 
-                                 anime.type === 'Movie' ? 'Фильм' : 
-                                 anime.type === 'Special' ? 'Спешл' : 
-                                 anime.type === 'Music' ? 'Клип' : 
-                                 anime.type}
-                              </span>
-                              <span className="w-0.5 h-0.5 rounded-full bg-slate-600"></span>
-                              <span className="flex items-center gap-0.5 text-yellow-500"><Crown className="w-2.5 h-2.5" /> {anime.rating}</span>
-                            </div>
-                          </div>
-                        </Link>
-                      )})}
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 py-2">Результаты поиска ({isMangaMode ? 'Манга' : 'Аниме'})</div>
+                      {suggestions.map((item) => {
+                        if (item.isManga) {
+                          return (
+                            <Link
+                              key={item.id}
+                              to={`/?mangaId=${item.id}`}
+                              className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg transition-colors group/item"
+                              onClick={() => setShowSuggestions(false)}
+                            >
+                              <img 
+                                src={item.image} 
+                                alt={item.title} 
+                                loading="lazy"
+                                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                                className="w-9 h-12 object-cover rounded shadow-sm group-hover/item:scale-105 transition-transform" 
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-xs font-bold text-slate-200 group-hover/item:text-[#FF5C00] transition-colors truncate">{item.title}</span>
+                                <div className="flex items-center gap-2 text-[9px] font-extrabold uppercase text-slate-500 tracking-wider">
+                                  <span className="text-[#FF5C00]">МАНГА</span>
+                                  <span className="w-0.5 h-0.5 rounded-full bg-slate-600"></span>
+                                  <span className="flex items-center gap-0.5 text-yellow-500"><Crown className="w-2.5 h-2.5" /> {item.rating}</span>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        } else {
+                          const isDmcaBlocked = dmcaBlocks.includes(item.id.toString());
+                          return (
+                            <Link
+                              key={item.id}
+                              to={isDmcaBlocked ? `/anime/${item.id}-watch` : `/anime/${item.id}`}
+                              className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg transition-colors group/item"
+                              onClick={() => setShowSuggestions(false)}
+                            >
+                              <img 
+                                src={item.image} 
+                                alt={item.title} 
+                                loading="lazy"
+                                onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                                className="w-9 h-12 object-cover rounded shadow-sm group-hover/item:scale-105 transition-transform" 
+                              />
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-xs font-bold text-slate-200 group-hover/item:text-primary transition-colors truncate">{item.title}</span>
+                                <div className="flex items-center gap-2 text-[9px] font-extrabold uppercase text-slate-500 tracking-wider">
+                                  <span>
+                                    {item.type === 'TV Series' ? 'TV' : 
+                                     item.type === 'Movie' ? 'Фильм' : 
+                                     item.type === 'Special' ? 'Спешл' : 
+                                     item.type === 'Music' ? 'Клип' : 
+                                     item.type}
+                                  </span>
+                                  <span className="w-0.5 h-0.5 rounded-full bg-slate-600"></span>
+                                  <span className="flex items-center gap-0.5 text-yellow-500"><Crown className="w-2.5 h-2.5" /> {item.rating}</span>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        }
+                      })}
                     </div>
                   </div>
                 )}
@@ -265,7 +343,7 @@ const Layout: React.FC = () => {
                   const id = await findRandomAnimeWithPlayer();
                   if (id) navigate(`/anime/${id}`);
                 }}
-                className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all group shrink-0"
+                className={`p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all group shrink-0 ${isMangaMode ? 'hover:bg-[#FF5C00] hover:text-black' : ''}`}
                 title="Случайное аниме"
               >
                 <Shuffle className="w-4 h-4 group-hover:rotate-12 transition-transform" />
@@ -380,44 +458,75 @@ const Layout: React.FC = () => {
                   onMouseLeave={() => setShowWatchlistDropdown(false)}
                 >
                   <button 
-                    aria-label="My Watchlist" 
-                    className="p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative text-slate-300"
+                    aria-label={isMangaMode ? "Мои Закладки" : "Моя лента"} 
+                    className={`p-2.5 bg-white/5 hover:bg-primary hover:text-white rounded-xl transition-all relative text-slate-300 ${isMangaMode ? 'hover:bg-[#FF5C00]/20 hover:text-[#FF5C00]' : ''}`}
                   >
                     <Bookmark className="w-4.5 h-4.5" />
-                    {watchlist.length > 0 && (
+                    {!isMangaMode && watchlist.length > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#141519]">
                         {watchlist.length}
                       </span>
                     )}
+                    {isMangaMode && mangaBookmarks.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF5C00] text-black text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#141519]">
+                        {mangaBookmarks.length}
+                      </span>
+                    )}
                   </button>
- 
+
                   {showWatchlistDropdown && (
                     <div className="absolute right-0 top-full mt-1 w-80 bg-[#1c1d21] border border-white/10 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150 relative">
                       <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/5">
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Моя лента (Очередь)</span>
-                        <Link to="/profile" className="text-[9px] font-black uppercase text-primary hover:underline">Все</Link>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                          {isMangaMode ? "Закладки (Манга)" : "Моя лента (Очередь)"}
+                        </span>
+                        <Link to="/profile" className={`text-[9px] font-black uppercase hover:underline ${isMangaMode ? 'text-[#FF5C00]' : 'text-primary'}`}>Все</Link>
                       </div>
- 
-                      {watchlist.length === 0 ? (
-                        <div className="py-6 text-center text-xs text-slate-500">
-                          Ваша очередь пуста. Добавьте аниме в закладки на страницах деталей.
-                        </div>
+  
+                      {isMangaMode ? (
+                        mangaBookmarks.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-500">
+                            У вас пока нет закладок манги. Нажмите на сердечко в каталоге или выберите категорию закладок.
+                          </div>
+                        ) : (
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                            {mangaBookmarks.map((m) => (
+                              <Link 
+                                key={m.id} 
+                                to={`/?mangaId=${m.id}`}
+                                className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors group/watchlist-item"
+                              >
+                                <img src={m.cover} alt={m.title} className="w-9 h-12 object-cover rounded shadow-md shrink-0 border border-white/10" referrerPolicy="no-referrer" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-black text-white truncate group-hover/watchlist-item:text-[#FF5C00] transition-colors">{m.title}</div>
+                                  <div className="text-[9px] text-slate-500 font-extrabold uppercase mt-0.5">Лист: <span className="text-[#FF5C00]">{m.category}</span></div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        )
                       ) : (
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                          {watchlist.map((anime) => (
-                            <Link 
-                              key={anime.id} 
-                              to={`/anime/${anime.id}`}
-                              className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors group/watchlist-item"
-                            >
-                              <img src={anime.image} alt={anime.title} className="w-9 h-12 object-cover rounded shadow-md shrink-0" />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs font-black text-white truncate group-hover/watchlist-item:text-primary transition-colors">{anime.title}</div>
-                                <div className="text-[9px] text-slate-500 font-extrabold uppercase">{anime.type || 'TV'} • {anime.episodes || '?'} эп</div>
-                              </div>
-                            </Link>
-                          ))}
-                        </div>
+                        watchlist.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-500">
+                            Ваша очередь пуста. Добавьте аниме в закладки на страницах деталей.
+                          </div>
+                        ) : (
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                            {watchlist.map((anime) => (
+                              <Link 
+                                key={anime.id} 
+                                to={`/anime/${anime.id}`}
+                                className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors group/watchlist-item"
+                              >
+                                <img src={anime.image} alt={anime.title} className="w-9 h-12 object-cover rounded shadow-md shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-black text-white truncate group-hover/watchlist-item:text-primary transition-colors">{anime.title}</div>
+                                  <div className="text-[9px] text-slate-500 font-extrabold uppercase">{anime.type || 'TV'} • {anime.episodes || '?'} эп</div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        )
                       )}
                     </div>
                   )}
@@ -666,19 +775,23 @@ const Layout: React.FC = () => {
                 <Logo />
               </div>
               <p className="text-slate-400 max-w-md leading-relaxed text-sm font-medium">
-                Премиальный сервис для просмотра аниме в лучшем качестве. Мы объединяем лучшие студии озвучки и перевода в одном удобном интерфейсе.
+                {isMangaMode ? (
+                  "Премиальный сервис для чтения манги на русском языке. Быстрый свитковый ридер, удобный каталог, личные закладки и оценки глав в одном интерфейсе."
+                ) : (
+                  "Премиальный сервис для просмотра аниме в лучшем качестве. Мы объединяем лучшие студии озвучки и перевода в одном удобном интерфейсе."
+                )}
               </p>
             </div>
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8 font-display">Навигация</h4>
               <ul className="space-y-4 text-[13px] font-bold">
-                <li><Link to="/catalog" className="hover:text-primary transition-colors">Весь каталог</Link></li>
-                <li><Link to="/news" className="hover:text-primary transition-colors">Новости</Link></li>
-                <li><Link to="/forum" className="hover:text-primary transition-colors">Форум</Link></li>
-                <li><Link to="/community" className="hover:text-primary transition-colors">Сообщество</Link></li>
-                <li><Link to="/profile" className="hover:text-primary transition-colors">Личный кабинет</Link></li>
+                <li><Link to={isMangaMode ? "/" : "/catalog"} className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>{isMangaMode ? "Каталог манги" : "Весь каталог"}</Link></li>
+                <li><Link to="/news" className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>Новости</Link></li>
+                <li><Link to="/forum" className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>Форум</Link></li>
+                <li><Link to="/community" className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>Сообщество</Link></li>
+                <li><Link to="/profile" className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>Личный кабинет</Link></li>
                 <li>
-                  <a href="https://t.me/kamianimeclub" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-2 text-blue-400">
+                  <a href="https://t.me/kamianimeclub" target="_blank" rel="noopener noreferrer" className={`transition-colors flex items-center gap-2 text-blue-400 ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                     Telegram
                   </a>
@@ -688,14 +801,14 @@ const Layout: React.FC = () => {
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8 font-display">Поддержка</h4>
               <ul className="space-y-4 text-[13px] font-bold">
-                <li><Link to="/dmca" className="hover:text-primary transition-colors">DMCA</Link></li>
-                <li><Link to="/faq" className="hover:text-primary transition-colors">Помощь</Link></li>
-                <li><Link to="/contact" className="hover:text-primary transition-colors">Контакты</Link></li>
+                <li><Link to="/dmca" className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>DMCA</Link></li>
+                <li><Link to="/faq" className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>Помощь</Link></li>
+                <li><Link to="/contact" className={`transition-colors ${isMangaMode ? 'hover:text-[#FF5C00]' : 'hover:text-primary'}`}>Контакты</Link></li>
               </ul>
             </div>
           </div>
           <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between gap-6 text-[10px] font-black uppercase tracking-widest text-slate-600">
-            <p>© {new Date().getFullYear()} KamiAnime Project. Все права защищены.</p>
+            <p>© {new Date().getFullYear()} {isMangaMode ? "KamiManga" : "KamiAnime"} Project. Все права защищены.</p>
             <div className="flex gap-8 items-center">
               <Link to="/terms" className="hover:text-white transition-colors">Правила</Link>
               <Link to="/privacy" className="hover:text-white transition-colors">Конфиденциальность</Link>

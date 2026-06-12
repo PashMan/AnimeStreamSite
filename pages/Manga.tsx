@@ -270,22 +270,22 @@ const Manga: React.FC = () => {
   return (
     <div className="bg-[#121316] min-h-screen text-[#a5a7b1] font-sans selection:bg-[#FF5C00]/30 selection:text-white select-none">
       <SEO 
-        title="MangaLib - Читать Мангу Онлайн на русском языке бесплатно"
-        description="Крупнейший портал лицензионной и фанатской манги MangaLib. Умный ридер, подробные каталоги, оценки, отзывы."
+        title="KamiManga - Читать Мангу Онлайн на русском языке бесплатно"
+        description="Крупнейший портал лицензионной и фанатской манги KamiManga. Умный ридер, подробные каталоги, оценки, отзывы."
       />
 
-      {/* Modern MangaLib Styled Head Ribbon banner */}
+      {/* Modern KamiManga Styled Head Ribbon banner */}
       <div className="bg-gradient-to-r from-[#FF5C00]/10 via-[#18191d]/90 to-[#121316] border-b border-white/5 py-8 px-4 sm:px-8 lg:px-12">
         <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-1">
             <span className="px-2.5 py-0.5 bg-[#FF5C00] text-black text-[10px] font-black uppercase tracking-wider rounded flex items-center gap-1.5 w-fit">
-              <BookOpen className="w-3 h-3 fill-current" /> MANGALIB PORTAL
+              <BookOpen className="w-3 h-3 fill-current" /> KAMIMANGA PORTAL
             </span>
             <h1 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-              KamiLib <span className="text-[#FF5C00] font-light">Manga</span>
+              KamiManga <span className="text-[#FF5C00] font-light">Portal</span>
             </h1>
             <p className="text-xs text-[#7d8291] font-semibold max-w-2xl">
-              Любимый клон MangaLib с русской локализацией, удобными закладками, умным свитком и прямым поиском в глобальных каталогах.
+              Любимый портал KamiManga с русской локализацией, удобными закладками, умным свитком и прямым поиском в глобальных каталогах.
             </p>
           </div>
 
@@ -680,7 +680,7 @@ const Manga: React.FC = () => {
               <div className="p-6 border-b border-white/5 flex justify-between items-center relative z-20">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-[#FF5C00] font-black uppercase tracking-widest border border-[#FF5C00]/30 px-2 py-0.5 bg-[#FF5C00]/5 rounded">
-                    MangaLib Core v3.4
+                    KamiManga Core v3.4
                   </span>
                 </div>
                 <button 
@@ -842,7 +842,7 @@ const Manga: React.FC = () => {
 
                           {/* Technical metadata list table */}
                           <div className="space-y-2.5">
-                            <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Информация MangaLib</h4>
+                            <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Информация KamiManga</h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 bg-[#121316] p-4 rounded-xl border border-white/5 text-xs font-semibold">
                               <div className="flex justify-between py-1 border-b border-white/5">
                                 <span className="text-slate-500 uppercase">Формат</span>
@@ -1339,7 +1339,7 @@ const Manga: React.FC = () => {
 
                       {/* Bottom close buttons */}
                       <div className="space-y-2 select-none">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-[#7d8291] block text-center">Плеер MangaLib v1.2</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-[#7d8291] block text-center">Плеер KamiManga v1.2</span>
                         <button 
                           onClick={() => setIsSettingsOpen(false)}
                           className="w-full py-2 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-wider rounded-lg transition-all text-center shrink-0 block"

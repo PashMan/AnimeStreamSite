@@ -19,8 +19,9 @@ export const onRequest = async (context: any) => {
   // 1. SEARCH: /api/manga/search
   if (pathname === '/search' || pathname === 'search') {
     const query = url.searchParams.get('q') || '';
-    const limit = url.searchParams.get('limit') || '30';
-    let targetUrl = `https://api.mangadex.org/manga?limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
+    const limit = url.searchParams.get('limit') || '60';
+    const offset = url.searchParams.get('offset') || '0';
+    let targetUrl = `https://api.mangadex.org/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
     if (query) {
       targetUrl += `&title=${encodeURIComponent(query)}`;
     } else {

@@ -671,8 +671,9 @@ app.get('/api/test-jikan/:id', async (c) => {
 // ==========================================
 app.get('/api/manga/search', async (c) => {
   const query = c.req.query('q') || '';
-  const limit = c.req.query('limit') || '30';
-  let url = `https://api.mangadex.org/manga?limit=${limit}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
+  const limit = c.req.query('limit') || '60';
+  const offset = c.req.query('offset') || '0';
+  let url = `https://api.mangadex.org/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
   if (query) {
     url += `&title=${encodeURIComponent(query)}`;
   } else {

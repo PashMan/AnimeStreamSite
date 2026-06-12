@@ -384,43 +384,25 @@ const Home: React.FC = () => {
       {/* Main Containers: Sliding over the darkened bottom hero edge */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 space-y-16 -mt-16 md:-mt-24 pb-20 relative z-30">
 
-        {/* Prominent Site Mode Switcher Widget */}
-        <div className="w-full bg-[#1c1d22]/80 backdrop-blur-md border border-white/5 rounded-3xl p-5 md:p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative group/switcher animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="absolute top-0 right-0 w-80 h-40 bg-primary/5 blur-[80px] rounded-full pointer-events-none transition-all duration-700" />
-          <div className="relative z-10 space-y-1 text-center md:text-left">
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-[#8B5CF6] flex items-center justify-center md:justify-start gap-1.5 mb-1">
-              <Sparkles className="w-3.5 h-3.5" /> ПОРТАЛЫ KAMIANIME
-            </div>
-            <h3 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">
-              Вы находитесь на Аниме Портале
-            </h3>
-            <p className="text-xs text-slate-400 font-medium max-w-lg">
-              Хотите почитать лицензионные цифровые тома манги? Переключите сайт на режим «Ками-Манга» в один клик!
-            </p>
-          </div>
-          
-          <div className="flex bg-black/45 border border-white/5 rounded-2xl p-1.5 w-full md:w-auto shrink-0 relative z-10">
-            <button
-              className="flex-grow md:flex-grow-0 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all bg-primary text-white shadow-lg shadow-primary/10 select-none cursor-default"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-white"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
-              <span>Аниме Онлайн</span>
-            </button>
-            <button
-              onClick={() => {
-                if (window.location.hostname.includes('kamianime.club')) {
-                  window.location.href = 'https://manga.kamianime.club/';
-                } else {
-                  localStorage.setItem('kami_manga_mode', 'true');
-                  window.location.reload();
-                }
-              }}
-              className="flex-grow md:flex-grow-0 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-all hover:bg-white/5 select-none cursor-pointer"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Читать Мангу</span>
-            </button>
-          </div>
+        {/* Minimalist Portal Selector */}
+        <div className="flex items-center justify-center gap-4 text-xs font-bold py-2 border-b border-white/5 max-w-xs mx-auto mb-10 select-none animate-in fade-in duration-300">
+          <span className="text-primary font-black uppercase tracking-widest relative after:absolute after:bottom-[-4px] after:left-0 after:right-0 after:h-[2px] after:bg-primary">
+            Аниме
+          </span>
+          <span className="text-white/20">/</span>
+          <button
+            onClick={() => {
+              if (window.location.hostname.includes('kamianime.club')) {
+                window.location.href = 'https://manga.kamianime.club/';
+              } else {
+                localStorage.setItem('kami_manga_mode', 'true');
+                window.location.reload();
+              }
+            }}
+            className="text-slate-500 hover:text-white transition-colors cursor-pointer uppercase tracking-widest font-bold"
+          >
+            Манга
+          </button>
         </div>
 
         {/* My List / Favorites Section (Rendered dynamically for logged-in users) */}
