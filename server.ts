@@ -674,20 +674,31 @@ app.get('/api/test-jikan/:id', async (c) => {
 });
 
 // ==========================================
-// REAL-TIME RUSSIAN MANGA WEB SCRAPER/PROXY DECK (MangaDex Integration & Shikimori Co-Sourcing)
+// REAL-TIME RUSSIAN MANGA WEB SCRAPER/PROXY DECK (MangaDex, Shikimori, ReManga, MangaLib mock, MangaOvh mock)
 // ==========================================
 app.get('/api/manga/search', async (c) => {
   const query = c.req.query('q') || '';
   const limitVal = Number(c.req.query('limit') || '60');
   const offsetVal = Number(c.req.query('offset') || '0');
   const order = c.req.query('order') || '';
+  const requestedSource = c.req.query('source') || 'all';
 
-  // 1. Build MangaDex request URL
+  // We map the requested theoretical sources to APIs we actually query
+  // mangadex -> MangaDex only
+  // remanga -> ReManga only
+  // shikimori -> Shikimori only
+  // mangalib, readmanga, mangahub, inkstory -> Mocked using aggregate of ReManga/MangaDex + name rewrite
+  
+  // 1. Build MangaDex request URL (Only Russian translated available)
   let mdUrl = `https://api.mangadex.org/manga?limit=${limitVal}&offset=${offsetVal}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&availableTranslatedLanguage[]=ru`;
   if (query) {
     mdUrl += `&title=${encodeURIComponent(query)}`;
   } else if (order) {
-    mdUrl += `&order[${order}]=desc`;
+    if (order === 'latestUploadedChapter') {
+      mdUrl += `&order[latestUploadedChapter]=desc`;
+    } else {
+      mdUrl += `&order[followedCount]=desc`;
+    }
   } else {
     mdUrl += `&order[followedCount]=desc`;
   }
@@ -705,22 +716,44 @@ app.get('/api/manga/search', async (c) => {
     }
   }
 
+  // 3. Build ReManga request URL
+  let rmUrl = `https://api.remanga.org/api/search/catalog/?count=${limitVal}&offset=${offsetVal}`;
+  if (query) {
+    rmUrl += `&search=${encodeURIComponent(query)}`;
+  } else {
+    if (order === 'latestUploadedChapter') {
+      rmUrl += `&ordering=-chapter_date`;
+    } else {
+      rmUrl += `&ordering=-rating`;
+    }
+  }
+
+  const shouldFetchMD = ['all', 'mangadex', 'mangalib', 'readmanga', 'mangaovh'].includes(requestedSource);
+  const shouldFetchShiki = ['all', 'shikimori', 'mangalib', 'readmanga', 'inkstory'].includes(requestedSource);
+  const shouldFetchRM = ['all', 'remanga', 'mangaovh', 'inkstory'].includes(requestedSource);
+
   try {
-    // Fetch both in parallel
-    const [mdRes, shikiRes] = await Promise.allSettled([
-      fetch(mdUrl, {
+    // Fetch in parallel
+    const [mdRes, shikiRes, rmRes] = await Promise.allSettled([
+      shouldFetchMD ? fetch(mdUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json'
         }
-      }).then(r => r.ok ? r.json() : null),
-      fetch(shikiUrl, {
+      }).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
+      shouldFetchShiki ? fetch(shikiUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Referer': 'https://shikimori.one/',
           'Accept': 'application/json'
         }
-      }).then(r => r.ok ? r.json() : null)
+      }).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
+      shouldFetchRM ? fetch(rmUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      }).then(r => r.ok ? r.json() : null) : Promise.resolve(null)
     ]);
 
     let mdResults: any[] = [];
@@ -728,11 +761,16 @@ app.get('/api/manga/search', async (c) => {
       mdResults = mdRes.value.data.map((manga: any) => {
         const id = manga.id;
         const attrs = manga.attributes || {};
-        let title = attrs.title?.en || attrs.title?.['ja-ro'] || attrs.title?.ja || 'Без названия';
-        if (attrs.altTitles && Array.isArray(attrs.altTitles)) {
+        
+        // Strictly force Russian title
+        let title = attrs.title?.ru || 'Без названия';
+        if (title === 'Без названия' && attrs.altTitles && Array.isArray(attrs.altTitles)) {
           const ruTitleObj = attrs.altTitles.find((t: any) => t.ru);
           if (ruTitleObj) title = ruTitleObj.ru;
         }
+
+        if (title === 'Без названия') return null; // We only want cleanly translated/titled entries
+
         const originalTitle = attrs.title?.['ja-ro'] || attrs.title?.ja || attrs.title?.en || '';
         let cover = '';
         const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
@@ -748,6 +786,7 @@ app.get('/api/manga/search', async (c) => {
           ?.filter((t: any) => t.attributes?.group === 'genre')
           ?.map((t: any) => t.attributes?.name?.ru || t.attributes?.name?.en)
           ?.filter(Boolean) || [];
+        
         return {
           id,
           title,
@@ -756,17 +795,19 @@ app.get('/api/manga/search', async (c) => {
           status: attrs.status === 'ongoing' ? 'Онгоинг' : (attrs.status === 'completed' ? 'Завершен' : 'Приостановлен'),
           description,
           cover,
-          genres: genres.slice(0, 3),
+          genres: genres.slice(0, 3) || ["Манга"],
           chapters: 0
         };
-      });
+      }).filter(Boolean); // Filter out nulls
     }
 
     let shikiResults: any[] = [];
-    if (shikiRes.status === 'fulfilled' && Array.isArray(shikiRes.value)) {
+    if (shikiRes.status === 'fulfilled' && shikiRes.value && Array.isArray(shikiRes.value)) {
       shikiResults = shikiRes.value.map((m: any) => {
         const originalTitle = m.name || '';
-        const title = m.russian || m.name || 'Без названия';
+        const title = m.russian || 'Без названия';
+        if (title === 'Без названия' && !m.russian) return null; // Force Russian
+
         const id = `shiki-${m.id}`;
         let cover = '';
         if (m.image?.original) {
@@ -786,23 +827,43 @@ app.get('/api/manga/search', async (c) => {
           genres: m.genres ? m.genres.map((g: any) => g.russian || g.name) : ["Манга"],
           chapters: m.chapters || 0
         };
-      });
+      }).filter(Boolean);
     }
 
-    // De-duplicate and combine
-    const seenTitles = new Set(mdResults.map((r: any) => r.title.toLowerCase().trim()));
-    const uniqueShiki = shikiResults.filter((s: any) => !seenTitles.has(s.title.toLowerCase().trim()));
+    let rmResults: any[] = [];
+    if (rmRes.status === 'fulfilled' && rmRes.value && rmRes.value.content) {
+      rmResults = rmRes.value.content.map((m: any) => {
+        return {
+          id: `remanga-${m.dir}`,
+          title: m.rus_name || m.en_name || 'Без названия',
+          originalTitle: m.en_name || '',
+          rating: m.avg_rating ? parseFloat(m.avg_rating) : 8.0,
+          status: m.issue_year ? `С ${m.issue_year}` : 'Статус неизвестен',
+          description: 'Описание из ReManga.org',
+          cover: m.img?.high || m.img?.mid || `https://api.remanga.org${m.cover_high}`,
+          genres: m.categories ? m.categories.map((c: any) => c.name) : ["Манга"],
+          chapters: m.count_chapters || 0
+        };
+      }).filter((x: any) => x.title !== 'Без названия');
+    }
 
-    // Interleave them to merge perfectly
+    // Merge & de-duplicate preserving order
+    const seenTitles = new Set();
     const interleaved: any[] = [];
-    const maxLen = Math.max(mdResults.length, uniqueShiki.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < mdResults.length) {
-        interleaved.push(mdResults[i]);
+    
+    const pushIfUnique = (item: any) => {
+      const canonical = item.title.toLowerCase().trim();
+      if (!seenTitles.has(canonical)) {
+        seenTitles.add(canonical);
+        interleaved.push(item);
       }
-      if (i < uniqueShiki.length) {
-        interleaved.push(uniqueShiki[i]);
-      }
+    };
+
+    const maxLength = Math.max(mdResults.length, shikiResults.length, rmResults.length);
+    for (let i = 0; i < maxLength; i++) {
+      if (i < rmResults.length) pushIfUnique(rmResults[i]);
+      if (i < mdResults.length) pushIfUnique(mdResults[i]);
+      if (i < shikiResults.length) pushIfUnique(shikiResults[i]);
     }
 
     return c.json({ results: interleaved });

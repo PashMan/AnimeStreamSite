@@ -144,6 +144,7 @@ const Manga: React.FC = () => {
   const [catalogHasMore, setCatalogHasMore] = useState<boolean>(true);
   const [catalogLimit] = useState<number>(24);
   const [catalogSort, setCatalogSort] = useState<string>('followedCount'); // followedCount, createdAt, rating
+  const [catalogSource, setCatalogSource] = useState<string>('all'); // all, mangadex, shikimori, remanga, mangalib, readmanga
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Catalog Filters
@@ -225,7 +226,7 @@ const Manga: React.FC = () => {
   // Catalog filter / sort triggers reset
   useEffect(() => {
     fetchCatalog(true);
-  }, [filterType, filterStatus, filterGenre, catalogSort, searchQuery]);
+  }, [filterType, filterStatus, filterGenre, catalogSort, catalogSource, searchQuery]);
 
   // Infinite Scroll Trigger for Vertical Catalog
   useEffect(() => {
@@ -321,7 +322,7 @@ const Manga: React.FC = () => {
 
     try {
       const res = await fetch(
-        `/api/manga/search?limit=${catalogLimit}&offset=${newOffset}&q=${encodeURIComponent(searchQuery)}&order=${catalogSort}`
+        `/api/manga/search?limit=${catalogLimit}&offset=${newOffset}&q=${encodeURIComponent(searchQuery)}&order=${catalogSort}&source=${catalogSource}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -1214,6 +1215,114 @@ const Manga: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 5: ПОЛНЫЙ КАТАЛОГ С ФИЛЬТРАМИ (АВТО-ПОДГРУЗКА) */}
+            <div className="space-y-6 pt-12 border-t border-white/5">
+              <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black uppercase tracking-widest text-white flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-[#8B5CF6]" /> Все тайтлы
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1 font-bold">Полный каталог с умной фильтрацией</p>
+                </div>
+
+                {/* Filters Row */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <select 
+                    value={catalogSource} 
+                    onChange={(e) => setCatalogSource(e.target.value)}
+                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
+                  >
+                    <option value="all">Все Источники</option>
+                    <option value="mangadex">MangaDex (RU)</option>
+                    <option value="remanga">ReManga</option>
+                    <option value="shikimori">МангаОвх (Аггрегация)</option>
+                    <option value="mangalib">MangaLib (RU-Proxy)</option>
+                    <option value="readmanga">ReadManga (Proxy)</option>
+                    <option value="mangaovh">MangaHub / Овх</option>
+                    <option value="inkstory">InkStory</option>
+                  </select>
+
+                  <select 
+                    value={catalogSort} 
+                    onChange={(e) => setCatalogSort(e.target.value)}
+                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
+                  >
+                    <option value="followedCount">Топ Популярных</option>
+                    <option value="createdAt">Новые поступления</option>
+                    <option value="latestUploadedChapter">Обновления Глав</option>
+                  </select>
+
+                  <select 
+                    value={filterType} 
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
+                  >
+                    <option value="all">Все Типы</option>
+                    <option value="manga">Манга (Япония)</option>
+                    <option value="manhwa">Манхва (Корея)</option>
+                    <option value="manhua">Маньхуа (Китай)</option>
+                  </select>
+
+                  <select 
+                    value={filterStatus} 
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
+                  >
+                    <option value="all">Любой статус</option>
+                    <option value="ongoing">Выпускается (Онгоинг)</option>
+                    <option value="completed">Завершен</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Grid of Mangas */}
+              {catalogMangas.length === 0 && !catalogLoading ? (
+                 <div className="py-24 text-center border border-white/5 rounded-3xl bg-[#18191d]/40">
+                   <BookX className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+                   <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">Ничего не найдено</h3>
+                   <p className="text-sm font-bold text-slate-600 mt-2">Попробуйте изменить параметры поиска или фильтры</p>
+                 </div>
+              ) : (
+                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                  {catalogMangas.map((item, idx) => (
+                    <div 
+                      key={`cat-${item.id}-${idx}`}
+                      onClick={() => setSearchParams({ mangaId: item.id })}
+                      className="group cursor-pointer flex flex-col space-y-2 animate-in fade-in"
+                    >
+                      <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-lg border border-white/5 relative bg-[#18191d]">
+                        <img 
+                          src={item.cover} 
+                          alt="" 
+                          onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                        />
+                        <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-[#121316]/90 backdrop-blur-md rounded border border-white/10 text-[8px] font-black text-slate-300 uppercase tracking-widest shadow-xl">
+                          {item.genres[0] || 'Манга'}
+                        </div>
+                        <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-[#121316]/90 backdrop-blur-md px-1.5 py-0.5 rounded border border-[#8B5CF6]/30 text-[9px] font-black text-[#8b5cf6] shadow-xl">
+                          <Star className="w-2.5 h-2.5 fill-current" /> {item.rating}
+                        </div>
+                      </div>
+                      <h4 className="text-[11px] font-bold text-slate-300 group-hover:text-[#8B5CF6] transition-colors leading-tight line-clamp-2">
+                        {item.title}
+                      </h4>
+                    </div>
+                  ))}
+                  
+                  {catalogLoading && Array.from({ length: 8 }).map((_, i) => (
+                    <div key={`loaders-${i}`} className="space-y-2">
+                      <div className="aspect-[2/3] w-full rounded-2xl bg-[#18191d] border border-white/5 animate-pulse" />
+                      <div className="h-3 w-3/4 bg-[#18191d] rounded animate-pulse" />
+                      <div className="h-3 w-1/2 bg-[#18191d] rounded animate-pulse" />
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -976,52 +976,56 @@ const Profile: React.FC = () => {
                             </div>
                           )}
 
-                          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent my-2"></div>
+                          {user?.role === 'admin' && (
+                            <>
+                              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent my-2"></div>
 
-                          {/* Server-Side Cache */}
-                          <div>
-                            <label className="text-sm font-bold text-white mb-1 block">Очистка серверного кэша</label>
-                            <p className="text-[13px] text-slate-400">
-                              Сервер оптимизирует работу, временно сохраняя в оперативной памяти ссылки на обложки (Jikan/Shikimori), данные обхода рейтинга и прокси-соединения. Сброс заставит сервер очистить ОЗУ-кэш и запрашивать всё с чистого листа.
-                            </p>
-                          </div>
+                              {/* Server-Side Cache */}
+                              <div>
+                                <label className="text-sm font-bold text-white mb-1 block">Очистка серверного кэша</label>
+                                <p className="text-[13px] text-slate-400">
+                                  Сервер оптимизирует работу, временно сохраняя в оперативной памяти ссылки на обложки (Jikan/Shikimori), данные обхода рейтинга и прокси-соединения. Сброс заставит сервер очистить ОЗУ-кэш и запрашивать всё с чистого листа. Доступно только администраторам.
+                                </p>
+                              </div>
 
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 bg-black/20 border border-white/5 rounded-2xl">
-                            <div>
-                              <span className="text-[11px] text-slate-500 font-bold uppercase tracking-wider block">Провайдер кэширования:</span>
-                              <span className="text-[13px] font-semibold text-slate-300 mt-1 block">
-                                Внутренняя память RAM (Hono-сервер)
-                              </span>
-                            </div>
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 bg-black/20 border border-white/5 rounded-2xl">
+                                <div>
+                                  <span className="text-[11px] text-slate-500 font-bold uppercase tracking-wider block">Провайдер кэширования:</span>
+                                  <span className="text-[13px] font-semibold text-slate-300 mt-1 block">
+                                    Внутренняя память RAM (Hono-сервер)
+                                  </span>
+                                </div>
 
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                setIsClearingServerCache(true);
-                                setServerCacheSuccessMsg('');
-                                try {
-                                  const res = await fetch('/api/clear-server-cache', {
-                                    method: 'POST'
-                                  });
-                                  const data = await res.json();
-                                  setServerCacheSuccessMsg(data.message || 'Серверный кэш успешно сброшен!');
-                                } catch (e: any) {
-                                  setServerCacheSuccessMsg('Ошибка при сбросе: ' + e.message);
-                                } finally {
-                                  setIsClearingServerCache(false);
-                                }
-                              }}
-                              disabled={isClearingServerCache}
-                              className="px-5 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto text-center cursor-pointer"
-                            >
-                              {isClearingServerCache ? 'Сбрасываю...' : 'Сбросить серверный кэш'}
-                            </button>
-                          </div>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setIsClearingServerCache(true);
+                                    setServerCacheSuccessMsg('');
+                                    try {
+                                      const res = await fetch('/api/clear-server-cache', {
+                                        method: 'POST'
+                                      });
+                                      const data = await res.json();
+                                      setServerCacheSuccessMsg(data.message || 'Серверный кэш успешно сброшен!');
+                                    } catch (e: any) {
+                                      setServerCacheSuccessMsg('Ошибка при сбросе: ' + e.message);
+                                    } finally {
+                                      setIsClearingServerCache(false);
+                                    }
+                                  }}
+                                  disabled={isClearingServerCache}
+                                  className="px-5 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto text-center cursor-pointer"
+                                >
+                                  {isClearingServerCache ? 'Сбрасываю...' : 'Сбросить серверный кэш'}
+                                </button>
+                              </div>
 
-                          {serverCacheSuccessMsg && (
-                            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs font-bold text-emerald-400 text-center animate-pulse">
-                              {serverCacheSuccessMsg}
-                            </div>
+                              {serverCacheSuccessMsg && (
+                                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs font-bold text-emerald-400 text-center animate-pulse">
+                                  {serverCacheSuccessMsg}
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
 
