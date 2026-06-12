@@ -837,6 +837,7 @@ app.get('/api/manga/search', async (c) => {
       rmResults = rmRes.value.content.map((m: any) => {
         let title = m.rus_name || 'Без названия';
         if (!hasCyrillic(title)) return null;
+        if (!m.count_chapters || m.count_chapters === 0) return null;
         
         return {
           id: `remanga-${m.dir}`,
@@ -880,6 +881,40 @@ app.get('/api/manga/search', async (c) => {
 app.get('/api/manga/:id', async (c) => {
   const mangaId = c.req.param('id');
   
+  if (mangaId.startsWith('remanga-')) {
+    const rawId = mangaId.replace('remanga-', '');
+    try {
+      const res = await fetch(`https://api.remanga.org/api/titles/${rawId}/`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      const data = await res.json();
+      const content = data?.content;
+      if (!content) return c.json({ error: 'Manga not found on ReManga' }, 404);
+
+      const title = content.rus_name || 'Без названия';
+      const originalTitle = content.en_name || content.dir || '';
+      const cover = content.img?.high ? `https://remanga.org${content.img.high}` : (content.img?.mid ? `https://remanga.org${content.img.mid}` : 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80');
+      const description = content.description || 'Описание отсутствует.';
+      const genres = content.categories?.map((c: any) => c.name) || ["Манга"];
+      const status = content.status?.name || 'Статус неизвестен';
+      
+      return c.json({
+        manga: {
+          id: mangaId,
+          title,
+          originalTitle,
+          rating: content.avg_rating ? parseFloat(content.avg_rating) : 8.0,
+          status,
+          description,
+          cover: `/api/manga/page-proxy?url=${encodeURIComponent(cover)}`,
+          genres: genres.slice(0, 3)
+        }
+      });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  }
+
   if (mangaId.startsWith('shiki-')) {
     const rawId = mangaId.replace('shiki-', '');
     const url = `https://shikimori.one/api/mangas/${rawId}`;
