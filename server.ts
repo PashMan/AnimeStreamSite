@@ -680,10 +680,13 @@ app.get('/api/manga/search', async (c) => {
   const query = c.req.query('q') || '';
   const limitVal = Number(c.req.query('limit') || '60');
   const offsetVal = Number(c.req.query('offset') || '0');
-  const order = c.req.query('order') || '';
-  const requestedSource = c.req.query('source') || 'all';
+   const order = c.req.query('order') || '';
+   const requestedSource = c.req.query('source') || 'all';
 
-  // We map the requested theoretical sources to APIs we actually query
+   c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+   c.header('Pragma', 'no-cache');
+
+   // We map the requested theoretical sources to APIs we actually query
   // mangadex -> MangaDex only
   // remanga -> ReManga only
   // shikimori -> Shikimori only
@@ -1362,10 +1365,8 @@ app.get('/api/manga/:id/chapters', async (c) => {
                title: chTitle || 'Глава',
                volume: path.match(/vol(\d+)/)?.[1] || '1',
                chapter: path.match(/vol\d+\/([\d.,]+)/)?.[1] || '0',
-               groupId: '',
-               groupName: 'ReadManga',
-               translatedLanguage: 'ru',
-               updatedAt: new Date().toISOString()
+               group: 'ReadManga',
+               publishAt: new Date().toISOString()
             });
         }
         

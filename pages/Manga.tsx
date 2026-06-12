@@ -295,23 +295,24 @@ const Manga: React.FC = () => {
     setLoadingLists5(true);
     try {
       // 1. Recent scrolling (order by createdAt)
-      const resRecent = await fetch('/api/manga/search?limit=24&order=createdAt&source=all');
+      const resRecent = await fetch(`/api/manga/search?limit=24&order=createdAt&source=all&_t=${Date.now()}`);
       if (resRecent.ok) {
         const data = await resRecent.json();
         setRecentAdditions(data.results || []);
       }
 
       // 2. Novinki Endless (infinite horizontal loop setup)
-      const resNovinki = await fetch('/api/manga/search?limit=24&offset=24&order=createdAt&source=all');
+      const resNovinki = await fetch(`/api/manga/search?limit=24&offset=24&order=createdAt&source=all&_t=${Date.now()}`);
       if (resNovinki.ok) {
         const data = await resNovinki.json();
         setNovinkiEndless(data.results || []);
       }
 
       // 3. Three Columns of 5
-      const resNov5 = await fetch('/api/manga/search?limit=5&order=createdAt&source=all');
-      const resRead5 = await fetch('/api/manga/search?limit=5&order=latestUploadedChapter&source=all');
-      const resPop5 = await fetch('/api/manga/search?limit=5&order=followedCount&source=all');
+      const t = Date.now();
+      const resNov5 = await fetch(`/api/manga/search?limit=5&order=createdAt&source=all&_t=${t}`);
+      const resRead5 = await fetch(`/api/manga/search?limit=5&order=latestUploadedChapter&source=all&_t=${t}`);
+      const resPop5 = await fetch(`/api/manga/search?limit=5&order=followedCount&source=all&_t=${t}`);
 
       if (resNov5.ok) setNovinki5((await resNov5.json()).results || []);
       if (resRead5.ok) setNowReading5((await resRead5.json()).results || []);
@@ -334,7 +335,7 @@ const Manga: React.FC = () => {
 
     try {
       const res = await fetch(
-        `/api/manga/search?limit=${catalogLimit}&offset=${newOffset}&q=${encodeURIComponent(searchQuery)}&order=${catalogSort}&source=${catalogSource}`
+        `/api/manga/search?limit=${catalogLimit}&offset=${newOffset}&q=${encodeURIComponent(searchQuery)}&order=${catalogSort}&source=${catalogSource}&_t=${Date.now()}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -388,7 +389,7 @@ const Manga: React.FC = () => {
     setLoadingRecent(true);
     const nextOfs = recentOffset + 24;
     try {
-      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=all`);
+      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=all&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         const results = data.results || [];
@@ -410,7 +411,7 @@ const Manga: React.FC = () => {
     setLoadingNovinki(true);
     const nextOfs = novinkiOffset + 24;
     try {
-      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=all`);
+      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt&source=all&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         const results = data.results || [];
@@ -450,7 +451,7 @@ const Manga: React.FC = () => {
     setIsMangaLicensed(false);
     setSelectedTranslationGroup('');
     try {
-      const res = await fetch(`/api/manga/${manga.id}/chapters`);
+      const res = await fetch(`/api/manga/${manga.id}/chapters?_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         const chList: ChapterItem[] = data.chapters || [];
