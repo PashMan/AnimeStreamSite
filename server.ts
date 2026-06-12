@@ -778,7 +778,7 @@ app.get('/api/manga/search', async (c) => {
         const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
         if (coverRel && coverRel.attributes?.fileName) {
           const fileName = coverRel.attributes.fileName;
-          cover = `https://uploads.mangadex.org/covers/${id}/${fileName}.512.jpg`;
+          cover = `/api/manga/page-proxy?url=${encodeURIComponent(`https://uploads.mangadex.org/covers/${id}/${fileName}.512.jpg`)}&_cb=3`;
         } else {
           cover = `https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80`;
         }
@@ -908,7 +908,7 @@ app.get('/api/manga/:id', async (c) => {
           rating: content.avg_rating ? parseFloat(content.avg_rating) : 8.0,
           status,
           description,
-          cover: `/api/manga/page-proxy?url=${encodeURIComponent(cover)}&_cb=3`,
+          cover,
           genres: genres.slice(0, 3)
         };
       }
@@ -928,7 +928,7 @@ app.get('/api/manga/:id', async (c) => {
            let cover = 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80';
            const coverRel = m.relationships?.find((r: any) => r.type === 'cover_art');
            if (coverRel && coverRel.attributes?.fileName) {
-             cover = `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.512.jpg`;
+             cover = `/api/manga/page-proxy?url=${encodeURIComponent(`https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.512.jpg`)}&_cb=3`;
            }
            mangaResponse = {
              id: mangaId, // Keep original ID
@@ -937,7 +937,7 @@ app.get('/api/manga/:id', async (c) => {
              rating: 8.0,
              status: attrs.status || 'Статус неизвестен',
              description: attrs.description?.ru || attrs.description?.en || 'Описание отсутствует.',
-             cover: `/api/manga/page-proxy?url=${encodeURIComponent(cover)}&_cb=3`,
+             cover,
              genres: attrs.tags?.filter((t: any) => t.attributes?.group === 'genre').map((t: any) => t.attributes?.name?.ru || t.attributes?.name?.en).filter(Boolean).slice(0, 3) || ["Манга"]
            };
         }
@@ -1021,7 +1021,7 @@ app.get('/api/manga/:id', async (c) => {
     const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
     if (coverRel && coverRel.attributes?.fileName) {
       const fileName = coverRel.attributes.fileName;
-      cover = `https://uploads.mangadex.org/covers/${mangaId}/${fileName}.512.jpg`;
+      cover = `/api/manga/page-proxy?url=${encodeURIComponent(`https://uploads.mangadex.org/covers/${mangaId}/${fileName}.512.jpg`)}&_cb=3`;
     } else {
       cover = `https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80`;
     }
@@ -1388,7 +1388,7 @@ app.get('/api/manga/:id/chapters', async (c) => {
                 chapter: attrs.chapter || '0',
                 volume: attrs.volume || '',
                 title: attrs.title || `Глава ${attrs.chapter || ''}`,
-                group: `MangaDex: ${groupName}`,
+                group: `MangaDex: ${groupName} (${lang})`,
                 publishAt: attrs.publishAt
               };
             });
@@ -1397,7 +1397,9 @@ app.get('/api/manga/:id/chapters', async (c) => {
         return [];
       };
 
-      return await getChapters('ru');
+      let chaps = await getChapters('ru');
+      if (chaps.length === 0) chaps = await getChapters('en');
+      return chaps;
     }
     return [];
   };
