@@ -988,13 +988,33 @@ app.get('/api/manga/page-proxy', async (c) => {
   const url = c.req.query('url');
   if (!url) return c.json({ error: 'Missing url' }, 400);
   try {
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': 'https://remanga.org/',
         'Accept': 'image/*'
       }
     });
+
+    // Fallback for MangaDex if .mangadex.network node throws 404 or errors
+    if (!res.ok && url.includes('.mangadex.network')) {
+      console.log(`[Proxy] MangaDex node failed (${res.status}), trying permanent CDN fallback...`);
+      const isSaver = url.includes('/data-saver/');
+      const marker = isSaver ? '/data-saver/' : '/data/';
+      const index = url.indexOf(marker);
+      if (index !== -1) {
+        const remainingPath = url.substring(index + marker.length);
+        const fallbackUrl = `https://uploads.mangadex.org${marker}${remainingPath}`;
+        console.log(`[Proxy] Fallback target URL: ${fallbackUrl}`);
+        res = await fetch(fallbackUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://mangadex.org/'
+          }
+        });
+      }
+    }
+
     if (!res.ok) {
       return c.json({ error: 'Proxy fails' }, res.status);
     }
@@ -1004,6 +1024,33 @@ app.get('/api/manga/page-proxy', async (c) => {
     c.header('Cache-Control', 'public, max-age=31536000');
     return c.body(blob);
   } catch (err: any) {
+    if (url.includes('.mangadex.network')) {
+      try {
+        const isSaver = url.includes('/data-saver/');
+        const marker = isSaver ? '/data-saver/' : '/data/';
+        const index = url.indexOf(marker);
+        if (index !== -1) {
+          const remainingPath = url.substring(index + marker.length);
+          const fallbackUrl = `https://uploads.mangadex.org${marker}${remainingPath}`;
+          console.log(`[Proxy Recovery Exception] Trying fallback: ${fallbackUrl}`);
+          const res = await fetch(fallbackUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': 'https://mangadex.org/'
+            }
+          });
+          if (res.ok) {
+            const blob = await res.arrayBuffer();
+            const contentType = res.headers.get('content-type') || 'image/jpeg';
+            c.header('Content-Type', contentType);
+            c.header('Cache-Control', 'public, max-age=31536000');
+            return c.body(blob);
+          }
+        }
+      } catch (e) {
+        console.error('[Proxy Recovery] Internal fallback fetch failed:', e);
+      }
+    }
     return c.json({ error: err.message }, 500);
   }
 });
@@ -1168,6 +1215,29 @@ app.get('/api/manga/:id/chapters', async (c) => {
 app.get('/api/manga/chapter/:chapterId/pages', async (c) => {
   const chapterId = c.req.param('chapterId');
   
+  // Custom Procedural/AI fallback chapters resolution
+  if (chapterId.startsWith('procedural-')) {
+    const chNum = chapterId.split('-').pop() || '1';
+    console.log(`[API] Serving dynamic procedural pages for chapter: ${chNum}`);
+    // Select 12 beautiful high-resolution visual landscape/concept art images
+    const backgroundUrls = [
+      "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1540200049848-d9813ea0e120?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=1080&auto=format&fit=crop&q=85",
+      "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1080&auto=format&fit=crop&q=85"
+    ];
+    const pages = backgroundUrls.map((url) => `/api/manga/page-proxy?url=${encodeURIComponent(url)}`);
+    return c.json({ pages });
+  }
+
   // ReManga chapters resolution
   if (chapterId.startsWith('remanga-')) {
     const rawChId = chapterId.replace('remanga-', '');

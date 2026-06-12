@@ -943,7 +943,7 @@ const Profile: React.FC = () => {
                                 <button onClick={() => setEditBanner('')} disabled={editBanner === 'none'} className="px-4 py-2 bg-white/5 hover:bg-red-500/20 text-red-400 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 disabled:opacity-50">
                                    <X className="w-3 h-3" /> Очистить
                                 </button>
-                                <button onClick={() => setEditBanner(editBanner === 'none' ? '' : 'none')} className="px-4 py-2 bg-white/5 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0">
+                                <button onClick={() => setEditBanner(editBanner === 'none' ? '' : 'none')} className="px-4 py-2 bg-white/5 hover:bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0">
                                    {editBanner === 'none' ? 'Показать баннер' : <><X className="w-3 h-3" /> Скрыть баннер</>}
                                 </button>
                                 <input type="file" ref={bannerInputRef} className="hidden" accept="image/*" onChange={handleBannerUpload} />

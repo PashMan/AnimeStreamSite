@@ -1108,7 +1108,7 @@ const Manga: React.FC = () => {
                   <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-4">
                     <h3 className="text-xs font-black uppercase text-[#8B5CF6] border-b border-white/5 pb-2 flex justify-between items-center">
                       <span>СЕЙЧАС ЧИТАЮТ</span>
-                      <span className="text-[9px] text-amber-500">АКТИВНО</span>
+                      <span className="text-[9px] text-[#8B5CF6] font-extrabold">АКТИВНО</span>
                     </h3>
                     <div className="space-y-3">
                       {nowReading5.map((item, idx) => (
@@ -1174,7 +1174,7 @@ const Manga: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-black uppercase tracking-widest text-[#8B5CF6] flex items-center gap-2">
-                  <Flame className="w-4 h-4" /> Лента новинок (бесконечно)
+                  <Flame className="w-4 h-4" /> Лента новинок
                 </h2>
               </div>
 
@@ -1183,52 +1183,15 @@ const Manga: React.FC = () => {
                   Загрузка новинок...
                 </div>
               ) : (
-                <div className="relative overflow-hidden w-full bg-[#18191d]/40 rounded-3xl p-5 border border-white/5">
-                  <style>{`
-                    @keyframes slideMarqueeLeft {
-                      0% { transform: translateX(0); }
-                      100% { transform: translateX(-50%); }
-                    }
-                    .animate-marquee-left {
-                      display: flex;
-                      gap: 16px;
-                      width: max-content;
-                      animation: slideMarqueeLeft 45s linear infinite;
-                    }
-                    .animate-marquee-left:hover {
-                      animation-play-state: paused;
-                    }
-                  `}</style>
-                  <div className="animate-marquee-left">
-                    {/* Original copy */}
+                <div className="relative w-full bg-[#18191d]/40 rounded-3xl p-5 border border-white/5">
+                  <div 
+                    ref={novinkiScrollRef}
+                    onScroll={handleNovinkiScroll}
+                    className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar select-none scroll-smooth"
+                  >
                     {novinkiEndless.map((item, idx) => (
                       <div
                         key={`novinki-endless-${item.id}-${idx}`}
-                        onClick={() => setSearchParams({ mangaId: item.id })}
-                        className="w-[125px] sm:w-[145px] shrink-0 group cursor-pointer space-y-1.5"
-                      >
-                        <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-md border border-white/5 relative bg-[#18191d]">
-                          <img 
-                            src={item.cover} 
-                            alt="" 
-                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            referrerPolicy="no-referrer"
-                            loading="lazy"
-                          />
-                          <div className="absolute top-1.5 left-1.5 px-1 bg-[#121316] rounded-md text-[8px] border border-white/5 font-bold text-slate-300">
-                            {item.genres[0]}
-                          </div>
-                        </div>
-                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#8B5CF6] transition-colors leading-tight line-clamp-1">
-                          {item.title}
-                        </h4>
-                      </div>
-                    ))}
-                    {/* Duplicate copy for a perfect seamless infinite look */}
-                    {novinkiEndless.map((item, idx) => (
-                      <div
-                        key={`novinki-endless-dup-${item.id}-${idx}`}
                         onClick={() => setSearchParams({ mangaId: item.id })}
                         className="w-[125px] sm:w-[145px] shrink-0 group cursor-pointer space-y-1.5"
                       >
