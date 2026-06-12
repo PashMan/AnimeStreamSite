@@ -886,23 +886,22 @@ app.get('/api/manga/:id', async (c) => {
   
   if (mangaId.startsWith('remanga-')) {
     const rawId = mangaId.replace('remanga-', '');
+    let mangaResponse: any = null;
     try {
       const res = await fetch(`https://api.remanga.org/api/titles/${rawId}/`, {
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
       const data = await res.json();
       const content = data?.content;
-      if (!content) return c.json({ error: 'Manga not found on ReManga' }, 404);
-
-      const title = content.rus_name || 'Без названия';
-      const originalTitle = content.en_name || content.dir || '';
-      const cover = content.img?.high ? `https://remanga.org${content.img.high}` : (content.img?.mid ? `https://remanga.org${content.img.mid}` : 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80');
-      const description = content.description || 'Описание отсутствует.';
-      const genres = content.categories?.map((c: any) => c.name) || ["Манга"];
-      const status = content.status?.name || 'Статус неизвестен';
-      
-      return c.json({
-        manga: {
+      if (content) {
+        const title = content.rus_name || 'Без названия';
+        const originalTitle = content.en_name || content.dir || '';
+        const cover = content.img?.high ? `https://remanga.org${content.img.high}` : (content.img?.mid ? `https://remanga.org${content.img.mid}` : 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80');
+        const description = content.description || 'Описание отсутствует.';
+        const genres = content.categories?.map((c: any) => c.name) || ["Манга"];
+        const status = content.status?.name || 'Статус неизвестен';
+        
+        mangaResponse = {
           id: mangaId,
           title,
           originalTitle,
@@ -911,10 +910,44 @@ app.get('/api/manga/:id', async (c) => {
           description,
           cover: `/api/manga/page-proxy?url=${encodeURIComponent(cover)}&_cb=3`,
           genres: genres.slice(0, 3)
+        };
+      }
+    } catch (err: any) {}
+
+    // Fallback to MD
+    if (!mangaResponse) {
+      try {
+        const mdSearchUrl = `https://api.mangadex.org/manga?limit=3&title=${encodeURIComponent(rawId.replace(/-/g, ' '))}&availableTranslatedLanguage[]=ru&includes[]=cover_art`;
+        const mdRes = await fetch(mdSearchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const mdData = await mdRes.json();
+        if (mdData && mdData.data && mdData.data.length > 0) {
+           const m = mdData.data[0];
+           const attrs = m.attributes;
+           const title = attrs.title?.ru || attrs.title?.en || attrs.title?.['ja-ro'] || 'Без названия';
+           const originalTitle = attrs.title?.['ja-ro'] || '';
+           let cover = 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80';
+           const coverRel = m.relationships?.find((r: any) => r.type === 'cover_art');
+           if (coverRel && coverRel.attributes?.fileName) {
+             cover = `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.512.jpg`;
+           }
+           mangaResponse = {
+             id: mangaId, // Keep original ID
+             title,
+             originalTitle,
+             rating: 8.0,
+             status: attrs.status || 'Статус неизвестен',
+             description: attrs.description?.ru || attrs.description?.en || 'Описание отсутствует.',
+             cover: `/api/manga/page-proxy?url=${encodeURIComponent(cover)}&_cb=3`,
+             genres: attrs.tags?.filter((t: any) => t.attributes?.group === 'genre').map((t: any) => t.attributes?.name?.ru || t.attributes?.name?.en).filter(Boolean).slice(0, 3) || ["Манга"]
+           };
         }
-      });
-    } catch (err: any) {
-      return c.json({ error: err.message }, 500);
+      } catch(e) {}
+    }
+
+    if (mangaResponse) {
+      return c.json({ manga: mangaResponse });
+    } else {
+      return c.json({ error: 'Manga not found' }, 404);
     }
   }
 
@@ -1247,6 +1280,10 @@ app.get('/api/manga/:id/chapters', async (c) => {
       console.error('[API] ReManga details fetch failed', e);
     }
     
+    if (searchTitles.length === 0 && explicitRemangaDir) {
+      searchTitles.push(explicitRemangaDir.replace(/-/g, ' '));
+    }
+
     let matchedId = '';
     for (const title of searchTitles) {
       if (!title) continue;
@@ -1549,7 +1586,7 @@ app.get('/api/manga/chapter/:chapterId/pages', async (c) => {
     const filenames = data.chapter.data;
     const pages = filenames.map((filename: string) => {
       const rawUrl = `${baseUrl}/data/${hash}/${filename}`;
-      return rawUrl;
+      return `/api/manga/page-proxy?url=${encodeURIComponent(rawUrl)}&chapterId=${chapterId}`;
     });
     return c.json({ pages });
   } catch (err: any) {
