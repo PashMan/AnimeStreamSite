@@ -1066,20 +1066,30 @@ app.get('/api/manga/page-proxy', async (c) => {
 
     // Fallback for MangaDex if .mangadex.network node throws 404 or errors
     if (!res.ok && url.includes('.mangadex.network')) {
-      console.log(`[Proxy] MangaDex node failed (${res.status}), trying permanent CDN fallback...`);
-      const isSaver = url.includes('/data-saver/');
-      const marker = isSaver ? '/data-saver/' : '/data/';
-      const index = url.indexOf(marker);
-      if (index !== -1) {
-        const remainingPath = url.substring(index + marker.length);
-        const fallbackUrl = `https://uploads.mangadex.org${marker}${remainingPath}`;
-        console.log(`[Proxy] Fallback target URL: ${fallbackUrl}`);
-        res = await fetch(fallbackUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': 'https://mangadex.org/'
+      const chapterId = c.req.query('chapterId');
+      if (chapterId) {
+        console.log(`[Proxy] MangaDex node failed (${res.status}), requesting new node for chapter ${chapterId}...`);
+        try {
+          const nodeRes = await fetch(`https://api.mangadex.org/at-home/server/${chapterId}?forcePort443=true`);
+          const nodeData = await nodeRes.json();
+          if (nodeData && nodeData.baseUrl) {
+             const filename = url.split('/').pop();
+             const marker = url.includes('/data-saver/') ? '/data-saver/' : '/data/';
+             const hash = nodeData.chapter?.hash;
+             if (hash && filename) {
+               const newUrl = `${nodeData.baseUrl}${marker}${hash}/${filename}`;
+               console.log(`[Proxy] Fallback to fresh node: ${newUrl}`);
+               res = await fetch(newUrl, {
+                 headers: {
+                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                   'Referer': 'https://mangadex.org/'
+                 }
+               });
+             }
           }
-        });
+        } catch(e) {
+          console.error('[Proxy] Node refresh failed', e);
+        }
       }
     }
 
@@ -1093,30 +1103,35 @@ app.get('/api/manga/page-proxy', async (c) => {
     return c.body(blob);
   } catch (err: any) {
     if (url.includes('.mangadex.network')) {
-      try {
-        const isSaver = url.includes('/data-saver/');
-        const marker = isSaver ? '/data-saver/' : '/data/';
-        const index = url.indexOf(marker);
-        if (index !== -1) {
-          const remainingPath = url.substring(index + marker.length);
-          const fallbackUrl = `https://uploads.mangadex.org${marker}${remainingPath}`;
-          console.log(`[Proxy Recovery Exception] Trying fallback: ${fallbackUrl}`);
-          const res = await fetch(fallbackUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': 'https://mangadex.org/'
-            }
-          });
-          if (res.ok) {
-            const blob = await res.arrayBuffer();
-            const contentType = res.headers.get('content-type') || 'image/jpeg';
-            c.header('Content-Type', contentType);
-            c.header('Cache-Control', 'public, max-age=31536000');
-            return c.body(blob);
+      const chapterId = c.req.query('chapterId');
+      if (chapterId) {
+        try {
+          const nodeRes = await fetch(`https://api.mangadex.org/at-home/server/${chapterId}?forcePort443=true`);
+          const nodeData = await nodeRes.json();
+          if (nodeData && nodeData.baseUrl) {
+             const filename = url.split('/').pop();
+             const marker = url.includes('/data-saver/') ? '/data-saver/' : '/data/';
+             const hash = nodeData.chapter?.hash;
+             if (hash && filename) {
+               const newUrl = `${nodeData.baseUrl}${marker}${hash}/${filename}`;
+               const res = await fetch(newUrl, {
+                 headers: {
+                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                   'Referer': 'https://mangadex.org/'
+                 }
+               });
+               if (res.ok) {
+                 const blob = await res.arrayBuffer();
+                 const contentType = res.headers.get('content-type') || 'image/jpeg';
+                 c.header('Content-Type', contentType);
+                 c.header('Cache-Control', 'public, max-age=31536000');
+                 return c.body(blob);
+               }
+             }
           }
+        } catch(e) {
+          console.error('[Proxy Recovery Exception] Node refresh failed', e);
         }
-      } catch (e) {
-        console.error('[Proxy Recovery] Internal fallback fetch failed:', e);
       }
     }
     return c.json({ error: err.message }, 500);
@@ -1127,8 +1142,40 @@ app.get('/api/manga/:id/chapters', async (c) => {
   let mangaId = c.req.param('id');
   let searchTitles: string[] = [];
 
-  // If starts with shiki-, get titles from Shikimori
-  if (mangaId.startsWith('shiki-')) {
+  // If starts with remanga-, get titles from ReManga and fast-track remangaDir
+  let explicitRemangaDir = '';
+  if (mangaId.startsWith('remanga-')) {
+    explicitRemangaDir = mangaId.replace('remanga-', '');
+    try {
+      const rmRes = await fetch(`https://api.remanga.org/api/titles/${explicitRemangaDir}/`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      const rmData = await rmRes.json();
+      if (rmData && rmData.content) {
+        if (rmData.content.rus_name) searchTitles.push(rmData.content.rus_name);
+        if (rmData.content.en_name) searchTitles.push(rmData.content.en_name);
+      }
+    } catch(e) {
+      console.error('[API] ReManga details fetch failed', e);
+    }
+    
+    let matchedId = '';
+    for (const title of searchTitles) {
+      if (!title) continue;
+      try {
+        const mdSearchUrl = `https://api.mangadex.org/manga?limit=3&title=${encodeURIComponent(title)}`;
+        const mdRes = await fetch(mdSearchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const mdData = await mdRes.ok ? await mdRes.json() : null;
+        if (mdData && mdData.data && mdData.data.length > 0) {
+          matchedId = mdData.data[0].id;
+          break;
+        }
+      } catch (err) {}
+    }
+    if (matchedId) {
+      mangaId = matchedId; // replace mangaId with MangaDex UUID so `fetchMD` works
+    }
+  } else if (mangaId.startsWith('shiki-')) {
     const rawId = mangaId.replace('shiki-', '');
     try {
       const shikiRes = await fetch(`https://shikimori.one/api/mangas/${rawId}`, {
@@ -1139,12 +1186,12 @@ app.get('/api/manga/:id/chapters', async (c) => {
       });
       const m = await shikiRes.json();
       if (m && !m.error) {
+        if (m.russian) searchTitles.push(m.russian);
         if (m.name) searchTitles.push(m.name);
         if (m.japanese && m.japanese[0]) searchTitles.push(m.japanese[0]);
         if (m.japanese && Array.isArray(m.japanese)) {
           m.japanese.forEach((jpName: string) => searchTitles.push(jpName));
         }
-        if (m.russian) searchTitles.push(m.russian);
       }
     } catch (e) {
       console.error('[API] Shikimori details fetch for chapters failed:', e);
@@ -1228,6 +1275,43 @@ app.get('/api/manga/:id/chapters', async (c) => {
   };
 
   const fetchRM = async () => {
+    if (explicitRemangaDir) {
+      // Create a dummy fetchRemangaChapters call for explicit dir? No, wait. 
+      // fetchRemangaChaptersByTitle does search. We can bypass search if we extract the logic!
+      // But wait! Let's just create a quick direct fetch here because it's simpler!
+      try {
+        const detailRes = await fetch(`https://api.remanga.org/api/titles/${explicitRemangaDir}/`, {
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        const detailData = await detailRes.json();
+        const branches = detailData?.content?.branches;
+        if (!branches || !branches.length) return [];
+        let rChapters: any[] = [];
+        await Promise.allSettled(branches.map(async (branch: any) => {
+          const chRes = await fetch(`https://api.remanga.org/api/titles/chapters/?branch_id=${branch.id}&limit=250&page=1`, {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+          });
+          const chData = await chRes.json();
+          if (Array.isArray(chData?.content)) {
+            chData.content.forEach((ch: any) => {
+              const grName = Array.isArray(branch.names) ? branch.names.join(', ') : (branch.names || 'Переводчики ReManga');
+              rChapters.push({
+                id: `remanga-${ch.id}`,
+                chapter: (ch.chapter || '0').toString(),
+                volume: (ch.volume || '').toString(),
+                title: ch.name || `Глава ${ch.chapter || ''}`,
+                group: `ReManga: ${grName}`,
+                publishAt: ch.pub_date || new Date().toISOString()
+              });
+            });
+          }
+        }));
+        return rChapters;
+      } catch(e) {
+        console.error('[API] Direct ReManga branch data fetch failed', e);
+        return [];
+      }
+    }
     if (searchTitles.length > 0) {
       return await fetchRemangaChaptersByTitle(searchTitles);
     }
@@ -1375,7 +1459,7 @@ app.get('/api/manga/chapter/:chapterId/pages', async (c) => {
     const pages = filenames.map((filename: string) => {
       const rawUrl = `${baseUrl}/data/${hash}/${filename}`;
       // Also proxy MangaDex to guarantee excellent offline-ready/by-pass delivery
-      return `/api/manga/page-proxy?url=${encodeURIComponent(rawUrl)}`;
+      return `/api/manga/page-proxy?url=${encodeURIComponent(rawUrl)}&chapterId=${chapterId}`;
     });
     return c.json({ pages });
   } catch (err: any) {
