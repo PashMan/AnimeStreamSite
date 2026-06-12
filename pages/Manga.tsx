@@ -143,6 +143,41 @@ const Manga: React.FC = () => {
 
       <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 mt-12">
         
+        {/* Prominent Site Mode Switcher Widget */}
+        <div className="w-full bg-[#1c1d22]/80 backdrop-blur-md border border-white/5 rounded-3xl p-5 md:p-6 mb-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative group/switcher animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="absolute top-0 right-0 w-80 h-40 bg-[#FF5C00]/5 blur-[80px] rounded-full pointer-events-none transition-all duration-700" />
+          <div className="relative z-10 space-y-1 text-center md:text-left">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF5C00] flex items-center justify-center md:justify-start gap-1.5 mb-1">
+              <Sparkles className="w-3.5 h-3.5" /> ПОРТАЛЫ KAMIANIME
+            </div>
+            <h3 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">
+              Вы находитесь на Манга Портале
+            </h3>
+            <p className="text-xs text-slate-400 font-medium max-w-lg">
+              Хотите посмотреть аниме онлайн бесплатно в хорошем качестве? Переключите сайт на режим «Ками-Аниме» в один клик!
+            </p>
+          </div>
+          
+          <div className="flex bg-black/45 border border-white/5 rounded-2xl p-1.5 w-full md:w-auto shrink-0 relative z-10">
+            <button
+              onClick={() => {
+                localStorage.removeItem('kami_manga_mode');
+                window.location.reload();
+              }}
+              className="flex-grow md:flex-grow-0 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-all hover:bg-white/5 select-none cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+              <span>Аниме Онлайн</span>
+            </button>
+            <button
+              className="flex-grow md:flex-grow-0 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all bg-[#FF5C00] text-white shadow-lg shadow-[#FF5C00]/10 select-none cursor-default"
+            >
+              <BookOpen className="w-4 h-4 text-white" />
+              <span>Читать Мангу</span>
+            </button>
+          </div>
+        </div>
+        
         {/* Collection Grid Header with Search Functionality */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 mt-12 pb-4 border-b border-white/5">
           <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 flex items-center gap-2.5">

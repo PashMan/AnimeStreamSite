@@ -275,7 +275,6 @@ const Layout: React.FC = () => {
             {isMangaMode ? (
               <nav className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400 relative">
                 <Link to="/" className={`${isActive('/') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all`}>Главная</Link>
-                <Link to="/manga" className={`${isActive('/manga') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all flex items-center gap-1`}><BookOpen className="w-3.5 h-3.5" /> Каталог Манги</Link>
                 {user?.role === 'admin' && (
                   <Link to="/games" className={`${isActive('/games') ? 'text-[#FF5C00]' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
                 )}
@@ -292,12 +291,8 @@ const Layout: React.FC = () => {
                   <span className="text-[8.5px] font-black uppercase tracking-wider text-[#FF5C00]">МАНГА</span>
                   <button
                     onClick={() => {
-                      if (window.location.hostname.includes('kamianime.club')) {
-                        window.location.href = 'https://kamianime.club';
-                      } else {
-                        localStorage.removeItem('kami_manga_mode');
-                        window.location.reload();
-                      }
+                      localStorage.removeItem('kami_manga_mode');
+                      window.location.reload();
                     }}
                     className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#FF5C00]"
                     title="Переключить на Аниме"
@@ -338,7 +333,6 @@ const Layout: React.FC = () => {
                   )}
                 </div>
 
-                <Link to="/manga" className={`${isActive('/manga') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><BookOpen className="w-3.5 h-3.5" /> Манга</Link>
                 {user?.role === 'admin' && (
                   <Link to="/games" className={`${isActive('/games') ? 'text-primary' : 'hover:text-white'} transition-all flex items-center gap-1`}><Gamepad2 className="w-3.5 h-3.5" /> Игры</Link>
                 )}
@@ -355,12 +349,8 @@ const Layout: React.FC = () => {
                   <span className="text-[8.5px] font-black uppercase tracking-wider text-primary">АНИМЕ</span>
                   <button
                     onClick={() => {
-                      if (window.location.hostname.includes('kamianime.club')) {
-                        window.location.href = 'https://manga.kamianime.club';
-                      } else {
-                        localStorage.setItem('kami_manga_mode', 'true');
-                        window.location.reload();
-                      }
+                      localStorage.setItem('kami_manga_mode', 'true');
+                      window.location.reload();
                     }}
                     className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#8B5CF6]"
                     title="Переключить на Мангу"
@@ -510,19 +500,11 @@ const Layout: React.FC = () => {
             <button
               onClick={() => {
                 if (isMangaMode) {
-                  if (window.location.hostname.includes('kamianime.club')) {
-                    window.location.href = 'https://kamianime.club';
-                  } else {
-                    localStorage.removeItem('kami_manga_mode');
-                    window.location.reload();
-                  }
+                  localStorage.removeItem('kami_manga_mode');
+                  window.location.reload();
                 } else {
-                  if (window.location.hostname.includes('kamianime.club')) {
-                    window.location.href = 'https://manga.kamianime.club';
-                  } else {
-                    localStorage.setItem('kami_manga_mode', 'true');
-                    window.location.reload();
-                  }
+                  localStorage.setItem('kami_manga_mode', 'true');
+                  window.location.reload();
                 }
               }}
               className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${isMangaMode ? 'bg-[#FF5C00]' : 'bg-[#8B5CF6]'}`}
@@ -536,9 +518,6 @@ const Layout: React.FC = () => {
             <>
               <Link to="/" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
                 Главная
-              </Link>
-              <Link to="/manga" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/manga') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-                Каталог Манги
               </Link>
               {user?.role === 'admin' && (
                 <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-[#FF5C00] text-white' : 'text-slate-300 hover:bg-white/5'}`}>
@@ -591,10 +570,6 @@ const Layout: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              <Link to="/manga" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/manga') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
-                Манга
-              </Link>
 
               {user?.role === 'admin' && (
                 <Link to="/games" className={`p-4 rounded-xl font-black uppercase tracking-widest text-sm transition-colors ${isActive('/games') ? 'bg-primary text-white' : 'text-slate-300 hover:bg-white/5'}`}>
