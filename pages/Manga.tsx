@@ -729,7 +729,13 @@ const Manga: React.FC = () => {
                     <div className="space-y-2">
                       <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Аннотация / Синопсис</h4>
                       <p className="text-slate-300 text-sm leading-relaxed font-semibold">
-                        {selectedManga.description || "У этого тайтла пока нет дет�                {activeDetailTab === 'chapters' && (
+                        {selectedManga.description || "У этого тайтла пока нет детального описания."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activeDetailTab === 'chapters' && (
                   <div className="space-y-4 animate-in fade-in duration-200">
                     <div className="relative">
                       <input 
@@ -830,39 +836,6 @@ const Manga: React.FC = () => {
                               ))}
                             </div>
                           )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}  );
-                    })()}
-                  </div>
-                )}     )}�ратитесь к правообладателю.
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="py-12 text-center text-slate-500 font-extrabold text-xs uppercase tracking-widest border border-white/5 border-dashed rounded-3xl">
-                            Главы этого произведения еще не переведены в нашей базе
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
-                          {filtered.map((ch) => (
-                            <button
-                              key={ch.id}
-                              onClick={() => startReadingChapter(ch)}
-                              className="p-3.5 bg-[#18191d] border border-white/5 rounded-2xl hover:border-[#FF5C00] hover:bg-[#FF5C00]/5 text-left transition-all active:scale-[0.98] flex items-center justify-between cursor-pointer"
-                            >
-                              <div className="min-w-0 pr-2">
-                                <span className="text-[8px] font-black uppercase text-[#FF5C00] tracking-wider block">ГРУППА: {ch.group || "KamiManga Trans"}</span>
-                                <h4 className="text-xs font-black text-white mt-0.5">Глава {ch.chapter}</h4>
-                                <p className="text-[10px] text-slate-500 font-semibold truncate mt-0.5">{ch.title || `Раздел<sup>${ch.chapter}</sup>`}</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
-                            </button>
-                          ))}
                         </div>
                       );
                     })()}
@@ -1264,10 +1237,8 @@ const Manga: React.FC = () => {
             </div>
 
             </div>
-
           </div>
-        </div>
-      )}
+        )}
 
       {/* DETAILED CHAPTERS FULL SCREEN HIGH-CONTRAST READER */}
       <AnimatePresence>
