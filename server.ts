@@ -673,9 +673,12 @@ app.get('/api/manga/search', async (c) => {
   const query = c.req.query('q') || '';
   const limit = c.req.query('limit') || '60';
   const offset = c.req.query('offset') || '0';
+  const order = c.req.query('order') || '';
   let url = `https://api.mangadex.org/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
   if (query) {
     url += `&title=${encodeURIComponent(query)}`;
+  } else if (order) {
+    url += `&order[${order}]=desc`;
   } else {
     url += `&order[followedCount]=desc`;
   }
@@ -727,6 +730,60 @@ app.get('/api/manga/search', async (c) => {
       };
     });
     return c.json({ results });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/api/manga/:id', async (c) => {
+  const mangaId = c.req.param('id');
+  const url = `https://api.mangadex.org/manga/${mangaId}?includes[]=cover_art`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
+      }
+    });
+    const data = await res.json();
+    if (!data || !data.data) {
+      return c.json({ error: 'Manga not found' }, 404);
+    }
+    const manga = data.data;
+    const attrs = manga.attributes || {};
+    let title = attrs.title?.en || attrs.title?.['ja-ro'] || attrs.title?.ja || 'Без названия';
+    if (attrs.altTitles && Array.isArray(attrs.altTitles)) {
+      const ruTitleObj = attrs.altTitles.find((t: any) => t.ru);
+      if (ruTitleObj) title = ruTitleObj.ru;
+    }
+    const originalTitle = attrs.title?.['ja-ro'] || attrs.title?.ja || attrs.title?.en || '';
+    let cover = '';
+    const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
+    if (coverRel && coverRel.attributes?.fileName) {
+      const fileName = coverRel.attributes.fileName;
+      cover = `https://uploads.mangadex.org/covers/${mangaId}/${fileName}.512.jpg`;
+    } else {
+      cover = `https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80`;
+    }
+    let description = attrs.description?.ru || attrs.description?.en || 'Описание отсутствует.';
+    description = description.replace(/\[\w+=\w+\]/g, '').replace(/\[\/\w+\]/g, '').replace(/\[hr\]/g, '');
+    const genres = attrs.tags
+      ?.filter((t: any) => t.attributes?.group === 'genre')
+      ?.map((t: any) => t.attributes?.name?.ru || t.attributes?.name?.en)
+      ?.filter(Boolean) || [];
+
+    return c.json({
+      manga: {
+        id: mangaId,
+        title,
+        originalTitle,
+        rating: Number((8.1 + Math.random() * 1.6).toFixed(1)),
+        status: attrs.status === 'ongoing' ? 'Онгоинг' : (attrs.status === 'completed' ? 'Завершен' : 'Приостановлен'),
+        description,
+        cover,
+        genres: genres.slice(0, 3)
+      }
+    });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

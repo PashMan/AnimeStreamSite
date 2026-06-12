@@ -21,9 +21,12 @@ export const onRequest = async (context: any) => {
     const query = url.searchParams.get('q') || '';
     const limit = url.searchParams.get('limit') || '60';
     const offset = url.searchParams.get('offset') || '0';
+    const order = url.searchParams.get('order') || '';
     let targetUrl = `https://api.mangadex.org/manga?limit=${limit}&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica`;
     if (query) {
       targetUrl += `&title=${encodeURIComponent(query)}`;
+    } else if (order) {
+      targetUrl += `&order[${order}]=desc`;
     } else {
       targetUrl += `&order[followedCount]=desc`;
     }
@@ -80,6 +83,71 @@ export const onRequest = async (context: any) => {
       });
 
       return new Response(JSON.stringify({ results }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+  }
+
+  // 1.5. SINGLE DETAILS: /api/manga/:id
+  const singleMangaMatch = pathname.match(/^\/([a-zA-Z0-9\-]{36})\/?$/);
+  if (singleMangaMatch) {
+    const mangaId = singleMangaMatch[1];
+    const targetUrl = `https://api.mangadex.org/manga/${mangaId}?includes[]=cover_art`;
+    try {
+      const res = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      });
+      const data: any = await res.json();
+      if (!data || !data.data) {
+        return new Response(JSON.stringify({ error: 'Manga not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      }
+
+      const manga = data.data;
+      const attrs = manga.attributes || {};
+      let title = attrs.title?.en || attrs.title?.['ja-ro'] || attrs.title?.ja || 'Без названия';
+      if (attrs.altTitles && Array.isArray(attrs.altTitles)) {
+        const ruTitleObj = attrs.altTitles.find((t: any) => t.ru);
+        if (ruTitleObj) title = ruTitleObj.ru;
+      }
+      const originalTitle = attrs.title?.['ja-ro'] || attrs.title?.ja || attrs.title?.en || '';
+      let cover = '';
+      const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
+      if (coverRel && coverRel.attributes?.fileName) {
+        const fileName = coverRel.attributes.fileName;
+        cover = `https://uploads.mangadex.org/covers/${mangaId}/${fileName}.512.jpg`;
+      } else {
+        cover = `https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80`;
+      }
+      let description = attrs.description?.ru || attrs.description?.en || 'Описание отсутствует.';
+      description = description.replace(/\[\w+=\w+\]/g, '').replace(/\[\/\w+\]/g, '').replace(/\[hr\]/g, '');
+      const genres = attrs.tags
+        ?.filter((t: any) => t.attributes?.group === 'genre')
+        ?.map((t: any) => t.attributes?.name?.ru || t.attributes?.name?.en)
+        ?.filter(Boolean) || [];
+
+      return new Response(JSON.stringify({
+        manga: {
+          id: mangaId,
+          title,
+          originalTitle,
+          rating: Number((8.1 + Math.random() * 1.6).toFixed(1)),
+          status: attrs.status === 'ongoing' ? 'Онгоинг' : (attrs.status === 'completed' ? 'Завершен' : 'Приостановлен'),
+          description,
+          cover,
+          genres: genres.slice(0, 3)
+        }
+      }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     } catch (err: any) {

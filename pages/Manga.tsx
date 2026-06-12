@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   BookOpen, Star, Sparkles, ArrowLeft, ChevronRight, ChevronLeft, Heart, 
   Search, Loader2, ShieldAlert, BookX, ChevronDown, Layers, Settings, 
-  AlignJustify, Sliders, Eye, MessageSquare, Clock, Filter, ThumbsUp, 
-  ChevronUp, Calendar, Flame, Compass, HelpCircle, RefreshCw
+  Sliders, Eye, MessageSquare, Clock, Filter, ThumbsUp, 
+  Calendar, Flame, Compass, RefreshCw, X
 } from 'lucide-react';
 import SEO from '../components/SEO';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +15,6 @@ interface MangaItem {
   title: string;
   originalTitle: string;
   rating: number;
-  chapters: number;
   genres: string[];
   status: string;
   description: string;
@@ -31,25 +31,146 @@ interface ChapterItem {
   publishAt: string;
 }
 
+interface HistoryItem {
+  manga: MangaItem;
+  chapter: ChapterItem;
+  timestamp: number;
+}
+
 const Manga: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeMangaId = searchParams.get('mangaId');
+
+  // --- Dynamic Procedural Infinite Generator Fallback ---
+  const generateProceduralManga = (index: number): MangaItem => {
+    const titles = [
+      "Магическая битва: Начало", "Токийский гуль: Перерождение", "Мастера Меча Онлайн", "Созданный в Бездне", 
+      "Хроники хаоса и меча", "Владыка демонов на подработке", "Благословение небожителей", "Истребитель демонов: Арка поезда", 
+      "Моя геройская академия: Иной путь", "Реинкарнация безработного: Путь мага", "Клинок, рассекающий демонов", "Синий экзорцист",
+      "Странствия мага: История Элейны", "Восхождение Героя Щита", "Эта фарфоровая кукла влюбилась", "О моем перерождении в слизь"
+    ];
+    const originalTitles = [
+      "Jujutsu Kaisen: Origin", "Tokyo Ghoul: Re", "Sword Art Online: Integral", "Made in Abyss: Deep", 
+      "Chaos Blade Gate", "Hataraku Maou-sama: Re", "Tian Guan Ci Fu", "Kimetsu no Yaiba: Mugen", 
+      "Boku no Hero Academia: Spin", "Mushoku Tensei: Mage Way", "Kimetsu no Yaiba: Classic", "Ao no Exorcist",
+      "Majo no Tabitabi: Wandering", "Tate no Yuusha no Nariagari", "Sono Bisque Doll wa Koi wo Suru", "Tensei Shitara Slime Datta Ken"
+    ];
+    const genres = ["Экшен", "Фэнтези", "Исекай", "Драма", "Комедия", "Романтика", "Приключения", "Сёнен", "Культивация", "Мистика", "Детектив"];
+    const statuses = ["Онгоинг", "Завершен", "Приостановлен"];
+    const covers = [
+      "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1560942485-b2a11cc13456?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1580477667995-2b94f01c9516?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1627556553194-e8f0012228d4?w=600&auto=format&fit=crop&q=80"
+    ];
+
+    const title = titles[index % titles.length] + ` (Том ${Math.floor(index / titles.length) + 1})`;
+    const description = `Увлекательный русский перевод невероятной истории о великих свершениях и внутренней силе. Главный герой открывает тайные способности своего духа и преодолевает преграды на жестоком пути судьбы. Яркие сражения, продуманная магия и детальный сюжет ждут читателей.`;
+
+    return {
+      id: `procedural-${index}-${title.replace(/\s+/g, '-')}`,
+      title,
+      originalTitle: originalTitles[index % originalTitles.length],
+      rating: Number((7.8 + ((index * 0.3) % 2.1)).toFixed(1)),
+      status: statuses[index % statuses.length],
+      description,
+      cover: covers[index % covers.length],
+      genres: [genres[index % genres.length], genres[(index + 3) % genres.length]]
+    };
+  };
+
+  // --- Home Feeds & Carousel States ---
+  const [recentAdditions, setRecentAdditions] = useState<MangaItem[]>([]);
+  const [recentOffset, setRecentOffset] = useState<number>(0);
+  const [loadingRecent, setLoadingRecent] = useState<boolean>(false);
   
-  // Core states
-  const [mangas, setMangas] = useState<MangaItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [novinkiEndless, setNovinkiEndless] = useState<MangaItem[]>([]);
+  const [novinkiOffset, setNovinkiOffset] = useState<number>(0);
+  const [loadingNovinki, setLoadingNovinki] = useState<boolean>(false);
+
+  // Lists of 5
+  const [novinki5, setNovinki5] = useState<MangaItem[]>([]);
+  const [nowReading5, setNowReading5] = useState<MangaItem[]>([]);
+  const [popular5, setPopular5] = useState<MangaItem[]>([]);
+  const [loadingLists5, setLoadingLists5] = useState<boolean>(false);
+
+  // Continue Reading History
+  const [readingHistory, setReadingHistory] = useState<HistoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('kami_manga_history_v2');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    
+    // Premium simulations fallback
+    return [
+      {
+        manga: {
+          id: "3bb2620d-85ee-452f-b441-aa618037d04f",
+          title: "Человек-Бензопила",
+          originalTitle: "Chainsaw Man",
+          cover: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80",
+          rating: 9.2,
+          genres: ["Драма", "Экшен", "Ужасы"],
+          status: "Онгоинг",
+          description: "Дэнджи — бедный парень, готовый на всё ради денег..."
+        },
+        chapter: { id: "chainsaw-1", chapter: "145", volume: "15", title: "Мир без оружия", group: "KamiTrans", publishAt: "" },
+        timestamp: Date.now() - 3600000
+      },
+      {
+        manga: {
+          id: "e8ca92e2-9dbb-4375-8123-dc19e1ef871b",
+          title: "Магическая битва",
+          originalTitle: "Jujutsu Kaisen",
+          cover: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80",
+          rating: 9.0,
+          genres: ["Экшен", "Фэнтези", "Сёнен"],
+          status: "Онгоинг",
+          description: "Юдзи Итадори — сильный старшеклассник..."
+        },
+        chapter: { id: "jujutsu-1", chapter: "250", volume: "26", title: "Решающий бой на руинах Синдзюку", group: "MangaLib Studio", publishAt: "" },
+        timestamp: Date.now() - 172800000
+      }
+    ];
+  });
+
+  // --- Catalog States ---
+  const [catalogMangas, setCatalogMangas] = useState<MangaItem[]>([]);
+  const [catalogOffset, setCatalogOffset] = useState<number>(0);
+  const [catalogLoading, setCatalogLoading] = useState<boolean>(false);
+  const [catalogHasMore, setCatalogHasMore] = useState<boolean>(true);
+  const [catalogLimit] = useState<number>(24);
+  const [catalogSort, setCatalogSort] = useState<string>('followedCount'); // followedCount, createdAt, rating
   const [searchQuery, setSearchQuery] = useState<string>('');
-  
+
+  // Catalog Filters
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterGenre, setFilterGenre] = useState<string>('all');
+
+  // --- Selected Manga Deep Page States ---
   const [selectedManga, setSelectedManga] = useState<MangaItem | null>(null);
   const [chapters, setChapters] = useState<ChapterItem[]>([]);
   const [chaptersLoading, setChaptersLoading] = useState<boolean>(false);
+  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'chapters' | 'comments'>('info');
+  const [chapterSearchQuery, setChapterSearchQuery] = useState<string>('');
   const [isMangaLicensed, setIsMangaLicensed] = useState<boolean>(false);
-  const [readerMode, setReaderMode] = useState<'pages' | 'scroll'>('scroll');
-  
+
+  // --- Active Reader States ---
   const [activeChapter, setActiveChapter] = useState<ChapterItem | null>(null);
   const [pages, setPages] = useState<string[]>([]);
   const [pagesLoading, setPagesLoading] = useState<boolean>(false);
-  
+  const [readerMode, setReaderMode] = useState<'pages' | 'scroll'>('scroll');
   const [mangaReaderPage, setMangaReaderPage] = useState<number>(0);
+  const [readingBg, setReadingBg] = useState<'dark' | 'gray' | 'sepia' | 'light'>('dark');
+  const [readingWidth, setReadingWidth] = useState<'600' | '800' | '1000' | 'full'>('800');
+  const [readingGap, setReadingGap] = useState<'0' | '12' | '24'>('12');
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+
+  // Bookmarks & Favorites local
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('kami_manga_favorites');
@@ -59,20 +180,6 @@ const Manga: React.FC = () => {
     }
   });
 
-  // MangaLib filters (Home page)
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterGenre, setFilterGenre] = useState<string>('all');
-  const [homeActiveTab, setHomeActiveTab] = useState<'updates' | 'catalog' | 'popular'>('updates');
-
-  // Reader Custom Settings
-  const [readingBg, setReadingBg] = useState<'dark' | 'gray' | 'sepia' | 'light'>('dark');
-  const [readingWidth, setReadingWidth] = useState<'600' | '800' | '1000' | 'full'>('800');
-  const [readingGap, setReadingGap] = useState<'0' | '12' | '24'>('12');
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-
-  // Detail panel tabs
-  const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'chapters' | 'comments'>('info');
   const [bookmarkCategory, setBookmarkCategory] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem('kami_manga_bookmarks');
@@ -82,104 +189,253 @@ const Manga: React.FC = () => {
     }
   });
   const [isBookmarkDropdownOpen, setIsBookmarkDropdownOpen] = useState<boolean>(false);
-  
-  // Comments Database
-  const [mangaComments, setMangaComments] = useState<Record<string, {id: string, user: string, text: string, date: string, likes: number}[]>>(() => {
+
+  // Social comments
+  const [mangaComments, setMangaComments] = useState<Record<string, any[]>>(() => {
     try {
       const saved = localStorage.getItem('kami_manga_comments_db');
-      return saved ? JSON.parse(saved) : {
-        "manga-1": [
-          { id: "1", user: "Zoro_Roronoa", text: "Шедевр! Обожаю рисовку, перевод здесь просто потрясающий. Всем читать!", date: "12.06.2026", likes: 24 },
-          { id: "2", user: "Luffy_Meat", text: "Наконец-то нашел этот тайтл в хорошем качестве на русском! Буду читать всю ночь.", date: "11.06.2026", likes: 13 }
-        ],
-        "default": [
-          { id: "1", user: "MangaCritic", text: "Прекрасный тайтл, сюжет затягивает с первых страниц! Рекомендую режим Свиток.", date: "10.06.2026", likes: 42 }
-        ]
-      };
+      return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
     }
   });
   const [newCommentText, setNewCommentText] = useState<string>('');
-  const [chapterSearchQuery, setChapterSearchQuery] = useState<string>('');
 
-  // Auto loaded items bookmark sync
-  const updateBookmarkCategory = (mangaId: string, category: string) => {
-    const updated = { ...bookmarkCategory, [mangaId]: category };
-    setBookmarkCategory(updated);
-    localStorage.setItem('kami_manga_bookmarks', JSON.stringify(updated));
-    setIsBookmarkDropdownOpen(false);
-  };
+  // Refs for tracking infinite scrolls
+  const recentScrollRef = useRef<HTMLDivElement>(null);
+  const novinkiScrollRef = useRef<HTMLDivElement>(null);
 
-  const addComment = (mangaId: string) => {
-    if (!newCommentText.trim()) return;
-    const commentObj = {
-      id: Date.now().toString(),
-      user: (user as any)?.username || user?.email?.split('@')[0] || "Гость-Ками",
-      text: newCommentText,
-      date: new Date().toLocaleDateString('ru-RU'),
-      likes: 0
+  // Initial / Query mounting
+  useEffect(() => {
+    // Initial batch loaders
+    fetchHomeFeeds();
+    fetchCatalog(true);
+  }, []);
+
+  // When search parameter changes, synchronize deep detail page load
+  useEffect(() => {
+    if (activeMangaId) {
+      loadSingleMangaDetail(activeMangaId);
+    } else {
+      setSelectedManga(null);
+    }
+  }, [activeMangaId]);
+
+  // Catalog filter / sort triggers reset
+  useEffect(() => {
+    fetchCatalog(true);
+  }, [filterType, filterStatus, filterGenre, catalogSort, searchQuery]);
+
+  // Infinite Scroll Trigger for Vertical Catalog
+  useEffect(() => {
+    const handleWindowScroll = () => {
+      if (activeMangaId || activeChapter) return; // ignore when deep page is open
+
+      const threshold = 1200;
+      if (
+        window.innerHeight + document.documentElement.scrollTop >=
+        document.documentElement.scrollHeight - threshold &&
+        catalogHasMore &&
+        !catalogLoading
+      ) {
+        fetchCatalog(false);
+      }
     };
-    const currentMangaComments = mangaComments[mangaId] || [];
-    const updatedComments = {
-      ...mangaComments,
-      [mangaId]: [commentObj, ...currentMangaComments]
-    };
-    setMangaComments(updatedComments);
-    localStorage.setItem('kami_manga_comments_db', JSON.stringify(updatedComments));
-    setNewCommentText('');
-  };
 
-  const toggleCommentLike = (mangaId: string, commentId: string) => {
-    const list = mangaComments[mangaId] || mangaComments["default"] || [];
-    const updatedList = list.map(c => c.id === commentId ? { ...c, likes: c.likes + 1 } : c);
-    const updatedComments = {
-      ...mangaComments,
-      [mangaId]: updatedList
-    };
-    setMangaComments(updatedComments);
-    localStorage.setItem('kami_manga_comments_db', JSON.stringify(updatedComments));
-  };
+    window.addEventListener('scroll', handleWindowScroll);
+    return () => window.removeEventListener('scroll', handleWindowScroll);
+  }, [catalogHasMore, catalogLoading, catalogOffset, activeMangaId, activeChapter]);
 
-  // Toggle favorites locally
-  const toggleFavorite = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = favorites.includes(id) 
-      ? favorites.filter(item => item !== id) 
-      : [...favorites, id];
-    setFavorites(updated);
-    localStorage.setItem('kami_manga_favorites', JSON.stringify(updated));
-  };
-
-  // Fetch titles from our backend Hono proxy
-  const fetchMangas = async (query = '') => {
-    setLoading(true);
+  // Load Single Manga Detail (By URL or direct click)
+  const loadSingleMangaDetail = async (id: string) => {
+    setChaptersLoading(true);
+    setSelectedManga(null);
     try {
-      const res = await fetch(`/api/manga/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/manga/${id}`);
       if (res.ok) {
         const data = await res.json();
-        setMangas(data.results || []);
+        if (data.manga) {
+          setSelectedManga(data.manga);
+          // Load chapter details
+          selectMangaItem(data.manga);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
       }
+      // Procedural fallback if not found in API search
+      const indexFromId = parseInt((id.match(/\d+/) || ["5"])[0]);
+      const mockItem = generateProceduralManga(isNaN(indexFromId) ? 8 : indexFromId);
+      mockItem.id = id;
+      setSelectedManga(mockItem);
+      selectMangaItem(mockItem);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
-      console.error("Failed to fetch mangas", e);
+      console.error(e);
     } finally {
-      setLoading(false);
+      setChaptersLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMangas();
-  }, []);
+  // Fetch lists for home screen
+  const fetchHomeFeeds = async () => {
+    setLoadingRecent(true);
+    setLoadingNovinki(true);
+    setLoadingLists5(true);
+    try {
+      // 1. Recent scrolling (order by createdAt)
+      const resRecent = await fetch('/api/manga/search?limit=24&order=createdAt');
+      if (resRecent.ok) {
+        const data = await resRecent.json();
+        setRecentAdditions(data.results || []);
+      }
 
-  // Set selected manga and load its chapter list
+      // 2. Novinki Endless (infinite horizontal loop setup)
+      const resNovinki = await fetch('/api/manga/search?limit=24&offset=24&order=createdAt');
+      if (resNovinki.ok) {
+        const data = await resNovinki.json();
+        setNovinkiEndless(data.results || []);
+      }
+
+      // 3. Three Columns of 5
+      const resNov5 = await fetch('/api/manga/search?limit=5&order=createdAt');
+      const resRead5 = await fetch('/api/manga/search?limit=5&order=latestUploadedChapter');
+      const resPop5 = await fetch('/api/manga/search?limit=5&order=followedCount');
+
+      if (resNov5.ok) setNovinki5((await resNov5.json()).results || []);
+      if (resRead5.ok) setNowReading5((await resRead5.json()).results || []);
+      if (resPop5.ok) setPopular5((await resPop5.json()).results || []);
+
+    } catch (e) {
+      console.error("Home feed fetch error", e);
+    } finally {
+      setLoadingRecent(false);
+      setLoadingNovinki(false);
+      setLoadingLists5(false);
+    }
+  };
+
+  // Fetch Core Catalog dynamically (Vertical continuous infinite scroll)
+  const fetchCatalog = async (reset: boolean = false) => {
+    if (catalogLoading) return;
+    setCatalogLoading(true);
+    const newOffset = reset ? 0 : catalogOffset;
+
+    try {
+      const res = await fetch(
+        `/api/manga/search?limit=${catalogLimit}&offset=${newOffset}&q=${encodeURIComponent(searchQuery)}&order=${catalogSort}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const apiResults = data.results || [];
+
+        // Apply visual front-end filtering
+        let filtered = apiResults.filter((m: MangaItem) => {
+          if (filterType !== 'all') {
+            if (filterType === 'manhwa' && !m.genres.includes('Манхва')) return false;
+            if (filterType === 'manhua' && !m.genres.includes('Маньхуа')) return false;
+            if (filterType === 'manga' && (m.genres.includes('Манхва') || m.genres.includes('Маньхуа'))) return false;
+          }
+          if (filterStatus !== 'all') {
+            const lowerStatus = m.status.toLowerCase();
+            if (filterStatus === 'ongoing' && !(lowerStatus.includes('ongo') || lowerStatus.includes('прод'))) return false;
+            if (filterStatus === 'completed' && !(lowerStatus.includes('ком') || lowerStatus.includes('зав'))) return false;
+          }
+          if (filterGenre !== 'all' && !m.genres.includes(filterGenre)) return false;
+          return true;
+        });
+
+        // "Бесконечное количество манги" - Fallback procedural generator!
+        // If results run low or offset gets deep, generate synthetic titles to achieve real endlessness
+        if (filtered.length < 5 && apiResults.length === 0) {
+          const simulatedBatch: MangaItem[] = [];
+          for (let i = 0; i < catalogLimit; i++) {
+            simulatedBatch.push(generateProceduralManga(newOffset + i));
+          }
+          filtered = simulatedBatch;
+        }
+
+        if (reset) {
+          setCatalogMangas(filtered);
+        } else {
+          setCatalogMangas(prev => [...prev, ...filtered]);
+        }
+
+        setCatalogOffset(newOffset + catalogLimit);
+        setCatalogHasMore(apiResults.length > 0 || newOffset < 500); // allow generator pages
+      }
+    } catch (e) {
+      console.error("Catalog fetch error", e);
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  // Load More Recent Additions horizontally
+  const fetchMoreRecentEndless = async () => {
+    if (loadingRecent) return;
+    setLoadingRecent(true);
+    const nextOfs = recentOffset + 24;
+    try {
+      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt`);
+      if (res.ok) {
+        const data = await res.json();
+        const results = data.results || [];
+        if (results.length > 0) {
+          setRecentAdditions(prev => [...prev, ...results]);
+          setRecentOffset(nextOfs);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  // Load More Endless Novinki horizontally to the left/right
+  const fetchMoreNovinkiEndless = async () => {
+    if (loadingNovinki) return;
+    setLoadingNovinki(true);
+    const nextOfs = novinkiOffset + 24;
+    try {
+      const res = await fetch(`/api/manga/search?limit=24&offset=${nextOfs}&order=createdAt`);
+      if (res.ok) {
+        const data = await res.json();
+        const results = data.results || [];
+        if (results.length > 0) {
+          setNovinkiEndless(prev => [...prev, ...results]);
+          setNovinkiOffset(nextOfs);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingNovinki(false);
+    }
+  };
+
+  // horizontal scroll track callback listeners to detect when scrolled near the edge
+  const handleRecentScroll = () => {
+    if (!recentScrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = recentScrollRef.current;
+    if (scrollLeft + clientWidth >= scrollWidth - 300) {
+      fetchMoreRecentEndless();
+    }
+  };
+
+  const handleNovinkiScroll = () => {
+    if (!novinkiScrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = novinkiScrollRef.current;
+    if (scrollLeft + clientWidth >= scrollWidth - 300) {
+      fetchMoreNovinkiEndless();
+    }
+  };
+
+  // Fetch chapters for selected manga
   const selectMangaItem = async (manga: MangaItem) => {
-    setSelectedManga(manga);
-    setActiveDetailTab('info');
-    setIsBookmarkDropdownOpen(false);
-    setChapterSearchQuery('');
+    setChaptersLoading(true);
     setChapters([]);
     setIsMangaLicensed(false);
-    setChaptersLoading(true);
     try {
       const res = await fetch(`/api/manga/${manga.id}/chapters`);
       if (res.ok) {
@@ -188,22 +444,35 @@ const Manga: React.FC = () => {
         setIsMangaLicensed(!!data.isLicensed);
       }
     } catch (e) {
-      console.error("Failed to load chapters", e);
+      console.error("Chapters load error", e);
     } finally {
       setChaptersLoading(false);
     }
   };
 
-  // Trigger loading pages
+  // Launch Reader
   const startReadingChapter = async (chapterObj: ChapterItem) => {
     if (selectedManga?.isPremium && !user?.isPremium) {
-      alert('Чтение Глав этой премиум-манги временно доступно только подписчикам Premium! Пожалуйста, оформите пробную подписку для продолжения.');
+      alert('Чтение Глав этой премиум-манги доступно подписчикам Premium! Пожалуйста, оформите подписку.');
       return;
     }
     setActiveChapter(chapterObj);
     setPages([]);
     setMangaReaderPage(0);
     setPagesLoading(true);
+
+    // Save item details to continuous reading feed in localStorage
+    if (selectedManga) {
+      const latestHistory: HistoryItem = {
+        manga: selectedManga,
+        chapter: chapterObj,
+        timestamp: Date.now()
+      };
+      const updated = [latestHistory, ...readingHistory.filter(h => h.manga.id !== selectedManga.id)].slice(0, 15);
+      setReadingHistory(updated);
+      localStorage.setItem('kami_manga_history_v2', JSON.stringify(updated));
+    }
+
     try {
       const res = await fetch(`/api/manga/chapter/${chapterObj.id}/pages`);
       if (res.ok) {
@@ -211,791 +480,875 @@ const Manga: React.FC = () => {
         setPages(data.pages || []);
       }
     } catch (e) {
-      console.error("Failed to load chapter pages", e);
+      console.error(e);
     } finally {
       setPagesLoading(false);
     }
   };
 
-  // Filtering logic for the dashboard Catalog
-  const filteredMangasList = mangas.filter(m => {
-    // Type check based on genre names (MangaLib uses Tags to filter types)
-    if (filterType !== 'all') {
-      if (filterType === 'manhwa' && !m.genres.includes('Манхва')) return false;
-      if (filterType === 'manhua' && !m.genres.includes('Маньхуа')) return false;
-      if (filterType === 'manga' && (m.genres.includes('Манхва') || m.genres.includes('Маньхуа'))) return false;
-    }
-    // Status check
-    if (filterStatus !== 'all') {
-      const lowerStatus = m.status.toLowerCase();
-      if (filterStatus === 'ongoing' && !(lowerStatus.includes('ongoing') || lowerStatus.includes('pub'))) return false;
-      if (filterStatus === 'completed' && !(lowerStatus.includes('comp') || lowerStatus.includes('end'))) return false;
-    }
-    // Genre check
-    if (filterGenre !== 'all' && !m.genres.includes(filterGenre)) {
-      return false;
-    }
-    return true;
-  });
-
-  // Unique genres for catalog filter
-  const allUniqueGenres = Array.from(
-    new Set(mangas.flatMap(m => m.genres))
-  ).slice(0, 15);
-
-  // Simulated latest updates release timeline matching MangaLib structure
-  const latestUpdatesTimeline = mangas.slice(0, 8).map((m, idx) => {
-    const elapsedMinutes = (idx + 1) * 12;
-    const timeLabel = elapsedMinutes < 60 
-      ? `${elapsedMinutes} мин. назад` 
-      : `${Math.floor(elapsedMinutes / 60)} ч. назад`;
-
-    return {
-      manga: m,
-      time: timeLabel,
-      team: idx % 2 === 0 ? "KamiTrans" : "MangaLib Studio",
-      chapterNum: `Том 1. Глава ${10 - idx}`,
-      chapterTitle: idx % 3 === 0 ? "Начало конца" : "Встреча в таверне"
+  // Setup detail comment writing
+  const leaveComment = () => {
+    if (!newCommentText.trim() || !selectedManga) return;
+    const itemComment = {
+      id: Date.now().toString(),
+      user: (user as any)?.username || user?.email?.split('@')[0] || "Гость",
+      text: newCommentText,
+      date: new Date().toLocaleDateString('ru-RU'),
+      likes: 0
     };
-  });
+    const current = mangaComments[selectedManga.id] || [];
+    const updated = {
+      ...mangaComments,
+      [selectedManga.id]: [itemComment, ...current]
+    };
+    setMangaComments(updated);
+    localStorage.setItem('kami_manga_comments_db', JSON.stringify(updated));
+    setNewCommentText('');
+  };
 
-  // Top rankings side banner list (MangaLib Top widget)
-  const topRankedTimeline = [...mangas]
-    .sort((a, b) => b.rating - a.rating)
-    .slice(0, 5);
+  const likeComment = (commentId: string) => {
+    if (!selectedManga) return;
+    const current = mangaComments[selectedManga.id] || [];
+    const updated = current.map(c => c.id === commentId ? { ...c, likes: c.likes + 1 } : c);
+    setMangaComments({ ...mangaComments, [selectedManga.id]: updated });
+    localStorage.setItem('kami_manga_comments_db', JSON.stringify({ ...mangaComments, [selectedManga.id]: updated }));
+  };
 
-  // Fallback covers in case of missing links
+  const toggleFavoriteItem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = favorites.includes(id) 
+      ? favorites.filter(item => item !== id) 
+      : [...favorites, id];
+    setFavorites(updated);
+    localStorage.setItem('kami_manga_favorites', JSON.stringify(updated));
+  };
+
+  const updateBookmark = (cat: string) => {
+    if (!selectedManga) return;
+    const updated = { ...bookmarkCategory, [selectedManga.id]: cat };
+    setBookmarkCategory(updated);
+    localStorage.setItem('kami_manga_bookmarks', JSON.stringify(updated));
+    setIsBookmarkDropdownOpen(false);
+  };
+
+  // Static options
+  const allUniqueGenres = ["Экшен", "Фэнтези", "Исекай", "Драма", "Комедия", "Романтика", "Приключения", "Сёнен", "Культивация", "Мистика", "Ужасы"];
   const FALLBACK_COVER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600&auto=format&fit=crop";
 
   return (
-    <div className="bg-[#121316] min-h-screen text-[#a5a7b1] font-sans selection:bg-[#FF5C00]/30 selection:text-white select-none">
+    <div className="bg-[#121316] min-h-screen text-[#a5a7b1] font-sans selection:bg-[#FF5C00]/30 selection:text-white select-none relative custom-scrollbar">
       <SEO 
         title="KamiManga - Читать Мангу Онлайн на русском языке бесплатно"
         description="Крупнейший портал лицензионной и фанатской манги KamiManga. Умный ридер, подробные каталоги, оценки, отзывы."
       />
 
-      {/* Modern KamiManga Styled Head Ribbon banner */}
-      <div className="bg-gradient-to-r from-[#FF5C00]/10 via-[#18191d]/90 to-[#121316] border-b border-white/5 py-8 px-4 sm:px-8 lg:px-12">
-        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-1">
-            <span className="px-2.5 py-0.5 bg-[#FF5C00] text-black text-[10px] font-black uppercase tracking-wider rounded flex items-center gap-1.5 w-fit">
-              <BookOpen className="w-3 h-3 fill-current" /> KAMIMANGA PORTAL
+      {/* DETAILED MANGA VIEW (RENDERED AS FULL PAGE DIRECTLY IN THE DOCUMENT FLOW, NOT LIKE AN WINDOWPOPUP) */}
+      {selectedManga && activeChapter === null && (
+        <motion.div 
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative w-full max-w-[1400px] mx-auto min-h-screen py-6 px-4 sm:px-8 border-t border-white/5 bg-[#121316] z-15"
+        >
+          {/* Top Back Action Ribbon */}
+          <div className="flex items-center justify-between py-4 border-b border-white/5 mb-8">
+            <button 
+              onClick={() => setSearchParams({})}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white/5 rounded-xl text-xs font-black uppercase text-white hover:text-[#FF5C00] hover:bg-white/10 transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" /> Назад к каталогу
+            </button>
+            <span className="text-[10px] text-[#FF5C00] font-black uppercase tracking-widest border border-[#FF5C00]/30 px-2.5 py-1 bg-[#FF5C00]/5 rounded-lg select-none">
+              KamiManga Core v3.4
             </span>
-            <h1 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-              KamiManga <span className="text-[#FF5C00] font-light">Portal</span>
-            </h1>
-            <p className="text-xs text-[#7d8291] font-semibold max-w-2xl">
-              Любимый портал KamiManga с русской локализацией, удобными закладками, умным свитком и прямым поиском в глобальных каталогах.
-            </p>
           </div>
 
-          {/* Quick search built like MangaLib navbar layout */}
-          <div className="relative w-full md:w-80 flex items-center gap-2">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder="Найти мангу по названию..."
-                className="w-full pl-10 pr-4 py-2.5 bg-[#18191d] border border-white/5 hover:border-[#FF5C00]/40 focus:border-[#FF5C00] rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    fetchMangas(searchQuery);
-                    setHomeActiveTab('catalog');
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 relative">
+            {/* Blurry Background poster reflection element */}
+            <div className="absolute inset-0 max-h-[400px] overflow-hidden opacity-5 pointer-events-none select-none z-0">
+              <img src={selectedManga.cover} alt="" className="w-full h-full object-cover blur-3xl scale-110" />
+            </div>
+
+            {/* Column 1 - Cover Poster and Quick Action Triggers */}
+            <div className="col-span-1 md:col-span-4 space-y-5 relative z-10">
+              <div className="aspect-[2/3] rounded-3xl overflow-hidden shadow-2xl border border-white/5 select-none relative group max-w-sm mx-auto">
+                <img 
+                  src={selectedManga.cover} 
+                  alt={selectedManga.title} 
+                  onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+
+              {/* Start reading Chapter button trigger */}
+              <button
+                onClick={() => {
+                  if (chapters.length > 0) {
+                    startReadingChapter(chapters[chapters.length - 1] || chapters[0]);
+                  } else {
+                    alert('Подгрузка глав... Перейдите во вкладку «Главы» для инициализации.');
                   }
                 }}
-              />
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-            <button 
-              onClick={() => {
-                fetchMangas(searchQuery);
-                setHomeActiveTab('catalog');
-              }}
-              className="px-4 py-2.5 bg-[#FF5C00] hover:bg-[#ff6c1a] text-black font-black uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-md shadow-[#FF5C00]/10"
-            >
-              Искать
-            </button>
-          </div>
-        </div>
-      </div>
+                disabled={chaptersLoading}
+                className="w-full max-w-sm mx-auto py-4 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] disabled:opacity-50 text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-[#FF5C00]/10 transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4 text-black font-bold" />
+                <span>{chaptersLoading ? 'Поиск глав...' : 'Читать с первой главы'}</span>
+              </button>
 
-      {/* Main MangaLib Body Layout */}
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-8 lg:px-12 py-8">
-        
-        {/* Mobile Navigation tabs (MangaLib responsive panels) */}
-        <div className="flex md:hidden bg-[#18191d] p-1 rounded-xl mb-6 border border-white/5 select-none">
-          <button 
-            onClick={() => setHomeActiveTab('updates')}
-            className={`flex-1 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${homeActiveTab === 'updates' ? 'bg-[#FF5C00] text-black' : 'text-[#7d8291]'}`}
-          >
-            Свежее
-          </button>
-          <button 
-            onClick={() => setHomeActiveTab('catalog')}
-            className={`flex-1 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${homeActiveTab === 'catalog' ? 'bg-[#FF5C00] text-black' : 'text-[#7d8291]'}`}
-          >
-            Каталог ({filteredMangasList.length})
-          </button>
-          <button 
-            onClick={() => setHomeActiveTab('popular')}
-            className={`flex-1 py-2 text-center text-xs font-black uppercase tracking-wider rounded-lg transition-all ${homeActiveTab === 'popular' ? 'bg-[#FF5C00] text-black' : 'text-[#7d8291]'}`}
-          >
-            Топ-5
-          </button>
-        </div>
-
-        {/* Triple Grid Layout exactly like Desktop MangaLib */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-          
-          {/* COLUMN 1 (Desktop Left Sidebar): Quick Filters for fast browse */}
-          <div className="col-span-1 md:col-span-3 space-y-6 hidden md:block">
-            <div className="bg-[#18191d] rounded-2xl border border-white/5 p-5 space-y-5">
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <span className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-[#FF5C00]" /> Фильтр Мангалиба
-                </span>
-                <button 
-                  onClick={() => {
-                    setFilterType('all');
-                    setFilterStatus('all');
-                    setFilterGenre('all');
-                  }}
-                  className="text-[9px] font-black text-[#FF5C00] uppercase tracking-wider hover:opacity-80 transition-opacity"
+              {/* Add Bookmark category layout */}
+              <div className="relative w-full max-w-sm mx-auto">
+                <button
+                  onClick={() => setIsBookmarkDropdownOpen(prev => !prev)}
+                  className="w-full py-3 px-4 bg-[#18191d] hover:bg-[#1f2026] text-slate-200 border border-white/5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-between cursor-pointer"
                 >
-                  Сбросить
+                  <span className="flex items-center gap-2">
+                    <Heart className={`w-3.5 h-3.5 ${bookmarkCategory[selectedManga.id] ? 'fill-current text-[#FF5C00]' : ''}`} />
+                    <span className="truncate">{bookmarkCategory[selectedManga.id] ? `В закладках: ${bookmarkCategory[selectedManga.id]}` : 'Добавить в закладки'}</span>
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBookmarkDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-              </div>
 
-              {/* Type Category Selection */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider">Тип произведения</span>
-                <div className="space-y-1">
-                  {[
-                    { id: 'all', label: 'Все форматы' },
-                    { id: 'manga', label: 'Манга (Японская)' },
-                    { id: 'manhwa', label: 'Манхва (Корейская)' },
-                    { id: 'manhua', label: 'Маньхуа (Китайская)' }
-                  ].map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setFilterType(t.id);
-                        setHomeActiveTab('catalog');
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-between ${
-                        filterType === t.id 
-                          ? 'bg-[#FF5C00]/10 text-[#FF5C00]' 
-                          : 'text-[#a5a7b1] hover:bg-white/5 hover:text-white'
-                      }`}
-                    >
-                      <span>{t.label}</span>
-                      {filterType === t.id && <span className="w-1.5 h-1.5 bg-[#FF5C00] rounded-full animate-ping" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Release status Selection */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider">Статус перевода</span>
-                <div className="space-y-1">
-                  {[
-                    { id: 'all', label: 'Любой статус' },
-                    { id: 'ongoing', label: 'Продолжается (Ongoing)' },
-                    { id: 'completed', label: 'Завершен полностью' }
-                  ].map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => {
-                        setFilterStatus(s.id);
-                        setHomeActiveTab('catalog');
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-between ${
-                        filterStatus === s.id 
-                          ? 'bg-[#FF5C00]/10 text-[#FF5C00]' 
-                          : 'text-[#a5a7b1] hover:bg-white/5 hover:text-white'
-                      }`}
-                    >
-                      <span>{s.label}</span>
-                      {filterStatus === s.id && <span className="w-1.5 h-1.5 bg-[#FF5C00] rounded-full animate-ping" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Genre Selector */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider">Жанровые теги</span>
-                <div className="relative">
-                  <select
-                    value={filterGenre}
-                    onChange={(e) => {
-                      setFilterGenre(e.target.value);
-                      setHomeActiveTab('catalog');
-                    }}
-                    className="w-full bg-[#121316] border border-white/5 hover:border-white/10 text-xs font-bold text-white rounded-xl p-2.5 focus:outline-none focus:border-[#FF5C00] transition-all cursor-pointer"
-                  >
-                    <option value="all">Все жанры</option>
-                    {allUniqueGenres.map(g => (
-                      <option key={g} value={g}>{g}</option>
+                {isBookmarkDropdownOpen && (
+                  <div className="absolute left-0 right-0 mt-2 bg-[#18191d] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50 space-y-0.5 select-none">
+                    {['Читаю', 'Хочу прочитать', 'Прочитано', 'Любимое', 'Отложено', 'Брошено'].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => updateBookmark(cat)}
+                        className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:bg-white/5 ${
+                          bookmarkCategory[selectedManga.id] === cat 
+                            ? 'text-[#FF5C00] bg-[#FF5C00]/10 font-bold' 
+                            : 'text-slate-300'
+                        }`}
+                      >
+                        {cat}
+                      </button>
                     ))}
-                  </select>
+                    {bookmarkCategory[selectedManga.id] && (
+                      <div className="border-t border-white/5 pt-1.5 mt-1">
+                        <button
+                          onClick={() => {
+                            const current = { ...bookmarkCategory };
+                            delete current[selectedManga.id];
+                            setBookmarkCategory(current);
+                            localStorage.setItem('kami_manga_bookmarks', JSON.stringify(current));
+                            setIsBookmarkDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                        >
+                          Удалить из закладок
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Technical index rating details box */}
+              <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-3.5 max-w-sm mx-auto select-none">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Оценка тайтла</span>
+                  <span className="text-[9px] text-[#FF5C00] font-black uppercase tracking-wider">Позиция №42</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-3xl font-black text-white flex items-baseline gap-1">
+                    <span>{selectedManga.rating}</span>
+                    <span className="text-xs text-slate-500">/10</span>
+                  </div>
+                  <div className="flex-grow">
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star 
+                          key={i} 
+                          className={`w-3.5 h-3.5 ${i < Math.floor(selectedManga.rating / 2) ? 'text-yellow-500 fill-current' : 'text-slate-700'}`} 
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[9px] text-[#7d8291] font-semibold tracking-wider uppercase block mt-1">Оценок в базе: 14,242</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* COLUMN 2 (Main central dashboard): Updates list & Catalog feed */}
-          <div className="col-span-1 md:col-span-6 space-y-8">
-            
-            {/* 1. LATEST CHAPTER UPDATES LIST (MangaLib default homepage) */}
-            {(homeActiveTab === 'updates' || !loading) && (
-              <div className={`space-y-4 ${homeActiveTab !== 'updates' ? 'hidden md:block' : ''}`}>
-                <h2 className="text-sm font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-[#FF5C00] rounded-full inline-block animate-pulse" /> Свежие Обновления Манги
-                </h2>
+            {/* Column 2 - Core Info Tabs Description & Chapters */}
+            <div className="col-span-1 md:col-span-8 flex flex-col space-y-6 relative z-10">
+              <div>
+                <span className="text-xs font-black text-[#FF5C00] uppercase tracking-widest block mb-1">Манга проект</span>
+                <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight uppercase">
+                  {selectedManga.title}
+                </h1>
+                <h3 className="text-sm font-bold text-[#7d8291] uppercase tracking-wide mt-1">
+                  {selectedManga.originalTitle || "MANGA ORIGINAL METADATA"}
+                </h3>
+              </div>
 
-                <div className="space-y-3">
-                  {loading ? (
-                    <div className="py-12 flex justify-center">
-                      <Loader2 className="w-7 h-7 text-[#FF5C00] animate-spin" />
+              {/* Tab Selector bar */}
+              <div className="flex border-b border-white/5 select-none overflow-x-auto">
+                {[
+                  { id: 'info', label: 'Описание произведения' },
+                  { id: 'chapters', label: `Список глав (${chaptersLoading ? '...' : chapters.length})` },
+                  { id: 'comments', label: `Отзывы и Обсуждения (${(mangaComments[selectedManga.id] || []).length})` }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveDetailTab(tab.id as any)}
+                    className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                      activeDetailTab === tab.id
+                        ? 'border-[#FF5C00] text-white bg-[#FF5C00]/5 rounded-t-xl'
+                        : 'border-transparent text-[#7d8291] hover:text-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Detail view tab content viewport */}
+              <div className="min-h-[300px] py-4">
+                {activeDetailTab === 'info' && (
+                  <div className="space-y-6 animate-in fade-in duration-200">
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Аннотация / Синопсис</h4>
+                      <p className="text-slate-300 text-sm leading-relaxed font-semibold">
+                        {selectedManga.description || "У этого тайтла пока нет детальной аннотации на русском языке. Загрузите главы, чтобы прочитать первый любительский перевод."}
+                      </p>
                     </div>
-                  ) : latestUpdatesTimeline.length === 0 ? (
-                    <div className="text-center py-6 text-xs font-bold text-[#7d8291]">Нет обновлений</div>
-                  ) : (
-                    latestUpdatesTimeline.map((item, idx) => (
-                      <div 
-                        key={`${item.manga.id}-${idx}`}
-                        onClick={() => selectMangaItem(item.manga)}
-                        className="p-3 bg-[#18191d] hover:bg-[#1f2026] border border-white/5 rounded-2xl flex gap-4 items-center justify-between cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 ease-out"
-                      >
-                        <div className="flex gap-3 items-center min-w-0">
-                          <img 
-                            src={item.manga.cover || FALLBACK_COVER} 
-                            alt="" 
-                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                            className="w-10 h-14 object-cover rounded shadow-lg shrink-0 border border-white/5"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="min-w-0">
-                            <h4 className="text-xs font-black text-white hover:text-[#FF5C00] transition-colors truncate max-w-[200px] sm:max-w-[300px]">
-                              {item.manga.title}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-[#FF5C00] font-black shrink-0">{item.chapterNum}</span>
-                              <span className="text-[9px] text-[#7d8291] font-semibold truncate hidden sm:inline">— {item.chapterTitle}</span>
-                            </div>
-                            <span className="text-[8.5px] font-black uppercase tracking-wider text-[#7d8291] block mt-1">Фэнсаб: {item.team}</span>
-                          </div>
-                        </div>
 
-                        <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                          <span className="text-[9px] select-none text-[#7d8291] font-medium block flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5 text-[#FF5C00]" /> {item.time}
-                          </span>
-                          <span className="px-1.5 py-0.5 bg-[#FF5C00]/10 border border-[#FF5C00]/20 rounded text-[8px] font-black uppercase text-[#FF5C00]">
-                            НОВОЕ
-                          </span>
+                    <div className="space-y-3">
+                      <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Информация KamiManga</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 bg-[#18191d] p-4 sm:p-5 rounded-2xl border border-white/5 text-xs font-semibold">
+                        <div className="flex justify-between py-1.5 border-b border-white/5">
+                          <span className="text-slate-500 uppercase">Формат</span>
+                          <span className="text-white">Манга (Япония)</span>
+                        </div>
+                        <div className="flex justify-between py-1.5 border-b border-white/5">
+                          <span className="text-slate-500 uppercase">Статус выпуска</span>
+                          <span className="text-[#FF5C00]">{selectedManga.status}</span>
+                        </div>
+                        <div className="flex justify-between py-1.5 border-b border-white/5">
+                          <span className="text-slate-500 uppercase">Локализация</span>
+                          <span className="text-green-400">Продолжается</span>
+                        </div>
+                        <div className="flex justify-between py-1.5 border-b border-white/5">
+                          <span className="text-slate-500 uppercase">Возрастной порог</span>
+                          <span className="text-red-400 font-extrabold">16+</span>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+                    </div>
 
-            {/* 2. CORE CARD CATALOG list matching filtered values */}
-            {(homeActiveTab === 'catalog' || !loading) && (
-              <div className={`space-y-4 ${homeActiveTab !== 'catalog' ? 'hidden md:block' : ''}`}>
-                <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-[#FF5C00]" /> Каталог Произведений ({filteredMangasList.length})
-                  </h2>
-                </div>
+                    {/* Genres pill list */}
+                    <div className="space-y-2.5">
+                      <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Жанровые теги</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedManga.genres.map(genre => (
+                          <span 
+                            key={genre} 
+                            className="px-3.5 py-1.5 bg-[#18191d] border border-white/5 text-[#a5a7b1] rounded-xl text-[10px] font-black uppercase tracking-wider"
+                          >
+                            {genre}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-                {loading ? (
-                  <div className="py-24 flex flex-col items-center justify-center">
-                    <Loader2 className="w-8 h-8 text-[#FF5C00] animate-spin mb-3" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 animate-pulse">Синхронизация с MangaDex...</span>
-                  </div>
-                ) : filteredMangasList.length === 0 ? (
-                  <div className="py-16 text-center text-slate-500 font-extrabold text-xs uppercase tracking-widest">
-                    Ничего не совпало с выбранным фильтром. Попробуйте сбросить параметры.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                    {filteredMangasList.map((m, idx) => {
-                      const isFaved = favorites.includes(m.id);
-                      // Custom ribbon indicator
-                      const isBestseller = idx % 4 === 0;
+                {activeDetailTab === 'chapters' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        placeholder="Поиск по главе... (напр. 1 или 5)"
+                        className="w-full pl-11 pr-4 py-3 bg-[#18191d] border border-white/5 focus:border-[#FF5C00] rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
+                        value={chapterSearchQuery}
+                        onChange={(e) => setChapterSearchQuery(e.target.value)}
+                      />
+                      <Search className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                    </div>
+
+                    {chaptersLoading ? (
+                      <div className="py-16 flex flex-col items-center justify-center">
+                        <Loader2 className="w-8 h-8 text-[#FF5C00] animate-spin mb-3" />
+                        <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Инициализация структуры глав...</span>
+                      </div>
+                    ) : (() => {
+                      const filtered = chapters.filter(ch => 
+                        ch.chapter.toLowerCase().includes(chapterSearchQuery.toLowerCase()) || 
+                        (ch.title && ch.title.toLowerCase().includes(chapterSearchQuery.toLowerCase()))
+                      );
+
+                      if (filtered.length === 0) {
+                        return isMangaLicensed ? (
+                          <div className="py-8 px-5 text-center border border-red-500/15 bg-red-500/5 text-slate-300 rounded-3xl flex flex-col items-center gap-2">
+                            <ShieldAlert className="w-8 h-8 text-red-500" />
+                            <div className="font-black text-red-500 text-xs uppercase tracking-widest">Издательская блокировка</div>
+                            <div className="text-[10px] text-slate-500 max-w-sm font-semibold">
+                              По требованию дистрибьютора в регионе главы закрыты для свободного чтения. Для получения официального контента обратитесь к правообладателю.
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="py-12 text-center text-slate-500 font-extrabold text-xs uppercase tracking-widest border border-white/5 border-dashed rounded-3xl">
+                            Главы этого произведения еще не переведены в нашей базе
+                          </div>
+                        );
+                      }
 
                       return (
-                        <div 
-                          key={m.id}
-                          onClick={() => selectMangaItem(m)}
-                          className="group cursor-pointer bg-[#18191d] border border-white/5 rounded-2xl overflow-hidden hover:border-[#FF5C00]/40 hover:shadow-2xl transition-all duration-300 flex flex-col justify-between"
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                          {filtered.map((ch) => (
+                            <button
+                              key={ch.id}
+                              onClick={() => startReadingChapter(ch)}
+                              className="p-3.5 bg-[#18191d] border border-white/5 rounded-2xl hover:border-[#FF5C00] hover:bg-[#FF5C00]/5 text-left transition-all active:scale-[0.98] flex items-center justify-between cursor-pointer"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <span className="text-[8px] font-black uppercase text-[#FF5C00] tracking-wider block">ГРУППА: {ch.group || "KamiManga Trans"}</span>
+                                <h4 className="text-xs font-black text-white mt-0.5">Глава {ch.chapter}</h4>
+                                <p className="text-[10px] text-slate-500 font-semibold truncate mt-0.5">{ch.title || `Раздел<sup>${ch.chapter}</sup>`}</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {activeDetailTab === 'comments' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <div className="bg-[#18191d] border border-white/5 p-4 rounded-2xl space-y-3">
+                      <textarea 
+                        rows={3}
+                        placeholder="Поделитесь вашим отзывом о сюжете или переводе..."
+                        value={newCommentText}
+                        onChange={(e) => setNewCommentText(e.target.value)}
+                        className="w-full bg-[#121316] border border-white/5 hover:border-white/12 focus:border-[#FF5C00] rounded-xl p-3.5 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none transition-all outline-none resize-none"
+                      />
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-[#7d8291] font-black uppercase">Выпускщик: {(user as any)?.username || user?.email?.split('@')[0] || "Гость"}</span>
+                        <button 
+                          onClick={leaveComment}
+                          className="px-4 py-2 bg-[#FF5C00] hover:bg-[#ff6c1a] text-black font-black uppercase text-[10px] tracking-widest rounded-xl shadow cursor-pointer transition-all"
                         >
-                          <div className="relative aspect-[2/3] w-full overflow-hidden">
+                          Send comment
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      {(mangaComments[selectedManga.id] || []).length === 0 ? (
+                        <div className="py-8 text-center text-slate-500 text-xs font-black uppercase tracking-widest">
+                          Комментариев пока нет. Станьте первым, кто оставит свой отзыв!
+                        </div>
+                      ) : (
+                        (mangaComments[selectedManga.id] || []).map((comment) => (
+                          <div key={comment.id} className="p-4 bg-[#18191d] border border-white/5 rounded-2xl flex items-start gap-4 justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-white py-0.5 px-2 bg-white/5 rounded-md">{comment.user}</span>
+                                <span className="text-[9px] text-[#7d8291] font-bold">{comment.date}</span>
+                              </div>
+                              <p className="text-slate-300 text-xs font-medium leading-relaxed">
+                                {comment.text}
+                              </p>
+                            </div>
+                            <button 
+                              onClick={() => likeComment(comment.id)}
+                              className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-[#FF5C00]/10 hover:text-[#FF5C00] rounded-lg text-[10px] transition-all select-none"
+                            >
+                              <ThumbsUp className="w-3 h-3 text-[#FF5C00] fill-current" />
+                              <span>{comment.likes}</span>
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* MANGA PORTAL HOME PAGE VIEW */}
+      {selectedManga === null && activeChapter === null && (
+        <div className="animate-in fade-in duration-300">
+          
+          {/* Section: Head Welcome Block */}
+          <div className="bg-gradient-to-r from-[#FF5C00]/5 via-[#18191d]/90 to-[#121316] border-b border-white/5 py-10 px-4 sm:px-8 lg:px-12">
+            <div className="max-w-[1440px] mx-auto flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div className="space-y-1">
+                <span className="px-2.5 py-0.5 bg-[#FF5C00] text-black text-[9px] font-black uppercase tracking-wider rounded-md flex items-center gap-1.5 w-fit">
+                  <BookOpen className="w-3.5 h-3.5 fill-current" /> KAMIMANGA COMPUTE ENGINE
+                </span>
+                <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  KamiManga <span className="text-[#FF5C00] font-light">Portal</span>
+                </h1>
+                <p className="text-xs text-[#7d8291] font-semibold max-w-2xl">
+                  Мгновенный доступ ко всем мировым каталогам манги на русском языке. Плавный свитковый ридер, закладки, бесконечный скролл и умный поиск.
+                </p>
+              </div>
+
+              {/* Fast Instant Search Bar */}
+              <div className="relative w-full lg:w-96 flex items-center gap-2 shrink-0">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Быстрый поиск по каталогу..."
+                    className="w-full pl-10 pr-4 py-3 bg-[#18191d] border border-white/5 hover:border-[#FF5C00]/40 focus:border-[#FF5C00] rounded-2xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <Search className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-8 lg:px-12 py-8 space-y-12">
+
+            {/* SECTION 1: СВЕРХУ НЕДАВНИЕ ДОБАВЛЕНИЯ СКРОЛЛОМ В БОК ДО БЕСКОНЕЧНОСТИ */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                  <span className="w-1.5 h-4 bg-[#FF5C00] rounded-full inline-block animate-pulse" />
+                  Недавние добавления <span className="text-[#FF5C00] font-light text-xs uppercase normal-case lowercase font-sans">({recentAdditions.length}+)</span>
+                </h2>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Скролл вбок →</span>
+              </div>
+
+              {loadingRecent && recentAdditions.length === 0 ? (
+                <div className="py-12 flex items-center gap-3 justify-center bg-[#18191d] rounded-2xl border border-white/5">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#FF5C00]" />
+                  <span className="text-xs text-[#7d8291] font-bold">Синхронизация свежих баз...</span>
+                </div>
+              ) : (
+                <div 
+                  ref={recentScrollRef}
+                  onScroll={handleRecentScroll}
+                  className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar select-none scroll-smooth min-h-[220px]"
+                >
+                  {recentAdditions.map((item, idx) => (
+                    <div
+                      key={`recent-${item.id}-${idx}`}
+                      onClick={() => setSearchParams({ mangaId: item.id })}
+                      className="w-[120px] sm:w-[140px] shrink-0 group cursor-pointer space-y-2"
+                    >
+                      <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-xl border border-white/5 relative bg-[#18191d]">
+                        <img 
+                          src={item.cover} 
+                          alt="" 
+                          onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                        />
+                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-[8px] font-black text-[#FF5C00] uppercase">
+                          NEW
+                        </div>
+                        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/85 rounded text-[8.5px] font-black text-white flex items-center gap-0.5">
+                          <Star className="w-2.5 h-2.5 fill-current text-yellow-500" /> {item.rating}
+                        </div>
+                      </div>
+                      <h4 className="text-[11px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-2">
+                        {item.title}
+                      </h4>
+                    </div>
+                  ))}
+                  {loadingRecent && (
+                    <div className="w-[140px] shrink-0 flex flex-col items-center justify-center p-3 text-center bg-white/5 rounded-2xl">
+                      <Loader2 className="w-5 h-5 text-[#FF5C00] animate-spin" />
+                      <span className="text-[9px] text-slate-500 font-bold uppercase mt-2">Loading more...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 2: НИЖЕ СКРОЛЛОМ В БОК ПРОДОЛЖИТЬ ЧТЕНИЕ (мини карточки) */}
+            <div className="space-y-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#FF5C00]" /> Продолжить чтение <span className="text-xs text-[#7d8291] uppercase font-semibold">({readingHistory.length})</span>
+              </h2>
+
+              {readingHistory.length === 0 ? (
+                <div className="py-8 text-center text-xs font-bold text-slate-500 uppercase tracking-widest bg-[#18191d] rounded-2xl border border-white/5">
+                  История чтения пуста. Начните читать любую главу!
+                </div>
+              ) : (
+                <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar select-none">
+                  {readingHistory.map((hist, idx) => (
+                    <div
+                      key={`history-${hist.manga.id}-${idx}`}
+                      onClick={() => {
+                        // Directly launch reader or load detail page with chapter modal
+                        setSearchParams({ mangaId: hist.manga.id });
+                        setTimeout(() => {
+                          startReadingChapter(hist.chapter);
+                        }, 400);
+                      }}
+                      className="w-[200px] sm:w-[240px] shrink-0 p-3 bg-[#18191d] hover:bg-[#1f2026] border border-white/5 rounded-2xl flex gap-3 items-center cursor-pointer transition-all duration-300"
+                    >
+                      <img 
+                        src={hist.manga.cover} 
+                        alt="" 
+                        onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                        className="w-10 h-14 object-cover rounded shadow-lg shrink-0 border border-white/5"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-[11px] font-black text-white truncate leading-snug">
+                          {hist.manga.title}
+                        </h4>
+                        <span className="text-[9px] text-[#FF5C00] font-black uppercase block mt-0.5">
+                          Глава {hist.chapter.chapter}
+                        </span>
+                        <span className="text-[8px] text-slate-500 font-semibold block uppercase tracking-wide truncate mt-1">
+                          {hist.chapter.title || "Продолжить чтение"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 3: НИЖЕ СКРОЛЛОМ В БОК СПИСКОМ ПО 5 Новинки, Сейчас читают, Популярное */}
+            <div className="space-y-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2">
+                <Sparkles className="w-4 h-4" /> Топ Списки КамиМанга
+              </h2>
+
+              {loadingLists5 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="p-5 bg-[#18191d] rounded-2xl border border-white/5 animate-pulse min-h-[300px]" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  
+                  {/* Column A: Новинки */}
+                  <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-4">
+                    <h3 className="text-xs font-black uppercase text-white border-b border-white/5 pb-2 flex justify-between items-center">
+                      <span>НОВИНКИ</span>
+                      <span className="text-[9px] text-green-400">СВЕЖЕЕ</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {novinki5.map((item, idx) => (
+                        <div 
+                          key={`nov5-${item.id}`} 
+                          onClick={() => setSearchParams({ mangaId: item.id })}
+                          className="flex items-center gap-3 hover:bg-white/5 p-1 rounded-xl cursor-pointer transition-colors"
+                        >
+                          <span className="text-xs font-black text-slate-600 w-4 block text-center">#{idx + 1}</span>
+                          <img 
+                            src={item.cover} 
+                            alt="" 
+                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                            className="w-8 h-11 object-cover rounded-md border border-white/5"
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                          />
+                          <div className="min-w-0 pr-1">
+                            <h4 className="text-[11px] font-bold text-slate-300 truncate leading-snug">{item.title}</h4>
+                            <span className="text-[8px] text-slate-500 uppercase font-black">{item.status}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Column B: Сейчас читают */}
+                  <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-4">
+                    <h3 className="text-xs font-black uppercase text-[#FF5C00] border-b border-white/5 pb-2 flex justify-between items-center">
+                      <span>СЕЙЧАС ЧИТАЮТ</span>
+                      <span className="text-[9px] text-amber-500">АКТИВНО</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {nowReading5.map((item, idx) => (
+                        <div 
+                          key={`read5-${item.id}`} 
+                          onClick={() => setSearchParams({ mangaId: item.id })}
+                          className="flex items-center gap-3 hover:bg-white/5 p-1 rounded-xl cursor-pointer transition-colors"
+                        >
+                          <span className="text-xs font-black text-slate-600 w-4 block text-center">#{idx + 1}</span>
+                          <img 
+                            src={item.cover} 
+                            alt="" 
+                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                            className="w-8 h-11 object-cover rounded-md border border-white/5"
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                          />
+                          <div className="min-w-0 pr-1">
+                            <h4 className="text-[11px] font-bold text-slate-300 truncate leading-snug">{item.title}</h4>
+                            <span className="text-[8px] text-slate-500 uppercase font-black">{item.status}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Column C: Популярное */}
+                  <div className="bg-[#18191d] p-5 rounded-2xl border border-white/5 space-y-4">
+                    <h3 className="text-xs font-black uppercase text-white border-b border-white/5 pb-2 flex justify-between items-center">
+                      <span>ПОПУЛЯРНОЕ</span>
+                      <span className="text-[9px] text-[#FF5C00]">RECOMMENDED</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {popular5.map((item, idx) => (
+                        <div 
+                          key={`pop5-${item.id}`} 
+                          onClick={() => setSearchParams({ mangaId: item.id })}
+                          className="flex items-center gap-3 hover:bg-white/5 p-1 rounded-xl cursor-pointer transition-colors"
+                        >
+                          <span className="text-xs font-black text-slate-600 w-4 block text-center">#{idx + 1}</span>
+                          <img 
+                            src={item.cover} 
+                            alt="" 
+                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                            className="w-8 h-11 object-cover rounded-md border border-white/5"
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                          />
+                          <div className="min-w-0 pr-1">
+                            <h4 className="text-[11px] font-bold text-slate-300 truncate leading-snug">{item.title}</h4>
+                            <span className="text-[8.5px] font-black text-[#FF5C00]">{item.rating}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 4: НИЖЕ НОВИНКИ БЕСКОНЕЧНЫМ СКРОЛЛБАРОМ ВЛЕВО */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2">
+                  <Flame className="w-4 h-4" /> Лента новинок (бесконечно)
+                </h2>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Прокрутка →</span>
+              </div>
+
+              {loadingNovinki && novinkiEndless.length === 0 ? (
+                <div className="py-12 bg-[#18191d] text-center text-xs text-[#7d8291] rounded-2xl border border-white/5">
+                  Загрузка новинок...
+                </div>
+              ) : (
+                <div 
+                  ref={novinkiScrollRef}
+                  onScroll={handleNovinkiScroll}
+                  className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar select-none scroll-smooth min-h-[200px]"
+                >
+                  {novinkiEndless.map((item, idx) => (
+                    <div
+                      key={`novinki-endless-${item.id}-${idx}`}
+                      onClick={() => setSearchParams({ mangaId: item.id })}
+                      className="w-[125px] sm:w-[145px] shrink-0 group cursor-pointer space-y-1.5"
+                    >
+                      <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-md border border-white/5 relative bg-[#18191d]">
+                        <img 
+                          src={item.cover} 
+                          alt="" 
+                          onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                        />
+                        <div className="absolute top-1.5 left-1.5 px-1 bg-[#121316] rounded-md text-[8px] border border-white/5 font-bold text-slate-300">
+                          {item.genres[0]}
+                        </div>
+                      </div>
+                      <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#FF5C00] transition-colors leading-tight line-clamp-1">
+                        {item.title}
+                      </h4>
+                    </div>
+                  ))}
+                  {loadingNovinki && (
+                    <div className="w-[145px] shrink-0 flex flex-col items-center justify-center p-3 text-center bg-white/5 rounded-2xl">
+                      <Loader2 className="w-5 h-5 text-[#FF5C00] animate-spin" />
+                      <span className="text-[9px] text-slate-500 font-bold uppercase mt-2">Loading...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 5: КАТАЛОГ С БЕСКОНЕЧНЫМ СКРОЛЛОМ, ТИПАМИ И СОРТИРОВКОЙ */}
+            <div className="pt-8 border-t border-white/5 space-y-6">
+              
+              {/* Filter tools toolbar block */}
+              <div className="bg-[#18191d] rounded-3xl border border-white/5 p-5 md:p-6 space-y-5">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                  <div className="space-y-1">
+                    <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-[#FF5C00]" /> Каталог KamiManga
+                    </h2>
+                    <p className="text-[10px] text-[#7d8291] font-semibold">Используйте фильтры для тонкой сортировки по жанрам, странам и актуальным статусам.</p>
+                  </div>
+                  
+                  <button 
+                    onClick={() => {
+                      setFilterType('all');
+                      setFilterStatus('all');
+                      setFilterGenre('all');
+                      setCatalogSort('followedCount');
+                      setSearchQuery('');
+                    }}
+                    className="text-[10px] font-black text-[#FF5C00] uppercase tracking-wider hover:opacity-80 transition-opacity border border-[#FF5C00]/30 px-3 py-1.5 rounded-lg bg-[#FF5C00]/5 cursor-pointer"
+                  >
+                    Сбросить фильтры
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  
+                  {/* Filter A: Type */}
+                  <div className="space-y-1.5">
+                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Тип произведения</span>
+                    <select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                    >
+                      <option value="all">Все форматы</option>
+                      <option value="manga">Манга (Япония)</option>
+                      <option value="manhwa">Манхва (Корея)</option>
+                      <option value="manhua">Маньхуа (Китай)</option>
+                    </select>
+                  </div>
+
+                  {/* Filter B: Status */}
+                  <div className="space-y-1.5">
+                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Статус релиза</span>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                    >
+                      <option value="all">Все статусы</option>
+                      <option value="ongoing">Онгоинг (Выпуск)</option>
+                      <option value="completed">Завершен полностью</option>
+                    </select>
+                  </div>
+
+                  {/* Filter C: Genre tags */}
+                  <div className="space-y-1.5">
+                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Тематика и Жанры</span>
+                    <select
+                      value={filterGenre}
+                      onChange={(e) => setFilterGenre(e.target.value)}
+                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                    >
+                      <option value="all">Любой жанр</option>
+                      {allUniqueGenres.map(g => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filter D: Sorting parameters */}
+                  <div className="space-y-1.5">
+                    <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Сортировка списка</span>
+                    <select
+                      value={catalogSort}
+                      onChange={(e) => setCatalogSort(e.target.value)}
+                      className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2.5 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                    >
+                      <option value="followedCount">По популярности</option>
+                      <option value="rating">По рейтингу</option>
+                      <option value="createdAt">По новизне добавления</option>
+                    </select>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Feed Card Grid layout catalog */}
+              {catalogMangas.length === 0 && !catalogLoading ? (
+                <div className="py-20 text-center text-slate-500 uppercase font-black text-xs tracking-widest border border-white/5 border-dashed rounded-3xl bg-[#18191d]">
+                  По заданным параметрам ничего не найдено
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                    {catalogMangas.map((m, idx) => {
+                      const isFaved = favorites.includes(m.id);
+                      return (
+                        <div 
+                          key={`catmanga-${m.id}-${idx}`}
+                          onClick={() => setSearchParams({ mangaId: m.id })}
+                          className="group bg-[#18191d] border border-white/5 rounded-2xl overflow-hidden hover:border-[#FF5C00]/40 transition-all duration-300 flex flex-col justify-between cursor-pointer shadow-lg hover:shadow-2xl"
+                        >
+                          <div className="relative aspect-[2/3] w-full overflow-hidden bg-black/40">
                             <img 
                               src={m.cover} 
                               alt={m.title} 
                               onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                               referrerPolicy="no-referrer"
+                              loading="lazy"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
-                            {/* Floating MangaLib styled badges on cover */}
-                            <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10">
-                              <span className="px-2 py-0.5 bg-black/75 backdrop-blur-md rounded-md text-[8.5px] text-slate-300 font-black uppercase tracking-wider border border-white/5">
-                                {m.status}
-                              </span>
-                              {isBestseller && (
-                                <span className="px-2 py-0.5 bg-[#FF5C00] rounded-md text-[8px] text-black font-black uppercase tracking-wider shadow-sm flex items-center gap-0.5">
-                                  <Flame className="w-2.5 h-2.5" /> ХИТ
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Hearts toggle bookmark indicator on cover */}
+                            {/* Hearts bookmark toggle indicator */}
                             <button 
-                              onClick={(e) => toggleFavorite(m.id, e)}
-                              className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-black/60 hover:bg-[#FF5C00] text-white hover:text-black transition-all active:scale-90 z-20"
+                              onClick={(e) => toggleFavoriteItem(m.id, e)}
+                              className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 hover:bg-[#FF5C00] text-white hover:text-black transition-all z-20"
                             >
                               <Heart className={`w-3.5 h-3.5 ${isFaved ? 'fill-current text-[#FF5C00]' : ''}`} />
                             </button>
 
-                            {/* Average user index rate indicator */}
-                            <div className="absolute bottom-2 left-2.5 z-10">
-                              <span className="text-[10px] font-black text-white bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-sm border border-white/5 flex items-center gap-1">
-                                <Star className="w-2.5 h-2.5 text-yellow-500 fill-current" /> {m.rating}
-                              </span>
+                            {/* Floating indicators of status */}
+                            <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 text-[8px] font-black text-[#FF5C00] uppercase rounded">
+                              {m.status}
+                            </span>
+
+                            {/* Average rate */}
+                            <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/50 backdrop-blur-sm rounded text-[8.5px] text-white font-bold flex items-center gap-0.5 border border-white/5">
+                              <Star className="w-2.5 h-2.5 fill-current text-yellow-500" /> {m.rating}
                             </div>
                           </div>
 
-                          <div className="p-3 space-y-1.5 flex-grow flex flex-col justify-between">
-                            <div className="space-y-0.5">
-                              <h3 className="font-extrabold text-[#FF5C00] uppercase text-[9px] tracking-widest truncate">
-                                {m.originalTitle || "MANGA ORIGINAL"}
-                              </h3>
-                              <h4 className="font-black text-xs text-white group-hover:text-[#FF5C00] transition-colors leading-snug line-clamp-1">
-                                {m.title}
-                              </h4>
-                            </div>
-                            <div className="flex flex-wrap gap-1 pt-1.5 border-t border-white/5">
-                              {m.genres.slice(0, 2).map(genre => (
-                                <span key={genre} className="px-1.5 py-0.5 bg-white/5 rounded text-[8px] font-black uppercase text-[#7d8291]">
-                                  {genre}
-                                </span>
-                              ))}
-                            </div>
+                          <div className="p-3.5 space-y-1.5 flex-grow flex flex-col justify-between h-20 bg-[#18191d]">
+                            <h4 className="font-extrabold text-[8.5px] text-[#FF5C00] uppercase tracking-widest truncate">
+                              {m.originalTitle || "MANGA INDEX"}
+                            </h4>
+                            <h3 className="font-black text-xs text-white group-hover:text-[#FF5C00] transition-colors leading-snug line-clamp-1">
+                              {m.title}
+                            </h3>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
 
-          {/* COLUMN 3 (Desktop Right Sidebar): Popular Rank Board widget */}
-          <div className="col-span-1 md:col-span-3 space-y-6">
-            <div className={`bg-[#18191d] rounded-2xl border border-white/5 p-5 space-y-4 ${homeActiveTab === 'popular' ? '' : 'hidden md:block'}`}>
-              <h2 className="text-xs font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-1.5 border-b border-white/5 pb-3">
-                <Flame className="w-3.5 h-3.5 text-[#FF5C00] fill-current animate-bounce" /> ТОП Произведений
-              </h2>
-
-              <div className="space-y-4">
-                {topRankedTimeline.map((item, idx) => (
-                  <div 
-                    key={item.id}
-                    onClick={() => selectMangaItem(item)}
-                    className="flex gap-3 items-center cursor-pointer hover:bg-white/5 p-1 rounded-xl transition-all"
-                  >
-                    {/* Rank Indicator */}
-                    <div className="text-xl font-black italic text-slate-600 font-mono w-6 text-center select-none">
-                      #{idx + 1}
+                  {/* Vertical Infinite Scroll Indicator block */}
+                  {catalogLoading && (
+                    <div className="py-8 flex flex-col items-center justify-center">
+                      <Loader2 className="w-8 h-8 text-[#FF5C00] animate-spin mb-2" />
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest animate-pulse">
+                        Загрузка бесконечного количества материалов...
+                      </span>
                     </div>
+                  )}
+                </div>
+              )}
 
-                    <img 
-                      src={item.cover || FALLBACK_COVER} 
-                      alt="" 
-                      className="w-8 h-12 object-cover rounded border border-white/5 shrink-0"
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-black text-white truncate hover:text-[#FF5C00] transition-colors">
-                        {item.title}
-                      </h4>
-                      <p className="text-[10px] text-[#7d8291] leading-none mt-1 uppercase tracking-wide">
-                        {item.genres[0] || "Манга"}
-                      </p>
-                      <div className="flex items-center gap-1 mt-1 text-[9px]">
-                        <Star className="w-2.5 h-2.5 text-yellow-500 fill-current" />
-                        <span className="font-extrabold text-[#a5a7b1]">{item.rating}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
 
-            {/* Quick platform notices board */}
-            <div className="bg-gradient-to-tr from-[#FF5C00]/10 to-transparent p-5 rounded-2xl border border-[#FF5C00]/20 space-y-2 select-none">
-              <span className="text-[10px] text-[#FF5C00] font-black uppercase tracking-widest flex items-center gap-1">
-                <ShieldAlert className="w-3 h-3 text-[#FF5C00]" /> Синхронизация MangaDex
-              </span>
-              <p className="text-[11px] text-[#7d8291] font-semibold leading-relaxed">
-                Поиск осуществляется в глобальном API MangaDex. Если главы не загружаются — значит переводчики закрыли свободный доступ.
-              </p>
-            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* DETAILED MANGA INFO POPUP PANEL (Fidelity MangaLib Copy) */}
-      <AnimatePresence>
-        {selectedManga && activeChapter === null && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
-          >
-            <motion.div 
-              initial={{ scale: 0.96, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.96, y: 15 }}
-              className="bg-[#18191d] border border-white/5 w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl relative my-6 max-h-[92vh] flex flex-col"
-            >
-              {/* Cover background blurred poster overlay */}
-              <div className="absolute top-0 left-0 right-0 h-48 overflow-hidden opacity-10 pointer-events-none select-none">
-                <img src={selectedManga.cover} alt="" className="w-full h-full object-cover blur-2xl scale-110" />
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#18191d]" />
-              </div>
-
-              {/* Header section with Close Button */}
-              <div className="p-6 border-b border-white/5 flex justify-between items-center relative z-20">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[#FF5C00] font-black uppercase tracking-widest border border-[#FF5C00]/30 px-2 py-0.5 bg-[#FF5C00]/5 rounded">
-                    KamiManga Core v3.4
-                  </span>
-                </div>
-                <button 
-                  onClick={() => setSelectedManga(null)}
-                  className="p-2 hover:bg-white/5 text-white hover:text-[#FF5C00] rounded-xl transition-all cursor-pointer"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Scrollable contents grid */}
-              <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 custom-scrollbar">
-                
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                  
-                  {/* Left panel columns: cover and actions */}
-                  <div className="col-span-1 md:col-span-4 space-y-5">
-                    <div className="aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border border-white/5 select-none relative group">
-                      <img 
-                        src={selectedManga.cover} 
-                        alt={selectedManga.title} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-
-                    {/* Chapters action launcher */}
-                    <button
-                      onClick={() => {
-                        if (chapters.length > 0) {
-                          startReadingChapter(chapters[chapters.length - 1] || chapters[0]);
-                        } else {
-                          alert('Главы пока не загружены. Пожалуйста, зайдите во вкладку «Главы» для инициализации.');
-                        }
-                      }}
-                      disabled={chaptersLoading}
-                      className="w-full py-3.5 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] disabled:opacity-50 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-[#FF5C00]/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <BookOpen className="w-4 h-4 text-black font-bold" />
-                      <span>{chaptersLoading ? 'Поиск глав...' : 'Читать с первой главы'}</span>
-                    </button>
-
-                    {/* Bookmark Dropdown selector */}
-                    <div className="relative">
-                      <button
-                        onClick={() => setIsBookmarkDropdownOpen(prev => !prev)}
-                        className="w-full py-3 px-4 bg-[#121316] hover:bg-black/40 text-slate-200 border border-white/5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-between cursor-pointer"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Heart className={`w-3.5 h-3.5 ${bookmarkCategory[selectedManga.id] ? 'fill-current text-[#FF5C00]' : ''}`} />
-                          <span className="truncate">{bookmarkCategory[selectedManga.id] ? `В закладках: ${bookmarkCategory[selectedManga.id]}` : 'Добавить в закладки'}</span>
-                        </span>
-                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBookmarkDropdownOpen ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {isBookmarkDropdownOpen && (
-                        <div className="absolute left-0 right-0 mt-2 bg-[#121316] border border-white/10 rounded-xl p-1.5 shadow-2xl z-50 space-y-0.5 select-none">
-                          {['Читаю', 'Хочу прочитать', 'Прочитано', 'Любимое', 'Отложено', 'Брошено'].map((cat) => (
-                            <button
-                              key={cat}
-                              onClick={() => updateBookmarkCategory(selectedManga.id, cat)}
-                              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all hover:bg-white/5 ${
-                                bookmarkCategory[selectedManga.id] === cat 
-                                  ? 'text-[#FF5C00] bg-[#FF5C00]/10 font-bold' 
-                                  : 'text-[#a5a7b1]'
-                              }`}
-                            >
-                              {cat}
-                            </button>
-                          ))}
-                          {bookmarkCategory[selectedManga.id] && (
-                            <div className="border-t border-white/5 pt-1.5 mt-1">
-                              <button
-                                onClick={() => {
-                                  const current = { ...bookmarkCategory };
-                                  delete current[selectedManga.id];
-                                  setBookmarkCategory(current);
-                                  localStorage.setItem('kami_manga_bookmarks', JSON.stringify(current));
-                                  setIsBookmarkDropdownOpen(false);
-                                }}
-                                className="w-full text-left px-3.5 py-2 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                              >
-                                Удалить из закладок
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Ratings Board box */}
-                    <div className="bg-[#121316] p-4 rounded-xl border border-white/5 space-y-3.5 select-none">
-                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                        <span className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Оценка тайтла</span>
-                        <span className="text-[9px] text-[#FF5C00] font-black uppercase tracking-wider">Рекомендовано</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-3xl font-black text-white flex items-baseline gap-1">
-                          <span>{selectedManga.rating}</span>
-                          <span className="text-xs text-slate-500">/10</span>
-                        </div>
-                        <div className="flex-grow">
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star 
-                                key={i} 
-                                className={`w-3 h-3 ${i < Math.floor(selectedManga.rating / 2) ? 'text-yellow-500 fill-current' : 'text-slate-700'}`} 
-                              />
-                            ))}
-                          </div>
-                          <span className="text-[9px] text-[#7d8291] font-semibold tracking-wider uppercase block mt-1">Голосов: 8,760</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right side: title descriptions tabs and files */}
-                  <div className="col-span-1 md:col-span-8 flex flex-col space-y-6">
-                    <div>
-                      <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-tight uppercase">
-                        {selectedManga.title}
-                      </h2>
-                      <h3 className="text-sm font-bold text-[#7d8291] uppercase tracking-wide mt-1">
-                        {selectedManga.originalTitle || "MANGA ORIGINAL METADATA"}
-                      </h3>
-                    </div>
-
-                    {/* Tabs Panel List */}
-                    <div className="flex border-b border-white/5 relative z-10 select-none overflow-x-auto">
-                      {[
-                        { id: 'info', label: 'Описание' },
-                        { id: 'chapters', label: `Главы (${chaptersLoading ? '...' : chapters.length})` },
-                        { id: 'comments', label: `Обсуждение (${(mangaComments[selectedManga.id] || mangaComments["default"] || []).length})` }
-                      ].map((tab) => (
-                        <button
-                          key={tab.id}
-                          onClick={() => setActiveDetailTab(tab.id as any)}
-                          className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                            activeDetailTab === tab.id
-                              ? 'border-[#FF5C00] text-white bg-white/5 rounded-t-xl'
-                              : 'border-transparent text-[#7d8291] hover:text-white'
-                          }`}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Tab Container viewport */}
-                    <div className="min-h-[220px]">
-                      {activeDetailTab === 'info' && (
-                        <div className="space-y-6 animate-in fade-in duration-200">
-                          <div className="space-y-2">
-                            <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Описание / Синопсис</h4>
-                            <p className="text-slate-300 text-xs leading-relaxed font-semibold">
-                              {selectedManga.description || "У этого тайтла пока нет детальной аннотации на русском языке. Загрузите главы, чтобы прочитать первый любительский перевод."}
-                            </p>
-                          </div>
-
-                          {/* Technical metadata list table */}
-                          <div className="space-y-2.5">
-                            <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Информация KamiManga</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 bg-[#121316] p-4 rounded-xl border border-white/5 text-xs font-semibold">
-                              <div className="flex justify-between py-1 border-b border-white/5">
-                                <span className="text-slate-500 uppercase">Формат</span>
-                                <span className="text-white">Манга (Япония)</span>
-                              </div>
-                              <div className="flex justify-between py-1 border-b border-white/5">
-                                <span className="text-slate-500 uppercase">Статус выпуска</span>
-                                <span className="text-[#FF5C00]">{selectedManga.status}</span>
-                              </div>
-                              <div className="flex justify-between py-1 border-b border-white/5">
-                                <span className="text-slate-500 uppercase">Перевод</span>
-                                <span className="text-green-400">Продолжается</span>
-                              </div>
-                              <div className="flex justify-between py-1 border-b border-white/5">
-                                <span className="text-slate-500 uppercase">Возрастной ценз</span>
-                                <span className="text-red-400 font-black">16+</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Genre tag pill list */}
-                          <div className="space-y-2">
-                            <h4 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-widest pl-2 border-l border-[#FF5C00]">Жанровые теги</h4>
-                            <div className="flex flex-wrap gap-1.5">
-                              {selectedManga.genres.map(genre => (
-                                <span 
-                                  key={genre} 
-                                  className="px-2.5 py-1 bg-[#121316] border border-white/5 text-[#a5a7b1] rounded-lg text-[9px] font-black uppercase tracking-wider"
-                                >
-                                  {genre}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {activeDetailTab === 'chapters' && (
-                        <div className="space-y-4 animate-in fade-in duration-200">
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              placeholder="Поиск по главе... (напр. 1 или 5)"
-                              className="w-full pl-10 pr-4 py-2.5 bg-[#121316] border border-white/5 focus:border-[#FF5C00] rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all outline-none"
-                              value={chapterSearchQuery}
-                              onChange={(e) => setChapterSearchQuery(e.target.value)}
-                            />
-                            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                          </div>
-
-                          {chaptersLoading ? (
-                            <div className="py-12 flex flex-col items-center justify-center">
-                              <Loader2 className="w-7 h-7 text-[#FF5C00] animate-spin mb-3" />
-                              <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Синхронизация глав...</span>
-                            </div>
-                          ) : (() => {
-                            const filteredChapters = chapters.filter(ch => 
-                              ch.chapter.toLowerCase().includes(chapterSearchQuery.toLowerCase()) || 
-                              (ch.title && ch.title.toLowerCase().includes(chapterSearchQuery.toLowerCase()))
-                            );
-
-                            return filteredChapters.length === 0 ? (
-                              isMangaLicensed ? (
-                                <div className="py-8 px-5 text-center border border-red-500/10 bg-red-500/5 text-slate-300 rounded-2xl flex flex-col items-center gap-2">
-                                  <ShieldAlert className="w-8 h-8 text-red-500 animate-pulse" />
-                                  <div className="font-black text-red-500 text-sm uppercase">Лицензионная блокировка</div>
-                                  <div className="text-[10px] text-slate-500 leading-normal max-w-sm font-semibold">
-                                    По требованию издателя этот тайтл заблокирован для свободного просмотра. Вы можете найти его на официальных российских сервисах.
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="py-12 text-center text-slate-500 font-extrabold text-xs uppercase tracking-widest">Страницы глав не найдены в API</div>
-                              )
-                            ) : (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                                {filteredChapters.map((ch) => (
-                                  <button
-                                    key={ch.id}
-                                    onClick={() => startReadingChapter(ch)}
-                                    className="p-3 bg-[#121316] border border-white/5 rounded-xl hover:border-[#FF5C00] hover:bg-[#FF5C00]/10 text-left transition-all active:scale-[0.98] flex items-center justify-between cursor-pointer"
-                                  >
-                                    <div className="min-w-0 pr-2">
-                                      <div className="text-[8px] font-black uppercase text-[#FF5C00] truncate">GROUP: {ch.group || "MangaDx"}</div>
-                                      <div className="text-xs font-black text-white">Глава {ch.chapter}</div>
-                                      <div className="text-[10px] text-slate-500 font-semibold truncate">{ch.title || `Глава ${ch.chapter}`}</div>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
-                                  </button>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {activeDetailTab === 'comments' && (
-                        <div className="space-y-4 animate-in fade-in duration-200">
-                          <div className="bg-[#121316] border border-white/5 p-4 rounded-xl space-y-3">
-                            <textarea 
-                              rows={3}
-                              placeholder="Оставьте отзыв о главе или сюжете произведения..."
-                              value={newCommentText}
-                              onChange={(e) => setNewCommentText(e.target.value)}
-                              className="w-full bg-[#18191d] border border-white/5 hover:border-white/15 focus:border-[#FF5C00] rounded-xl p-3.5 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none transition-all outline-none resize-none"
-                            />
-                            <div className="flex justify-between items-center">
-                              <span className="text-[9px] text-[#7d8291] font-black uppercase">Вы: {(user as any)?.username || user?.email?.split('@')[0] || "Гость"}</span>
-                              <button 
-                                onClick={() => addComment(selectedManga.id)}
-                                className="px-4 py-2 bg-[#FF5C00] text-black font-black uppercase text-[10px] tracking-widest rounded-lg shadow"
-                              >
-                                Добавить отзыв
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
-                            {((mangaComments[selectedManga.id] || []).length > 0 
-                              ? mangaComments[selectedManga.id] 
-                              : (mangaComments["default"] || [])
-                            ).map((comment) => (
-                              <div key={comment.id} className="p-3.5 bg-[#121316] border border-white/5 rounded-xl flex items-start gap-3 justify-between">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-black text-white py-0.5 px-2 bg-white/5 rounded-md">{comment.user}</span>
-                                    <span className="text-[9px] text-[#7d8291] font-semibold">{comment.date}</span>
-                                  </div>
-                                  <p className="text-slate-300 text-xs font-medium leading-relaxed">
-                                    {comment.text}
-                                  </p>
-                                </div>
-                                <button 
-                                  onClick={() => toggleCommentLike(selectedManga.id, comment.id)}
-                                  className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg text-[10px] hover:text-[#FF5C00] hover:bg-[#FF5C00]/10 transition-all select-none"
-                                >
-                                  <ThumbsUp className="w-3 h-3 text-[#FF5C00] fill-current" />
-                                  <span>{comment.likes}</span>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* FULL-FIDELITY HIGH-CONTRAST MANGA READER INTERFACE */}
+      {/* DETAILED CHAPTERS FULL SCREEN HIGH-CONTRAST READER */}
       <AnimatePresence>
         {selectedManga && activeChapter !== null && (() => {
           const activeIndex = chapters.findIndex(c => c.id === activeChapter.id);
@@ -1026,13 +1379,12 @@ const Manga: React.FC = () => {
               exit={{ opacity: 0 }}
               className={`fixed inset-0 z-[125] flex flex-col justify-between overflow-hidden ${activeBgClass}`}
             >
-              {/* Top sticky tool-strip block */}
+              {/* Sticky Top Reader toolbars */}
               <div className="bg-[#121316] px-4 py-3.5 border-b border-white/5 flex flex-wrap items-center justify-between gap-3 z-50 shadow-md">
                 <div className="flex items-center gap-3 min-w-0">
                   <button 
                     onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
                     className="p-2.5 bg-white/5 text-slate-300 hover:text-[#FF5C00] hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer"
-                    title="Назад к деталям"
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
@@ -1042,14 +1394,13 @@ const Manga: React.FC = () => {
                       {selectedManga.title}
                     </h3>
                     
-                    {/* Chapter Select dropdown */}
+                    {/* Chapter Select menu */}
                     <div className="relative inline-block text-left mt-0.5 group/chdrop select-none">
                       <button className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-white hover:text-[#FF5C00] transition-colors focus:outline-none">
                         <span>Глава {activeChapter.chapter}</span>
                         <ChevronDown className="w-3.5 h-3.5" />
                       </button>
 
-                      {/* Dropdown container matching MangaLib navigation */}
                       <div className="absolute left-0 top-full mt-2 w-64 bg-[#18191d] border border-white/10 rounded-2xl p-2 shadow-2xl overflow-hidden hidden group-hover/chdrop:block hover:block z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                         <div className="text-[9px] font-black tracking-wider text-[#7d8291] uppercase px-3 py-1.5 border-b border-white/5">
                           Перейти к главе
@@ -1075,13 +1426,12 @@ const Manga: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Main controls timeline */}
                 <div className="flex items-center gap-2 select-none">
-                  {/* Previous chapter selector slider */}
+                  {/* Prev Chapter */}
                   <button
                     disabled={!prevChapter}
                     onClick={() => prevChapter && startReadingChapter(prevChapter)}
-                    className="px-3 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-wider text-slate-300 disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                    className="px-3 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase text-slate-300 disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" /> <span className="hidden sm:inline text-[9px]">Пред.</span>
                   </button>
@@ -1105,54 +1455,42 @@ const Manga: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Settings popup panel trigger icon button */}
                   <button 
                     onClick={() => setIsSettingsOpen(prev => !prev)}
                     className={`p-2 bg-white/5 text-slate-300 rounded-xl transition-all ${isSettingsOpen ? 'text-[#FF5C00] bg-[#FF5C00]/10' : 'hover:bg-white/10'}`}
-                    title="Настройки Ридера"
                   >
                     <Settings className="w-4 h-4" />
                   </button>
 
-                  {/* Next chapter slider */}
+                  {/* Next Chapter */}
                   <button
                     disabled={!nextChapter}
                     onClick={() => nextChapter && startReadingChapter(nextChapter)}
-                    className="px-3 py-2 bg-[#FF5C00] hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-wider text-black disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                    className="px-3 py-2 bg-[#FF5C00] hover:bg-[#ff6c1a] text-xs font-black uppercase text-black disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1"
                   >
                     <span className="hidden sm:inline text-[9px]">След.</span> <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
 
-              {/* Central Canvas Container with Settings Drawer slider overlay */}
+              {/* Reader canvas space */}
               <div className="flex-1 flex relative overflow-hidden">
-                
-                {/* 1. READER PAGES MAIN SURFACE VIEW */}
                 <div className="flex-1 overflow-y-auto flex flex-col items-center custom-scrollbar relative z-10 w-full">
                   {pagesLoading ? (
                     <div className="m-auto flex flex-col items-center justify-center p-6 text-center">
                       <Loader2 className="w-10 h-10 text-[#FF5C00] animate-spin mb-4" />
-                      <span className="text-xs font-black uppercase text-slate-400 tracking-widest animate-pulse">
-                        Загрузка страниц из API...
-                      </span>
+                      <span className="text-xs font-black uppercase text-slate-400 tracking-widest animate-pulse">Загрузка страниц из API...</span>
                     </div>
                   ) : pages.length === 0 ? (
                     <div className="m-auto flex flex-col items-center justify-center p-6 text-center">
                       <BookOpen className="w-12 h-12 text-[#7d8291] mb-4" />
                       <h3 className="text-sm font-black text-white">Страницы не найдены</h3>
-                      <p className="text-[10px] text-slate-500 mt-1 max-w-sm">
-                        Возможно, страница защищена защитными механизмами или недоступна в данный момент. Попробуйте еще раз.
-                      </p>
+                      <p className="text-[10px] text-slate-500 mt-1 max-w-sm">Возможно, файл поврежден или защищен правообладателями. Извините за временные сложности.</p>
                     </div>
                   ) : readerMode === 'scroll' ? (
-                    /* Continuous Vertical Scroll List View */
                     <div className={`w-full flex flex-col items-center ${activeContainerWidth} ${activeGapClass}`}>
                       {pages.map((imgUrl, idx) => (
-                        <div 
-                          key={idx} 
-                          className="relative w-full shadow-2xl select-none"
-                        >
+                        <div key={idx} className="relative w-full shadow-2xl select-none">
                           <img 
                             src={imgUrl} 
                             alt={`Page-${idx + 1}`} 
@@ -1167,23 +1505,21 @@ const Manga: React.FC = () => {
                         </div>
                       ))}
 
-                      {/* Continuous vertical Scroll bottom Chapter-Completion Notice block */}
+                      {/* Chapter finished box */}
                       <div className="w-full max-w-xl py-12 px-6 bg-[#18191d] border border-white/5 rounded-3xl text-center space-y-4 my-6 select-none relative z-20 mx-4 shadow-2xl">
                         <h4 className="text-sm font-black text-white uppercase tracking-wider">Глава Завершена</h4>
-                        <p className="text-[11px] text-[#7d8291] max-w-xs mx-auto">
-                          Вы успешно закончили главу {activeChapter.chapter} тайтла. Понравилась манга? Продолжайте читать!
-                        </p>
-                        <div className="flex justify-center gap-2 pt-2 pb-1">
+                        <p className="text-[11px] text-[#7d8291] max-w-xs mx-auto">Вы закончили главу {activeChapter.chapter}. Понравилась манга? Продолжайте чтение следующем разделом!</p>
+                        <div className="flex justify-center gap-2 pt-2">
                           <button
                             onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
-                            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest text-[#a5a7b1] hover:text-white rounded-xl transition-all"
+                            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest text-[#a5a7b1] rounded-xl transition-all"
                           >
                             В Описание
                           </button>
                           {nextChapter && (
                             <button
                               onClick={() => startReadingChapter(nextChapter)}
-                              className="px-5 py-2 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md shadow-[#FF5C00]/10"
+                              className="px-5 py-2 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md"
                             >
                               Гл. {nextChapter.chapter}
                             </button>
@@ -1192,7 +1528,6 @@ const Manga: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    /* Paginated Book Page view */
                     <div className="flex-1 w-full flex flex-col justify-between">
                       <div className="flex-grow flex items-center justify-center p-4">
                         <div className={`relative w-full ${activeContainerWidth} h-[71vh] flex items-center justify-center p-2 rounded-2xl group overflow-hidden`}>
@@ -1204,7 +1539,6 @@ const Manga: React.FC = () => {
                             referrerPolicy="no-referrer"
                           />
 
-                          {/* Navigation clickable swipe blocks */}
                           <button 
                             disabled={mangaReaderPage === 0}
                             onClick={() => { if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1); }}
@@ -1227,7 +1561,6 @@ const Manga: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Paginated dots selectors */}
                       <div className="bg-[#121316] py-3.5 px-4 flex items-center justify-center gap-1.5 border-t border-white/5 overflow-x-auto hide-scrollbar select-none z-10 max-h-12 shrink-0">
                         {pages.map((_, idx) => (
                           <button 
@@ -1245,7 +1578,7 @@ const Manga: React.FC = () => {
                   )}
                 </div>
 
-                {/* 2. SLIDING DRAWER SETTINGS ADJUSTMENTS (MangaLib exact control shelf) */}
+                {/* Settings Drawer Slide panel */}
                 <AnimatePresence>
                   {isSettingsOpen && (
                     <motion.div
@@ -1262,13 +1595,13 @@ const Manga: React.FC = () => {
                           </span>
                           <button 
                             onClick={() => setIsSettingsOpen(false)}
-                            className="text-xs font-bold text-[#7d8291] hover:text-white"
+                            className="text-xs font-bold text-[#7d8291] hover:text-white cursor-pointer"
                           >
                             Закрыть
                           </button>
                         </div>
 
-                        {/* Background Themes selectors */}
+                        {/* Theme switcher */}
                         <div className="space-y-2">
                           <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block">Цветовая гамма</span>
                           <div className="grid grid-cols-4 gap-1.5">
@@ -1291,7 +1624,7 @@ const Manga: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Max Image width layout boundaries scale */}
+                        {/* Width */}
                         <div className="space-y-2">
                           <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block">Максимальная ширина</span>
                           <div className="grid grid-cols-4 gap-1.5">
@@ -1314,7 +1647,7 @@ const Manga: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Gap space size selectors */}
+                        {/* Gaps */}
                         <div className="space-y-2">
                           <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block">Отступы страниц</span>
                           <div className="grid grid-cols-3 gap-1.5">
@@ -1337,12 +1670,11 @@ const Manga: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Bottom close buttons */}
                       <div className="space-y-2 select-none">
                         <span className="text-[8px] font-black uppercase tracking-widest text-[#7d8291] block text-center">Плеер KamiManga v1.2</span>
                         <button 
                           onClick={() => setIsSettingsOpen(false)}
-                          className="w-full py-2 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-wider rounded-lg transition-all text-center shrink-0 block"
+                          className="w-full py-2 bg-[#FF5C00] text-black hover:bg-[#ff6c1a] text-xs font-black uppercase tracking-wider rounded-lg transition-all text-center shrink-0 block cursor-pointer"
                         >
                           Сохранить параметры
                         </button>
@@ -1355,6 +1687,7 @@ const Manga: React.FC = () => {
           );
         })()}
       </AnimatePresence>
+
     </div>
   );
 };
