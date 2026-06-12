@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, PlayCircle, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare, Plus, MonitorPlay } from 'lucide-react';
+import { ChevronRight, ChevronLeft, PlayCircle, Calendar, Megaphone, Clock, Crown, Sparkles, ChevronDown, MessageSquare, Plus, MonitorPlay, Heart, Flame, TrendingUp, Newspaper, Layers } from 'lucide-react';
 import { Image } from '../components/Image';
 import AnimeCard from '../components/AnimeCard';
 import SEO from '../components/SEO';
@@ -390,9 +390,8 @@ const Home: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                  Мой список
+                  <span>Мой список</span>
                 </h2>
-                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Твои персональные закладки и избранные тайтлы</p>
               </div>
               <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                 <div className="flex gap-2">
@@ -427,9 +426,8 @@ const Home: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl md:text-2xl font-display font-extrabold text-[#F47521] tracking-tight flex items-center gap-3 border-l-4 border-[#F47521] pl-3">
-                Свежие серии
+                <span>Свежие серии</span>
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Последние обновления озвучки и субтитров на сегодня</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <div className="flex gap-2">
@@ -520,9 +518,8 @@ const Home: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                Онгоинги
+                <span>Онгоинги</span>
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Новые серии выходят прямо сейчас</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <Link to="/catalog?order=ranked&status=ongoing" className="text-[10px] font-black uppercase tracking-widest text-[#F47521] hover:text-white transition-colors flex items-center gap-1.5 mr-3">
@@ -555,9 +552,8 @@ const Home: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                Аниме в 4K
+                <span>Аниме в 4K</span>
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Шедевры в ультра-высоком качестве</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <div className="flex gap-2">
@@ -586,9 +582,8 @@ const Home: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                В тренде
+                <span>В тренде</span>
               </h2>
-              <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Самые обсуждаемые и популярные тайтлы дня</p>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                <Link to="/catalog?order=popularity" className="text-[10px] font-black uppercase tracking-widest text-[#F47521] hover:text-white transition-colors flex items-center gap-1.5 mr-3">
@@ -627,9 +622,8 @@ const Home: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                   <div>
                     <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                      Расписание серий
+                      <span>Расписание серий</span>
                     </h2>
-                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Релизы по дням недели</p>
                   </div>
                 </div>
 
@@ -701,9 +695,8 @@ const Home: React.FC = () => {
                <div className="flex items-center justify-between mb-6">
                   <div>
                       <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                        Новости
+                        <span>Новости</span>
                       </h2>
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Свежие события аниме-индустрии</p>
                   </div>
                   <Link to="/news" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#F47521] transition-colors flex items-center gap-1">
                       Все новости <ChevronRight className="w-4 h-4" />
@@ -761,9 +754,8 @@ const Home: React.FC = () => {
                <div className="flex items-center justify-between mb-6">
                   <div>
                       <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                        Обсуждения
+                        <span>Обсуждения</span>
                       </h2>
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Активные темы на нашем форуме</p>
                   </div>
                   <Link to="/forum" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#F47521] transition-colors flex items-center gap-1">
                       Весь форум <ChevronRight className="w-4 h-4" />
@@ -812,9 +804,8 @@ const Home: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
                 <div>
                   <h2 className="text-xl md:text-2xl font-display font-extrabold text-white tracking-tight flex items-center gap-3 border-l-4 border-primary pl-3">
-                    Подборки
+                    <span>Подборки</span>
                   </h2>
-                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-3">Тематические коллекции для ценителей жанра</p>
                 </div>
                 
                 <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5 self-start sm:self-auto select-none">

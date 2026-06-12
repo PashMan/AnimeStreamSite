@@ -1739,11 +1739,19 @@ const Details: React.FC = () => {
                                 }`}
                               >
                                 {/* Compact Portrait Thumbnail Cover Image - No cropped photos anymore! */}
-                                <div className="w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden relative shrink-0 bg-[#0f0f12] border border-white/5 shadow-inner">
+                                <div className="w-24 sm:w-36 aspect-video rounded-xl overflow-hidden relative shrink-0 bg-[#07070a] border border-white/5 shadow-[inset_0_4px_12px_rgba(0,0,0,0.8)]">
+                                  {/* 1. Blur backing */}
+                                  <img
+                                    src={anime.cover || anime.image}
+                                    alt=""
+                                    className="absolute inset-0 w-full h-full object-cover blur-md scale-110 opacity-40 brightness-50 pointer-events-none"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  {/* 2. Absolute high precision contain foreground with zero crop */}
                                   <img
                                     src={anime.cover || anime.image}
                                     alt={`Эпизод ${epNum}`}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 brightness-85 group-hover:brightness-100"
+                                    className="absolute inset-0 w-full h-full object-contain z-10 transition-transform duration-500 group-hover:scale-[1.03] brightness-90 group-hover:brightness-100"
                                     loading="lazy"
                                     referrerPolicy="no-referrer"
                                   />
