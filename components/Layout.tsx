@@ -291,8 +291,12 @@ const Layout: React.FC = () => {
                   <span className="text-[8.5px] font-black uppercase tracking-wider text-[#FF5C00]">МАНГА</span>
                   <button
                     onClick={() => {
-                      localStorage.removeItem('kami_manga_mode');
-                      window.location.reload();
+                      if (window.location.hostname.includes('kamianime.club')) {
+                        window.location.href = 'https://kamianime.club/';
+                      } else {
+                        localStorage.removeItem('kami_manga_mode');
+                        window.location.reload();
+                      }
                     }}
                     className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#FF5C00]"
                     title="Переключить на Аниме"
@@ -349,8 +353,12 @@ const Layout: React.FC = () => {
                   <span className="text-[8.5px] font-black uppercase tracking-wider text-primary">АНИМЕ</span>
                   <button
                     onClick={() => {
-                      localStorage.setItem('kami_manga_mode', 'true');
-                      window.location.reload();
+                      if (window.location.hostname.includes('kamianime.club')) {
+                        window.location.href = 'https://manga.kamianime.club/';
+                      } else {
+                        localStorage.setItem('kami_manga_mode', 'true');
+                        window.location.reload();
+                      }
                     }}
                     className="w-9 h-5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none bg-[#8B5CF6]"
                     title="Переключить на Мангу"
@@ -499,12 +507,21 @@ const Layout: React.FC = () => {
             </span>
             <button
               onClick={() => {
+                const isKami = window.location.hostname.includes('kamianime.club');
                 if (isMangaMode) {
-                  localStorage.removeItem('kami_manga_mode');
-                  window.location.reload();
+                  if (isKami) {
+                    window.location.href = 'https://kamianime.club/';
+                  } else {
+                    localStorage.removeItem('kami_manga_mode');
+                    window.location.reload();
+                  }
                 } else {
-                  localStorage.setItem('kami_manga_mode', 'true');
-                  window.location.reload();
+                  if (isKami) {
+                    window.location.href = 'https://manga.kamianime.club/';
+                  } else {
+                    localStorage.setItem('kami_manga_mode', 'true');
+                    window.location.reload();
+                  }
                 }
               }}
               className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${isMangaMode ? 'bg-[#FF5C00]' : 'bg-[#8B5CF6]'}`}

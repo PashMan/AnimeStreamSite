@@ -408,8 +408,12 @@ const Home: React.FC = () => {
             </button>
             <button
               onClick={() => {
-                localStorage.setItem('kami_manga_mode', 'true');
-                window.location.reload();
+                if (window.location.hostname.includes('kamianime.club')) {
+                  window.location.href = 'https://manga.kamianime.club/';
+                } else {
+                  localStorage.setItem('kami_manga_mode', 'true');
+                  window.location.reload();
+                }
               }}
               className="flex-grow md:flex-grow-0 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-all hover:bg-white/5 select-none cursor-pointer"
             >
