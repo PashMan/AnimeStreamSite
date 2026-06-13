@@ -46,6 +46,23 @@ export const onRequest = async (context: any) => {
     }
   };
 
+  // Safe timeout-controlled fetch utility to prevent node thread lock-ups on dead/firewalled mirrors in RF
+  const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: number = 3800) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (e: any) {
+      clearTimeout(id);
+      throw e;
+    }
+  };
+
   // Helper function to fetch ReManga chapters by titles
   const fetchRemangaChaptersByTitle = async (titles: string[]) => {
     const uniqueTitles = Array.from(new Set(titles.filter(Boolean)));
@@ -816,13 +833,13 @@ export const onRequest = async (context: any) => {
           for (let attempt = 1; attempt <= 2; attempt++) {
             try {
               debugLogs.push(`[zaza] Attempt ${attempt} query starting...`);
-              const res = await fetch(targetUrl, {
+              const res = await fetchWithTimeout(targetUrl, {
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                   'Accept-Language': 'ru,en-US;q=0.9,en;q=0.8'
                 }
-              });
+              }, 3500);
               debugLogs.push(`[zaza] Got response status: ${res.status}`);
               if (res.status === 200) {
                 pageHtml = await res.text();

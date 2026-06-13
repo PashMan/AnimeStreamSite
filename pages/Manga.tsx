@@ -183,6 +183,7 @@ const Manga: React.FC = () => {
   const [readingWidth, setReadingWidth] = useState<'600' | '800' | '1000' | 'full'>('800');
   const [readingGap, setReadingGap] = useState<'0' | '12' | '24'>('12');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [activeDebugLogs, setActiveDebugLogs] = useState<string[]>([]);
 
   // Bookmarks & Favorites local
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -492,6 +493,7 @@ const Manga: React.FC = () => {
     }
     setActiveChapter(chapterObj);
     setPages([]);
+    setActiveDebugLogs([]);
     setMangaReaderPage(0);
     setPagesLoading(true);
 
@@ -517,6 +519,7 @@ const Manga: React.FC = () => {
         console.groupCollapsed(`[KamiManga Server Trace] Click to view detailed backend fetching steps`);
         data.debugLogs.forEach((log: string) => console.log(log));
         console.groupEnd();
+        setActiveDebugLogs(data.debugLogs);
       }
 
       if (res.ok) {
@@ -1498,22 +1501,35 @@ const Manga: React.FC = () => {
                       <span className="text-xs font-black uppercase text-slate-400 tracking-widest animate-pulse">Загрузка страниц из API...</span>
                     </div>
                   ) : pages.length === 0 ? (
-                    <div className="m-auto flex flex-col items-center justify-center p-6 text-center max-w-sm space-y-4">
+                    <div className="m-auto flex flex-col items-center justify-center p-6 text-center max-w-xl space-y-4">
                       <div className="p-4 bg-white/5 rounded-full border border-white/5 animate-pulse">
                         <BookOpen className="w-8 h-8 text-[#7d8291]" />
                       </div>
                       <div className="space-y-1">
                         <h3 className="text-xs font-black uppercase text-white tracking-wider">Страницы не загрузились</h3>
-                        <p className="text-[10px] text-slate-500 max-w-xs leading-normal">
+                        <p className="text-[10px] text-slate-500 max-w-xs leading-normal mx-auto">
                           Не удалось получить страницы этой главы из источника. Пожалуйста, попробуйте обновить или выбрать другой раздел.
                         </p>
                       </div>
-                      <button
-                        onClick={() => startReadingChapter(activeChapter)}
-                        className="px-5 py-2.5 bg-white/10 hover:bg-[#8B5CF6] hover:text-black text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer border border-white/5 flex items-center gap-1.5"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" /> Повторить загрузку
-                      </button>
+                      <div className="flex flex-col gap-2 w-full max-w-md items-center justify-center">
+                        <button
+                          onClick={() => activeChapter && startReadingChapter(activeChapter)}
+                          className="px-5 py-2.5 bg-[#8B5CF6] hover:bg-[#A855F7] text-black text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer flex items-center gap-1.5 font-bold"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> Повторить загрузку
+                        </button>
+
+                        {activeDebugLogs.length > 0 && (
+                          <div className="w-full mt-4 bg-black/40 border border-white/5 rounded-xl p-3 text-left space-y-2">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block border-b border-white/5 pb-1">Отладочные логи сервера:</span>
+                            <div className="max-h-40 overflow-y-auto font-mono text-[9px] text-[#A855F7]/80 space-y-1 custom-scrollbar select-text leading-relaxed">
+                              {activeDebugLogs.map((log, lidx) => (
+                                <div key={lidx} className="break-all border-b border-white/5 pb-0.5">{log}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : readerMode === 'scroll' ? (
                     <div className={`w-full flex flex-col items-center ${activeContainerWidth} ${activeGapClass}`}>
