@@ -1493,7 +1493,20 @@ const Manga: React.FC = () => {
                           <img 
                             src={imgUrl} 
                             alt={`Page-${idx + 1}`} 
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            onError={(e) => { 
+                              const currentSrc = e.currentTarget.src;
+                              if (currentSrc.includes('/api/manga/page-proxy?url=')) {
+                                try {
+                                  const urlParams = new URL(currentSrc);
+                                  const rawUrl = urlParams.searchParams.get('url');
+                                  if (rawUrl) {
+                                    e.currentTarget.src = rawUrl;
+                                    return;
+                                  }
+                                } catch (err) {}
+                              }
+                              e.currentTarget.style.display = 'none'; 
+                            }}
                             className="w-full object-contain mx-auto"
                             referrerPolicy="no-referrer"
                             loading="lazy"

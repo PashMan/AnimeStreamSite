@@ -14,22 +14,35 @@ export const onRequest = async (context: any) => {
     });
   }
 
-  const pathname = url.pathname.replace(/^\/api\/manga/, '');
+  let pathname = url.pathname.replace(/^\/api\/manga/, '');
+  if (pathname !== '/' && pathname.endsWith('/')) {
+    pathname = pathname.slice(0, -1);
+  }
 
   // Helper functions for safe Cloudflare-native base64 encoding/decoding of unicode URLs
   const toBase64 = (str: string) => {
     try {
-      return btoa(unescape(encodeURIComponent(str)));
+      const b64 = btoa(unescape(encodeURIComponent(str)));
+      return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     } catch (e) {
-      return btoa(str);
+      const b64 = btoa(str);
+      return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     }
   };
 
   const fromBase64 = (str: string) => {
     try {
-      return decodeURIComponent(escape(atob(str)));
+      let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) {
+        b64 += '=';
+      }
+      return decodeURIComponent(escape(atob(b64)));
     } catch (e) {
-      return atob(str);
+      let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) {
+        b64 += '=';
+      }
+      return atob(b64);
     }
   };
 
@@ -657,6 +670,7 @@ export const onRequest = async (context: any) => {
       } catch(e) {}
     }
 
+    let zazaChapters: any[] = [];
     if (zazaPath) {
       try {
         const fullUrl = zazaPath.startsWith('http') ? zazaPath + '?mtr=1' : 'https://a.zazaza.me' + zazaPath + '?mtr=1';
@@ -664,7 +678,6 @@ export const onRequest = async (context: any) => {
            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         });
         const html = await htmlRes.text();
-        const chapters: any[] = [];
         const regex = /href="(\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
         let match;
         const seen = new Set();
@@ -680,7 +693,7 @@ export const onRequest = async (context: any) => {
 
             let chTitle = match[2].trim().replace(/<[^>]+>/g, '').trim();
             const targetUrl = zazaPath.startsWith('http') ? (new URL(zazaPath).origin + path) : path;
-            chapters.push({
+            zazaChapters.push({
                id: `zaza-${toBase64(targetUrl)}`,
                title: chTitle || 'Глава',
                volume: path.match(/vol(\d+)/)?.[1] || '1',
@@ -690,17 +703,7 @@ export const onRequest = async (context: any) => {
             });
         }
         
-        chapters.reverse();
-
-        if (chapters.length > 0) {
-          return new Response(JSON.stringify({
-            mangaId,
-            chapters,
-            total: chapters.length,
-            isLicensed: false,
-            source: 'ReadManga (ZazaZa)'
-          }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
-        }
+        zazaChapters.reverse();
       } catch (e) {
         console.error('ZazaZa chapters edge fetch failed', e);
       }
@@ -791,7 +794,7 @@ export const onRequest = async (context: any) => {
       remangaChapters = chapResults[1].value || [];
     }
 
-    const allChapters = [...mdChapters, ...remangaChapters];
+    const allChapters = [...zazaChapters, ...mdChapters, ...remangaChapters];
 
     if (allChapters.length === 0) {
       const fallbackChapters = Array.from({ length: 15 }).map((_, idx) => {
