@@ -875,7 +875,34 @@ export const onRequest = async (context: any) => {
 
         if (pagesMatch) {
           const arrayText = pagesMatch[1];
-          const parsedArray = new Function("return " + arrayText)();
+          let parsedArray: any[] = [];
+          try {
+            // Replace single quotes with double quotes and make valid JSON
+            let jsonText = arrayText
+              .replace(/'/g, '"')
+              .replace(/,\s*\]/g, ']')
+              .replace(/,\s*\}/g, '}');
+            parsedArray = JSON.parse(jsonText);
+            debugLogs.push(`[zaza] Parsed block elements count via JSON.parse: ${parsedArray.length}`);
+          } catch (jsonErr: any) {
+            debugLogs.push(`[zaza] JSON.parse failed: ${jsonErr.message || jsonErr}. Attempting custom RegExp parser...`);
+            const innerBracketMatches = arrayText.match(/\[\s*[^\]]*\s*\]/g);
+            if (innerBracketMatches) {
+              for (const innerStr of innerBracketMatches) {
+                // Extract strings either in single quotes or double quotes
+                const stringMatches = Array.from(innerStr.matchAll(/(?:'([^']*)'|"([^"]*)")/g)).map(m => m[1] || m[2] || '');
+                if (stringMatches.length >= 3) {
+                  parsedArray.push([
+                    stringMatches[0] || '',
+                    stringMatches[1] || '',
+                    stringMatches[2] || ''
+                  ]);
+                }
+              }
+              debugLogs.push(`[zaza] Regex manually extracted items: ${parsedArray.length}`);
+            }
+          }
+
           debugLogs.push(`[zaza] Parsed block elements count: ${parsedArray.length}`);
           
           let isDeleted = false;
