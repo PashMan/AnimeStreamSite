@@ -826,7 +826,7 @@ export const onRequest = async (context: any) => {
   }
 
   // 2. PAGES FOR CHAPTER: /api/manga/chapter/:chapterId/pages
-  const chapterPagesMatch = pathname.match(/^\/chapter\/([a-zA-Z0-9\-_+=]+)\/pages\/?$/);
+  const chapterPagesMatch = pathname.match(/^\/chapter\/(.+)\/pages\/?$/);
   if (chapterPagesMatch) {
     const chapterId = chapterPagesMatch[1];
 
