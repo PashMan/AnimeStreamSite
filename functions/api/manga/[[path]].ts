@@ -841,29 +841,24 @@ export const onRequest = async (context: any) => {
                 }
               }, 3500);
               debugLogs.push(`[zaza] Got response status: ${res.status}`);
-              if (res.status === 200) {
-                pageHtml = await res.text();
-                debugLogs.push(`[zaza] Received payload size: ${pageHtml.length} characters.`);
-                const containsReaderInit = pageHtml.includes("readerInit");
-                debugLogs.push(`[zaza] Page text contains "readerInit" substring? ${containsReaderInit}`);
-                
-                // Safe multiline matching for readerInit
-                pagesMatch = pageHtml.match(/rm_h\.readerInit\s*\(\s*[^,]*\s*,\s*(\[\[[\s\S]*?\]\])/);
-                if (pagesMatch) {
-                  debugLogs.push(`[zaza] Regex scanner: SUCCESS! Extracted array characters length: ${pagesMatch[1].length}`);
-                  finalSuccessUrl = targetUrl;
-                  break; 
-                } else {
-                  debugLogs.push(`[zaza] Regex scanner: FAILED. Check if different layout or blocks exist.`);
-                  // Fallback: check if we see raw image elements in files
-                  const pathFallback = pageHtml.match(/['"]((?:https?:)?\/\/.*?\/auto\/.*?\.(?:png|jpg|jpeg|webp))['"]/gi);
-                  if (pathFallback) {
-                    debugLogs.push(`[zaza] Potential fallback elements found in text: ${pathFallback.length} items`);
-                  }
-                }
+              pageHtml = await res.text().catch(() => "");
+              debugLogs.push(`[zaza] Received payload size: ${pageHtml.length} characters.`);
+              const containsReaderInit = pageHtml.includes("readerInit");
+              debugLogs.push(`[zaza] Page text contains "readerInit" substring? ${containsReaderInit}`);
+              
+              // Safe multiline matching for readerInit
+              pagesMatch = pageHtml.match(/rm_h\.readerInit\s*\(\s*[^,]*\s*,\s*(\[\[[\s\S]*?\]\])/);
+              if (pagesMatch) {
+                debugLogs.push(`[zaza] Regex scanner: SUCCESS! Extracted array characters length: ${pagesMatch[1].length}`);
+                finalSuccessUrl = targetUrl;
+                break; 
               } else {
-                const textErr = await res.text().catch(() => "");
-                debugLogs.push(`[zaza] Non-200. Preview: ${textErr.slice(0, 305)}`);
+                debugLogs.push(`[zaza] Regex scanner: FAILED. Check if different layout or blocks exist.`);
+                // Fallback: check if we see raw image elements in files
+                const pathFallback = pageHtml.match(/['"]((?:https?:)?\/\/.*?\/auto\/.*?\.(?:png|jpg|jpeg|webp))['"]/gi);
+                if (pathFallback) {
+                  debugLogs.push(`[zaza] Potential fallback elements found in text: ${pathFallback.length} items`);
+                }
               }
             } catch (err: any) {
               console.error(`Attempt ${attempt} failed for ${targetUrl}:`, err);
