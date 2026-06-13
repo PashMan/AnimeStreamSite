@@ -507,17 +507,34 @@ const Manga: React.FC = () => {
       localStorage.setItem('kami_manga_history_v2', JSON.stringify(updated));
     }
 
+    console.log(`[KamiManga] Loading pages for chapter: ${chapterObj.title || 'Chapter'} (ID: ${chapterObj.id})`);
     try {
       const res = await fetch(`/api/manga/chapter/${chapterObj.id}/pages`);
+      const data = await res.json().catch(() => ({}));
+
+      console.log(`[KamiManga] Fetch response status code: ${res.status}`);
+      if (data.debugLogs && Array.isArray(data.debugLogs)) {
+        console.groupCollapsed(`[KamiManga Server Trace] Click to view detailed backend fetching steps`);
+        data.debugLogs.forEach((log: string) => console.log(log));
+        console.groupEnd();
+      }
+
       if (res.ok) {
-        const data = await res.json();
+        if (!data.pages || data.pages.length === 0) {
+          console.error(`[KamiManga] Warning: API returned success status 200, but pages array is empty. Review server traces above.`);
+        } else {
+          console.log(`[KamiManga] Successfully loaded ${data.pages.length} pages.`);
+        }
         setPages(data.pages || []);
-      } else if (res.status === 403) {
-        setIsMangaLicensed(true);
-        setActiveChapter(null);
+      } else {
+        console.error(`[KamiManga] Server returned error response! Status: ${res.status}`, data);
+        if (res.status === 403 || data.isLicensed) {
+          setIsMangaLicensed(true);
+          setActiveChapter(null);
+        }
       }
     } catch (e) {
-      console.error('Failed to parse load pages', e);
+      console.error('[KamiManga] Failed to parse/load pages response', e);
     } finally {
       setPagesLoading(false);
     }

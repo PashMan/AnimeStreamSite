@@ -774,11 +774,13 @@ export const onRequest = async (context: any) => {
         "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1080&auto=format&fit=crop&q=85"
       ];
       const pages = backgroundUrls.map((url) => `/api/manga/page-proxy?url=${encodeURIComponent(url)}`);
-      return new Response(JSON.stringify({ pages }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      return new Response(JSON.stringify({ pages, debugLogs: ["[procedural] Mapped mock images successfully."] }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
 
     if (chapterId.startsWith('zaza-')) {
       const rawPath = fromBase64(chapterId.replace('zaza-', ''));
+      const debugLogs: string[] = [];
+      debugLogs.push(`[zaza] RawPath decoded: "${rawPath}"`);
       try {
         const urlsToTry: string[] = [];
         if (rawPath.startsWith('http')) {
@@ -791,7 +793,9 @@ export const onRequest = async (context: any) => {
             urlsToTry.push(`https://readmanga.live${pathname}?mtr=1`);
             urlsToTry.push(`https://mintmanga.live${pathname}?mtr=1`);
             urlsToTry.push(`https://selfmanga.live${pathname}?mtr=1`);
-          } catch (e) {}
+          } catch (e: any) {
+            debugLogs.push(`[zaza] Error parsing rawPath URL: ${e.message}`);
+          }
         } else {
           const cleanPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
           urlsToTry.push(`https://a.zazaza.me${cleanPath}?mtr=1`);
@@ -801,12 +805,17 @@ export const onRequest = async (context: any) => {
           urlsToTry.push(`https://selfmanga.live${cleanPath}?mtr=1`);
         }
 
+        debugLogs.push(`[zaza] Candidate URLs list: ${JSON.stringify(urlsToTry)}`);
+
         let pagesMatch: any = null;
         let pageHtml = "";
+        let finalSuccessUrl = "";
 
         for (const targetUrl of urlsToTry) {
+          debugLogs.push(`[zaza] Iterating candidate URL: ${targetUrl}`);
           for (let attempt = 1; attempt <= 2; attempt++) {
             try {
+              debugLogs.push(`[zaza] Attempt ${attempt} query starting...`);
               const res = await fetch(targetUrl, {
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -814,16 +823,34 @@ export const onRequest = async (context: any) => {
                   'Accept-Language': 'ru,en-US;q=0.9,en;q=0.8'
                 }
               });
+              debugLogs.push(`[zaza] Got response status: ${res.status}`);
               if (res.status === 200) {
                 pageHtml = await res.text();
+                debugLogs.push(`[zaza] Received payload size: ${pageHtml.length} characters.`);
+                const containsReaderInit = pageHtml.includes("readerInit");
+                debugLogs.push(`[zaza] Page text contains "readerInit" substring? ${containsReaderInit}`);
+                
                 // Safe multiline matching for readerInit
                 pagesMatch = pageHtml.match(/rm_h\.readerInit\s*\(\s*[^,]*\s*,\s*(\[\[[\s\S]*?\]\])/);
                 if (pagesMatch) {
+                  debugLogs.push(`[zaza] Regex scanner: SUCCESS! Extracted array characters length: ${pagesMatch[1].length}`);
+                  finalSuccessUrl = targetUrl;
                   break; 
+                } else {
+                  debugLogs.push(`[zaza] Regex scanner: FAILED. Check if different layout or blocks exist.`);
+                  // Fallback: check if we see raw image elements in files
+                  const pathFallback = pageHtml.match(/['"]((?:https?:)?\/\/.*?\/auto\/.*?\.(?:png|jpg|jpeg|webp))['"]/gi);
+                  if (pathFallback) {
+                    debugLogs.push(`[zaza] Potential fallback elements found in text: ${pathFallback.length} items`);
+                  }
                 }
+              } else {
+                const textErr = await res.text().catch(() => "");
+                debugLogs.push(`[zaza] Non-200. Preview: ${textErr.slice(0, 305)}`);
               }
-            } catch (err) {
+            } catch (err: any) {
               console.error(`Attempt ${attempt} failed for ${targetUrl}:`, err);
+              debugLogs.push(`[zaza] Attempt ${attempt} fetch/regex exception: ${err.message || err}`);
             }
             if (attempt < 2 && !pagesMatch) {
               await new Promise(r => setTimeout(r, 200));
@@ -837,47 +864,65 @@ export const onRequest = async (context: any) => {
         if (pagesMatch) {
           const arrayText = pagesMatch[1];
           const parsedArray = new Function("return " + arrayText)();
+          debugLogs.push(`[zaza] Parsed block elements count: ${parsedArray.length}`);
           
           let isDeleted = false;
-          const pages = parsedArray.map((item: any) => {
+          const pages = parsedArray.map((item: any, idx: number) => {
             const fullUrl = `${item[0] || ''}${item[2] || ''}`;
             if (fullUrl.includes('deleted1.png')) {
                isDeleted = true;
+            }
+            if (idx === 0) {
+              debugLogs.push(`[zaza] First computed index URL: ${fullUrl}`);
             }
             return `/api/manga/page-proxy?url=${encodeURIComponent(fullUrl)}&_zaza=1`;
           });
           
           if (isDeleted) {
-            return new Response(JSON.stringify({ error: 'Издательская блокировка: Главы удалены правообладателем в РФ.', isLicensed: true, pages: [] }), { status: 403, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+            debugLogs.push(`[zaza] Detected RF publisher deletion mask (deleted1.png).`);
+            return new Response(JSON.stringify({ error: 'Издательская блокировка: Главы удалены правообладателем в РФ.', isLicensed: true, pages: [], debugLogs }), { status: 403, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
           }
 
-          return new Response(JSON.stringify({ pages }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+          debugLogs.push(`[zaza] Done. Output files count: ${pages.length}`);
+          return new Response(JSON.stringify({ pages, debugLogs, successUrl: finalSuccessUrl }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
         } else {
-          return new Response(JSON.stringify({ pages: [] }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+          debugLogs.push(`[zaza] End of candidate queue reached but regex never loaded successfully.`);
+          return new Response(JSON.stringify({ pages: [], debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
         }
-      } catch(e) {
-        return new Response(JSON.stringify({ pages: [] }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      } catch(e: any) {
+        debugLogs.push(`[zaza] Outer handler exception: ${e.message || e}`);
+        return new Response(JSON.stringify({ pages: [], debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
     }
 
     if (chapterId.startsWith('remanga-')) {
       const rawChId = chapterId.replace('remanga-', '');
       const rmUrl = `https://api.remanga.org/api/titles/chapters/${rawChId}/`;
+      const debugLogs: string[] = [`[remanga] Starting fetch for Chapter: ${rawChId}`];
       try {
+        debugLogs.push(`[remanga] Querying ${rmUrl}`);
         const res = await fetch(rmUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/json'
           }
         });
+        debugLogs.push(`[remanga] Status: ${res.status}`);
+        if (res.status !== 200) {
+          const errText = await res.text().catch(() => "");
+          debugLogs.push(`[remanga] Body excerpt: ${errText.slice(0, 300)}`);
+          return new Response(JSON.stringify({ pages: [], debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        }
         const data: any = await res.json();
         const cObj = data && data.content;
         if (!cObj) {
-          return new Response(JSON.stringify({ pages: [] }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+          debugLogs.push(`[remanga] Result format incorrect: missing "content" block.`);
+          return new Response(JSON.stringify({ pages: [], debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
         }
 
         const servers = cObj.servers || ['https://img.remanga.org'];
         const pageItems = cObj.pages || cObj.scans || [];
+        debugLogs.push(`[remanga] Server CDN hosters count ${servers.length}. Items found: ${pageItems.length}`);
         const pages = pageItems.map((page: any) => {
           let link = "";
           if (typeof page === 'string') {
@@ -902,33 +947,46 @@ export const onRequest = async (context: any) => {
           return '';
         }).filter(Boolean);
 
-        return new Response(JSON.stringify({ pages }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        debugLogs.push(`[remanga] Successfully processed ${pages.length} remote visual elements.`);
+        return new Response(JSON.stringify({ pages, debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       } catch (err: any) {
-        return new Response(JSON.stringify({ error: err.message, pages: [] }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        debugLogs.push(`[remanga] Crash: ${err.message || err}`);
+        return new Response(JSON.stringify({ error: err.message, pages: [], debugLogs }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
     }
 
     const dexUrl = `https://api.mangadex.org/at-home/server/${chapterId}`;
+    const debugLogs: string[] = [`[mangadex] Preparing fetch for DexChapterId ${chapterId}`];
     try {
+      debugLogs.push(`[mangadex] Querying metadata index: ${dexUrl}`);
       const res = await fetch(dexUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
       });
+      debugLogs.push(`[mangadex] Status response code: ${res.status}`);
+      if (res.status !== 200) {
+        const errText = await res.text().catch(() => "");
+        debugLogs.push(`[mangadex] Error details: ${errText.slice(0, 300)}`);
+        return new Response(JSON.stringify({ pages: [], debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      }
       const data: any = await res.json();
       if (!data || !data.chapter) {
-        return new Response(JSON.stringify({ pages: [] }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        debugLogs.push(`[mangadex] JSON elements invalid or missing "chapter" container.`);
+        return new Response(JSON.stringify({ pages: [], debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
       const hash = data.chapter.hash;
       const baseUrl = data.baseUrl;
       const filenames = data.chapter.data;
+      debugLogs.push(`[mangadex] CDN baseUrl: ${baseUrl}. Target index elements: ${filenames.length}`);
       const pages = filenames.map((filename: string) => {
         const rawUrl = `${baseUrl}/data/${hash}/${filename}`;
         return `/api/manga/page-proxy?url=${encodeURIComponent(rawUrl)}&chapterId=${chapterId}`;
       });
-      return new Response(JSON.stringify({ pages }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      return new Response(JSON.stringify({ pages, debugLogs }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     } catch (err: any) {
-      return new Response(JSON.stringify({ error: err.message, pages: [] }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      debugLogs.push(`[mangadex] Global load failure: ${err.message || err}`);
+      return new Response(JSON.stringify({ error: err.message, pages: [], debugLogs }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
   }
 
