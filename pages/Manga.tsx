@@ -177,6 +177,7 @@ const Manga: React.FC = () => {
   const [activeChapter, setActiveChapter] = useState<ChapterItem | null>(null);
   const [pages, setPages] = useState<string[]>([]);
   const [pagesLoading, setPagesLoading] = useState<boolean>(false);
+  const [chapterPagesError, setChapterPagesError] = useState<string | null>(null);
   const [readerMode, setReaderMode] = useState<'pages' | 'scroll'>(() => {
     try {
       return (localStorage.getItem('kami_reader_mode') as 'pages' | 'scroll') || 'scroll';
@@ -184,11 +185,18 @@ const Manga: React.FC = () => {
       return 'scroll';
     }
   });
-  const [imageFitMode, setImageFitMode] = useState<'width' | 'height'>(() => {
+  const [imageFitMode, setImageFitMode] = useState<'width' | 'height' | 'auto' | 'original'>(() => {
     try {
-      return (localStorage.getItem('kami_reader_fit') as 'width' | 'height') || 'width';
+      return (localStorage.getItem('kami_reader_fit') as 'width' | 'height' | 'auto' | 'original') || 'width';
     } catch {
       return 'width';
+    }
+  });
+  const [readingDirection, setReadingDirection] = useState<'ltr' | 'rtl'>(() => {
+    try {
+      return (localStorage.getItem('kami_reader_direction') as 'ltr' | 'rtl') || 'ltr';
+    } catch {
+      return 'ltr';
     }
   });
   const [mangaReaderPage, setMangaReaderPage] = useState<number>(0);
@@ -220,9 +228,13 @@ const Manga: React.FC = () => {
     setReaderMode(mode);
     try { localStorage.setItem('kami_reader_mode', mode); } catch {}
   };
-  const handleSetImageFitMode = (fit: 'width' | 'height') => {
+  const handleSetImageFitMode = (fit: 'width' | 'height' | 'auto' | 'original') => {
     setImageFitMode(fit);
     try { localStorage.setItem('kami_reader_fit', fit); } catch {}
+  };
+  const handleSetReadingDirection = (dir: 'ltr' | 'rtl') => {
+    setReadingDirection(dir);
+    try { localStorage.setItem('kami_reader_direction', dir); } catch {}
   };
   const handleSetReadingBg = (bg: 'dark' | 'gray' | 'sepia' | 'light') => {
     setReadingBg(bg);
@@ -293,7 +305,10 @@ const Manga: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (activeChapter === null || pagesLoading || pages.length === 0) return;
       
-      if (e.key === 'ArrowRight' || e.key === 'Right') {
+      const isNextKey = (e.key === 'ArrowRight' || e.key === 'Right') ? (readingDirection !== 'rtl') : (e.key === 'ArrowLeft' || e.key === 'Left') ? (readingDirection === 'rtl') : false;
+      const isPrevKey = (e.key === 'ArrowLeft' || e.key === 'Left') ? (readingDirection !== 'rtl') : (e.key === 'ArrowRight' || e.key === 'Right') ? (readingDirection === 'rtl') : false;
+
+      if (isNextKey) {
         if (readerMode === 'pages') {
           if (mangaReaderPage < pages.length - 1) {
             setMangaReaderPage(prev => prev + 1);
@@ -308,7 +323,7 @@ const Manga: React.FC = () => {
             }
           }
         }
-      } else if (e.key === 'ArrowLeft' || e.key === 'Left') {
+      } else if (isPrevKey) {
         if (readerMode === 'pages') {
           if (mangaReaderPage > 0) {
             setMangaReaderPage(prev => prev - 1);
@@ -326,7 +341,7 @@ const Manga: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [activeChapter, pages, readerMode, mangaReaderPage, chapters, pagesLoading]);
+  }, [activeChapter, pages, readerMode, mangaReaderPage, chapters, pagesLoading, readingDirection]);
 
   // Catalog filter / sort triggers reset
   useEffect(() => {
@@ -585,6 +600,7 @@ const Manga: React.FC = () => {
     }
     setActiveChapter(chapterObj);
     setPages([]);
+    setChapterPagesError(null);
     setActiveDebugLogs([]);
     setMangaReaderPage(0);
     setPagesLoading(true);
@@ -621,15 +637,18 @@ const Manga: React.FC = () => {
           console.log(`[KamiManga] Successfully loaded ${data.pages.length} pages.`);
         }
         setPages(data.pages || []);
+        setChapterPagesError(null);
       } else {
         console.error(`[KamiManga] Server returned error response! Status: ${res.status}`, data);
         if (res.status === 403 || data.isLicensed) {
-          setIsMangaLicensed(true);
-          setActiveChapter(null);
+          setChapterPagesError('licensed');
+        } else {
+          setChapterPagesError(data.error || 'loader_error');
         }
       }
     } catch (e) {
       console.error('[KamiManga] Failed to parse/load pages response', e);
+      setChapterPagesError('network_error');
     } finally {
       setPagesLoading(false);
     }
@@ -832,7 +851,7 @@ const Manga: React.FC = () => {
               <div className="flex border-b border-white/5 select-none overflow-x-auto">
                 {[
                   { id: 'info', label: 'Описание произведения' },
-                  { id: 'chapters', label: isMangaLicensed ? 'Список глав (Правообладатель)' : `Список глав (${chaptersLoading ? '...' : chapters.length})` },
+                  { id: 'chapters', label: (isMangaLicensed || chapters.length === 0) ? 'Список глав' : `Список глав (${chaptersLoading ? '...' : chapters.length})` },
                   { id: 'comments', label: `Отзывы и Обсуждения (${(mangaComments[selectedManga.id] || []).length})` }
                 ].map((tab) => (
                   <button
@@ -1468,9 +1487,9 @@ const Manga: React.FC = () => {
 
           const activeBgClass = 
             readingBg === 'gray' ? 'bg-[#1e1f24] text-slate-200' :
-            readingBg === 'sepia' ? 'bg-[#2a241e] text-orange-200/90' :
-            readingBg === 'light' ? 'bg-[#f7f8fa] text-black' : 
-            'bg-[#060608] text-slate-300';
+            readingBg === 'sepia' ? 'bg-[#2c241b] text-[#f3ece0]' :
+            readingBg === 'light' ? 'bg-[#f7f7f9] text-[#1a1b1f]' : 
+            'bg-[#0b0c0e] text-slate-300';
 
           const activeContainerWidthStyle = readingWidth === 'full' ? '100%' : `${readingWidth}px`;
 
@@ -1478,6 +1497,8 @@ const Manga: React.FC = () => {
             readingGap === '8' ? 'gap-2 py-2' :
             readingGap === '16' ? 'gap-4 py-4' :
             readingGap === '32' ? 'gap-8 py-8' :
+            readingGap === '48' ? 'gap-12 py-12' :
+            readingGap === '64' ? 'gap-16 py-16' :
             'gap-0 py-0';
 
           return (
@@ -1492,7 +1513,7 @@ const Manga: React.FC = () => {
                 <div className="flex items-center gap-3 min-w-0">
                   <button 
                     onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
-                    className="p-2.5 bg-white/5 text-slate-300 hover:text-[#8B5CF6] hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer"
+                    className="p-2.5 bg-white/5 text-slate-300 hover:text-[#8B5CF6] hover:bg-white/10 rounded-xl transition-all shrink-0 cursor-pointer animate-in fade-in duration-200"
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
@@ -1565,7 +1586,7 @@ const Manga: React.FC = () => {
 
                   <button 
                     onClick={() => setIsSettingsOpen(prev => !prev)}
-                    className={`p-2 bg-white/5 text-slate-300 rounded-xl transition-all ${isSettingsOpen ? 'text-[#8B5CF6] bg-[#8B5CF6]/10' : 'hover:bg-white/10'}`}
+                    className={`p-2 bg-white/5 text-slate-300 rounded-xl transition-all ${isSettingsOpen ? 'text-[#8B5CF6] bg-[#8B5CF6]/10 animate-pulse' : 'hover:bg-white/10'}`}
                   >
                     <Settings className="w-4 h-4" />
                   </button>
@@ -1589,8 +1610,50 @@ const Manga: React.FC = () => {
                       <Loader2 className="w-10 h-10 text-[#8B5CF6] animate-spin mb-4" />
                       <span className="text-xs font-black uppercase text-slate-400 tracking-widest animate-pulse">Загрузка страниц из API...</span>
                     </div>
+                  ) : chapterPagesError ? (
+                    /* Highly polished MangaLib-style inside-reader licensed block or error panel */
+                    <div className="m-auto w-full max-w-xl py-12 px-6 bg-[#18191d] border border-red-500/15 rounded-3xl text-center space-y-6 shadow-2xl mx-4 animate-in zoom-in-95 duration-200">
+                      <div className="w-16 h-16 bg-red-550/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto">
+                        <ShieldAlert className="w-8 h-8 text-red-500" />
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-black text-red-500 uppercase tracking-widest">ДОСТУП ОГРАНИЧЕН: РФ ПРАВООБЛАДАТЕЛЬ</h4>
+                        <p className="text-[11px] text-[#7d8291] max-w-sm mx-auto leading-relaxed font-semibold">
+                          По требованию дистрибьютора в регионе главы закрыты для свободного просмотра. 
+                          Главы этого произведения удалены правообладателем в РФ или заблокированы.
+                        </p>
+                      </div>
+                      <div className="p-3 bg-[#121316] rounded-2xl border border-white/5 text-left text-[9px] font-mono text-red-400/80 leading-snug break-all space-y-1">
+                        <div>[Статус: Лицензионная защита региона]</div>
+                        <div>Chapter pages fetch returned error strike. RF censorship proxy block applied.</div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row justify-center gap-2 pt-2">
+                        <button
+                          onClick={() => { setActiveChapter(null); setMangaReaderPage(0); }}
+                          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest text-[#a5a7b1] rounded-xl transition-all cursor-pointer"
+                        >
+                          Назад к описанию
+                        </button>
+                        {prevChapter && (
+                          <button
+                            onClick={() => startReadingChapter(prevChapter)}
+                            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest text-slate-300 rounded-xl transition-all cursor-pointer border border-white/5"
+                          >
+                            Предыдущая глава
+                          </button>
+                        )}
+                        {nextChapter && (
+                          <button
+                            onClick={() => startReadingChapter(nextChapter)}
+                            className="px-4 py-2 bg-[#8B5CF6] text-black hover:bg-[#A855F7] text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md cursor-pointer"
+                          >
+                            Гл. {nextChapter.chapter}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ) : pages.length === 0 ? (
-                    <div className="m-auto flex flex-col items-center justify-center p-6 text-center max-w-xl space-y-4">
+                    <div className="m-auto flex flex-col items-center justify-center p-6 text-center max-w-xl space-y-4 animate-in fade-in duration-200">
                       <div className="p-4 bg-white/5 rounded-full border border-white/5 animate-pulse">
                         <BookOpen className="w-8 h-8 text-[#7d8291]" />
                       </div>
@@ -1626,7 +1689,7 @@ const Manga: React.FC = () => {
                       style={{ maxWidth: activeContainerWidthStyle }}
                     >
                       {pages.map((imgUrl, idx) => (
-                        <div key={idx} className="relative w-full shadow-2xl select-none">
+                        <div key={idx} className={`relative w-full select-none ${readingGap !== '0' ? 'shadow-2xl' : ''}`}>
                           <img 
                             src={imgUrl} 
                             alt={`Page-${idx + 1}`} 
@@ -1648,7 +1711,7 @@ const Manga: React.FC = () => {
                             referrerPolicy="no-referrer"
                             loading="lazy"
                           />
-                          <div className="absolute bottom-3 right-4 bg-black/80 backdrop-blur-md text-[8.5px] font-black uppercase tracking-wide text-slate-400 py-1 px-2.5 rounded border border-white/5">
+                          <div className="absolute bottom-3 right-4 bg-black/80 backdrop-blur-md text-[8.5px] font-black uppercase tracking-wide text-slate-400 py-1 px-2.5 rounded border border-white/5 opacity-40 hover:opacity-100 transition-opacity">
                             Стр. {idx + 1} / {pages.length}
                           </div>
                         </div>
@@ -1695,81 +1758,128 @@ const Manga: React.FC = () => {
                                 onClick={() => startReadingChapter(nextChapter)}
                                 className="px-5 py-2 bg-[#8B5CF6] text-black hover:bg-[#A855F7] text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md"
                               >
-                                Гл. {nextChapter.chapter}
+                                  Гл. {nextChapter.chapter}
                               </button>
                             )}
                           </div>
                         </div>
                       ) : (
                         /* Page reader view */
-                        <div className="flex-grow flex flex-col items-center justify-center p-4 min-h-0 relative w-full">
-                          {imageFitMode === 'height' ? (
-                            <div 
-                              className="relative w-full h-[calc(100vh-170px)] flex items-center justify-center p-2 rounded-2xl group overflow-hidden"
-                              style={{ maxWidth: activeContainerWidthStyle }}
-                            >
+                        <div className="flex-grow flex flex-col items-center justify-center p-2 sm:p-4 min-h-0 relative w-full overflow-hidden select-none">
+                          
+                          {/* Main responsive image wrapper based on fit mode */}
+                          <div 
+                            className={`relative flex items-center justify-center transition-all duration-300 w-full rounded-2xl group ${
+                              imageFitMode === 'height' ? 'h-[calc(100vh-140px)] max-w-none' :
+                              imageFitMode === 'auto' ? 'max-h-[calc(100vh-140px)] h-full overflow-hidden' :
+                              imageFitMode === 'original' ? 'max-h-[calc(100vh-140px)] overflow-auto bg-black/10' :
+                              /* width mode */ 'max-h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar'
+                            }`}
+                            style={{ 
+                              maxWidth: (imageFitMode === 'height' || imageFitMode === 'auto') ? undefined : activeContainerWidthStyle 
+                            }}
+                          >
+                            <div className="relative max-w-full max-h-full flex items-center justify-center select-none">
                               <img 
                                 src={pages[mangaReaderPage]} 
                                 alt={`Page ${mangaReaderPage + 1}`} 
                                 onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                                className="max-h-full max-w-full object-contain rounded-xl shadow-2xl transition-all duration-300"
+                                className={`rounded-xl shadow-2xl transition-all duration-205 ${
+                                  imageFitMode === 'height' ? 'h-full w-auto max-w-none object-contain' :
+                                  imageFitMode === 'auto' ? 'max-h-[calc(100vh-140px)] max-w-full object-contain' :
+                                  imageFitMode === 'original' ? 'h-auto w-auto object-none' :
+                                  /* width mode */ 'w-full h-auto object-contain'
+                                }`}
                                 referrerPolicy="no-referrer"
                               />
 
-                              <button 
-                                disabled={mangaReaderPage === 0}
-                                onClick={() => { if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1); }}
-                                className="absolute left-0 top-0 bottom-0 w-1/4 cursor-w-resize z-10 flex items-center justify-start pl-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-black/20 to-transparent disabled:opacity-0 disabled:cursor-default"
-                              >
-                                <div className="w-8 h-8 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-white">
-                                  <ChevronLeft className="w-5 h-5" />
-                                </div>
-                              </button>
-
-                              <button 
-                                onClick={() => setMangaReaderPage(prev => prev + 1)}
-                                className="absolute right-0 top-0 bottom-0 w-1/4 cursor-e-resize z-10 flex items-center justify-end pr-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-l from-black/20 to-transparent"
-                              >
-                                <div className="w-8 h-8 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-white">
-                                  <ChevronRight className="w-5 h-5" />
-                                </div>
-                              </button>
-                            </div>
-                          ) : (
-                            <div 
-                              className="relative w-full overflow-y-auto max-h-[calc(100vh-170px)] flex flex-col items-center p-2 rounded-2xl group custom-scrollbar"
-                              style={{ maxWidth: activeContainerWidthStyle }}
-                            >
-                              <div className="relative w-full shadow-2xl select-none">
-                                <img 
-                                  src={pages[mangaReaderPage]} 
-                                  alt={`Page ${mangaReaderPage + 1}`} 
-                                  onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                                  className="w-full h-auto object-contain mx-auto rounded-xl"
-                                  referrerPolicy="no-referrer"
+                              {/* Click zones for left 30%, middle 40% (toggle settings), right 30% */}
+                              <div className="absolute inset-0 flex select-none z-20">
+                                {/* Left click zone */}
+                                <div 
+                                  onClick={() => {
+                                    if (readingDirection === 'rtl') {
+                                      // RTL forward
+                                      if (mangaReaderPage < pages.length - 1) {
+                                        setMangaReaderPage(prev => prev + 1);
+                                      } else {
+                                        setMangaReaderPage(pages.length); // Chapter finished
+                                      }
+                                    } else {
+                                      // LTR backward
+                                      if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1);
+                                    }
+                                  }}
+                                  className="w-[30%] h-full cursor-w-resize"
+                                  title={readingDirection === 'rtl' ? "Вперед" : "Назад"}
                                 />
-
-                                <button 
-                                  disabled={mangaReaderPage === 0}
-                                  onClick={() => { if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1); }}
-                                  className="absolute left-0 top-0 bottom-0 w-1/6 cursor-w-resize z-10 flex items-center justify-start pl-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-black/20 to-transparent disabled:opacity-0 disabled:cursor-default"
+                                
+                                {/* Middle click zone (toggles sidebar settings) */}
+                                <div 
+                                  onClick={() => setIsSettingsOpen(prev => !prev)}
+                                  className="w-[40%] h-full cursor-pointer flex items-center justify-center text-[#8B5CF6] opacity-0 hover:opacity-100 transition-opacity bg-black/10 group-hover:bg-transparent"
                                 >
-                                  <div className="w-8 h-8 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-[#8B5CF6] shadow-lg">
-                                    <ChevronLeft className="w-5 h-5" />
-                                  </div>
-                                </button>
+                                  <span className="bg-black/85 backdrop-blur-md border border-white/5 py-1.5 px-3.5 rounded-lg text-[9px] font-black uppercase tracking-wider text-[#8B5CF6]">
+                                    Параметры <Settings className="w-3 h-3 inline ml-1" />
+                                  </span>
+                                </div>
 
-                                <button 
-                                  onClick={() => setMangaReaderPage(prev => prev + 1)}
-                                  className="absolute right-0 top-0 bottom-0 w-1/6 cursor-e-resize z-10 flex items-center justify-end pr-6 opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-l from-black/20 to-transparent"
-                                >
-                                  <div className="w-8 h-8 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-[#8B5CF6] shadow-lg">
-                                    <ChevronRight className="w-5 h-5" />
-                                  </div>
-                                </button>
+                                {/* Right click zone */}
+                                <div 
+                                  onClick={() => {
+                                    if (readingDirection === 'rtl') {
+                                      // RTL backward
+                                      if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1);
+                                    } else {
+                                      // LTR forward
+                                      if (mangaReaderPage < pages.length - 1) {
+                                        setMangaReaderPage(prev => prev + 1);
+                                      } else {
+                                        // Next chapter triggers finished page
+                                        setMangaReaderPage(pages.length);
+                                      }
+                                    }
+                                  }}
+                                  className="w-[30%] h-full cursor-e-resize"
+                                  title={readingDirection === 'rtl' ? "Назад" : "Вперед"}
+                                />
                               </div>
+
+                              {/* Responsive absolute left/right visual chevron indicators */}
+                              <button 
+                                disabled={readingDirection === 'rtl' ? (mangaReaderPage >= pages.length - 1) : (mangaReaderPage === 0)}
+                                onClick={() => {
+                                  if (readingDirection === 'rtl') {
+                                    setMangaReaderPage(prev => prev + 1);
+                                  } else {
+                                    setMangaReaderPage(prev => prev - 1);
+                                  }
+                                }}
+                                className="absolute left-3 w-8 h-8 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity select-none z-30 disabled:opacity-0 disabled:cursor-default"
+                              >
+                                <ChevronLeft className="w-5 h-5" />
+                              </button>
+
+                              <button 
+                                onClick={() => {
+                                  if (readingDirection === 'rtl') {
+                                    if (mangaReaderPage > 0) {
+                                      setMangaReaderPage(prev => prev - 1);
+                                    }
+                                  } else {
+                                    if (mangaReaderPage < pages.length - 1) {
+                                      setMangaReaderPage(prev => prev + 1);
+                                    } else {
+                                      setMangaReaderPage(pages.length);
+                                    }
+                                  }
+                                }}
+                                className="absolute right-3 w-8 h-8 rounded-full bg-black/60 border border-white/5 flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity select-none z-30"
+                              >
+                                <ChevronRight className="w-5 h-5" />
+                              </button>
                             </div>
-                          )}
+                          </div>
                         </div>
                       )}
 
@@ -1778,13 +1888,13 @@ const Manga: React.FC = () => {
                         <button
                           disabled={mangaReaderPage === 0}
                           onClick={() => { if (mangaReaderPage > 0) setMangaReaderPage(prev => prev - 1); }}
-                          className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 hover:text-white text-xs font-black uppercase text-slate-300 disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 hover:text-white text-[10px] font-black uppercase text-slate-300 disabled:opacity-20 rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
                         >
-                          <ChevronLeft className="w-4 h-4" /> Назад
+                          <ChevronLeft className="w-3.5 h-3.5" /> Назад
                         </button>
 
                         <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar select-none py-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-[#8B5CF6] whitespace-nowrap bg-[#8B5CF6]/5 rounded-lg px-2.5 py-1 border border-[#8B5CF6]/10">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[#8B5CF6] whitespace-nowrap bg-[#8B5CF6]/5 rounded-lg px-2.5 py-1 border border-[#8B5CF6]/10">
                             {mangaReaderPage >= pages.length ? 'Глава завершена' : `Страница ${mangaReaderPage + 1} из ${pages.length}`}
                           </span>
                         </div>
@@ -1797,9 +1907,9 @@ const Manga: React.FC = () => {
                               setMangaReaderPage(pages.length);
                             }
                           }}
-                          className="px-4 py-1.5 bg-[#8B5CF6] hover:bg-[#A855F7] text-xs font-black uppercase text-black rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          className="px-3.5 py-1.5 bg-[#8B5CF6] hover:bg-[#A855F7] text-[10px] font-black uppercase text-black rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0 font-bold"
                         >
-                          {mangaReaderPage >= pages.length - 1 ? (nextChapter ? 'След. глава' : 'Завершить') : 'Вперед'} <ChevronRight className="w-4 h-4" />
+                          {mangaReaderPage >= pages.length - 1 ? (nextChapter ? 'След. глава' : 'Завершить') : 'Вперед'} <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -1814,36 +1924,36 @@ const Manga: React.FC = () => {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 100 }}
                       transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-                      className="absolute right-0 top-0 bottom-0 w-72 bg-[#121316] border-l border-white/5 z-40 p-5 space-y-6 shadow-2xl flex flex-col justify-between"
+                      className="absolute right-0 top-0 bottom-0 w-80 bg-[#121316] border-l border-white/5 z-40 p-5 space-y-6 shadow-2xl flex flex-col justify-between overflow-y-auto"
                     >
-                      <div className="space-y-6">
+                      <div className="space-y-5">
                         <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
                           <span className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-1.5">
-                            <Sliders className="w-3.5 h-3.5 text-[#8B5CF6]" /> Настройки Ридера
+                            <Sliders className="w-4 h-4 text-[#8B5CF6]" /> Панель Параметров
                           </span>
                           <button 
                             onClick={() => setIsSettingsOpen(false)}
-                            className="text-xs font-bold text-[#7d8291] hover:text-white cursor-pointer"
+                            className="text-xs font-bold text-[#7d8291] hover:text-white cursor-pointer hover:underline"
                           >
-                            Закрыть
+                            Скрыть
                           </button>
                         </div>
 
                         {/* Theme switcher */}
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block font-bold">Цветовая гамма</span>
                           <div className="grid grid-cols-4 gap-1.5">
                             {[
-                              { id: 'dark', label: 'Ночь', cls: 'bg-black border-white/10 text-white' },
-                              { id: 'gray', label: 'Графит', cls: 'bg-slate-800 border-white/10 text-white' },
-                              { id: 'sepia', label: 'Теплый', cls: 'bg-amber-950 border-amber-900/50 text-amber-200' },
-                              { id: 'light', label: 'День', cls: 'bg-slate-100 border-slate-300 text-black' }
+                              { id: 'dark', label: 'Ночь', cls: 'bg-[#0f0f10] border-white/10 text-slate-200' },
+                              { id: 'gray', label: 'Графит', cls: 'bg-[#1e1f24] border-white/10 text-white' },
+                              { id: 'sepia', label: 'Сепия', cls: 'bg-[#2c241b] border-amber-900/50 text-[#f3ece0]' },
+                              { id: 'light', label: 'День', cls: 'bg-[#f7f7f9] border-slate-300 text-black' }
                             ].map(theme => (
                               <button
                                 key={theme.id}
                                 onClick={() => handleSetReadingBg(theme.id as any)}
-                                className={`p-1.5 py-2.5 rounded text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer ${theme.cls} ${
-                                  readingBg === theme.id ? 'ring-1 ring-[#8B5CF6]' : 'opacity-60'
+                                className={`p-1 py-2 rounded text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer ${theme.cls} ${
+                                  readingBg === theme.id ? 'ring-2 ring-[#8B5CF6] scale-105' : 'opacity-65 hover:opacity-100'
                                 }`}
                               >
                                 {theme.label}
@@ -1852,8 +1962,52 @@ const Manga: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* Mode Switcher inside settings too! */}
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block font-bold">Способ чтения</span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {[
+                              { id: 'scroll', label: 'Свиток (Webtoon)' },
+                              { id: 'pages', label: 'Постранично' }
+                            ].map(mode => (
+                              <button
+                                key={mode.id}
+                                onClick={() => handleSetReaderMode(mode.id as any)}
+                                className={`py-2 border rounded text-[9px] font-extrabold uppercase bg-black/40 border-white/10 text-slate-300 transition-all cursor-pointer ${
+                                  readerMode === mode.id ? 'text-[#8B5CF6] border-[#8B5CF6]/50 bg-[#8B5CF6]/5 font-bold' : 'hover:bg-white/5'
+                                }`}
+                              >
+                                {mode.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Reading direction for page-by-page */}
+                        {readerMode === 'pages' && (
+                          <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-150">
+                            <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block font-bold">Направление страниц</span>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {[
+                                { id: 'ltr', label: 'Слева направо' },
+                                { id: 'rtl', label: 'Справа налево (Яп.)' }
+                              ].map(dir => (
+                                <button
+                                  key={dir.id}
+                                  onClick={() => handleSetReadingDirection(dir.id as any)}
+                                  className={`py-2 border rounded text-[9px] font-extrabold uppercase bg-black/40 border-white/10 text-slate-300 transition-all cursor-pointer ${
+                                    readingDirection === dir.id ? 'text-[#8B5CF6] border-[#8B5CF6]/50 bg-[#8B5CF6]/5 font-bold' : 'hover:bg-white/5'
+                                  }`}
+                                >
+                                  {dir.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Width */}
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block font-bold">Максимальная ширина</span>
                           <div className="grid grid-cols-4 gap-1.5">
                             {[
@@ -1879,42 +2033,48 @@ const Manga: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Gaps */}
-                        <div className="space-y-2">
-                          <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block font-bold">Отступы страниц</span>
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {[
-                              { id: '0', label: '0px' },
-                              { id: '8', label: '8px' },
-                              { id: '16', label: '16px' },
-                              { id: '32', label: '32px' }
-                            ].map(gap => (
-                              <button
-                                key={gap.id}
-                                onClick={() => handleSetReadingGap(gap.id)}
-                                className={`py-1.5 border rounded text-[9px] font-extrabold uppercase bg-black/45 border-white/10 text-slate-300 transition-all cursor-pointer ${
-                                  readingGap === gap.id ? 'text-[#8B5CF6] border-[#8B5CF6]/45 bg-[#8B5CF6]/5 font-bold' : 'hover:bg-white/5'
-                                }`}
-                              >
-                                {gap.label}
-                              </button>
-                            ))}
+                        {/* Gaps - only for scroll */}
+                        {readerMode === 'scroll' && (
+                          <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-150">
+                            <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block font-bold">Шов / Отступы страниц</span>
+                            <div className="grid grid-cols-6 gap-1">
+                              {[
+                                { id: '0', label: '0px' },
+                                { id: '8', label: '8px' },
+                                { id: '16', label: '16px' },
+                                { id: '32', label: '32px' },
+                                { id: '48', label: '48px' },
+                                { id: '64', label: '64px' }
+                              ].map(gap => (
+                                <button
+                                  key={gap.id}
+                                  onClick={() => handleSetReadingGap(gap.id)}
+                                  className={`py-1.5 border rounded text-[8px] font-extrabold uppercase bg-black/45 border-white/10 text-slate-300 transition-all cursor-pointer ${
+                                    readingGap === gap.id ? 'text-[#8B5CF6] border-[#8B5CF6]/45 bg-[#8B5CF6]/5 font-bold' : 'hover:bg-white/5'
+                                  }`}
+                                >
+                                  {gap.label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         {/* Image Page Fit Mode */}
                         {readerMode === 'pages' && (
-                          <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">
+                          <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-150">
                             <span className="text-[10px] font-black uppercase text-[#7d8291] tracking-wider block font-bold">Вписывание страниц</span>
                             <div className="grid grid-cols-2 gap-1.5">
                               {[
-                                { id: 'width', label: 'По ширине' },
-                                { id: 'height', label: 'По высоте' }
+                                { id: 'width', label: 'Прокрутка (Ширина)' },
+                                { id: 'height', label: 'По высоте' },
+                                { id: 'auto', label: 'Авто (В весь экран)' },
+                                { id: 'original', label: 'Оригинал (1:1)' }
                               ].map(fit => (
                                 <button
                                   key={fit.id}
                                   onClick={() => handleSetImageFitMode(fit.id as any)}
-                                  className={`py-1.5 border rounded text-[9px] font-extrabold uppercase bg-black/45 border-white/10 text-slate-400 transition-all cursor-pointer ${
+                                  className={`py-2 border rounded text-[9px] font-extrabold uppercase bg-black/45 border-white/10 text-slate-400 transition-all cursor-pointer ${
                                     imageFitMode === fit.id ? 'text-[#8B5CF6] border-[#8B5CF6]/45 bg-[#8B5CF6]/5 font-bold' : 'hover:bg-white/5'
                                   }`}
                                 >
@@ -1926,11 +2086,11 @@ const Manga: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="space-y-2 select-none">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-[#7d8291] block text-center">Плеер KamiManga v1.2</span>
+                      <div className="space-y-2 select-none border-t border-white/5 pt-3">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-[#7d8291] block text-center">Плеер KamiManga v1.4</span>
                         <button 
                           onClick={() => setIsSettingsOpen(false)}
-                          className="w-full py-2 bg-[#8B5CF6] text-black hover:bg-[#A855F7] text-xs font-black uppercase tracking-wider rounded-lg transition-all text-center shrink-0 block cursor-pointer"
+                          className="w-full py-2 bg-[#8B5CF6] text-black hover:bg-[#A855F7] text-xs font-black uppercase tracking-wider rounded-lg transition-all text-center shrink-0 block cursor-pointer font-bold"
                         >
                           Сохранить параметры
                         </button>
