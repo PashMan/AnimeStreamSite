@@ -780,12 +780,60 @@ export const onRequest = async (context: any) => {
     if (chapterId.startsWith('zaza-')) {
       const rawPath = fromBase64(chapterId.replace('zaza-', ''));
       try {
-        const fullPath = rawPath.startsWith('http') ? `${rawPath}?mtr=1` : `https://a.zazaza.me${rawPath}?mtr=1`;
-        const pageRes = await fetch(fullPath, {
-          headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-        const pageHtml = await pageRes.text();
-        const pagesMatch = pageHtml.match(/rm_h\.readerInit\([^,]*,\s*(\[\[.*?\]\])/);
+        const urlsToTry: string[] = [];
+        if (rawPath.startsWith('http')) {
+          urlsToTry.push(`${rawPath}?mtr=1`);
+          try {
+            const parsedUrl = new URL(rawPath);
+            const pathname = parsedUrl.pathname;
+            urlsToTry.push(`https://a.zazaza.me${pathname}?mtr=1`);
+            urlsToTry.push(`https://1.seimanga.me${pathname}?mtr=1`);
+            urlsToTry.push(`https://readmanga.live${pathname}?mtr=1`);
+            urlsToTry.push(`https://mintmanga.live${pathname}?mtr=1`);
+            urlsToTry.push(`https://selfmanga.live${pathname}?mtr=1`);
+          } catch (e) {}
+        } else {
+          const cleanPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+          urlsToTry.push(`https://a.zazaza.me${cleanPath}?mtr=1`);
+          urlsToTry.push(`https://1.seimanga.me${cleanPath}?mtr=1`);
+          urlsToTry.push(`https://readmanga.live${cleanPath}?mtr=1`);
+          urlsToTry.push(`https://mintmanga.live${cleanPath}?mtr=1`);
+          urlsToTry.push(`https://selfmanga.live${cleanPath}?mtr=1`);
+        }
+
+        let pagesMatch: any = null;
+        let pageHtml = "";
+
+        for (const targetUrl of urlsToTry) {
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              const res = await fetch(targetUrl, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                  'Accept-Language': 'ru,en-US;q=0.9,en;q=0.8'
+                }
+              });
+              if (res.status === 200) {
+                pageHtml = await res.text();
+                // Safe multiline matching for readerInit
+                pagesMatch = pageHtml.match(/rm_h\.readerInit\s*\(\s*[^,]*\s*,\s*(\[\[[\s\S]*?\]\])/);
+                if (pagesMatch) {
+                  break; 
+                }
+              }
+            } catch (err) {
+              console.error(`Attempt ${attempt} failed for ${targetUrl}:`, err);
+            }
+            if (attempt < 2 && !pagesMatch) {
+              await new Promise(r => setTimeout(r, 200));
+            }
+          }
+          if (pagesMatch) {
+            break; 
+          }
+        }
+
         if (pagesMatch) {
           const arrayText = pagesMatch[1];
           const parsedArray = new Function("return " + arrayText)();

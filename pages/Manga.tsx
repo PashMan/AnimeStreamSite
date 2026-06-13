@@ -1481,10 +1481,22 @@ const Manga: React.FC = () => {
                       <span className="text-xs font-black uppercase text-slate-400 tracking-widest animate-pulse">Загрузка страниц из API...</span>
                     </div>
                   ) : pages.length === 0 ? (
-                    <div className="m-auto flex flex-col items-center justify-center p-6 text-center">
-                      <BookOpen className="w-12 h-12 text-[#7d8291] mb-4" />
-                      <h3 className="text-sm font-black text-white">Страницы не найдены</h3>
-                      <p className="text-[10px] text-slate-500 mt-1 max-w-sm">Возможно, файл поврежден или защищен правообладателями. Извините за временные сложности.</p>
+                    <div className="m-auto flex flex-col items-center justify-center p-6 text-center max-w-sm space-y-4">
+                      <div className="p-4 bg-white/5 rounded-full border border-white/5 animate-pulse">
+                        <BookOpen className="w-8 h-8 text-[#7d8291]" />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-black uppercase text-white tracking-wider">Страницы не загрузились</h3>
+                        <p className="text-[10px] text-slate-500 max-w-xs leading-normal">
+                          Не удалось получить страницы этой главы из источника. Пожалуйста, попробуйте обновить или выбрать другой раздел.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => startReadingChapter(activeChapter)}
+                        className="px-5 py-2.5 bg-white/10 hover:bg-[#8B5CF6] hover:text-black text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer border border-white/5 flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Повторить загрузку
+                      </button>
                     </div>
                   ) : readerMode === 'scroll' ? (
                     <div className={`w-full flex flex-col items-center ${activeContainerWidth} ${activeGapClass}`}>
