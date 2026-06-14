@@ -202,6 +202,30 @@ async function fetchNews() {
     return data.map((news: any) => `/news/${news.id}`);
 }
 
+async function fetchTopManga() {
+    console.log('Fetching manga by popularity...');
+    let allManga: Set<string> = new Set();
+    const MAX_PAGES = 30; // Fetch 3000 popular manga items
+    
+    process.stdout.write('Fetching popular manga: ');
+    for (let page = 1; page <= MAX_PAGES; page++) {
+        const url = `${SHIKIMORI_API}/mangas?limit=100&order=popularity&page=${page}`;
+        const data = await fetchWithRetry(url);
+        
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            break; 
+        }
+        
+        data.forEach((m: any) => {
+            allManga.add(`/?mangaId=${m.id}`);
+        });
+        process.stdout.write('.');
+        await delay(300);
+    }
+    console.log(` (${allManga.size})`);
+    return Array.from(allManga);
+}
+
 function escapeXml(unsafe: string) {
   return unsafe.replace(/[<>&'"]/g, function (c) {
       switch (c) {
@@ -215,11 +239,11 @@ function escapeXml(unsafe: string) {
   });
 }
 
-function generateSitemapXML(urls: string[], priority = '0.8', freq = 'weekly') {
+function generateSitemapXML(urls: string[], priority = '0.8', freq = 'weekly', siteUrl = SITE_URL) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(route => `  <url>
-    <loc>${escapeXml(SITE_URL + route)}</loc>
+    <loc>${escapeXml(siteUrl + route)}</loc>
     <changefreq>${route === '/' ? 'daily' : freq}</changefreq>
     <priority>${route === '/' ? '1.0' : priority}</priority>
   </url>`).join('\n')}
@@ -282,7 +306,19 @@ async function generateSitemap() {
       console.log('Generated sitemap-clubs.xml');
   }
 
-  // 6. Index Sitemap
+  // 6. Manga Sitemap (written statically for independent submission)
+  try {
+    const mangaRoutes = await fetchTopManga();
+    if (mangaRoutes.length > 0) {
+        const mangaXml = generateSitemapXML(mangaRoutes, '0.8', 'weekly', 'https://manga.kamianime.club');
+        fs.writeFileSync(path.join(publicDir, 'sitemap-manga.xml'), mangaXml);
+        console.log('Generated sitemap-manga.xml');
+    }
+  } catch (mangaErr) {
+    console.error('Failed to generate sitemap-manga.xml', mangaErr);
+  }
+
+  // 7. Index Sitemap
   const sitemaps = [
       'sitemap-main.xml',
       'sitemap-anime.xml',

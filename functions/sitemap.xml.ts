@@ -27,9 +27,86 @@ export const onRequest = async (context: any) => {
   try {
     const today = new Date().toISOString();
     const url = new URL(context.request.url);
+    const isMangaDomain = url.hostname.startsWith('manga.');
     const SITE_URL = url.origin;
 
-    // 1. Static URLs
+    if (isMangaDomain) {
+      // 1. Static Manga URLs
+      const staticUrls = [
+        '/',
+        '/catalog',
+        '/social',
+        '/premium',
+        '/favorites'
+      ];
+
+      let mangas: any[] = [];
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+        const mangaPromises = [];
+        const MAX_MANGA_PAGES = 15; // Limit to 1500 popular mangas for safe execution
+        const MANGA_PER_PAGE = 100;
+
+        for (let i = 1; i <= MAX_MANGA_PAGES; i++) {
+          mangaPromises.push(
+            fetch(`${SHIKIMORI_API_URL}/mangas?limit=${MANGA_PER_PAGE}&order=popularity&page=${i}`, {
+              headers: { 'User-Agent': 'KamiManga/1.0', 'Accept': 'application/json' },
+              signal: controller.signal
+            }).then(res => res.ok ? res.json() : [])
+          );
+        }
+
+        const mangaPages = await Promise.all(mangaPromises);
+        clearTimeout(timeoutId);
+        mangas = mangaPages.flat();
+      } catch (e) {
+        console.error('Manga Sitemap fetch error:', e);
+      }
+
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
+
+      // Add Static Manga URLs
+      staticUrls.forEach(route => {
+        const priority = route === '/' ? '1.0' : '0.8';
+        xml += `
+  <url>
+    <loc>${SITE_URL}${route === '/' ? '' : route}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>${priority}</priority>
+  </url>`;
+      });
+
+      // Add Manga Dynamic URLs
+      if (Array.isArray(mangas)) {
+        mangas.forEach((m: any) => {
+          if (!m || !m.id) return;
+          const lastmod = m.updated_at ? new Date(m.updated_at).toISOString() : today;
+          xml += `
+  <url>
+    <loc>${SITE_URL}/?mangaId=${m.id}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+        });
+      }
+
+      xml += `
+</urlset>`;
+
+      return new Response(xml, {
+        headers: {
+          'Content-Type': 'text/xml',
+          'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=43200'
+        }
+      });
+    }
+
+    // 2. Default Anime / News Sitemap (when not requested via manga subdomain)
     const staticUrls = [
       '/',
       '/catalog',
@@ -54,7 +131,7 @@ export const onRequest = async (context: any) => {
         signal: controller.signal
       }).then(res => res.ok ? res.json() : []);
 
-      // Fetch Anime (Parallel pages) - EXCLUDE HENentai
+      // Fetch Anime (Parallel pages) - EXCLUDE HENTAI
       const animePromises = [];
       const MAX_PAGES = 25; // 25 * 50 = 1250 animes to compensate for filtering
       const PER_PAGE = 50;

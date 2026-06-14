@@ -176,6 +176,75 @@ const Manga: React.FC = () => {
 
   // --- Active Reader States ---
   const [activeChapter, setActiveChapter] = useState<ChapterItem | null>(null);
+
+  // Dynamic SEO Configuration
+  const seoConfig = React.useMemo(() => {
+    if (selectedManga) {
+      if (activeChapter) {
+        const chName = activeChapter.title ? ` - ${activeChapter.title}` : '';
+        const chNum = activeChapter.chapter;
+        const titleText = `Читать Мангу ${selectedManga.title} Глава ${chNum}${chName} онлайн бесплатно`;
+        const descText = `Читать онлайн главу ${chNum} ${activeChapter.title || ''} манги ${selectedManga.title} (${selectedManga.originalTitle || ''}) на русском языке бесплатно. Качественные сканы, удобный и быстрый ридер на KamiManga.`;
+        const keys = `${selectedManga.title} глава ${chNum}, читать ${selectedManga.title} ${chNum}, ${selectedManga.title} на русском, манга онлайн`;
+        
+        const schema = {
+          "@context": "https://schema.org",
+          "@type": "BookSection",
+          "name": `Глава ${chNum} - ${selectedManga.title}`,
+          "position": Number(chNum) || 1,
+          "isPartOf": {
+            "@type": "CreativeWorkSeries",
+            "name": selectedManga.title,
+            "alternateName": selectedManga.originalTitle
+          }
+        };
+
+        return {
+          title: titleText,
+          description: descText,
+          keywords: keys,
+          schemaData: schema
+        };
+      } else {
+        const titleText = `Манга ${selectedManga.title} (${selectedManga.originalTitle || 'Читать Онлайн'}) бесплатно на русском`;
+        const shortDesc = selectedManga.description 
+          ? selectedManga.description.substring(0, 160).trim() + '...'
+          : `Читать популярную мангу ${selectedManga.title} (${selectedManga.originalTitle || ''}) онлайн бесплатно на русском языке. Описание, жанры ${selectedManga.genres?.join(', ') || ''}, главы и отзывы читателей.`;
+        const keys = `${selectedManga.title}, читать мангу ${selectedManga.title}, ${selectedManga.title} на русском, все главы ${selectedManga.title}, ${selectedManga.genres?.join(', ') || ''}`;
+        
+        const schema = {
+          "@context": "https://schema.org",
+          "@type": "CreativeWorkSeries",
+          "name": selectedManga.title,
+          "alternativeHeadline": selectedManga.originalTitle,
+          "description": selectedManga.description,
+          "genre": selectedManga.genres,
+          "aggregateRating": selectedManga.rating ? {
+            "@type": "AggregateRating",
+            "ratingValue": selectedManga.rating,
+            "bestRating": "10",
+            "worstRating": "1",
+            "ratingCount": "150"
+          } : undefined
+        };
+
+        return {
+          title: titleText,
+          description: shortDesc,
+          keywords: keys,
+          schemaData: schema
+        };
+      }
+    }
+
+    return {
+      title: "KamiManga - Читать Мангу Онлайн на русском языке бесплатно",
+      description: "Крупнейший портал лицензионной и фанатской манги KamiManga. Умный ридер, подробные каталоги, оценки, отзывы и обсуждения.",
+      keywords: "манга, читать мангу, манга онлайн, манга бесплатно, на русском, переводы манги, свежие главы, сенин, исекай",
+      schemaData: undefined
+    };
+  }, [selectedManga, activeChapter]);
+
   const [pages, setPages] = useState<string[]>([]);
   const [pagesLoading, setPagesLoading] = useState<boolean>(false);
   const [chapterPagesError, setChapterPagesError] = useState<string | null>(null);
@@ -707,8 +776,10 @@ const Manga: React.FC = () => {
   return (
     <div className="bg-[#121316] min-h-screen text-[#a5a7b1] font-sans selection:bg-[#8B5CF6]/30 selection:text-white select-none relative custom-scrollbar">
       <SEO 
-        title="KamiManga - Читать Мангу Онлайн на русском языке бесплатно"
-        description="Крупнейший портал лицензионной и фанатской манги KamiManga. Умный ридер, подробные каталоги, оценки, отзывы."
+        title={seoConfig.title}
+        description={seoConfig.description}
+        keywords={seoConfig.keywords}
+        schemaData={seoConfig.schemaData}
       />
 
       {/* DETAILED MANGA VIEW (RENDERED AS FULL PAGE DIRECTLY IN THE DOCUMENT FLOW, NOT LIKE AN WINDOWPOPUP) */}
