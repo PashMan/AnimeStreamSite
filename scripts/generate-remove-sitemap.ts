@@ -67,6 +67,16 @@ function escapeXml(unsafe: string) {
 }
 
 async function generateRemoveSitemap() {
+  const isCloudflare = process.env.CF_PAGES === '1';
+  if (!isCloudflare) {
+    console.log('Sandbox/Dev environment: Skipping remove sitemap generation.');
+    const publicDir = path.resolve(process.cwd(), 'public');
+    if (!fs.existsSync(publicDir)) {
+      fs.mkdirSync(publicDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(publicDir, 'sitemap-remove.xml'), '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+    return;
+  }
   const urls = await fetchHentaiAnime();
   if (urls.length === 0) return;
 
