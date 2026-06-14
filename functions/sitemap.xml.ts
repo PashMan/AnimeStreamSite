@@ -31,6 +31,24 @@ export const onRequest = async (context: any) => {
     const SITE_URL = url.origin;
 
     if (isMangaDomain) {
+      if (context.env?.ASSETS) {
+        try {
+          const assetResponse = await context.env.ASSETS.fetch(new URL('/sitemap-manga.xml', url.origin));
+          if (assetResponse.ok) {
+            const body = await assetResponse.text();
+            return new Response(body, {
+              headers: {
+                'Content-Type': 'text/xml',
+                'Cache-Control': 'public, s-maxage=43200, stale-while-revalidate=86400'
+              }
+            });
+          }
+        } catch (assetErr) {
+          console.error('Failed to look up static sitemap-manga.xml:', assetErr);
+        }
+      }
+
+      // Fallback if the static asset could not be fetched
       // 1. Static Manga URLs
       const staticUrls = [
         '/',
@@ -43,11 +61,11 @@ export const onRequest = async (context: any) => {
       let mangas: any[] = [];
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
 
         const mangaPromises = [];
-        const MAX_MANGA_PAGES = 15; // Limit to 1500 popular mangas for safe execution
-        const MANGA_PER_PAGE = 100;
+        const MAX_MANGA_PAGES = 4; // Fetch 4 pages max at limit 50 to avoid rate limits
+        const MANGA_PER_PAGE = 50;
 
         for (let i = 1; i <= MAX_MANGA_PAGES; i++) {
           mangaPromises.push(

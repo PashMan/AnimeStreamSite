@@ -205,11 +205,11 @@ async function fetchNews() {
 async function fetchTopManga() {
     console.log('Fetching manga by popularity...');
     let allManga: Set<string> = new Set();
-    const MAX_PAGES = 30; // Fetch 3000 popular manga items
+    const MAX_PAGES = 160; // Fetch 160 pages * 50 limit = 8000 popular manga items cleanly
     
     process.stdout.write('Fetching popular manga: ');
     for (let page = 1; page <= MAX_PAGES; page++) {
-        const url = `${SHIKIMORI_API}/mangas?limit=100&order=popularity&page=${page}`;
+        const url = `${SHIKIMORI_API}/mangas?limit=50&order=popularity&page=${page}`;
         const data = await fetchWithRetry(url);
         
         if (!data || !Array.isArray(data) || data.length === 0) {
@@ -220,7 +220,7 @@ async function fetchTopManga() {
             allManga.add(`/?mangaId=${m.id}`);
         });
         process.stdout.write('.');
-        await delay(300);
+        await delay(200); // 200ms delay for fast and respectful scraping
     }
     console.log(` (${allManga.size})`);
     return Array.from(allManga);
