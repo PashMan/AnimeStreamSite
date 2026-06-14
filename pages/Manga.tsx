@@ -167,6 +167,7 @@ const Manga: React.FC = () => {
   // --- Selected Manga Deep Page States ---
   const [selectedManga, setSelectedManga] = useState<MangaItem | null>(null);
   const [chapters, setChapters] = useState<ChapterItem[]>([]);
+  const uniqueChaptersCount = React.useMemo(() => new Set(chapters.map((ch) => ch.chapter)).size, [chapters]);
   const [chaptersLoading, setChaptersLoading] = useState<boolean>(false);
   const [selectedTranslationGroup, setSelectedTranslationGroup] = useState<string>('');
   const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'chapters' | 'comments'>('info');
@@ -851,7 +852,7 @@ const Manga: React.FC = () => {
               <div className="flex border-b border-white/5 select-none overflow-x-auto">
                 {[
                   { id: 'info', label: 'Описание произведения' },
-                  { id: 'chapters', label: (isMangaLicensed || chapters.length === 0) ? 'Список глав' : `Список глав (${chaptersLoading ? '...' : chapters.length})` },
+                  { id: 'chapters', label: (isMangaLicensed || chapters.length === 0) ? 'Список глав' : `Список глав (${chaptersLoading ? '...' : uniqueChaptersCount})` },
                   { id: 'comments', label: `Отзывы и Обсуждения (${(mangaComments[selectedManga.id] || []).length})` }
                 ].map((tab) => (
                   <button
@@ -1318,165 +1319,9 @@ const Manga: React.FC = () => {
               )}
             </div>
 
-            {/* SECTION 4: НИЖЕ НОВИНКИ */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-black uppercase tracking-widest text-[#8B5CF6] flex items-center gap-2">
-                  <Flame className="w-4 h-4" /> Лента новинок
-                </h2>
-              </div>
-
-              {loadingNovinki && novinkiEndless.length === 0 ? (
-                <div className="py-12 bg-[#18191d] text-center text-xs text-[#7d8291] rounded-2xl border border-white/5">
-                  Загрузка новинок...
-                </div>
-              ) : (
-                <div className="relative w-full bg-[#18191d]/40 rounded-3xl p-5 border border-white/5">
-                  <div 
-                    ref={novinkiScrollRef}
-                    onScroll={handleNovinkiScroll}
-                    className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar select-none scroll-smooth"
-                  >
-                    {novinkiEndless.map((item, idx) => (
-                      <div
-                        key={`novinki-endless-${item.id}-${idx}`}
-                        onClick={() => setSearchParams({ mangaId: item.id })}
-                        className="w-[125px] sm:w-[145px] shrink-0 group cursor-pointer space-y-1.5"
-                      >
-                        <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-md border border-white/5 relative bg-[#18191d]">
-                          <img 
-                            src={item.cover} 
-                            alt="" 
-                            onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            referrerPolicy="no-referrer"
-                            loading="lazy"
-                          />
-                          <div className="absolute top-1.5 left-1.5 px-1 bg-[#121316] rounded-md text-[8px] border border-white/5 font-bold text-slate-300">
-                            {item.genres[0]}
-                          </div>
-                        </div>
-                        <h4 className="text-[10.5px] font-bold text-slate-300 group-hover:text-[#8B5CF6] transition-colors leading-tight line-clamp-1">
-                          {item.title}
-                        </h4>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* SECTION 5: ПОЛНЫЙ КАТАЛОГ С ФИЛЬТРАМИ (АВТО-ПОДГРУЗКА) */}
-            <div className="space-y-6 pt-12 border-t border-white/5">
-              <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-black uppercase tracking-widest text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-[#8B5CF6]" /> Все тайтлы
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-1 font-bold">Полный каталог с умной фильтрацией</p>
-                </div>
-
-                {/* Filters Row */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <select 
-                    value={catalogSource} 
-                    onChange={(e) => setCatalogSource(e.target.value)}
-                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
-                  >
-                    <option value="all">Все Источники</option>
-                    <option value="mangadex">MangaDex (RU)</option>
-                    <option value="remanga">ReManga</option>
-                    <option value="shikimori">МангаОвх (Аггрегация)</option>
-                    <option value="mangalib">MangaLib (RU-Proxy)</option>
-                    <option value="readmanga">ReadManga (Proxy)</option>
-                    <option value="mangaovh">MangaHub / Овх</option>
-                    <option value="inkstory">InkStory</option>
-                  </select>
-
-                  <select 
-                    value={catalogSort} 
-                    onChange={(e) => setCatalogSort(e.target.value)}
-                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
-                  >
-                    <option value="followedCount">Топ Популярных</option>
-                    <option value="createdAt">Новые поступления</option>
-                    <option value="latestUploadedChapter">Обновления Глав</option>
-                  </select>
-
-                  <select 
-                    value={filterType} 
-                    onChange={(e) => setFilterType(e.target.value)}
-                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
-                  >
-                    <option value="all">Все Типы</option>
-                    <option value="manga">Манга (Япония)</option>
-                    <option value="manhwa">Манхва (Корея)</option>
-                    <option value="manhua">Маньхуа (Китай)</option>
-                  </select>
-
-                  <select 
-                    value={filterStatus} 
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="bg-[#18191d] border border-white/5 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none hover:border-[#8B5CF6]/50 cursor-pointer"
-                  >
-                    <option value="all">Любой статус</option>
-                    <option value="ongoing">Выпускается (Онгоинг)</option>
-                    <option value="completed">Завершен</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Grid of Mangas */}
-              {catalogMangas.length === 0 && !catalogLoading ? (
-                 <div className="py-24 text-center border border-white/5 rounded-3xl bg-[#18191d]/40">
-                   <BookX className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                   <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">Ничего не найдено</h3>
-                   <p className="text-sm font-bold text-slate-600 mt-2">Попробуйте изменить параметры поиска или фильтры</p>
-                 </div>
-              ) : (
-                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                  {catalogMangas.map((item, idx) => (
-                    <div 
-                      key={`cat-${item.id}-${idx}`}
-                      onClick={() => setSearchParams({ mangaId: item.id })}
-                      className="group cursor-pointer flex flex-col space-y-2 animate-in fade-in"
-                    >
-                      <div className="aspect-[2/3] w-full rounded-2xl overflow-hidden shadow-lg border border-white/5 relative bg-[#18191d]">
-                        <img 
-                          src={item.cover} 
-                          alt="" 
-                          onError={(e) => { e.currentTarget.src = FALLBACK_COVER; }}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          referrerPolicy="no-referrer"
-                          loading="lazy"
-                        />
-                        <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-[#121316]/90 backdrop-blur-md rounded border border-white/10 text-[8px] font-black text-slate-300 uppercase tracking-widest shadow-xl">
-                          {item.genres[0] || 'Манга'}
-                        </div>
-                        <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-[#121316]/90 backdrop-blur-md px-1.5 py-0.5 rounded border border-[#8B5CF6]/30 text-[9px] font-black text-[#8b5cf6] shadow-xl">
-                          <Star className="w-2.5 h-2.5 fill-current" /> {item.rating}
-                        </div>
-                      </div>
-                      <h4 className="text-[11px] font-bold text-slate-300 group-hover:text-[#8B5CF6] transition-colors leading-tight line-clamp-2">
-                        {item.title}
-                      </h4>
-                    </div>
-                  ))}
-                  
-                  {catalogLoading && Array.from({ length: 8 }).map((_, i) => (
-                    <div key={`loaders-${i}`} className="space-y-2">
-                      <div className="aspect-[2/3] w-full rounded-2xl bg-[#18191d] border border-white/5 animate-pulse" />
-                      <div className="h-3 w-3/4 bg-[#18191d] rounded animate-pulse" />
-                      <div className="h-3 w-1/2 bg-[#18191d] rounded animate-pulse" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* DETAILED CHAPTERS FULL SCREEN HIGH-CONTRAST READER */}
       <AnimatePresence>

@@ -137,7 +137,7 @@ export const AIChatBot: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] font-sans">
+    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-[100] font-sans">
       {/* Circle Floating Trigger Button */}
       {!isOpen && (
         <button

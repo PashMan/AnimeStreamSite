@@ -44,6 +44,7 @@ const Catalog: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterGenre, setFilterGenre] = useState<string>('all');
+  const [filterChapters, setFilterChapters] = useState<string>('all');
 
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
@@ -188,6 +189,14 @@ const Catalog: React.FC = () => {
             if (filterStatus === 'completed' && !(lowerStatus.includes('ком') || lowerStatus.includes('зав'))) return false;
           }
           if (filterGenre !== 'all' && !m.genres.includes(filterGenre)) return false;
+
+          if (filterChapters !== 'all') {
+            const chCount = (m as any).chapters || 0;
+            if (filterChapters === '1-10' && (chCount < 1 || chCount > 10)) return false;
+            if (filterChapters === '11-50' && (chCount < 11 || chCount > 50)) return false;
+            if (filterChapters === '51-200' && (chCount < 51 || chCount > 200)) return false;
+            if (filterChapters === '201+' && chCount <= 200) return false;
+          }
           return true;
         });
 
@@ -219,7 +228,7 @@ const Catalog: React.FC = () => {
   useEffect(() => {
     if (!isMangaMode) return;
     fetchMangaCatalog(true);
-  }, [filterType, filterStatus, filterGenre, catalogSort, searchQuery, isMangaMode]);
+  }, [filterType, filterStatus, filterGenre, filterChapters, catalogSort, searchQuery, isMangaMode]);
 
   const handleLoadMoreManga = useCallback(() => {
     if (catalogLoading || !catalogHasMore || !isMangaMode) return;
@@ -320,7 +329,7 @@ const Catalog: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-4 border-b border-white/5">
             <div>
               <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tight font-display flex items-center gap-3">
-                <span className="w-2 h-10 bg-[#FF5C00] rounded-full inline-block" />
+                <span className="w-2 h-10 bg-[#8B5CF6] rounded-full inline-block" />
                 Каталог Манги
               </h1>
               <p className="text-xs text-[#7d8291] font-bold uppercase tracking-wider mt-1.5">
@@ -333,26 +342,27 @@ const Catalog: React.FC = () => {
                 setFilterType('all');
                 setFilterStatus('all');
                 setFilterGenre('all');
+                setFilterChapters('all');
                 setCatalogSort('followedCount');
                 setSearchQuery('');
               }}
-              className="text-[10px] font-black text-[#FF5C00] uppercase tracking-wider hover:opacity-80 transition-opacity border border-[#FF5C00]/30 px-3.5 py-2 rounded-xl bg-[#FF5C00]/5 cursor-pointer"
+              className="text-[10px] font-black text-[#8B5CF6] uppercase tracking-wider hover:opacity-80 transition-opacity border border-[#8B5CF6]/30 px-3.5 py-2 rounded-xl bg-[#8B5CF6]/5 cursor-pointer"
             >
               Сбросить фильтры
             </button>
           </div>
 
           {/* Filter Toolbar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 bg-[#18191d] rounded-3xl p-5 border border-white/5 shadow-xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 bg-[#18191d] rounded-3xl p-5 border border-white/5 shadow-xl">
             {/* Search Input */}
             <div className="space-y-1.5 md:col-span-1">
               <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Поиск названия</span>
               <div className="relative group">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#FF5C00]" />
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#8B5CF6]" />
                 <input
                   type="text"
                   placeholder="Название..."
-                  className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 pl-9 pr-3 focus:outline-none focus:border-[#FF5C00] transition-colors"
+                  className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 pl-9 pr-3 focus:outline-none focus:border-[#8B5CF6] transition-colors"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -365,7 +375,7 @@ const Catalog: React.FC = () => {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#8B5CF6] transition-colors cursor-pointer"
               >
                 <option value="all">Все форматы</option>
                 <option value="manga">Манга (Япония)</option>
@@ -380,7 +390,7 @@ const Catalog: React.FC = () => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#8B5CF6] transition-colors cursor-pointer"
               >
                 <option value="all">Все статусы</option>
                 <option value="ongoing">Онгоинг (Выпуск)</option>
@@ -394,12 +404,28 @@ const Catalog: React.FC = () => {
               <select
                 value={filterGenre}
                 onChange={(e) => setFilterGenre(e.target.value)}
-                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#8B5CF6] transition-colors cursor-pointer"
               >
                 <option value="all">Любой жанр</option>
                 {allUniqueGenres.map(g => (
                   <option key={g} value={g}>{g}</option>
                 ))}
+              </select>
+            </div>
+
+            {/* Chapters amount filter */}
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase text-[#7d8291] tracking-wider block">Количество глав</span>
+              <select
+                value={filterChapters}
+                onChange={(e) => setFilterChapters(e.target.value)}
+                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#8B5CF6] transition-colors cursor-pointer"
+              >
+                <option value="all">Любое кол-во</option>
+                <option value="1-10">1 – 10 глав</option>
+                <option value="11-50">11 – 50 глав</option>
+                <option value="51-200">51 – 200 глав</option>
+                <option value="201+">201+ глав</option>
               </select>
             </div>
 
@@ -409,7 +435,7 @@ const Catalog: React.FC = () => {
               <select
                 value={catalogSort}
                 onChange={(e) => setCatalogSort(e.target.value)}
-                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#FF5C00] transition-colors cursor-pointer"
+                className="w-full bg-[#121316] border border-white/5 text-xs font-bold text-white rounded-xl py-2 px-3 focus:outline-none focus:border-[#8B5CF6] transition-colors cursor-pointer"
               >
                 <option value="followedCount">По популярности</option>
                 <option value="rating">По рейтингу</option>
@@ -423,7 +449,7 @@ const Catalog: React.FC = () => {
         <div className="space-y-12">
           {catalogLoading && catalogMangas.length === 0 ? (
             <div className="flex justify-center items-center py-48">
-              <Loader2 className="w-12 h-12 text-[#FF5C00] animate-spin" />
+              <Loader2 className="w-12 h-12 text-[#8B5CF6] animate-spin" />
             </div>
           ) : (
             <>
@@ -439,7 +465,7 @@ const Catalog: React.FC = () => {
                       <div 
                         key={`catmanga-${m.id}-${idx}`}
                         onClick={() => navigate(`/?mangaId=${m.id}`)}
-                        className="group bg-[#18191d] border border-white/5 rounded-2xl overflow-hidden hover:border-[#FF5C00]/40 transition-all duration-300 flex flex-col justify-between cursor-pointer shadow-lg hover:shadow-2xl"
+                        className="group bg-[#18191d] border border-white/5 rounded-2xl overflow-hidden hover:border-[#8B5CF6]/40 transition-all duration-300 flex flex-col justify-between cursor-pointer shadow-lg hover:shadow-2xl"
                       >
                         <div className="relative aspect-[2/3] w-full overflow-hidden bg-black/40">
                           <img 
@@ -455,13 +481,13 @@ const Catalog: React.FC = () => {
                           {/* Hearts bookmark toggle indicator */}
                           <button 
                             onClick={(e) => toggleFavoriteItem(m.id, e)}
-                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 hover:bg-[#FF5C00] text-white hover:text-black transition-all z-20"
+                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 hover:bg-[#8B5CF6] text-white hover:text-black transition-all z-20"
                           >
-                            <Heart className={`w-3.5 h-3.5 ${isFaved ? 'fill-current text-[#FF5C00]' : ''}`} />
+                            <Heart className={`w-3.5 h-3.5 ${isFaved ? 'fill-current text-[#8B5CF6]' : ''}`} />
                           </button>
 
                           {/* Floating indicators of status */}
-                          <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 text-[8px] font-black text-[#FF5C00] uppercase rounded">
+                          <span className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 text-[8px] font-black text-[#8B5CF6] uppercase rounded">
                             {m.status}
                           </span>
 
@@ -472,10 +498,10 @@ const Catalog: React.FC = () => {
                         </div>
 
                         <div className="p-3.5 space-y-1.5 flex-grow flex flex-col justify-between h-20 bg-[#18191d]">
-                          <h4 className="font-extrabold text-[8.5px] text-[#FF5C00] uppercase tracking-widest truncate">
+                          <h4 className="font-extrabold text-[8.5px] text-[#8B5CF6] uppercase tracking-widest truncate">
                             {m.originalTitle || "MANGA INDEX"}
                           </h4>
-                          <h3 className="font-black text-xs text-white group-hover:text-[#FF5C00] transition-colors leading-snug line-clamp-1">
+                          <h3 className="font-black text-xs text-white group-hover:text-[#8B5CF6] transition-colors leading-snug line-clamp-1">
                             {m.title}
                           </h3>
                         </div>
@@ -487,7 +513,7 @@ const Catalog: React.FC = () => {
 
               {/* Infinite Scroll trigger point */}
               <div ref={observerTarget} className="mt-16 flex justify-center py-8">
-                {catalogLoading && <Loader2 className="w-8 h-8 text-[#FF5C00] animate-spin" />}
+                {catalogLoading && <Loader2 className="w-8 h-8 text-[#8B5CF6] animate-spin" />}
               </div>
             </>
           )}
