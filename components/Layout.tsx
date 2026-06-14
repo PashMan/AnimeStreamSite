@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown, Bookmark, BookOpen, Gamepad2 } from 'lucide-react';
+import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown, Bookmark, BookOpen, Gamepad2, Home, Compass } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import AuthModal from './AuthModal';
@@ -745,7 +745,7 @@ const Layout: React.FC = () => {
         </div>
       </div>
 
-      <main className={`flex-grow ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'pt-28' : 'pt-20'}`}>
+      <main className={`flex-grow ${(import.meta as any).env?.VITE_ENV === 'staging' ? 'pt-28' : 'pt-20'} pb-16 md:pb-0`}>
         <Outlet />
       </main>
 
@@ -799,6 +799,94 @@ const Layout: React.FC = () => {
         </div>
       </footer>
       <AIChatBot />
+
+      {/* Mobile Bottom Tab Bar (MangaLib style) */}
+      <div className={`fixed bottom-0 left-0 right-0 h-16 border-t z-50 md:hidden flex items-center justify-around px-2 backdrop-blur-xl transition-all duration-300 ${
+        isMangaMode ? 'bg-[#141519]/95 border-white/5 shadow-2xl' : 'bg-dark/95 border-white/5 shadow-2xl'
+      }`}>
+        {/* Tab 1: Главная */}
+        <Link 
+          to="/" 
+          className={`flex flex-col items-center justify-center gap-1 w-14 h-full transition-colors ${
+            pathname === '/' 
+              ? (isMangaMode ? 'text-[#8B5CF6]' : 'text-primary') 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Home className="w-5 h-5" />
+          <span className="text-[9px] font-black uppercase tracking-wider">Главная</span>
+        </Link>
+
+        {/* Tab 2: Каталог */}
+        <Link 
+          to="/catalog" 
+          className={`flex flex-col items-center justify-center gap-1 w-14 h-full transition-colors ${
+            pathname === '/catalog' 
+              ? (isMangaMode ? 'text-[#8B5CF6]' : 'text-primary') 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Compass className="w-5 h-5" />
+          <span className="text-[9px] font-black uppercase tracking-wider">Каталог</span>
+        </Link>
+
+        {/* Tab 3: Закладки */}
+        <button 
+          onClick={() => {
+            if (!user) {
+              openAuthModal();
+            } else {
+              navigate('/profile');
+            }
+          }}
+          className={`flex flex-col items-center justify-center gap-1 w-14 h-full transition-colors cursor-pointer ${
+            pathname === '/profile' 
+              ? (isMangaMode ? 'text-[#8B5CF6]' : 'text-primary') 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="relative">
+            <Bookmark className="w-5 h-5" />
+            {isMangaMode && mangaBookmarks.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#8B5CF6] text-black text-[8px] font-black rounded-full flex items-center justify-center border border-[#141519]">
+                {mangaBookmarks.length}
+              </span>
+            )}
+            {!isMangaMode && watchlist.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-white text-[8px] font-black rounded-full flex items-center justify-center border border-[#141519]">
+                {watchlist.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-wider">Закладки</span>
+        </button>
+
+        {/* Tab 4: Форум */}
+        <Link 
+          to="/forum" 
+          className={`flex flex-col items-center justify-center gap-1 w-14 h-full transition-colors ${
+            pathname.startsWith('/forum') 
+              ? (isMangaMode ? 'text-[#8B5CF6]' : 'text-primary') 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <MessageSquareText className="w-5 h-5" />
+          <span className="text-[9px] font-black uppercase tracking-wider">Форум</span>
+        </Link>
+
+        {/* Tab 5: Меню */}
+        <button 
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className={`flex flex-col items-center justify-center gap-1 w-14 h-full transition-colors cursor-pointer ${
+            isMenuOpen 
+              ? (isMangaMode ? 'text-[#8B5CF6]' : 'text-primary') 
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {isMenuOpen ? <X className="w-5 h-5 text-red-500" /> : <Menu className="w-5 h-5" />}
+          <span className="text-[9px] font-black uppercase tracking-wider">{isMenuOpen ? 'Закрыть' : 'Меню'}</span>
+        </button>
+      </div>
     </div>
   );
 };
