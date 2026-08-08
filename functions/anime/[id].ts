@@ -45,8 +45,9 @@ export const onRequest = async (context: any) => {
     
     let html = await originalResponse.text();
 
+    const canonicalUrl = `https://kamianime.club/anime/${animeId}`;
     const title = `Смотреть ${anime.russian || anime.name} ${anime.name ? `/ ${anime.name} ` : ''}онлайн бесплатно в хорошем качестве`;
-    const description = `Аниме ${anime.russian || anime.name} (${new Date(anime.aired_on).getFullYear() || ''}). ${anime.description ? anime.description.slice(0, 120).replace(/"/g, '"') : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Anilibria, Kodik и других.`;
+    const description = `Аниме ${anime.russian || anime.name} (${new Date(anime.aired_on).getFullYear() || ''}). ${anime.description ? anime.description.slice(0, 150).replace(/"/g, '"') : `Смотреть все серии онлайн бесплатно в хорошем качестве.`}... Смотреть все серии онлайн в озвучке Anilibria, Kodik и других.`;
     const image = anime.image?.original ? `https://shikimori.one${anime.image.original}` : '';
     const keywords = `${anime.russian || anime.name}, ${anime.name}, смотреть ${anime.russian || anime.name}, аниме онлайн, смотреть аниме бесплатно`;
 
@@ -60,7 +61,7 @@ export const onRequest = async (context: any) => {
       html = html.replace('</head>', `<meta name="description" content="${description}">\n</head>`);
     }
 
-    // Add OG Tags and Schema.org
+    // Add Canonical Tag, OG Tags and Schema.org
     const schemaData = {
       "@context": "https://schema.org",
       "@graph": [
@@ -83,9 +84,11 @@ export const onRequest = async (context: any) => {
     };
 
     const ogTags = `
+      <link rel="canonical" href="${canonicalUrl}" />
       <meta property="og:title" content="${title}" />
       <meta property="og:description" content="${description}" />
       <meta property="og:image" content="${image}" />
+      <meta property="og:url" content="${canonicalUrl}" />
       <meta property="og:type" content="video.movie" />
       <meta name="keywords" content="${keywords}" />
       <meta name="twitter:card" content="summary_large_image" />
@@ -97,13 +100,13 @@ export const onRequest = async (context: any) => {
     
     html = html.replace('</head>', `${ogTags}\n</head>`);
 
-    // Inject content into body for bots (hidden or replaced by React)
+    // Inject content into body for bots (natively replaced when React hydrates)
     const botContent = `
-      <div style="display:none">
+      <article class="ssr-preview-content">
         <h1>${anime.russian || anime.name}</h1>
-        <p>${anime.description}</p>
-        <img src="${image}" alt="${anime.russian || anime.name}" />
-      </div>
+        <p>${anime.description || ''}</p>
+        ${image ? `<img src="${image}" alt="${anime.russian || anime.name}" />` : ''}
+      </article>
     `;
     // Try to inject into root div if it exists
     if (html.includes('<div id="root"></div>')) {
