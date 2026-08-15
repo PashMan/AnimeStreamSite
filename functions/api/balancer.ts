@@ -406,7 +406,7 @@ export async function onRequest(context: any) {
   if (pleer_iframe) players.push({ name: 'Pleer', iframe: pleer_iframe });
   if (anilibria_iframe) players.push({ name: 'Anilibria', iframe: anilibria_iframe });
 
-  return new Response(JSON.stringify({ players, ids, kodik_translations }), {
+  return new Response(JSON.stringify({ players, ids, kodik_translations, diagnostics: [] }), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',

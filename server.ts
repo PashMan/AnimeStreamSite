@@ -343,108 +343,123 @@ app.get('/api/balancer', async (c) => {
     const t0Kodik = Date.now();
     try {
       const kodikTokens = [
-        'b7cc4293ed475c4ad1fd599d114f4435', // User custom 1
-        '17cc4ee691bc251131a9041e6e89e78e', // Original
-        '45c53578f11ecfb74e31267b634cc6a8'  // User custom 2
+        'b7cc4293ed475c4ad1fd599d114f4435',
+        '17cc4ee691bc251131a9041e6e89e78e',
+        '45c53578f11ecfb74e31267b634cc6a8',
+        '93699ec16dae9882a1705e4dfb12c7bb',
+        '1d643a758d41de5ccb2f66be4e3f421d'
+      ];
+      const kodikMirrors = [
+        'https://kodikapi.com/search',
+        'https://kodik-api.com/search',
+        'https://kodik.info/search'
       ];
 
       let kodikSuccess = false;
       let lastKodikError = '';
 
-      for (const token of kodikTokens) {
-        try {
-          const kodikUrl = `https://kodik-api.com/search?token=${token}&${shikimori_id ? `shikimori_id=${shikimori_id}` : `title=${encodeURIComponent(String(title))}`}&with_material_data=true`;
-          const kodikRes = await fetchWithTimeout(kodikUrl, {}, 3500);
-          if (kodikRes.ok) {
-            const kodikData = await kodikRes.json() as any;
-            if (kodikData.results && kodikData.results.length > 0) {
-              const resultWithIds = kodikData.results.find((r: any) => r.kinopoisk_id || r.imdb_id || r.worldart_id);
-              if (resultWithIds) {
-                kinopoisk_id = resultWithIds.kinopoisk_id ? String(resultWithIds.kinopoisk_id) : null;
-                imdb_id = resultWithIds.imdb_id ? String(resultWithIds.imdb_id) : null;
-                world_art_id = resultWithIds.worldart_id ? String(resultWithIds.worldart_id) : null;
-                ids.kinopoisk_id = kinopoisk_id;
-                ids.imdb_id = imdb_id;
-                ids.world_art_id = world_art_id;
+      for (const mirror of kodikMirrors) {
+        if (kodikSuccess) break;
+        for (const token of kodikTokens) {
+          try {
+            const kodikUrl = `${mirror}?token=${token}&${shikimori_id ? `shikimori_id=${shikimori_id}` : `title=${encodeURIComponent(String(title))}`}&with_material_data=true&with_episodes=true`;
+            const kodikRes = await fetchWithTimeout(kodikUrl, {
+              headers: {
+                'Referer': 'https://shikimori.one/',
+                'Origin': 'https://shikimori.one/'
               }
+            }, 3500);
+            if (kodikRes.ok) {
+              const kodikData = await kodikRes.json() as any;
+              if (kodikData.results && kodikData.results.length > 0) {
+                const resultWithIds = kodikData.results.find((r: any) => r.kinopoisk_id || r.imdb_id || r.worldart_id);
+                if (resultWithIds) {
+                  kinopoisk_id = resultWithIds.kinopoisk_id ? String(resultWithIds.kinopoisk_id) : null;
+                  imdb_id = resultWithIds.imdb_id ? String(resultWithIds.imdb_id) : null;
+                  world_art_id = resultWithIds.worldart_id ? String(resultWithIds.worldart_id) : null;
+                  ids.kinopoisk_id = kinopoisk_id;
+                  ids.imdb_id = imdb_id;
+                  ids.world_art_id = world_art_id;
+                }
 
-              // Group and collect unique translations from Kodik results
-              const translationsMap = new Map<string, any>();
-              kodikData.results.forEach((res: any) => {
-                if (res.translation && res.translation.title) {
-                  const tName = res.translation.title;
-                  const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
-                  const qualStr = (res.quality || '').toLowerCase();
-                  const is1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('bd') || qualStr.includes('uhd') || qualStr.includes('bluray');
-                  const quality_val = is1080 ? 1080 : 720;
-                  const quality_label = is1080 ? '4K' : '1080p';
+                // Group and collect unique translations from Kodik results
+                const translationsMap = new Map<string, any>();
+                kodikData.results.forEach((res: any) => {
+                  if (res.translation && res.translation.title) {
+                    const tName = res.translation.title;
+                    const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+                    const qualStr = (res.quality || '').toLowerCase();
+                    const is1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('bd') || qualStr.includes('uhd') || qualStr.includes('bluray');
+                    const quality_val = is1080 ? 1080 : 720;
+                    const quality_label = is1080 ? '4K' : '1080p';
 
-                  let iframeWithApi = iframe;
-                  try {
-                    const url = new URL(iframe);
-                    url.searchParams.set('api', '1');
-                    iframeWithApi = url.toString();
-                  } catch (_) {}
+                    let iframeWithApi = iframe;
+                    try {
+                      const url = new URL(iframe);
+                      url.searchParams.set('api', '1');
+                      iframeWithApi = url.toString();
+                    } catch (_) {}
 
-                  if (!translationsMap.has(tName)) {
-                    translationsMap.set(tName, {
-                      id: res.translation.id,
-                      title: tName,
-                      type: res.translation.type || 'voice',
-                      iframe: iframeWithApi,
-                      episodes_count: res.episodes_count || res.last_episode || 1,
-                      last_episode: res.last_episode || res.episodes_count || 1,
-                      quality_val,
-                      quality_label,
-                      provider: 'Kodik'
-                    });
-                  } else {
-                    const existing = translationsMap.get(tName);
-                    // Upgrade quality or episode count if higher
-                    if (quality_val > (existing.quality_val || 0)) {
-                      existing.quality_val = quality_val;
-                      existing.quality_label = quality_label;
-                      existing.iframe = iframeWithApi;
-                    }
-                    if ((res.episodes_count || 0) > (existing.episodes_count || 0)) {
-                      existing.episodes_count = res.episodes_count;
-                      existing.last_episode = res.last_episode || res.episodes_count;
+                    if (!translationsMap.has(tName)) {
+                      translationsMap.set(tName, {
+                        id: res.translation.id,
+                        title: tName,
+                        type: res.translation.type || 'voice',
+                        iframe: iframeWithApi,
+                        episodes_count: res.episodes_count || res.last_episode || 1,
+                        last_episode: res.last_episode || res.episodes_count || 1,
+                        quality_val,
+                        quality_label,
+                        provider: 'Kodik'
+                      });
+                    } else {
+                      const existing = translationsMap.get(tName);
+                      // Upgrade quality or episode count if higher
+                      if (quality_val > (existing.quality_val || 0)) {
+                        existing.quality_val = quality_val;
+                        existing.quality_label = quality_label;
+                        existing.iframe = iframeWithApi;
+                      }
+                      if ((res.episodes_count || 0) > (existing.episodes_count || 0)) {
+                        existing.episodes_count = res.episodes_count;
+                        existing.last_episode = res.last_episode || res.episodes_count;
+                      }
                     }
                   }
-                }
-              });
-              kodik_translations = Array.from(translationsMap.values());
+                });
+                kodik_translations = Array.from(translationsMap.values());
 
-              const res = kodikData.results[0];
-              let link = res.link.startsWith('//') ? `https:${res.link}` : res.link;
-              try {
-                const url = new URL(link);
-                url.searchParams.set('api', '1');
-                kodik_iframe = url.toString();
-              } catch (_) {
-                kodik_iframe = link;
+                const res = kodikData.results[0];
+                let link = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+                try {
+                  const url = new URL(link);
+                  url.searchParams.set('api', '1');
+                  kodik_iframe = url.toString();
+                } catch (_) {
+                  kodik_iframe = link;
+                }
+                kodikSuccess = true;
+                diagnostics.push({
+                  provider: 'Kodik',
+                  status: 'found',
+                  details: `Успешно: найдено ${kodik_translations.length} озвучек, до ${kodik_translations[0]?.episodes_count || 1} эп. (базовый поток: ${kodik_translations.some(t => t.quality_val === 1080) ? '1080p FHD' : '720p HD'})`,
+                  queryUsed: `shikimori_id=${shikimori_id || ''}`,
+                  timeMs: Date.now() - t0Kodik,
+                  httpStatus: 200,
+                  quality: kodik_translations.some(t => t.quality_val === 1080) ? '1080p (4K AI)' : '720p (1080p AI)',
+                  foundIframe: kodik_iframe,
+                  itemsCount: kodik_translations.length
+                });
+                break;
+              } else {
+                lastKodikError = 'Результатов по запросу не найдено (results: [])';
               }
-              kodikSuccess = true;
-              diagnostics.push({
-                provider: 'Kodik',
-                status: 'found',
-                details: `Успешно: найдено ${kodik_translations.length} озвучек, до ${kodik_translations[0]?.episodes_count || 1} эп. (базовый поток: ${kodik_translations.some(t => t.quality_val === 1080) ? '1080p FHD' : '720p HD'})`,
-                queryUsed: `shikimori_id=${shikimori_id || ''}`,
-                timeMs: Date.now() - t0Kodik,
-                httpStatus: 200,
-                quality: kodik_translations.some(t => t.quality_val === 1080) ? '1080p (4K AI)' : '720p (1080p AI)',
-                foundIframe: kodik_iframe,
-                itemsCount: kodik_translations.length
-              });
-              break;
             } else {
-              lastKodikError = 'Результатов по запросу не найдено (results: [])';
+              lastKodikError = `HTTP ${kodikRes.status}: ${kodikRes.statusText}`;
             }
-          } else {
-            lastKodikError = `HTTP ${kodikRes.status}: ${kodikRes.statusText}`;
+          } catch (err: any) {
+            lastKodikError = err.message || 'Ошибка подключения к Kodik API';
           }
-        } catch (err: any) {
-          lastKodikError = err.message || 'Ошибка подключения к Kodik API';
         }
       }
 
