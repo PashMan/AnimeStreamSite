@@ -197,18 +197,26 @@ export async function runClientCascadingExtraction(
       } catch (_) {}
     }
 
-    const res = await runClientExtraction(targetIframe);
-    aggregatedLogs.push(...res.logs);
+    const isKodikOrAni = candidate.name === 'Kodik' || candidate.name === 'AniLibria' || targetIframe.includes('kodik') || targetIframe.includes('anilibria');
 
-    let finalM3u8 = res.m3u8Url;
-    if (!finalM3u8 && (candidate.name === 'Alloha' || candidate.name === 'Collaps' || candidate.name === 'Kodik' || candidate.name.includes('KamiPlayer'))) {
-      const proxyPlaylistUrl = `/api/media/playlist?url=${encodeURIComponent(targetIframe)}`;
-      aggregatedLogs.push(`[CASCADE 🔄] Направление источника ${candidate.name} через серверный прокси плейлист: ${proxyPlaylistUrl}`);
-      finalM3u8 = proxyPlaylistUrl;
+    let finalM3u8: string | null = null;
+
+    if (isKodikOrAni) {
+      // Kodik / AniLibria use server-side Gbox/API decoding via /api/media/playlist
+      finalM3u8 = `/api/media/playlist?url=${encodeURIComponent(targetIframe)}`;
+      aggregatedLogs.push(`[CASCADE 🔄] Задействован декодер серверного плейлиста для ${candidate.name}: ${finalM3u8}`);
+    } else {
+      // For Alloha, Collaps, and other balancers, run extraction via /api/media/debug
+      const res = await runClientExtraction(targetIframe);
+      aggregatedLogs.push(...res.logs);
+
+      if (res.m3u8Url) {
+        finalM3u8 = res.m3u8Url.startsWith('/api/') ? res.m3u8Url : `/api/media/playlist?url=${encodeURIComponent(res.m3u8Url)}`;
+      }
     }
 
     if (finalM3u8) {
-      aggregatedLogs.push(`\n[CASCADE SUCCESS 🎉] Успех! Используется HLS поток источника: ${candidate.name}`);
+      aggregatedLogs.push(`\n[CASCADE SUCCESS 🎉] Успех! Активный источник HLS потока: ${candidate.name}`);
       return {
         m3u8Url: finalM3u8,
         activePlayerName: candidate.name,

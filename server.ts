@@ -522,7 +522,14 @@ app.get('/api/balancer', async (c) => {
 
         for (const item of allohaQueries) {
           try {
-            const res = await fetchWithTimeout(item.url, {}, 3000);
+            const res = await fetchWithTimeout(item.url, {
+              headers: {
+                'X-Forwarded-For': '185.220.101.5',
+                'X-Real-IP': '185.220.101.5',
+                'Client-IP': '185.220.101.5',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              }
+            }, 3000);
             const status = res.status;
             if (res.ok) {
               const d = await res.json() as any;
@@ -2357,6 +2364,9 @@ async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: strin
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Referer': ref,
+            'X-Forwarded-For': '185.220.101.5',
+            'X-Real-IP': '185.220.101.5',
+            'Client-IP': '185.220.101.5',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
           }
@@ -2468,7 +2478,10 @@ async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: strin
           const epRes = await fetch(absEp, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': usedReferer || `https://${host}/`
+              'Referer': usedReferer || `https://${host}/`,
+              'X-Forwarded-For': '185.220.101.5',
+              'X-Real-IP': '185.220.101.5',
+              'Client-IP': '185.220.101.5'
             }
           });
           if (epRes.ok) {
@@ -2574,7 +2587,10 @@ app.get('/api/media/playlist', async (c) => {
         const playlistRes = await fetch(m3u8Url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': refererHeader
+            'Referer': refererHeader,
+            'X-Forwarded-For': '185.220.101.5',
+            'X-Real-IP': '185.220.101.5',
+            'Client-IP': '185.220.101.5'
           }
         });
 
@@ -2620,23 +2636,8 @@ app.get('/api/media/playlist', async (c) => {
         return c.text(masterLines.join('\n'));
       }
 
-      // If extraction for Collaps / Alloha failed, return clean fallback M3U8 so Hls.js never crashes
-      const fallbackMasterLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        `#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`,
-        `https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8`
-      ];
-      return new Response(fallbackMasterLines.join('\n'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/x-mpegURL',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': '*',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        }
-      });
+      // If extraction for Collaps / Alloha failed, return 404 status
+      return c.json({ error: 'Balancer stream unavailable' }, 404);
     }
 
     // --- 3. Kodik Extraction ---
@@ -2659,24 +2660,8 @@ app.get('/api/media/playlist', async (c) => {
     const typeMatch = html.match(/\.type\s*=\s*'([^']+)'/) || html.match(/\.type\s*=\s*"([^"]+)"/) || html.match(/\.type\s*=\s*['"]([^'"]+)['"]/);
 
     if (!urlParamsMatch || !hashMatch || !idMatch || !typeMatch) {
-      console.warn('[KODIK PROXY] Could not parse iframe parameters directly. Returning fallback HLS stream.');
-      
-      const fallbackMasterLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        `#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`,
-        `https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8`
-      ];
-      return new Response(fallbackMasterLines.join('\n'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/x-mpegURL',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': '*',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        }
-      });
+      console.warn('[KODIK PROXY] Could not parse iframe parameters directly.');
+      return c.json({ error: 'Could not parse Kodik iframe parameters' }, 404);
     }
 
     const urlParams = JSON.parse(urlParamsMatch[1]);
@@ -2972,22 +2957,7 @@ app.get('/api/media/playlist', async (c) => {
 
   } catch (error: any) {
     console.error('[MEDIA PROXY ERROR]', error);
-    const fallbackMasterLines = [
-      '#EXTM3U',
-      '#EXT-X-VERSION:3',
-      '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-      'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
-    ];
-    return new Response(fallbackMasterLines.join('\n'), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/x-mpegURL',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': '*',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      }
-    });
+    return c.json({ error: error.message || 'Media proxy error' }, 500);
   }
 });
 
