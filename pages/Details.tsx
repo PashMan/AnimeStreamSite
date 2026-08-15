@@ -36,6 +36,7 @@ import {
   MicOff,
   Crown,
   Play,
+  PlayCircle,
   Sparkles,
   Activity,
   CheckCircle2,
@@ -1742,6 +1743,51 @@ const Details: React.FC = () => {
               )}
 
               <div className="flex flex-col gap-6">
+                {/* Player Switcher Bar */}
+                {players.length > 0 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-primary" /> Плеер / Источник:
+                    </span>
+                    {players.map((p) => {
+                      const isSelected = selectedPlayer === p.name;
+                      const is1080p = p.name === "AniLibria" || p.name === "Collaps" || p.name === "Alloha";
+                      const is4K = p.name === "KamiPlayer (4K UHD)";
+                      const is720p = p.name === "Kodik";
+
+                      return (
+                        <button
+                          key={p.name}
+                          onClick={() => setSelectedPlayer(p.name)}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 border ${
+                            isSelected
+                              ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
+                              : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-primary"}`} />
+                          <span>{p.name}</span>
+                          {is4K && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              4K AI
+                            </span>
+                          )}
+                          {is1080p && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-green-500/20 text-green-300 border border-green-500/30">
+                              1080p
+                            </span>
+                          )}
+                          {is720p && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                              720p
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Primary Video Player Screen */}
                 <div className="w-full aspect-video bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
                   {isBlocked ? (
@@ -1765,6 +1811,27 @@ const Details: React.FC = () => {
                         </div>
                       ) : (translations.length > 0 || players.length > 0) ? (
                         (() => {
+                          const activePlayerObj = players.find((p) => p.name === selectedPlayer);
+                          if (
+                            selectedPlayer !== "KamiPlayer (4K UHD)" &&
+                            activePlayerObj &&
+                            activePlayerObj.iframe
+                          ) {
+                            let iframeUrl = activePlayerObj.iframe;
+                            if (!iframeUrl.startsWith("http") && !iframeUrl.startsWith("//")) {
+                              iframeUrl = `https:${iframeUrl}`;
+                            }
+                            return (
+                              <iframe
+                                src={iframeUrl}
+                                className="w-full h-full border-0"
+                                allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                                allowFullScreen
+                                title={activePlayerObj.name}
+                              />
+                            );
+                          }
+
                           const isSuzume = id === "50594" || id === "62568";
                           const isWeathering = id === "38826";
                           const isGardenOfWords = id === "16782";
