@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { runClientExtraction } from "../utils/clientDecoder";
 import {
   useSearchParams,
   useParams,
@@ -203,24 +204,9 @@ const Details: React.FC = () => {
           targetIframe = u.toString();
         } catch (e) {}
       }
-      const res = await fetch("/api/media/debug", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ url: targetIframe })
-      });
-      const contentType = res.headers.get("content-type");
-      if (res.ok && contentType && contentType.includes("application/json")) {
-        const data = await res.json();
-        setDecoderLogs(data.logs || []);
-      } else {
-        const text = await res.text();
-        setDecoderLogs([
-          `❌ Ошибка ответа сервера (HTTP ${res.status}):`,
-          text.slice(0, 300) || "Пустой ответ от сервера"
-        ]);
-      }
+
+      const clientResult = await runClientExtraction(targetIframe);
+      setDecoderLogs(clientResult.logs || ["⚠️ Нет данных для отображения логов."]);
     } catch (err: any) {
       setDecoderLogs([`❌ Ошибка соединения: ${err.message}`]);
     } finally {

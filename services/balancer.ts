@@ -341,17 +341,11 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
     });
   }
 
-  // 3. Multi-Provider Embed Resolution (Collaps, Alloha, Bhcesh, VideoCDN, Bazon, HDVB, Iframe, Pleer)
+  // 3. Multi-Provider Embed Resolution (Alloha & Collaps)
   const kpId = ids.kinopoisk_id;
   const imdbId = ids.imdb_id;
 
   const altBalancersConfig = [
-    {
-      name: 'Collaps',
-      iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null)),
-      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`),
-      quality: '1080p (4K AI)'
-    },
     {
       name: 'Alloha',
       iframe: kpId ? `https://alloha.tv/embed/${kpId}` : (imdbId ? `https://alloha.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://alloha.tv/embed/shikimori/${shikimoriId}` : null)),
@@ -359,39 +353,9 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
       quality: '1080p (4K AI)'
     },
     {
-      name: 'Bhcesh',
-      iframe: kpId ? `https://api.bhcesh.me/embed/kp/${kpId}` : (shikimoriId ? `https://api.bhcesh.me/embed/anime/${shikimoriId}` : null),
-      desc: kpId ? `Зеркало Collaps (KP ${kpId})` : `Зеркало Collaps (Shikimori ${shikimoriId})`,
-      quality: '1080p (4K AI)'
-    },
-    {
-      name: 'VideoCDN',
-      iframe: kpId ? `https://videocdn.tv/embed/kp/${kpId}` : (imdbId ? `https://videocdn.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://videocdn.tv/embed/shikimori/${shikimoriId}` : null)),
+      name: 'Collaps',
+      iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null)),
       desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`),
-      quality: '1080p (4K AI)'
-    },
-    {
-      name: 'Bazon',
-      iframe: kpId ? `https://bazon.cc/embed/${kpId}` : null,
-      desc: kpId ? `KP ${kpId}` : '',
-      quality: '1080p (4K AI)'
-    },
-    {
-      name: 'HDVB',
-      iframe: kpId ? `https://apivb.info/embed/kp/${kpId}` : null,
-      desc: kpId ? `KP ${kpId}` : '',
-      quality: '1080p (4K AI)'
-    },
-    {
-      name: 'Iframe.video',
-      iframe: shikimoriId ? `https://vidsrc.to/embed/anime/${shikimoriId}` : (imdbId ? `https://iframe.video/embed/imdb/${imdbId}` : null),
-      desc: shikimoriId ? `Shikimori ${shikimoriId}` : (imdbId ? `IMDb ${imdbId}` : ''),
-      quality: '1080p (4K AI)'
-    },
-    {
-      name: 'Pleer.video',
-      iframe: kpId ? `https://pleer.video/embed/kp/${kpId}` : null,
-      desc: kpId ? `KP ${kpId}` : '',
       quality: '1080p (4K AI)'
     }
   ];
@@ -405,7 +369,6 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
   ];
 
   if (kodikIframe) playersList.push({ name: 'Kodik', iframe: kodikIframe });
-  if (anilibriaIframe) playersList.push({ name: 'AniLibria', iframe: anilibriaIframe });
 
   altBalancersConfig.forEach(b => {
     if (b.iframe) {
@@ -451,7 +414,7 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
     return cached.data;
   }
 
-  // Helper to ensure diagnostics always contains all 10 providers
+  // Helper to ensure diagnostics contains active providers
   const ensureFullDiagnostics = (data: Partial<BalancerData>, baseIds: any): BalancerDiagnostic[] => {
     const list = data.diagnostics && data.diagnostics.length > 0 ? [...data.diagnostics] : [];
     const translations = data.kodik_translations || [];
@@ -483,69 +446,16 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
       }
     }
 
-    if (!existingNames.has('anilibria')) {
-      const aniTrans = translations.filter(t => (t.provider || '').toLowerCase() === 'anilibria');
-      if (aniTrans.length > 0) {
-        list.push({
-          provider: 'AniLibria',
-          status: 'found',
-          details: `Успешно: найдено официальное издание AniLibria (${aniTrans[0]?.episodes_count || 1} эп., 1080p FHD)`,
-          queryUsed: `shikimori=${shikimoriId}`,
-          timeMs: 250,
-          httpStatus: 200,
-          quality: '1080p (4K AI)',
-          itemsCount: aniTrans[0]?.episodes_count || 1
-        });
-      } else {
-        list.push({
-          provider: 'AniLibria',
-          status: 'not_found',
-          details: 'Тайтл не озвучивался AniLibria (доступен в других плеерах)',
-          timeMs: 260
-        });
-      }
-    }
-
     const otherProviders = [
-      {
-        name: 'Collaps',
-        iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null)),
-        desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`)
-      },
       {
         name: 'Alloha',
         iframe: kpId ? `https://alloha.tv/embed/${kpId}` : (imdbId ? `https://alloha.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://alloha.tv/embed/shikimori/${shikimoriId}` : null)),
         desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`)
       },
       {
-        name: 'Bhcesh',
-        iframe: kpId ? `https://api.bhcesh.me/embed/kp/${kpId}` : (shikimoriId ? `https://api.bhcesh.me/embed/anime/${shikimoriId}` : null),
-        desc: kpId ? `Зеркало Collaps (KP ${kpId})` : `Зеркало Collaps (Shikimori ${shikimoriId})`
-      },
-      {
-        name: 'VideoCDN',
-        iframe: kpId ? `https://videocdn.tv/embed/kp/${kpId}` : (imdbId ? `https://videocdn.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://videocdn.tv/embed/shikimori/${shikimoriId}` : null)),
+        name: 'Collaps',
+        iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null)),
         desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`)
-      },
-      {
-        name: 'Bazon',
-        iframe: kpId ? `https://bazon.cc/embed/${kpId}` : null,
-        desc: kpId ? `KP ${kpId}` : ''
-      },
-      {
-        name: 'HDVB',
-        iframe: kpId ? `https://apivb.info/embed/kp/${kpId}` : null,
-        desc: kpId ? `KP ${kpId}` : ''
-      },
-      {
-        name: 'Iframe.video',
-        iframe: shikimoriId ? `https://vidsrc.to/embed/anime/${shikimoriId}` : (imdbId ? `https://iframe.video/embed/imdb/${imdbId}` : null),
-        desc: shikimoriId ? `Shikimori ${shikimoriId}` : (imdbId ? `IMDb ${imdbId}` : '')
-      },
-      {
-        name: 'Pleer.video',
-        iframe: kpId ? `https://pleer.video/embed/kp/${kpId}` : null,
-        desc: kpId ? `KP ${kpId}` : ''
       }
     ];
 
@@ -571,7 +481,6 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
           });
         }
       } else if (existing.status !== 'found' && p.iframe) {
-        // Upgrade to found if direct stream exists
         existing.status = 'found';
         existing.details = `Успешно: подключен прямой поток ${p.name} (${p.desc})`;
         existing.quality = '1080p (4K AI)';

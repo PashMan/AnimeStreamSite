@@ -449,149 +449,14 @@ app.get('/api/balancer', async (c) => {
                   quality: '1080p (4K AI)',
                   foundIframe: kodik_iframe,
                   itemsCount: kodik_translations.length
-                });
-                break;
-              } else {
-                lastKodikError = 'Результатов по запросу не найдено (results: [])';
-              }
-            } else {
-              lastKodikError = `HTTP ${kodikRes.status}: ${kodikRes.statusText}`;
-            }
-          } catch (err: any) {
-            lastKodikError = err.message || 'Ошибка подключения к Kodik API';
-          }
-        }
-      }
-
-      if (!kodikSuccess) {
-        diagnostics.push({
-          provider: 'Kodik',
-          status: lastKodikError.includes('results: []') ? 'not_found' : 'error',
-          details: lastKodikError || 'Тайтл не найден в базе Kodik',
-          queryUsed: `shikimori_id=${shikimori_id || ''}`,
-          timeMs: Date.now() - t0Kodik
-        });
-      }
-    } catch (e: any) {
-      diagnostics.push({
-        provider: 'Kodik',
-        status: 'error',
-        details: `Критическая ошибка Kodik: ${e.message}`,
-        timeMs: Date.now() - t0Kodik
-      });
-    }
-
-    // Prepare placeholders for prospective providers
+             // Prepare placeholders for Alloha and Collaps
     let alloha_iframe: string | null = null;
     let collaps_iframe: string | null = null;
-    let bhcesh_iframe: string | null = null;
-    let videocdn_iframe: string | null = null;
-    let bazon_iframe: string | null = null;
-    let hdvb_iframe: string | null = null;
-    let iframe_video_iframe: string | null = null;
-    let pleer_iframe: string | null = null;
-    let anilibria_iframe: string | null = null;
 
-    // Concurrently fetch alternate providers to minimize response latency
+    // Concurrently fetch Alloha & Collaps
     const jobs: Promise<void>[] = [];
 
-    // 2. AniLibria (Official Public Anime Balancer & Direct Stream Source)
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        const cleanTitles = [
-          title ? String(title) : '',
-          title && String(title).includes('/') ? String(title).split('/')[0].trim() : '',
-          title && String(title).includes('/') ? String(title).split('/')[1].trim() : '',
-          title ? String(title).replace(/[^\w\sа-яА-ЯёЁ]/gi, ' ').replace(/\s+/g, ' ').trim() : ''
-        ].filter(Boolean);
-
-        const aQueries: { url: string; q: string }[] = [];
-        if (shikimori_id) {
-          aQueries.push({ url: `https://api.anilibria.tv/v3/title/get?shikimori=${shikimori_id}`, q: `shikimori=${shikimori_id}` });
-          aQueries.push({ url: `https://api.anilibria.top/v3/title/get?shikimori=${shikimori_id}`, q: `shikimori=${shikimori_id}` });
-          aQueries.push({ url: `https://anilibria.top/api/v1/app/titles/shikimori/${shikimori_id}`, q: `shikimori=${shikimori_id}` });
-        }
-        for (const ct of cleanTitles) {
-          aQueries.push({ url: `https://api.anilibria.tv/v3/title/search?search=${encodeURIComponent(ct)}`, q: `search=${ct}` });
-          aQueries.push({ url: `https://api.anilibria.top/v3/title/search?search=${encodeURIComponent(ct)}`, q: `search=${ct}` });
-          aQueries.push({ url: `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(ct)}`, q: `search=${ct}` });
-        }
-
-        let found = false;
-        let lastError = '';
-
-        for (const item of aQueries) {
-          try {
-            const res = await fetchWithTimeout(item.url, {}, 3000);
-            if (res.ok) {
-              const d = await res.json() as any;
-              const rel = d.id ? d : d.release || (d.list && d.list[0]) || (Array.isArray(d) ? d[0] : null);
-              if (rel && (rel.id || rel.code)) {
-                const relId = rel.id || rel.code;
-                anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${relId}`;
-                ids.anilibria_id = typeof relId === 'number' ? relId : null;
-
-                // Add AniLibria official voiceover directly into translations list!
-                const epCount = rel.player?.episodes?.last || (rel.player?.list ? Object.keys(rel.player.list).length : 1);
-                if (!kodik_translations.some(t => t.title.toLowerCase().includes('anilibria') || t.title.toLowerCase().includes('анилибрия'))) {
-                  kodik_translations.unshift({
-                    id: `anilibria_${relId}`,
-                    title: 'AniLibria (Оригинал + Дубляж)',
-                    type: 'voice',
-                    iframe: anilibria_iframe,
-                    episodes_count: epCount,
-                    last_episode: epCount,
-                    quality_val: 1080,
-                    quality_label: '4K',
-                    provider: 'AniLibria'
-                  });
-                }
-
-                diagnostics.push({
-                  provider: 'AniLibria',
-                  status: 'found',
-                  details: `Успешно: найдено официальное аниме-издание AniLibria (${epCount} эп., 1080p FHD)`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: 200,
-                  quality: '1080p (4K AI)',
-                  foundIframe: anilibria_iframe,
-                  itemsCount: epCount
-                });
-                found = true;
-                break;
-              } else {
-                lastError = 'Тайтл не найден в релизах AniLibria';
-              }
-            } else {
-              lastError = `HTTP ${res.status}: ${res.statusText}`;
-            }
-          } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (3000ms)' : e.message;
-          }
-        }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'AniLibria',
-            status: lastError.includes('не найден') ? 'not_found' : lastError.includes('Таймаут') ? 'timeout' : 'error',
-            details: lastError || 'Тайтл не озвучивался AniLibria',
-            queryUsed: shikimori_id ? `shikimori=${shikimori_id}` : `search=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
-      } catch (e: any) {
-        diagnostics.push({
-          provider: 'AniLibria',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
-      }
-    })());
-
-    // 3. Alloha
+    // 2. Alloha
     jobs.push((async () => {
       const t0 = Date.now();
       try {
@@ -677,7 +542,7 @@ app.get('/api/balancer', async (c) => {
       }
     })());
 
-    // 4. Collaps
+    // 3. Collaps
     jobs.push((async () => {
       const t0 = Date.now();
       try {
@@ -737,381 +602,16 @@ app.get('/api/balancer', async (c) => {
       }
     })());
 
-    // 5. Bhcesh
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        const bQueries: { url: string; q: string }[] = [];
-        if (kinopoisk_id) bQueries.push({ url: `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
-        if (imdb_id) bQueries.push({ url: `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`, q: `imdb=${imdb_id}` });
-        if (title) bQueries.push({ url: `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
-
-        let found = false;
-        let lastError = 'Тайтл не найден в базе Bhcesh';
-
-        for (const item of bQueries) {
-          try {
-            const res = await fetchWithTimeout(item.url, {}, 2500);
-            if (res.ok) {
-              const d = await res.json() as any;
-              if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
-                bhcesh_iframe = d.results[0].iframe_url;
-                found = true;
-                diagnostics.push({
-                  provider: 'Bhcesh',
-                  status: 'found',
-                  details: `Успешно: найден плеер Bhcesh (зеркало Collaps)`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: 200,
-                  foundIframe: bhcesh_iframe
-                });
-                break;
-              }
-            } else {
-              lastError = `HTTP ${res.status}: ${res.statusText}`;
-            }
-          } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2500ms)' : e.message;
-          }
-        }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'Bhcesh',
-            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
-            details: lastError,
-            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `name=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
-      } catch (e: any) {
-        diagnostics.push({
-          provider: 'Bhcesh',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
-      }
-    })());
-
-    // 6. Bazon
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        const bzQueries: { url: string; q: string }[] = [];
-        if (kinopoisk_id) bzQueries.push({ url: `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
-        if (imdb_id) bzQueries.push({ url: `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
-        if (title) bzQueries.push({ url: `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
-
-        let found = false;
-        let lastError = 'Тайтл не найден в базе Bazon';
-
-        for (const item of bzQueries) {
-          try {
-            const res = await fetchWithTimeout(item.url, {}, 2500);
-            if (res.ok) {
-              const d = await res.json() as any;
-              if (d.results && d.results.length > 0) {
-                bazon_iframe = d.results[0].link || d.results[0].iframe_url;
-                found = true;
-                diagnostics.push({
-                  provider: 'Bazon',
-                  status: 'found',
-                  details: `Успешно: найден плеер Bazon CC`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: 200,
-                  foundIframe: bazon_iframe
-                });
-                break;
-              } else if (d.error) {
-                lastError = `Bazon API: ${d.error}`;
-              }
-            } else {
-              lastError = `HTTP ${res.status}: ${res.statusText}`;
-            }
-          } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2500ms)' : e.message;
-          }
-        }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'Bazon',
-            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
-            details: lastError,
-            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
-      } catch (e: any) {
-        diagnostics.push({
-          provider: 'Bazon',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
-      }
-    })());
-
-    // 7. VideoCDN
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        const vQueries: { url: string; q: string }[] = [];
-        if (kinopoisk_id) vQueries.push({ url: `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
-        if (imdb_id) vQueries.push({ url: `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&imdb_id=${imdb_id}`, q: `imdb=${imdb_id}` });
-        if (title) vQueries.push({ url: `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
-
-        let found = false;
-        let lastError = 'Тайтл не найден в базе VideoCDN';
-
-        for (const item of vQueries) {
-          try {
-            const res = await fetchWithTimeout(item.url, {}, 2000);
-            if (res.ok) {
-              const d = await res.json() as any;
-              if (d.data && d.data.length > 0) {
-                videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
-                found = true;
-                diagnostics.push({
-                  provider: 'VideoCDN',
-                  status: 'found',
-                  details: `Успешно: найден плеер VideoCDN`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: 200,
-                  foundIframe: videocdn_iframe
-                });
-                break;
-              } else if (d.result === false && d.error) {
-                lastError = `VideoCDN API: ${d.error}`;
-              }
-            } else {
-              lastError = `HTTP ${res.status}: ${res.statusText}`;
-            }
-          } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
-          }
-        }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'VideoCDN',
-            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
-            details: lastError,
-            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
-      } catch (e: any) {
-        diagnostics.push({
-          provider: 'VideoCDN',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
-      }
-    })());
-
-    // 8. HDVB
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        const hQueries: { url: string; q: string }[] = [];
-        if (kinopoisk_id) hQueries.push({ url: `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
-        if (imdb_id) hQueries.push({ url: `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
-        if (title) hQueries.push({ url: `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
-
-        let found = false;
-        let lastError = 'Тайтл не найден в базе HDVB';
-
-        for (const item of hQueries) {
-          try {
-            const res = await fetchWithTimeout(item.url, {}, 2000);
-            if (res.ok) {
-              const d = await res.json() as any;
-              if (Array.isArray(d) && d.length > 0) {
-                hdvb_iframe = d[0].iframe_url || d[0].iframe;
-                found = true;
-                diagnostics.push({
-                  provider: 'HDVB',
-                  status: 'found',
-                  details: `Успешно: найден плеер HDVB`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: 200,
-                  foundIframe: hdvb_iframe
-                });
-                break;
-              }
-            } else {
-              lastError = `HTTP ${res.status}: ${res.statusText}`;
-            }
-          } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
-          }
-        }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'HDVB',
-            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
-            details: lastError,
-            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
-      } catch (e: any) {
-        diagnostics.push({
-          provider: 'HDVB',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
-      }
-    })());
-
-    // 9. Iframe.video
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        const iQueries: { url: string; q: string }[] = [];
-        if (kinopoisk_id) iQueries.push({ url: `https://iframe.video/api/v2/search?kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
-        if (imdb_id) iQueries.push({ url: `https://iframe.video/api/v2/search?imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
-        if (title) iQueries.push({ url: `https://iframe.video/api/v2/search?title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
-
-        let found = false;
-        let lastError = 'Тайтл не найден в базе Iframe.video';
-
-        for (const item of iQueries) {
-          try {
-            const res = await fetchWithTimeout(item.url, {}, 2000);
-            if (res.ok) {
-              const d = await res.json() as any;
-              if (d.results && (d.results.length > 0 || d.results.path)) {
-                iframe_video_iframe = d.results[0]?.path || d.results[0]?.iframe || d.results.path;
-                found = true;
-                diagnostics.push({
-                  provider: 'Iframe.video',
-                  status: 'found',
-                  details: `Успешно: найден плеер Iframe.video`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: 200,
-                  foundIframe: iframe_video_iframe
-                });
-                break;
-              }
-            } else {
-              lastError = `HTTP ${res.status}: ${res.statusText}`;
-            }
-          } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
-          }
-        }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'Iframe.video',
-            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
-            details: lastError,
-            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
-      } catch (e: any) {
-        diagnostics.push({
-          provider: 'Iframe.video',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
-      }
-    })());
-
-    // 10. Pleer.video
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        if (!kinopoisk_id) {
-          diagnostics.push({
-            provider: 'Pleer.video',
-            status: 'not_found',
-            details: 'Пропущен: для поиска в Pleer.video требуется Kinopoisk ID',
-            timeMs: Date.now() - t0
-          });
-          return;
-        }
-
-        const url = `https://pleer.video/${kinopoisk_id}.json`;
-        let found = false;
-        let lastError = 'Тайтл не найден в базе Pleer.video';
-
-        try {
-          const res = await fetchWithTimeout(url, {}, 2000);
-          if (res.ok) {
-            const d = await res.json() as any;
-            if (d.embeds && d.embeds.length > 0) {
-              pleer_iframe = d.embeds[0].iframe;
-              found = true;
-              diagnostics.push({
-                provider: 'Pleer.video',
-                status: 'found',
-                details: `Успешно: найден плеер Pleer.video`,
-                queryUsed: `kp=${kinopoisk_id}`,
-                timeMs: Date.now() - t0,
-                httpStatus: 200,
-                foundIframe: pleer_iframe
-              });
-            }
-          } else {
-            lastError = `HTTP ${res.status}: ${res.statusText}`;
-          }
-        } catch (e: any) {
-          lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
-        }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'Pleer.video',
-            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
-            details: lastError,
-            queryUsed: `kp=${kinopoisk_id}`,
-            timeMs: Date.now() - t0
-          });
-        }
-      } catch (e: any) {
-        diagnostics.push({
-          provider: 'Pleer.video',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
-      }
-    })());
-
-    // Resolve all promises concurrently
+    // Resolve Alloha and Collaps promises concurrently
     await Promise.allSettled(jobs);
 
-    // Build list of successfully resolved players
+    // Build list of active players: Alloha, Collaps, and Kodik (as fallback)
     const players: any[] = [];
-    if (kodik_iframe) {
-      players.push({ name: 'Kodik', iframe: kodik_iframe });
-    } else {
-      players.push({ name: 'Kodik', iframe: null });
-    }
-
-    if (anilibria_iframe) players.push({ name: 'AniLibria', iframe: anilibria_iframe });
     if (alloha_iframe) players.push({ name: 'Alloha', iframe: alloha_iframe });
     if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
-    if (bhcesh_iframe) players.push({ name: 'Bhcesh', iframe: bhcesh_iframe });
-    if (videocdn_iframe) players.push({ name: 'VideoCDN', iframe: videocdn_iframe });
-    if (bazon_iframe) players.push({ name: 'Bazon', iframe: bazon_iframe });
-    if (hdvb_iframe) players.push({ name: 'HDVB', iframe: hdvb_iframe });
-    if (iframe_video_iframe) players.push({ name: 'Iframe', iframe: iframe_video_iframe });
-    if (pleer_iframe) players.push({ name: 'Pleer', iframe: pleer_iframe });
+    if (kodik_iframe) {
+      players.push({ name: 'Kodik', iframe: kodik_iframe });
+    }
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
     addLog(`Balancer Completed`, { playersCount: players.length, ids, diagnosticsCount: diagnostics.length });
@@ -2734,7 +2234,18 @@ app.get('/api/media/search', async (c) => {
   }
 });
 
-app.all('/api/media/debug', async (c) => {
+app.options('/api/media/debug', (c) => {
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  c.header('Access-Control-Allow-Headers', '*');
+  return c.text('OK', 200);
+});
+
+const handleMediaDebug = async (c: any) => {
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  c.header('Access-Control-Allow-Headers', '*');
+
   let urlParam = c.req.query('url');
   if (!urlParam && (c.req.method === 'POST' || c.req.method === 'PUT')) {
     try {
@@ -2754,7 +2265,10 @@ app.all('/api/media/debug', async (c) => {
     htmlLength: result.htmlLength,
     logs: result.logs
   });
-});
+};
+
+app.get('/api/media/debug', handleMediaDebug);
+app.post('/api/media/debug', handleMediaDebug);
 
 // Helper: Dean Edwards Packer Unpacker
 function unpackDeanEdwards(code: string): string {
