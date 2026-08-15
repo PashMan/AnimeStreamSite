@@ -321,19 +321,35 @@ app.get('/api/balancer', async (c) => {
 
     const ids = {
       shikimori_id,
-      kinopoisk_id,
-      imdb_id,
-      world_art_id,
+      kinopoisk_id: null as string | null,
+      imdb_id: null as string | null,
+      world_art_id: null as string | null,
       anilibria_id: null as number | null
     };
 
+    const diagnostics: {
+      provider: string;
+      status: 'found' | 'not_found' | 'error' | 'timeout' | 'unauthorized';
+      details: string;
+      queryUsed?: string;
+      timeMs?: number;
+      httpStatus?: number;
+      quality?: string;
+      foundIframe?: string | null;
+      itemsCount?: number;
+    }[] = [];
+
     // 1. Kodik (Primary source & ID resolver)
+    const t0Kodik = Date.now();
     try {
       const kodikTokens = [
         'b7cc4293ed475c4ad1fd599d114f4435', // User custom 1
         '17cc4ee691bc251131a9041e6e89e78e', // Original
         '45c53578f11ecfb74e31267b634cc6a8'  // User custom 2
       ];
+
+      let kodikSuccess = false;
+      let lastKodikError = '';
 
       for (const token of kodikTokens) {
         try {
@@ -344,9 +360,9 @@ app.get('/api/balancer', async (c) => {
             if (kodikData.results && kodikData.results.length > 0) {
               const resultWithIds = kodikData.results.find((r: any) => r.kinopoisk_id || r.imdb_id || r.worldart_id);
               if (resultWithIds) {
-                kinopoisk_id = resultWithIds.kinopoisk_id || null;
-                imdb_id = resultWithIds.imdb_id || null;
-                world_art_id = resultWithIds.worldart_id || null;
+                kinopoisk_id = resultWithIds.kinopoisk_id ? String(resultWithIds.kinopoisk_id) : null;
+                imdb_id = resultWithIds.imdb_id ? String(resultWithIds.imdb_id) : null;
+                world_art_id = resultWithIds.worldart_id ? String(resultWithIds.worldart_id) : null;
                 ids.kinopoisk_id = kinopoisk_id;
                 ids.imdb_id = imdb_id;
                 ids.world_art_id = world_art_id;
@@ -408,15 +424,46 @@ app.get('/api/balancer', async (c) => {
               } catch (_) {
                 kodik_iframe = link;
               }
-              break; // Successfully got Kodik results, no need to try other tokens
+              kodikSuccess = true;
+              diagnostics.push({
+                provider: 'Kodik',
+                status: 'found',
+                details: `Успешно: найдено ${kodik_translations.length} озвучек, до ${kodik_translations[0]?.episodes_count || 1} эп. (базовый поток: ${kodik_translations.some(t => t.quality_val === 1080) ? '1080p FHD' : '720p HD'})`,
+                queryUsed: `shikimori_id=${shikimori_id || ''}`,
+                timeMs: Date.now() - t0Kodik,
+                httpStatus: 200,
+                quality: kodik_translations.some(t => t.quality_val === 1080) ? '1080p (4K AI)' : '720p (1080p AI)',
+                foundIframe: kodik_iframe,
+                itemsCount: kodik_translations.length
+              });
+              break;
+            } else {
+              lastKodikError = 'Результатов по запросу не найдено (results: [])';
             }
+          } else {
+            lastKodikError = `HTTP ${kodikRes.status}: ${kodikRes.statusText}`;
           }
         } catch (err: any) {
-          addLog(`Kodik token attempt failed`, { token, error: err.message });
+          lastKodikError = err.message || 'Ошибка подключения к Kodik API';
         }
       }
+
+      if (!kodikSuccess) {
+        diagnostics.push({
+          provider: 'Kodik',
+          status: lastKodikError.includes('results: []') ? 'not_found' : 'error',
+          details: lastKodikError || 'Тайтл не найден в базе Kodik',
+          queryUsed: `shikimori_id=${shikimori_id || ''}`,
+          timeMs: Date.now() - t0Kodik
+        });
+      }
     } catch (e: any) {
-      addLog('Kodik fetch failed', { error: e.message });
+      diagnostics.push({
+        provider: 'Kodik',
+        status: 'error',
+        details: `Критическая ошибка Kodik: ${e.message}`,
+        timeMs: Date.now() - t0Kodik
+      });
     }
 
     // Prepare placeholders for prospective providers
@@ -433,260 +480,590 @@ app.get('/api/balancer', async (c) => {
     // Concurrently fetch alternate providers to minimize response latency
     const jobs: Promise<void>[] = [];
 
-    // 2. Alloha
+    // 2. AniLibria (Official Public Anime Balancer & Direct Stream Source)
     jobs.push((async () => {
+      const t0 = Date.now();
+      try {
+        const aQueries = [
+          `https://api.anilibria.tv/v3/title/search?search=${encodeURIComponent(String(title))}`,
+          `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`
+        ];
+        let found = false;
+        let lastError = '';
+
+        for (const url of aQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 3000);
+            if (res.ok) {
+              const d = await res.json() as any;
+              const list = d.list || d;
+              if (Array.isArray(list) && list.length > 0) {
+                let bestMatch = list[0];
+                if (year) {
+                  const ym = list.find((r: any) => (r.year || r.season?.year) === parseInt(String(year)));
+                  if (ym) bestMatch = ym;
+                }
+                const relId = bestMatch.id || bestMatch.code;
+                anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${relId}`;
+                ids.anilibria_id = typeof relId === 'number' ? relId : null;
+
+                // Add AniLibria official voiceover directly into translations list!
+                const epCount = bestMatch.player?.episodes?.last || (bestMatch.player?.list ? Object.keys(bestMatch.player.list).length : 1);
+                if (!kodik_translations.some(t => t.title.toLowerCase().includes('anilibria') || t.title.toLowerCase().includes('анилибрия'))) {
+                  kodik_translations.unshift({
+                    id: `anilibria_${relId}`,
+                    title: 'AniLibria (Оригинал + Дубляж)',
+                    type: 'voice',
+                    iframe: anilibria_iframe,
+                    episodes_count: epCount,
+                    last_episode: epCount,
+                    quality_val: 1080,
+                    quality_label: '4K',
+                    provider: 'AniLibria'
+                  });
+                }
+
+                diagnostics.push({
+                  provider: 'AniLibria',
+                  status: 'found',
+                  details: `Успешно: найдено официальное аниме-издание AniLibria (${epCount} эп., 1080p FHD)`,
+                  queryUsed: `search=${title}`,
+                  timeMs: Date.now() - t0,
+                  httpStatus: 200,
+                  quality: '1080p (4K AI)',
+                  foundIframe: anilibria_iframe,
+                  itemsCount: epCount
+                });
+                found = true;
+                break;
+              } else {
+                lastError = 'Тайтл не найден в релизах AniLibria';
+              }
+            } else {
+              lastError = `HTTP ${res.status}: ${res.statusText}`;
+            }
+          } catch (e: any) {
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (3000ms)' : e.message;
+          }
+        }
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'AniLibria',
+            status: lastError.includes('не найден') ? 'not_found' : lastError.includes('Таймаут') ? 'timeout' : 'error',
+            details: lastError || 'Тайтл не найден в AniLibria',
+            queryUsed: `search=${title}`,
+            timeMs: Date.now() - t0
+          });
+        }
+      } catch (e: any) {
+        diagnostics.push({
+          provider: 'AniLibria',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
+      }
+    })());
+
+    // 3. Alloha
+    jobs.push((async () => {
+      const t0 = Date.now();
       try {
         const allohaTokens = [
           'd317441359e505c343c2063edc97e7',
           '04941a9a3ca3ac16e2b4327347bbc1',
           '96b62ea8e72e7452b652e461ab8b89'
         ];
-        const allohaQueries: string[] = [];
+        const allohaQueries: { url: string; q: string }[] = [];
         if (kinopoisk_id) {
           for (const t of allohaTokens) {
-            allohaQueries.push(`https://api.alloha.tv/?token=${t}&kp=${kinopoisk_id}`);
-            allohaQueries.push(`https://api.apbugall.org/?token=${t}&kp=${kinopoisk_id}`);
+            allohaQueries.push({ url: `https://api.alloha.tv/?token=${t}&kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+            allohaQueries.push({ url: `https://api.apbugall.org/?token=${t}&kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
           }
         }
         if (imdb_id) {
           for (const t of allohaTokens) {
-            allohaQueries.push(`https://api.alloha.tv/?token=${t}&imdb=${imdb_id}`);
-            allohaQueries.push(`https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`);
+            allohaQueries.push({ url: `https://api.alloha.tv/?token=${t}&imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
+            allohaQueries.push({ url: `https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
           }
         }
         if (title) {
           for (const t of allohaTokens) {
-            allohaQueries.push(`https://api.alloha.tv/?token=${t}&name=${encodeURIComponent(String(title))}`);
-            allohaQueries.push(`https://api.apbugall.org/?token=${t}&name=${encodeURIComponent(String(title))}`);
+            allohaQueries.push({ url: `https://api.alloha.tv/?token=${t}&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
+            allohaQueries.push({ url: `https://api.apbugall.org/?token=${t}&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
           }
         }
 
-        for (const url of allohaQueries) {
+        let found = false;
+        let lastError = kinopoisk_id ? 'Поиск в Alloha не дал результатов' : 'Kinopoisk ID отсутствует для точного поиска в Alloha';
+
+        for (const item of allohaQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 3000);
+            const res = await fetchWithTimeout(item.url, {}, 3000);
+            const status = res.status;
             if (res.ok) {
               const d = await res.json() as any;
-              if (d && d.status === 'success' && d.data && d.data.iframe) {
-                alloha_iframe = d.data.iframe;
-                addLog(`Alloha found: ${alloha_iframe}`);
+              if (d && (d.status === 'success' || d.data?.iframe || d.iframe)) {
+                alloha_iframe = d.data?.iframe || d.iframe;
+                found = true;
+                diagnostics.push({
+                  provider: 'Alloha',
+                  status: 'found',
+                  details: `Успешно: найден плеер Alloha TV (1080p)`,
+                  queryUsed: item.q,
+                  timeMs: Date.now() - t0,
+                  httpStatus: status,
+                  quality: '1080p (4K AI)',
+                  foundIframe: alloha_iframe
+                });
                 break;
-              } else if (d && d.data && d.data.iframe) {
-                alloha_iframe = d.data.iframe;
-                break;
-              } else if (d && d.iframe) {
-                alloha_iframe = d.iframe;
-                break;
+              } else if (d && d.error) {
+                lastError = `Ошибка Alloha API: ${d.error}`;
+              } else if (d && d.status === 'error') {
+                lastError = `Alloha: ${d.message || 'Тайтл не найден'}`;
               }
+            } else if (status === 401 || status === 403) {
+              lastError = `HTTP ${status}: Токен Alloha заблокирован или требует авторизации домена`;
+            } else {
+              lastError = `HTTP ${status}: ${res.statusText}`;
             }
           } catch (e: any) {
-            // Silently try next token/mirror
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (3000ms)' : e.message;
           }
         }
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'Alloha',
+            status: lastError.includes('401') || lastError.includes('403') ? 'unauthorized' : lastError.includes('Таймаут') ? 'timeout' : 'not_found',
+            details: lastError,
+            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
+            timeMs: Date.now() - t0
+          });
+        }
       } catch (e: any) {
-        addLog('Alloha jobs execution failed', { error: e.message });
+        diagnostics.push({
+          provider: 'Alloha',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
-    // 3. Collaps
+    // 4. Collaps
     jobs.push((async () => {
+      const t0 = Date.now();
       try {
-        const cQueries: string[] = [];
-        if (kinopoisk_id) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`);
-        if (imdb_id) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`);
-        if (title) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`);
+        const cQueries: { url: string; q: string }[] = [];
+        if (kinopoisk_id) cQueries.push({ url: `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+        if (imdb_id) cQueries.push({ url: `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`, q: `imdb=${imdb_id}` });
+        if (title) cQueries.push({ url: `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
 
-        for (const url of cQueries) {
+        let found = false;
+        let lastError = 'Тайтл не найден в базе Collaps';
+
+        for (const item of cQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 3000);
+            const res = await fetchWithTimeout(item.url, {}, 3000);
             if (res.ok) {
               const d = await res.json() as any;
               if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
                 collaps_iframe = d.results[0].iframe_url;
-                addLog(`Collaps found: ${collaps_iframe}`);
+                found = true;
+                diagnostics.push({
+                  provider: 'Collaps',
+                  status: 'found',
+                  details: `Успешно: найден плеер Collaps CDN`,
+                  queryUsed: item.q,
+                  timeMs: Date.now() - t0,
+                  httpStatus: 200,
+                  foundIframe: collaps_iframe
+                });
                 break;
+              } else {
+                lastError = 'Тайтл отсутствует в базе Collaps по данному ID';
               }
+            } else {
+              lastError = `HTTP ${res.status}: ${res.statusText}`;
             }
-          } catch (e: any) {}
+          } catch (e: any) {
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (3000ms)' : e.message;
+          }
+        }
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'Collaps',
+            status: lastError.includes('Таймаут') ? 'timeout' : lastError.includes('отсутствует') ? 'not_found' : 'error',
+            details: lastError,
+            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `name=${title}`,
+            timeMs: Date.now() - t0
+          });
         }
       } catch (e: any) {
-        addLog('Collaps fetch skipped', { error: e.message });
+        diagnostics.push({
+          provider: 'Collaps',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
-    // 4. Bhcesh
+    // 5. Bhcesh
     jobs.push((async () => {
+      const t0 = Date.now();
       try {
-        const bQueries: string[] = [];
-        if (kinopoisk_id) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`);
-        if (imdb_id) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`);
-        if (title) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`);
+        const bQueries: { url: string; q: string }[] = [];
+        if (kinopoisk_id) bQueries.push({ url: `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+        if (imdb_id) bQueries.push({ url: `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`, q: `imdb=${imdb_id}` });
+        if (title) bQueries.push({ url: `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
 
-        for (const url of bQueries) {
+        let found = false;
+        let lastError = 'Тайтл не найден в базе Bhcesh';
+
+        for (const item of bQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 2500);
+            const res = await fetchWithTimeout(item.url, {}, 2500);
             if (res.ok) {
               const d = await res.json() as any;
               if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
                 bhcesh_iframe = d.results[0].iframe_url;
-                addLog(`Bhcesh found: ${bhcesh_iframe}`);
+                found = true;
+                diagnostics.push({
+                  provider: 'Bhcesh',
+                  status: 'found',
+                  details: `Успешно: найден плеер Bhcesh (зеркало Collaps)`,
+                  queryUsed: item.q,
+                  timeMs: Date.now() - t0,
+                  httpStatus: 200,
+                  foundIframe: bhcesh_iframe
+                });
                 break;
               }
+            } else {
+              lastError = `HTTP ${res.status}: ${res.statusText}`;
             }
-          } catch (e: any) {}
+          } catch (e: any) {
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2500ms)' : e.message;
+          }
+        }
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'Bhcesh',
+            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
+            details: lastError,
+            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `name=${title}`,
+            timeMs: Date.now() - t0
+          });
         }
       } catch (e: any) {
-        addLog('Bhcesh fetch failed', { error: e.message });
+        diagnostics.push({
+          provider: 'Bhcesh',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
-    // 5. Bazon
+    // 6. Bazon
     jobs.push((async () => {
+      const t0 = Date.now();
       try {
-        const bzQueries: string[] = [];
-        if (kinopoisk_id) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`);
-        if (imdb_id) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&imdb=${imdb_id}`);
-        if (title) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&title=${encodeURIComponent(String(title))}`);
+        const bzQueries: { url: string; q: string }[] = [];
+        if (kinopoisk_id) bzQueries.push({ url: `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+        if (imdb_id) bzQueries.push({ url: `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
+        if (title) bzQueries.push({ url: `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
 
-        for (const url of bzQueries) {
+        let found = false;
+        let lastError = 'Тайтл не найден в базе Bazon';
+
+        for (const item of bzQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 2500);
+            const res = await fetchWithTimeout(item.url, {}, 2500);
             if (res.ok) {
               const d = await res.json() as any;
               if (d.results && d.results.length > 0) {
                 bazon_iframe = d.results[0].link || d.results[0].iframe_url;
-                addLog(`Bazon found: ${bazon_iframe}`);
+                found = true;
+                diagnostics.push({
+                  provider: 'Bazon',
+                  status: 'found',
+                  details: `Успешно: найден плеер Bazon CC`,
+                  queryUsed: item.q,
+                  timeMs: Date.now() - t0,
+                  httpStatus: 200,
+                  foundIframe: bazon_iframe
+                });
                 break;
+              } else if (d.error) {
+                lastError = `Bazon API: ${d.error}`;
               }
+            } else {
+              lastError = `HTTP ${res.status}: ${res.statusText}`;
             }
-          } catch (e: any) {}
+          } catch (e: any) {
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2500ms)' : e.message;
+          }
+        }
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'Bazon',
+            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
+            details: lastError,
+            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
+            timeMs: Date.now() - t0
+          });
         }
       } catch (e: any) {
-        addLog('Bazon fetch failed', { error: e.message });
+        diagnostics.push({
+          provider: 'Bazon',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
-    // 6. VideoCDN (Optional Balancer)
+    // 7. VideoCDN
     jobs.push((async () => {
+      const t0 = Date.now();
       try {
-        const vQueries: string[] = [];
-        if (kinopoisk_id) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`);
-        if (imdb_id) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&imdb_id=${imdb_id}`);
-        if (title) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&title=${encodeURIComponent(String(title))}`);
+        const vQueries: { url: string; q: string }[] = [];
+        if (kinopoisk_id) vQueries.push({ url: `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+        if (imdb_id) vQueries.push({ url: `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&imdb_id=${imdb_id}`, q: `imdb=${imdb_id}` });
+        if (title) vQueries.push({ url: `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
 
-        for (const url of vQueries) {
+        let found = false;
+        let lastError = 'Тайтл не найден в базе VideoCDN';
+
+        for (const item of vQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 2000);
+            const res = await fetchWithTimeout(item.url, {}, 2000);
             if (res.ok) {
               const d = await res.json() as any;
               if (d.data && d.data.length > 0) {
                 videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
-                addLog(`VideoCDN found: ${videocdn_iframe}`);
+                found = true;
+                diagnostics.push({
+                  provider: 'VideoCDN',
+                  status: 'found',
+                  details: `Успешно: найден плеер VideoCDN`,
+                  queryUsed: item.q,
+                  timeMs: Date.now() - t0,
+                  httpStatus: 200,
+                  foundIframe: videocdn_iframe
+                });
                 break;
+              } else if (d.result === false && d.error) {
+                lastError = `VideoCDN API: ${d.error}`;
               }
+            } else {
+              lastError = `HTTP ${res.status}: ${res.statusText}`;
             }
-          } catch (e: any) {}
+          } catch (e: any) {
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
+          }
+        }
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'VideoCDN',
+            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
+            details: lastError,
+            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
+            timeMs: Date.now() - t0
+          });
         }
       } catch (e: any) {
-        addLog('VideoCDN fetch skipped', { error: e.message });
+        diagnostics.push({
+          provider: 'VideoCDN',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
-    // 7. HDVB (Optional Balancer)
+    // 8. HDVB
     jobs.push((async () => {
+      const t0 = Date.now();
       try {
-        const hQueries: string[] = [];
-        if (kinopoisk_id) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`);
-        if (imdb_id) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_imdb=${imdb_id}`);
-        if (title) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&title=${encodeURIComponent(String(title))}`);
+        const hQueries: { url: string; q: string }[] = [];
+        if (kinopoisk_id) hQueries.push({ url: `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+        if (imdb_id) hQueries.push({ url: `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
+        if (title) hQueries.push({ url: `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
 
-        for (const url of hQueries) {
+        let found = false;
+        let lastError = 'Тайтл не найден в базе HDVB';
+
+        for (const item of hQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 2000);
+            const res = await fetchWithTimeout(item.url, {}, 2000);
             if (res.ok) {
               const d = await res.json() as any;
               if (Array.isArray(d) && d.length > 0) {
                 hdvb_iframe = d[0].iframe_url || d[0].iframe;
-                addLog(`HDVB found: ${hdvb_iframe}`);
+                found = true;
+                diagnostics.push({
+                  provider: 'HDVB',
+                  status: 'found',
+                  details: `Успешно: найден плеер HDVB`,
+                  queryUsed: item.q,
+                  timeMs: Date.now() - t0,
+                  httpStatus: 200,
+                  foundIframe: hdvb_iframe
+                });
                 break;
               }
+            } else {
+              lastError = `HTTP ${res.status}: ${res.statusText}`;
             }
-          } catch (e: any) {}
+          } catch (e: any) {
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
+          }
+        }
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'HDVB',
+            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
+            details: lastError,
+            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
+            timeMs: Date.now() - t0
+          });
         }
       } catch (e: any) {
-        addLog('HDVB fetch skipped', { error: e.message });
+        diagnostics.push({
+          provider: 'HDVB',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
-    // 8. Iframe.video (Optional Balancer)
+    // 9. Iframe.video
     jobs.push((async () => {
+      const t0 = Date.now();
       try {
-        const iQueries: string[] = [];
-        if (kinopoisk_id) iQueries.push(`https://iframe.video/api/v2/search?kp=${kinopoisk_id}`);
-        if (imdb_id) iQueries.push(`https://iframe.video/api/v2/search?imdb=${imdb_id}`);
-        if (title) iQueries.push(`https://iframe.video/api/v2/search?title=${encodeURIComponent(String(title))}`);
+        const iQueries: { url: string; q: string }[] = [];
+        if (kinopoisk_id) iQueries.push({ url: `https://iframe.video/api/v2/search?kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+        if (imdb_id) iQueries.push({ url: `https://iframe.video/api/v2/search?imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
+        if (title) iQueries.push({ url: `https://iframe.video/api/v2/search?title=${encodeURIComponent(String(title))}`, q: `title=${title}` });
 
-        for (const url of iQueries) {
+        let found = false;
+        let lastError = 'Тайтл не найден в базе Iframe.video';
+
+        for (const item of iQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 2000);
+            const res = await fetchWithTimeout(item.url, {}, 2000);
             if (res.ok) {
               const d = await res.json() as any;
-              if (d.results && d.results.length > 0) {
-                iframe_video_iframe = d.results[0].path || d.results[0].iframe;
-                break;
-              } else if (d.results && d.results.path) {
-                iframe_video_iframe = d.results.path;
+              if (d.results && (d.results.length > 0 || d.results.path)) {
+                iframe_video_iframe = d.results[0]?.path || d.results[0]?.iframe || d.results.path;
+                found = true;
+                diagnostics.push({
+                  provider: 'Iframe.video',
+                  status: 'found',
+                  details: `Успешно: найден плеер Iframe.video`,
+                  queryUsed: item.q,
+                  timeMs: Date.now() - t0,
+                  httpStatus: 200,
+                  foundIframe: iframe_video_iframe
+                });
                 break;
               }
+            } else {
+              lastError = `HTTP ${res.status}: ${res.statusText}`;
             }
-          } catch (e: any) {}
+          } catch (e: any) {
+            lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
+          }
         }
-        if (iframe_video_iframe) {
-          addLog(`Iframe found: ${iframe_video_iframe}`);
+
+        if (!found) {
+          diagnostics.push({
+            provider: 'Iframe.video',
+            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
+            details: lastError,
+            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
+            timeMs: Date.now() - t0
+          });
         }
       } catch (e: any) {
-        addLog('Iframe.video fetch skipped', { error: e.message });
+        diagnostics.push({
+          provider: 'Iframe.video',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
-    // 9. Pleer.video
-    if (kinopoisk_id) {
-      jobs.push((async () => {
+    // 10. Pleer.video
+    jobs.push((async () => {
+      const t0 = Date.now();
+      try {
+        if (!kinopoisk_id) {
+          diagnostics.push({
+            provider: 'Pleer.video',
+            status: 'not_found',
+            details: 'Пропущен: для поиска в Pleer.video требуется Kinopoisk ID',
+            timeMs: Date.now() - t0
+          });
+          return;
+        }
+
+        const url = `https://pleer.video/${kinopoisk_id}.json`;
+        let found = false;
+        let lastError = 'Тайтл не найден в базе Pleer.video';
+
         try {
-          const url = `https://pleer.video/${kinopoisk_id}.json`;
           const res = await fetchWithTimeout(url, {}, 2000);
           if (res.ok) {
             const d = await res.json() as any;
             if (d.embeds && d.embeds.length > 0) {
               pleer_iframe = d.embeds[0].iframe;
-              addLog(`Pleer found: ${pleer_iframe}`);
+              found = true;
+              diagnostics.push({
+                provider: 'Pleer.video',
+                status: 'found',
+                details: `Успешно: найден плеер Pleer.video`,
+                queryUsed: `kp=${kinopoisk_id}`,
+                timeMs: Date.now() - t0,
+                httpStatus: 200,
+                foundIframe: pleer_iframe
+              });
             }
+          } else {
+            lastError = `HTTP ${res.status}: ${res.statusText}`;
           }
         } catch (e: any) {
-          addLog('Pleer fetch skipped', { error: e.message });
+          lastError = e.name === 'AbortError' ? 'Таймаут соединения (2000ms)' : e.message;
         }
-      })());
-    }
 
-    // 10. Anilibria
-    jobs.push((async () => {
-      try {
-        const url = `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`;
-        const anilibriaRes = await fetchWithTimeout(url, {}, 3000);
-        if (anilibriaRes.ok) {
-          const anilibriaData = await anilibriaRes.json() as any;
-          if (anilibriaData && anilibriaData.length > 0) {
-            let bestMatch = anilibriaData[0];
-            if (year) {
-              const yearMatch = anilibriaData.find((r: any) => r.year === parseInt(String(year)));
-              if (yearMatch) bestMatch = yearMatch;
-            }
-            anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${bestMatch.id}`;
-            ids.anilibria_id = bestMatch.id;
-            addLog(`Anilibria found: ${anilibria_iframe}`);
-          }
+        if (!found) {
+          diagnostics.push({
+            provider: 'Pleer.video',
+            status: lastError.includes('Таймаут') ? 'timeout' : 'not_found',
+            details: lastError,
+            queryUsed: `kp=${kinopoisk_id}`,
+            timeMs: Date.now() - t0
+          });
         }
       } catch (e: any) {
-        addLog('Anilibria fetch failed', { error: e.message });
+        diagnostics.push({
+          provider: 'Pleer.video',
+          status: 'error',
+          details: `Ошибка: ${e.message}`,
+          timeMs: Date.now() - t0
+        });
       }
     })());
 
@@ -698,10 +1075,10 @@ app.get('/api/balancer', async (c) => {
     if (kodik_iframe) {
       players.push({ name: 'Kodik', iframe: kodik_iframe });
     } else {
-      // Default placeholder just in case
       players.push({ name: 'Kodik', iframe: null });
     }
 
+    if (anilibria_iframe) players.push({ name: 'AniLibria', iframe: anilibria_iframe });
     if (alloha_iframe) players.push({ name: 'Alloha', iframe: alloha_iframe });
     if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
     if (bhcesh_iframe) players.push({ name: 'Bhcesh', iframe: bhcesh_iframe });
@@ -710,11 +1087,10 @@ app.get('/api/balancer', async (c) => {
     if (hdvb_iframe) players.push({ name: 'HDVB', iframe: hdvb_iframe });
     if (iframe_video_iframe) players.push({ name: 'Iframe', iframe: iframe_video_iframe });
     if (pleer_iframe) players.push({ name: 'Pleer', iframe: pleer_iframe });
-    if (anilibria_iframe) players.push({ name: 'Anilibria', iframe: anilibria_iframe });
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
-    addLog(`Balancer Completed`, { playersCount: players.length, ids });
-    return c.json({ players, ids, kodik_translations });
+    addLog(`Balancer Completed`, { playersCount: players.length, ids, diagnosticsCount: diagnostics.length });
+    return c.json({ players, ids, kodik_translations, diagnostics });
   } catch (error: any) {
     addLog('Balancer API Exception', { message: error.message });
     return c.json({ error: 'Failed to fetch balancer data' }, 500);

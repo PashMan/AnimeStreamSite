@@ -37,6 +37,16 @@ import {
   Crown,
   Play,
   Sparkles,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Clock,
+  Database,
+  Layers,
+  Wifi,
+  Info,
+  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -58,6 +68,7 @@ import { CustomPlayer, isTvDevice } from "../components/CustomPlayer";
 import { BrowserDownloadWidget } from "../components/BrowserDownloadWidget";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
+import { BalancerDiagnostic } from "../services/balancer";
 import { filterProfanity } from "../utils/profanity";
 import { generateAnimeSEO } from "../utils/seoGenerator";
 
@@ -117,6 +128,15 @@ const Details: React.FC = () => {
   const [hasFetchedPlayers, setHasFetchedPlayers] = useState(false);
   const [isPlayersLoading, setIsPlayersLoading] = useState(false);
   const [playersError, setPlayersError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<BalancerDiagnostic[]>([]);
+  const [balancerIds, setBalancerIds] = useState<{
+    shikimori_id?: string | null;
+    kinopoisk_id?: string | null;
+    imdb_id?: string | null;
+    world_art_id?: string | null;
+    anilibria_id?: number | null;
+  }>({});
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [related, setRelated] = useState<{ relation: string; anime: Anime }[]>(
     [],
   );
@@ -404,6 +424,8 @@ const Details: React.FC = () => {
       setPlayers([{ name: "Kodik", iframe: null }]);
       setTranslations([]);
       setSelectedTranslation(null);
+      setDiagnostics([]);
+      setBalancerIds({});
       setHasFetchedPlayers(false);
       setSelectedPlayer("Kodik");
 
@@ -826,6 +848,12 @@ const Details: React.FC = () => {
 
           const playersList = data?.players || [];
           const translationsList = data?.kodik_translations || [];
+          if (data?.diagnostics) {
+            setDiagnostics(data.diagnostics);
+          }
+          if (data?.ids) {
+            setBalancerIds(data.ids);
+          }
 
           if (playersList.length > 0) {
             // Append episode to iframe URLs if paramEpisode exists
@@ -877,6 +905,67 @@ const Details: React.FC = () => {
       fetchPlayers();
     }
   }, [anime, hasFetchedPlayers, isPlayersLoading, playersError, paramEpisode]);
+
+  const handleRefreshPlayers = async () => {
+    if (!anime) return;
+    setIsPlayersLoading(true);
+    setPlayersError(null);
+    try {
+      const key = `balancer_v5_${anime.id}`;
+      try {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      } catch (_) {}
+
+      const title = anime.originalName || anime.title;
+      const year = anime.year || 0;
+      const { fetchPlayersClientSide } = await import("../services/balancer");
+      const data = await fetchPlayersClientSide(
+        anime.id,
+        title,
+        year.toString(),
+      );
+
+      if (data?.diagnostics) {
+        setDiagnostics(data.diagnostics);
+      }
+      if (data?.ids) {
+        setBalancerIds(data.ids);
+      }
+      const playersList = data?.players || [];
+      const translationsList = data?.kodik_translations || [];
+
+      if (playersList.length > 0) {
+        if (paramEpisode) {
+          playersList.forEach((p) => {
+            if (p.iframe) {
+              const separator = p.iframe.includes("?") ? "&" : "?";
+              p.iframe = `${p.iframe}${separator}episode=${paramEpisode}`;
+            }
+          });
+          translationsList.forEach((t) => {
+            if (t.iframe) {
+              const separator = t.iframe.includes("?") ? "&" : "?";
+              t.iframe = `${t.iframe}${separator}episode=${paramEpisode}`;
+            }
+          });
+        }
+        setPlayers(playersList);
+        setTranslations(translationsList);
+        if (translationsList.length > 0) {
+          const matchedTranslation = selectedTranslation
+            ? translationsList.find((t: any) => t.title === selectedTranslation.title)
+            : null;
+          setSelectedTranslation(matchedTranslation || translationsList[0]);
+        }
+      }
+    } catch (err: any) {
+      console.error("Refresh Balancer Error:", err);
+      setPlayersError(err.message || "Ошибка обновления источников");
+    } finally {
+      setIsPlayersLoading(false);
+    }
+  };
 
   // Fetch opening / ending skip timings for selected translation and episode
   useEffect(() => {
@@ -1974,6 +2063,227 @@ const Details: React.FC = () => {
                         })()}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Balancer Diagnostics & Source Errors Inspector */}
+                {anime && (
+                  <div
+                    id="balancer-diagnostics-card"
+                    className="bg-[#18191e]/90 border border-white/10 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 shadow-2xl backdrop-blur-md space-y-4"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                          <Activity className="w-5 h-5 animate-pulse" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-black text-white uppercase tracking-wider">
+                              Статус источников и балансировщика
+                            </h4>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                diagnostics.filter((d) => d.status === "found").length > 0
+                                  ? "bg-green-500/15 text-green-400 border border-green-500/30"
+                                  : "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30"
+                              }`}
+                            >
+                              {diagnostics.filter((d) => d.status === "found").length > 0
+                                ? "Источники найдены"
+                                : isPlayersLoading
+                                  ? "Поиск источников..."
+                                  : "Ожидание"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {diagnostics.filter((d) => d.status === "found").length} из{" "}
+                            {diagnostics.length > 0 ? diagnostics.length : 10} провайдеров вернули поток
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleRefreshPlayers}
+                          disabled={isPlayersLoading}
+                          className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                          title="Сбросить кэш и перепроверить все плееры"
+                        >
+                          <RefreshCw
+                            className={`w-3.5 h-3.5 ${isPlayersLoading ? "animate-spin text-primary" : ""}`}
+                          />
+                          <span className="hidden sm:inline">Перепроверить</span>
+                        </button>
+
+                        <button
+                          onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
+                          className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>{isDiagnosticsOpen ? "Скрыть отчёт ошибок" : "Показать отчёт ошибок"}</span>
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform duration-300 ${
+                              isDiagnosticsOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Pipeline & External IDs Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1.5">
+                        <div className="flex items-center gap-2 font-bold text-slate-300">
+                          <Layers className="w-4 h-4 text-purple-400" />
+                          <span>Алгоритм KamiPlayer AI Upscale:</span>
+                        </div>
+                        <p className="text-slate-400 leading-relaxed text-[11px]">
+                          {translations.some((t: any) => (t.quality_val || 0) >= 1080) ? (
+                            <>
+                              <span className="text-green-400 font-bold">Найден нативный 1080p FHD</span> (AniLibria / Kodik 1080p).
+                              В плеере включен нейросетевой апскейлинг <strong className="text-purple-300">до 4K Ultra HD</strong>.
+                            </>
+                          ) : (
+                            <>
+                              Обнаружен базовый поток <strong>720p HD</strong> (Kodik). KamiPlayer применяет нейросетевую интерполяцию WebGL <strong className="text-blue-300">до 1080p</strong>.
+                            </>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1.5">
+                        <div className="flex items-center gap-2 font-bold text-slate-300">
+                          <Database className="w-4 h-4 text-primary" />
+                          <span>Идентификаторы тайтла:</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
+                          <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
+                            Shiki: <strong className="text-white">{anime.id}</strong>
+                          </span>
+                          {balancerIds.kinopoisk_id && (
+                            <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
+                              KP: <strong className="text-yellow-400">{balancerIds.kinopoisk_id}</strong>
+                            </span>
+                          )}
+                          {balancerIds.imdb_id && (
+                            <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
+                              IMDb: <strong className="text-amber-300">{balancerIds.imdb_id}</strong>
+                            </span>
+                          )}
+                          {balancerIds.world_art_id && (
+                            <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
+                              WorldArt: <strong className="text-cyan-300">{balancerIds.world_art_id}</strong>
+                            </span>
+                          )}
+                          {balancerIds.anilibria_id && (
+                            <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
+                              AniLibria: <strong className="text-green-300">{balancerIds.anilibria_id}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Detailed Errors & Providers Breakdown */}
+                    {isDiagnosticsOpen && (
+                      <div className="space-y-2 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between pb-1">
+                          <span>Статус каждого провайдера и ошибки:</span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            Параллельный опрос (3.5s timeout)
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2">
+                          {diagnostics.length === 0 ? (
+                            <div className="p-4 text-center text-slate-500 text-xs font-bold uppercase">
+                              Диагностика загружается... Нажмите &quot;Перепроверить&quot;, если список пуст.
+                            </div>
+                          ) : (
+                            diagnostics.map((diag, index) => {
+                              const isFound = diag.status === "found";
+                              const isTimeout = diag.status === "timeout";
+                              const isUnauthorized = diag.status === "unauthorized";
+
+                              return (
+                                <div
+                                  key={diag.provider || index}
+                                  className={`p-3 rounded-xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                    isFound
+                                      ? "bg-green-500/[0.05] border-green-500/20"
+                                      : isUnauthorized
+                                        ? "bg-red-500/[0.05] border-red-500/20"
+                                        : isTimeout
+                                          ? "bg-yellow-500/[0.05] border-yellow-500/20"
+                                          : "bg-white/[0.02] border-white/5"
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-3 min-w-0">
+                                    <div className="mt-0.5 shrink-0">
+                                      {isFound ? (
+                                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                      ) : isUnauthorized ? (
+                                        <XCircle className="w-4 h-4 text-red-400" />
+                                      ) : isTimeout ? (
+                                        <Clock className="w-4 h-4 text-yellow-400" />
+                                      ) : (
+                                        <AlertCircle className="w-4 h-4 text-slate-500" />
+                                      )}
+                                    </div>
+
+                                    <div className="space-y-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-bold text-white text-xs tracking-wide">
+                                          {diag.provider}
+                                        </span>
+                                        <span
+                                          className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                                            isFound
+                                              ? "bg-green-500/20 text-green-300 border border-green-500/30"
+                                              : isUnauthorized
+                                                ? "bg-red-500/20 text-red-300 border border-red-500/30"
+                                                : isTimeout
+                                                  ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
+                                                  : "bg-white/5 text-slate-400 border border-white/10"
+                                          }`}
+                                        >
+                                          {isFound
+                                            ? "НАЙДЕН"
+                                            : isUnauthorized
+                                              ? "ОШИБКА ТОКЕНА / IP"
+                                              : isTimeout
+                                                ? "ТАЙМАУТ СЕТИ"
+                                                : "НЕ НАЙДЕН"}
+                                        </span>
+                                        {diag.quality && (
+                                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                            {diag.quality}
+                                          </span>
+                                        )}
+                                        {diag.timeMs && (
+                                          <span className="text-[10px] text-slate-500 font-mono">
+                                            {diag.timeMs}ms
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[11px] text-slate-400 break-words leading-normal">
+                                        {diag.details}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {diag.queryUsed && (
+                                    <div className="shrink-0 text-[10px] font-mono text-slate-500 bg-black/30 px-2 py-1 rounded border border-white/5">
+                                      {diag.queryUsed}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

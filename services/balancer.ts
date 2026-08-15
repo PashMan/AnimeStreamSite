@@ -23,15 +23,35 @@ export interface KodikTranslation {
   };
 }
 
+export interface BalancerDiagnostic {
+  provider: string;
+  status: 'found' | 'not_found' | 'error' | 'timeout' | 'unauthorized';
+  details: string;
+  queryUsed?: string;
+  timeMs?: number;
+  httpStatus?: number;
+  quality?: string;
+  foundIframe?: string | null;
+  itemsCount?: number;
+}
+
 export interface BalancerData {
   players: PlayerInfo[];
   kodik_translations: KodikTranslation[];
+  diagnostics?: BalancerDiagnostic[];
+  ids?: {
+    shikimori_id?: string | null;
+    kinopoisk_id?: string | null;
+    imdb_id?: string | null;
+    world_art_id?: string | null;
+    anilibria_id?: number | null;
+  };
 }
 
 export const fetchPlayersClientSide = async (shikimoriId: string, title: string, year: string): Promise<BalancerData> => {
   if (!shikimoriId) return { players: [], kodik_translations: [] };
 
-  const cacheKey = `balancer_v4_${shikimoriId}`;
+  const cacheKey = `balancer_v5_${shikimoriId}`;
   const cached = getFromStorage(cacheKey);
 
   // TTL: 24 hours for balancer data
@@ -48,6 +68,8 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
       
       let playersList: PlayerInfo[] = [];
       let translationsList: KodikTranslation[] = data.kodik_translations || [];
+      const diagnostics: BalancerDiagnostic[] = data.diagnostics || [];
+      const ids = data.ids || {};
 
       if (data && data.players && Array.isArray(data.players)) {
         playersList = data.players;
@@ -69,7 +91,9 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
 
       const result: BalancerData = {
         players: playersList,
-        kodik_translations: translationsList
+        kodik_translations: translationsList,
+        diagnostics,
+        ids
       };
 
       saveToStorage(cacheKey, result);
