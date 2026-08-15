@@ -45,6 +45,7 @@ import {
   Clock,
   Database,
   Layers,
+  Terminal,
   Wifi,
   Info,
   ExternalLink,
@@ -165,6 +166,56 @@ const Details: React.FC = () => {
   const [isBlocked, setIsBlocked] = useState(false);
   const [epSearchVal, setEpSearchVal] = useState("");
   const [isNotifierOpen, setIsNotifierOpen] = useState(false);
+
+  const [decoderLogs, setDecoderLogs] = useState<string[]>([]);
+  const [isDecoderLogsLoading, setIsDecoderLogsLoading] = useState(false);
+  const [showDecoderModal, setShowDecoderModal] = useState(false);
+
+  const handleFetchDecoderLogs = async () => {
+    const hlsPlayerObj =
+      players.find((p) => p.name === "AniLibria" && p.iframe) ||
+      players.find((p) => p.name === "Kodik" && p.iframe) ||
+      players.find((p) => p.name === "Collaps" && p.iframe) ||
+      players.find((p) => p.name === "Alloha" && p.iframe) ||
+      players.find((p) => p.name === "VideoCDN" && p.iframe);
+
+    const baseIframe =
+      hlsPlayerObj?.iframe ||
+      selectedTranslation?.iframe ||
+      translations[0]?.iframe ||
+      players.find((p) => p.iframe)?.iframe ||
+      "";
+
+    if (!baseIframe) {
+      setDecoderLogs(["⚠️ Плееры или iframe ссылки еще не загружены"]);
+      setShowDecoderModal(true);
+      return;
+    }
+
+    setIsDecoderLogsLoading(true);
+    setShowDecoderModal(true);
+    try {
+      let targetIframe = baseIframe;
+      if (paramEpisode) {
+        try {
+          const u = new URL(targetIframe.startsWith("//") ? `https:${targetIframe}` : targetIframe);
+          u.searchParams.set("episode", paramEpisode);
+          targetIframe = u.toString();
+        } catch (e) {}
+      }
+      const res = await fetch(`/api/media/debug?url=${encodeURIComponent(targetIframe)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDecoderLogs(data.logs || []);
+      } else {
+        setDecoderLogs(["❌ Ошибка получения логов декодирования с сервера."]);
+      }
+    } catch (err: any) {
+      setDecoderLogs([`❌ Ошибка соединения: ${err.message}`]);
+    } finally {
+      setIsDecoderLogsLoading(false);
+    }
+  };
 
   // Auto scroll to active episode on change
   useEffect(() => {
@@ -2250,7 +2301,16 @@ const Details: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={handleFetchDecoderLogs}
+                            className="px-3.5 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm shadow-purple-500/10"
+                            title="Открыть подробный лог процесса декодирования плеера"
+                          >
+                            <Terminal className="w-3.5 h-3.5 text-purple-400" />
+                            <span>Логи декодирования</span>
+                          </button>
+
                           <button
                             onClick={handleRefreshPlayers}
                             disabled={isPlayersLoading}
@@ -2276,6 +2336,50 @@ const Details: React.FC = () => {
                           </button>
                         </div>
                       </div>
+
+                      {/* DECODER LOGS MODAL / EXPANDABLE PANEL */}
+                      {showDecoderModal && (
+                        <div className="p-4 rounded-xl bg-black/80 border border-purple-500/30 text-xs font-mono space-y-3 animate-in fade-in duration-200">
+                          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                            <div className="flex items-center gap-2 text-purple-300 font-bold">
+                              <Terminal className="w-4 h-4 text-purple-400" />
+                              <span>Логи распаковки и декодирования HLS потока</span>
+                            </div>
+                            <button
+                              onClick={() => setShowDecoderModal(false)}
+                              className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-white/5 cursor-pointer"
+                            >
+                              ✕ Закрыть
+                            </button>
+                          </div>
+
+                          {isDecoderLogsLoading ? (
+                            <div className="py-6 flex items-center justify-center gap-2 text-slate-400 font-sans">
+                              <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                              <span>Декодирование и опрос источника...</span>
+                            </div>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto space-y-1.5 p-2 bg-black/50 rounded-lg custom-scrollbar">
+                              {decoderLogs.map((log, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`text-[11px] leading-relaxed break-all ${
+                                    log.includes("[ERR]") || log.includes("[FATAL]") || log.includes("❌")
+                                      ? "text-red-400 font-semibold"
+                                      : log.includes("[SUCCESS]") || log.includes("[7]") || log.includes("[9]") || log.includes("[12]") || log.includes("[17]")
+                                        ? "text-green-400 font-semibold"
+                                        : log.includes("[UNPACK]") || log.includes("[5]")
+                                          ? "text-purple-300"
+                                          : "text-slate-300"
+                                  }`}
+                                >
+                                  {log}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Pipeline & External IDs Overview */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
