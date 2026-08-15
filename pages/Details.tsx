@@ -53,7 +53,7 @@ import ReviewSection from "../components/ReviewSection";
 import { ReportModal } from "../components/ReportModal";
 import { LazyRender } from "../components/LazyRender";
 import { usePlayerSync } from "../hooks/usePlayerSync";
-import { CustomPlayer } from "../components/CustomPlayer";
+import { CustomPlayer, isTvDevice } from "../components/CustomPlayer";
 import { BrowserDownloadWidget } from "../components/BrowserDownloadWidget";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
@@ -81,23 +81,38 @@ const Details: React.FC = () => {
 
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selectedPlayer, setSelectedPlayer] =
-    useState<string>("KamiPlayer (4K)");
+    useState<string>("KamiPlayer (1080p)");
   const [allohaMirror, setAllohaMirror] =
     useState<string>("beggins-as.pljjalgo.online");
   const [players, setPlayers] = useState<
     { name: string; iframe: string | null; isCustom?: boolean }[]
-  >([{ name: "KamiPlayer (4K)", iframe: null, isCustom: true }]);
+  >([{ name: "KamiPlayer (1080p)", iframe: null, isCustom: true }]);
   const [translations, setTranslations] = useState<
-    { id: number; title: string; type: string; iframe: string; episodes_count?: number; last_episode?: number }[]
+    {
+      id: number | string;
+      title: string;
+      type: string;
+      iframe: string;
+      quality_label?: string;
+      episodes_count?: number;
+      last_episode?: number;
+      provider?: string;
+    }[]
   >([]);
   const [selectedTranslation, setSelectedTranslation] = useState<{
-    id: number;
+    id: number | string;
     title: string;
     type: string;
     iframe: string;
+    quality_label?: string;
     episodes_count?: number;
     last_episode?: number;
+    provider?: string;
   } | null>(null);
+  const [currentSkips, setCurrentSkips] = useState<{
+    opening?: [number, number];
+    ending?: [number, number];
+  } | undefined>(undefined);
   const [hasFetchedPlayers, setHasFetchedPlayers] = useState(false);
   const [isPlayersLoading, setIsPlayersLoading] = useState(false);
   const [playersError, setPlayersError] = useState<string | null>(null);
@@ -836,12 +851,18 @@ const Details: React.FC = () => {
               setSelectedTranslation(matchedTranslation || translationsList[0]);
             }
             setHasFetchedPlayers(true);
-            // Default directly to KamiPlayer (4K)
+            const isTv = isTvDevice();
             const customPlayer = playersList.find((p) => p.isCustom);
-            if (customPlayer) {
+            const kodikPlayer = playersList.find((p) => p.name === "Kodik");
+            if (isTv && kodikPlayer) {
+              // TV browsers often prefer standard iframe playback for maximum hardware acceleration
+              setSelectedPlayer("Kodik");
+            } else if (customPlayer) {
               setSelectedPlayer(customPlayer.name);
+            } else if (playersList.length > 0) {
+              setSelectedPlayer(playersList[0].name);
             } else {
-              setSelectedPlayer("KamiPlayer (4K)");
+              setSelectedPlayer("KamiPlayer (1080p)");
             }
           } else {
             setHasFetchedPlayers(true);
@@ -860,6 +881,47 @@ const Details: React.FC = () => {
       fetchPlayers();
     }
   }, [anime, hasFetchedPlayers, isPlayersLoading, playersError, paramEpisode]);
+
+  // Fetch opening / ending skip timings for selected translation and episode
+  useEffect(() => {
+    let isMounted = true;
+    const baseIframe =
+      selectedTranslation?.iframe ||
+      players.find((p) => p.name === "Kodik")?.iframe;
+
+    if (!baseIframe) {
+      setCurrentSkips(undefined);
+      return;
+    }
+
+    let targetIframe = baseIframe;
+    try {
+      const url = new URL(
+        targetIframe.startsWith("//") ? `https:${targetIframe}` : targetIframe,
+      );
+      if (paramEpisode) {
+        url.searchParams.set("episode", paramEpisode);
+      }
+      targetIframe = url.toString();
+    } catch (e) {}
+
+    fetch(`/api/media/skips?url=${encodeURIComponent(targetIframe)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data?.success && data?.skips) {
+          setCurrentSkips(data.skips);
+        } else if (isMounted) {
+          setCurrentSkips(undefined);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setCurrentSkips(undefined);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedTranslation?.iframe, paramEpisode, players]);
 
   if (isMainLoading)
     return (
@@ -1593,191 +1655,34 @@ const Details: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid gap-8 transition-all duration-500 grid-cols-1">
-                {/* Crunchyroll Premium Release Selector & Search Widget */}
-                {anime && (
-                  <div className="bg-[#1c1d21]/60 border border-white/5 p-6 rounded-[1.5rem] md:rounded-[2rem] flex flex-col gap-6 font-sans shadow-xl backdrop-blur-sm">
-                    
-                    {/* Header Row: Seasons Title & Search Episode Input */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-[#8B5CF6] animate-ping" />
-                        <h4 className="text-sm font-black uppercase text-slate-300 tracking-widest">
-                          Аудиодорожка (Сезоны)
-                        </h4>
-                      </div>
-
-                      {/* Episode Search Filter */}
-                      {(() => {
-                        const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
-                        if (totalEps > 1) {
-                          return (
-                            <div className="relative flex items-center">
-                              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
-                              <input
-                                type="text"
-                                placeholder="Быстрый поиск серии..."
-                                className="pl-9 pr-4 py-2 bg-black/40 border border-white/10 hover:border-[#8B5CF6]/35 focus:border-[#8B5CF6] rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-48"
-                                value={epSearchVal}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setEpSearchVal(val);
-                                  const sanitized = val.replace(/\D/g, "");
-                                  if (sanitized) {
-                                    const epNum = parseInt(sanitized, 10);
-                                    if (epNum >= 1 && epNum <= totalEps) {
-                                      let newUrl = `/anime/${paramId}/episode/${epNum}`;
-                                      if (window.location.search) {
-                                        newUrl += window.location.search;
-                                      }
-                                      navigate(newUrl);
-                                    }
-                                  }
-                                }}
-                              />
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-
-                    {/* Collapsible Dropdown representing different Voice Translations (Simulating Crunchyroll Seasons Selection) */}
-                    <div className="relative">
-                      <button
-                        onClick={() => setIsNotifierOpen(!isNotifierOpen)}
-                        className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-[#8B5CF6] border border-white/5 py-4 px-5 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Crown className="w-4 h-4 text-[#8B5CF6] fill-current" />
-                          <span className="text-xs sm:text-sm font-black uppercase tracking-widest">
-                            {selectedTranslation?.title || (translations[0]?.title) || "Дубляж KamiAnime (Мега Фан)"}
-                          </span>
-                        </div>
-                        <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isNotifierOpen ? "rotate-180" : ""}`} />
-                      </button>
-
-                      {isNotifierOpen && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c1d21] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                          <div className="p-1.5 space-y-1 max-h-52 overflow-y-auto custom-scrollbar">
-                            {translations.map((t, index) => {
-                              const isSelected = selectedTranslation
-                                ? t.title === selectedTranslation.title
-                                : index === 0;
-                              return (
-                                <button
-                                  key={t.id || index}
-                                  onClick={() => {
-                                    setSelectedTranslation(t);
-                                    setIsNotifierOpen(false);
-                                  }}
-                                  className={`w-full text-left px-4 py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-between ${
-                                    isSelected
-                                      ? "bg-white/5 text-[#8B5CF6]"
-                                      : "text-slate-400 hover:text-white hover:bg-white/5"
-                                  }`}
-                                >
-                                  <span>{t.title}</span>
-                                  {isSelected && <Check className="w-4 h-4 text-[#8B5CF6]" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* EPISODES STREAM LIST (High Fidelity Crunchyroll rectangular widescreen listing cards!) */}
-                    <div className="space-y-4">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">
-                        Выпуск серий ({(selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1})
-                      </div>
-
-                      <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1.5 custom-scrollbar">
-                        {(() => {
-                          const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
-                          const filteredEpisodes = Array.from({ length: totalEps }, (_, index) => index + 1)
-                            .filter(epNum => {
-                              if (!epSearchVal) return true;
-                              return epNum.toString() === epSearchVal.trim();
-                            });
-
-                          if (filteredEpisodes.length === 0) {
-                            return (
-                              <div className="py-12 text-center text-slate-500 font-black uppercase tracking-widest text-[9px]">
-                                Серия не найдена
-                              </div>
-                            );
-                          }
-
-                          return filteredEpisodes.map((epNum) => {
-                            const isCurrentActive = (paramEpisode || "1") === epNum.toString();
-                            const isWatched = watchedEpisodes.includes(epNum.toString());
-                            const meta = getEpisodeMetadata(epNum, anime.title);
-                            
-                            // Interactive Premium Simulation is disabled to ensure smooth clicks to play
-                            const isPremiumLocked = false;
-
-                            return (
-                              <div
-                                key={epNum}
-                                id={`episode-btn-${epNum}`}
-                                onClick={() => {
-                                  if (isPremiumLocked) {
-                                    navigate("/premium");
-                                    return;
-                                  }
-                                  let epUrl = `/anime/${paramId}/episode/${epNum}`;
-                                  if (window.location.search) {
-                                    epUrl += window.location.search;
-                                  }
-                                  navigate(epUrl);
-                                }}
-                                className={`flex p-4 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer ${
-                                  isCurrentActive
-                                    ? "bg-[#8B5CF6]/10 border-[#8B5CF6]/70 shadow-lg shadow-[#8B5CF6]/5"
-                                    : "bg-black/30 border-white/5 hover:bg-black/50 hover:border-white/10"
-                                }`}
-                              >
-                                {/* Episode content details without big thumbnail cover image */}
-                                <div className="flex-1 flex flex-col justify-center min-w-0 py-1">
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
-                                    <h5 className={`text-sm sm:text-base font-black uppercase tracking-tight leading-normal group-hover:text-[#8B5CF6] transition-colors flex items-center gap-2 ${isCurrentActive ? "text-[#8B5CF6]" : "text-white"}`}>
-                                      <span className="pb-0.5">Серия {epNum}</span>
-                                      {isWatched && (
-                                        <span className="px-1.5 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[8px] font-black uppercase tracking-wider rounded shrink-0">
-                                          Просмотрено
-                                        </span>
-                                      )}
-                                    </h5>
-                                    <div className="flex items-center gap-2 text-[9px] font-black uppercase text-slate-500 tracking-widest shrink-0">
-                                      <span>Дубляж</span>
-                                      <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                      <span>{selectedTranslation?.title || "Мега Фан"}</span>
-                                      {meta.duration && (
-                                        <>
-                                          <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                          <span className="text-slate-400">{meta.duration}</span>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {meta.description && (
-                                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed font-semibold mt-1.5">
-                                      {meta.description}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
+              <div className="flex flex-col gap-6">
+                {/* Player Switcher Bar (Tabs) */}
+                {players.length > 0 && (
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full custom-scrollbar">
+                      {players.map((p) => {
+                        const isSelected = selectedPlayer === p.name;
+                        return (
+                          <button
+                            key={p.name}
+                            id={`select-player-${p.name.replace(/\s+/g, '-').toLowerCase()}`}
+                            onClick={() => setSelectedPlayer(p.name)}
+                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap border ${
+                              isSelected
+                                ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
+                                : "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-white/10"
+                            }`}
+                          >
+                            {p.name}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                <div className="w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
+                {/* Primary Video Player Screen */}
+                <div className="w-full aspect-video bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
                   {isBlocked ? (
                     <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center text-center p-6">
                       <Shield className="w-16 h-16 text-red-500 mb-4" />
@@ -1903,8 +1808,14 @@ const Details: React.FC = () => {
                                 audioTrackNames={audioTrackNames}
                                 animeId={id}
                                 episodeNumber={paramEpisode || "1"}
+                                skips={currentSkips}
                                 onNextEpisode={handleNextEp}
                                 onPrevEpisode={handlePrevEp}
+                                onPlayerError={() => {
+                                  if (players.some((p) => p.name === "Kodik")) {
+                                    setSelectedPlayer("Kodik");
+                                  }
+                                }}
                               />
                             );
                           }
@@ -1959,6 +1870,187 @@ const Details: React.FC = () => {
                     </>
                   )}
                 </div>
+
+                {/* Voice Translations & Clean Episode List Widget */}
+                {anime && (
+                  <div className="bg-[#1c1d21]/60 border border-white/5 p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] flex flex-col gap-6 font-sans shadow-xl backdrop-blur-sm">
+                    {/* Controls Row: Voice/Translation selector & Search input */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+                      {/* Collapsible Dropdown for Voice Translations */}
+                      <div className="relative flex-1 max-w-md">
+                        <button
+                          onClick={() => setIsNotifierOpen(!isNotifierOpen)}
+                          className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-primary border border-white/5 py-3 px-4 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            <Crown className="w-4 h-4 text-primary fill-current shrink-0" />
+                            <span className="text-xs sm:text-sm font-black uppercase tracking-wider truncate">
+                              {selectedTranslation?.title || (translations[0]?.title) || "Дубляж KamiAnime"}
+                            </span>
+                            {/* Selected Quality & Episodes Tag */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                (selectedTranslation?.quality_label || "4K") === "4K"
+                                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
+                                  : "bg-white/10 text-slate-300 border border-white/10"
+                              }`}>
+                                {selectedTranslation?.quality_label || "4K"}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-semibold">
+                                {((selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || (anime.episodesAired || anime.episodes || 1))} эп.
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-300 ${isNotifierOpen ? "rotate-180" : ""}`} />
+                        </button>
+
+                        {isNotifierOpen && (
+                          <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c1d21] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                            <div className="p-1.5 space-y-1 max-h-56 overflow-y-auto custom-scrollbar">
+                              {translations.map((t, index) => {
+                                const isSelected = selectedTranslation
+                                  ? t.title === selectedTranslation.title
+                                  : index === 0;
+                                const qualityLabel = t.quality_label || "4K";
+                                const epsCount = t.last_episode || t.episodes_count || anime.episodesAired || anime.episodes || 1;
+
+                                return (
+                                  <button
+                                    key={t.id || index}
+                                    onClick={() => {
+                                      setSelectedTranslation(t);
+                                      setIsNotifierOpen(false);
+                                    }}
+                                    className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-between gap-2 ${
+                                      isSelected
+                                        ? "bg-white/10 text-primary"
+                                        : "text-slate-300 hover:text-white hover:bg-white/5"
+                                    }`}
+                                  >
+                                    <span className="truncate pr-2">{t.title}</span>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                                        qualityLabel === "4K"
+                                          ? "bg-purple-500/25 text-purple-300 border border-purple-500/40"
+                                          : "bg-white/10 text-slate-400 border border-white/10"
+                                      }`}>
+                                        {qualityLabel}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-medium lowercase">
+                                        {epsCount} эп.
+                                      </span>
+                                      {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Episode Search Filter */}
+                      {(() => {
+                        const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
+                        if (totalEps > 1) {
+                          return (
+                            <div className="relative flex items-center">
+                              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
+                              <input
+                                type="text"
+                                placeholder="Быстрый поиск серии..."
+                                className="pl-9 pr-4 py-2.5 bg-black/40 border border-white/10 hover:border-primary/40 focus:border-primary rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-full sm:w-52"
+                                value={epSearchVal}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEpSearchVal(val);
+                                  const sanitized = val.replace(/\D/g, "");
+                                  if (sanitized) {
+                                    const epNum = parseInt(sanitized, 10);
+                                    if (epNum >= 1 && epNum <= totalEps) {
+                                      let newUrl = `/anime/${paramId}/episode/${epNum}`;
+                                      if (window.location.search) {
+                                        newUrl += window.location.search;
+                                      }
+                                      navigate(newUrl);
+                                    }
+                                  }
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+
+                    {/* EPISODES LIST: Compact format "[Number] - [Title]" with truncation */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-slate-400">
+                        <span>Список серий ({(selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1})</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                        {(() => {
+                          const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
+                          const filteredEpisodes = Array.from({ length: totalEps }, (_, index) => index + 1)
+                            .filter(epNum => {
+                              if (!epSearchVal) return true;
+                              return epNum.toString() === epSearchVal.trim();
+                            });
+
+                          if (filteredEpisodes.length === 0) {
+                            return (
+                              <div className="col-span-full py-8 text-center text-slate-500 font-bold uppercase tracking-wider text-xs">
+                                Серия не найдена
+                              </div>
+                            );
+                          }
+
+                          return filteredEpisodes.map((epNum) => {
+                            const isCurrentActive = (paramEpisode || "1") === epNum.toString();
+                            const isWatched = watchedEpisodes.includes(epNum.toString());
+                            const meta = getEpisodeMetadata(epNum, anime.title);
+
+                            return (
+                              <button
+                                key={epNum}
+                                id={`episode-btn-${epNum}`}
+                                onClick={() => {
+                                  let epUrl = `/anime/${paramId}/episode/${epNum}`;
+                                  if (window.location.search) {
+                                    epUrl += window.location.search;
+                                  }
+                                  navigate(epUrl);
+                                }}
+                                title={`${epNum} - ${meta.title}`}
+                                className={`flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border text-left transition-all cursor-pointer group ${
+                                  isCurrentActive
+                                    ? "bg-primary/20 border-primary text-white shadow-md shadow-primary/10"
+                                    : "bg-black/30 border-white/5 hover:bg-white/5 hover:border-white/15 text-slate-300"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className={`text-xs font-black shrink-0 ${isCurrentActive ? "text-primary" : "text-slate-400 group-hover:text-white"}`}>
+                                    {epNum} -
+                                  </span>
+                                  <span className={`text-xs truncate ${isCurrentActive ? "text-white font-bold" : "text-slate-300 font-medium group-hover:text-white"}`}>
+                                    {meta.title}
+                                  </span>
+                                </div>
+                                {isWatched && (
+                                  <span className="px-1.5 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[9px] font-black rounded shrink-0">
+                                    ✓
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 

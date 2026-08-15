@@ -353,32 +353,46 @@ app.get('/api/balancer', async (c) => {
               }
 
               // Group and collect unique translations from Kodik results
-              const translationsMap = new Map();
+              const translationsMap = new Map<string, any>();
               kodikData.results.forEach((res: any) => {
                 if (res.translation && res.translation.title) {
                   const tName = res.translation.title;
                   const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+                  const qualStr = (res.quality || '').toLowerCase();
+                  const is1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('bd') || qualStr.includes('uhd') || qualStr.includes('bluray');
+                  const quality_val = is1080 ? 1080 : 720;
+                  const quality_label = is1080 ? '4K' : '720p';
+
+                  let iframeWithApi = iframe;
+                  try {
+                    const url = new URL(iframe);
+                    url.searchParams.set('api', '1');
+                    iframeWithApi = url.toString();
+                  } catch (_) {}
+
                   if (!translationsMap.has(tName)) {
-                    try {
-                      const url = new URL(iframe);
-                      url.searchParams.set('api', '1');
-                      translationsMap.set(tName, {
-                        id: res.translation.id,
-                        title: tName,
-                        type: res.translation.type,
-                        iframe: url.toString(),
-                        episodes_count: res.episodes_count || 1,
-                        last_episode: res.last_episode || 1
-                      });
-                    } catch (_) {
-                      translationsMap.set(tName, {
-                        id: res.translation.id,
-                        title: tName,
-                        type: res.translation.type,
-                        iframe: iframe,
-                        episodes_count: res.episodes_count || 1,
-                        last_episode: res.last_episode || 1
-                      });
+                    translationsMap.set(tName, {
+                      id: res.translation.id,
+                      title: tName,
+                      type: res.translation.type || 'voice',
+                      iframe: iframeWithApi,
+                      episodes_count: res.episodes_count || res.last_episode || 1,
+                      last_episode: res.last_episode || res.episodes_count || 1,
+                      quality_val,
+                      quality_label,
+                      provider: 'Kodik'
+                    });
+                  } else {
+                    const existing = translationsMap.get(tName);
+                    // Upgrade quality or episode count if higher
+                    if (quality_val > (existing.quality_val || 0)) {
+                      existing.quality_val = quality_val;
+                      existing.quality_label = quality_label;
+                      existing.iframe = iframeWithApi;
+                    }
+                    if ((res.episodes_count || 0) > (existing.episodes_count || 0)) {
+                      existing.episodes_count = res.episodes_count;
+                      existing.last_episode = res.last_episode || res.episodes_count;
                     }
                   }
                 }
@@ -398,7 +412,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (err: any) {
-          console.warn(`[KODIK] Failed with token ${token}:`, err.message);
+          addLog(`Kodik token attempt failed`, { token, error: err.message });
         }
       }
     } catch (e: any) {
@@ -481,7 +495,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[COLLAPS] failed:', e.message);
+          addLog('Collaps fetch skipped', { error: e.message });
         }
       })());
     }
@@ -491,7 +505,7 @@ app.get('/api/balancer', async (c) => {
       jobs.push((async () => {
         try {
           const url = `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 3000);
+          const res = await fetchWithTimeout(url, {}, 2500);
           if (res.ok) {
             const d = await res.json() as any;
             if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
@@ -500,7 +514,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[BHCESH] failed:', e.message);
+          addLog('Bhcesh fetch failed', { error: e.message });
         }
       })());
     }
@@ -510,7 +524,7 @@ app.get('/api/balancer', async (c) => {
       jobs.push((async () => {
         try {
           const url = `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 3000);
+          const res = await fetchWithTimeout(url, {}, 2500);
           if (res.ok) {
             const d = await res.json() as any;
             if (d.results && d.results.length > 0) {
@@ -519,17 +533,17 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[BAZON] failed:', e.message);
+          addLog('Bazon fetch failed', { error: e.message });
         }
       })());
     }
 
-    // 6. VideoCDN
+    // 6. VideoCDN (Optional Balancer)
     if (kinopoisk_id) {
       jobs.push((async () => {
         try {
           const url = `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 3000);
+          const res = await fetchWithTimeout(url, {}, 2000);
           if (res.ok) {
             const d = await res.json() as any;
             if (d.data && d.data.length > 0) {
@@ -538,17 +552,17 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[VIDEOCDN] failed:', e.message);
+          addLog('VideoCDN fetch skipped', { error: e.message });
         }
       })());
     }
 
-    // 7. HDVB
+    // 7. HDVB (Optional Balancer)
     if (kinopoisk_id) {
       jobs.push((async () => {
         try {
           const url = `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 3000);
+          const res = await fetchWithTimeout(url, {}, 2000);
           if (res.ok) {
             const d = await res.json() as any;
             if (Array.isArray(d) && d.length > 0) {
@@ -557,17 +571,17 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[HDVB] failed:', e.message);
+          addLog('HDVB fetch skipped', { error: e.message });
         }
       })());
     }
 
-    // 8. Iframe
+    // 8. Iframe.video (Optional Balancer)
     if (kinopoisk_id) {
       jobs.push((async () => {
         try {
           const url = `https://iframe.video/api/v2/search?kp=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 3000);
+          const res = await fetchWithTimeout(url, {}, 2000);
           if (res.ok) {
             const d = await res.json() as any;
             if (d.results && d.results.length > 0) {
@@ -580,7 +594,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[IFRAME.VIDEO] failed:', e.message);
+          addLog('Iframe.video fetch skipped', { error: e.message });
         }
       })());
     }
@@ -590,7 +604,7 @@ app.get('/api/balancer', async (c) => {
       jobs.push((async () => {
         try {
           const url = `https://pleer.video/${kinopoisk_id}.json`;
-          const res = await fetchWithTimeout(url, {}, 3000);
+          const res = await fetchWithTimeout(url, {}, 2000);
           if (res.ok) {
             const d = await res.json() as any;
             if (d.embeds && d.embeds.length > 0) {
@@ -599,7 +613,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[PLEER] failed:', e.message);
+          addLog('Pleer fetch skipped', { error: e.message });
         }
       })());
     }
@@ -1692,60 +1706,92 @@ app.get('/api/image/*', async (c) => {
   };
 
   try {
-    let response = await fetch(targetUrl, { headers });
+    let response: any = null;
+    try {
+      response = await fetch(targetUrl, { headers });
+    } catch (_) {}
     
-    // First fallback: desu.shikimori.one (often where images actually live now)
-    if (!response.ok) {
-      const desuUrl = `https://desu.shikimori.one/${imagePath}${c.req.url.includes('?') ? c.req.url.substring(c.req.url.indexOf('?')) : ''}`;
-      response = await fetch(desuUrl, { headers });
+    // First fallback: desu.shikimori.one
+    if (!response || !response.ok) {
+      try {
+        const desuUrl = `https://desu.shikimori.one/${imagePath}${c.req.url.includes('?') ? c.req.url.substring(c.req.url.indexOf('?')) : ''}`;
+        response = await fetch(desuUrl, { headers });
+      } catch (_) {}
     }
 
     // Second Fallback to Jikan API if Shikimori returns error (404, 403, etc.)
-    if (!response.ok) {
+    if (!response || !response.ok) {
       const animeIdMatch = imagePath.match(/\/(\d+)\.jpg$/);
       if (animeIdMatch) {
         const animeId = animeIdMatch[1];
-        console.log(`[DEBUG] Image error (${response.status}) on Shikimori for ID: ${animeId}, trying Jikan fallback`);
-        
         try {
           let imageUrl = jikanImageCache.get(animeId);
           
           if (!imageUrl) {
-            // Jikan API has rate limits (3 requests per second)
-            const jikanRes = await fetch(`https://api.jikan.moe/v4/anime/${animeId}`);
-            if (jikanRes.ok) {
-              const jikanData = await jikanRes.json() as any;
-              imageUrl = jikanData.data?.images?.jpg?.large_image_url || jikanData.data?.images?.jpg?.image_url;
-              if (imageUrl) {
-                jikanImageCache.set(animeId, imageUrl);
-              } else {
-                console.warn(`[DEBUG] Jikan found anime ${animeId} but no image URL`);
+            // First check Shikimori details API for current image path
+            try {
+              const shikiApiRes = await fetch(`https://shikimori.one/api/animes/${animeId}`, {
+                headers: { 'User-Agent': headers['User-Agent'] }
+              });
+              if (shikiApiRes.ok) {
+                const shikiData = await shikiApiRes.json() as any;
+                const origPath = shikiData.image?.original || shikiData.image?.preview;
+                if (origPath && !origPath.includes('missing_')) {
+                  imageUrl = origPath.startsWith('http') ? origPath : `https://shikimori.one${origPath}`;
+                }
               }
-            } else {
-              console.error(`[DEBUG] Jikan API error for ${animeId}: ${jikanRes.status}`);
+            } catch (_) {}
+
+            // If not found, try Jikan API
+            if (!imageUrl) {
+              try {
+                const jikanRes = await fetch(`https://api.jikan.moe/v4/anime/${animeId}`);
+                if (jikanRes.ok) {
+                  const jikanData = await jikanRes.json() as any;
+                  imageUrl = jikanData.data?.images?.jpg?.large_image_url || jikanData.data?.images?.jpg?.image_url;
+                }
+              } catch (_) {}
+            }
+
+            if (imageUrl) {
+              jikanImageCache.set(animeId, imageUrl);
             }
           }
 
           if (imageUrl) {
-            const fallbackRes = await fetch(imageUrl);
-            if (fallbackRes.ok) {
-              console.log(`[DEBUG] Jikan fallback SUCCESS for ID: ${animeId}`);
-              return new Response(fallbackRes.body, {
-                status: 200,
-                headers: {
-                  'Content-Type': fallbackRes.headers.get('content-type') || 'image/jpeg',
-                  'Cache-Control': 'public, max-age=2592000',
-                  'X-Image-Source': 'Jikan-Fallback'
-                }
-              });
-            } else {
-              console.error(`[DEBUG] Jikan image fetch failed for ${imageUrl}: ${fallbackRes.status}`);
-            }
+            try {
+              const fallbackRes = await fetch(imageUrl);
+              if (fallbackRes.ok) {
+                return new Response(fallbackRes.body, {
+                  status: 200,
+                  headers: {
+                    'Content-Type': fallbackRes.headers.get('content-type') || 'image/jpeg',
+                    'Cache-Control': 'public, max-age=2592000',
+                    'X-Image-Source': 'Jikan-Fallback'
+                  }
+                });
+              }
+            } catch (_) {}
           }
-        } catch (e) {
-          console.error('[DEBUG] Jikan fallback failed', e);
-        }
+        } catch (_) {}
       }
+
+      // If still not ok (e.g. 404), return a clean dark placeholder SVG so client never fails
+      const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420" viewBox="0 0 300 420" fill="none">
+        <rect width="300" height="420" fill="#141519"/>
+        <circle cx="150" cy="180" r="40" fill="#25262c"/>
+        <path d="M110 260C110 237.909 127.909 220 150 220C172.091 220 190 237.909 190 260V270H110V260Z" fill="#25262c"/>
+        <text x="150" y="315" text-anchor="middle" fill="#64748b" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600">KamiAnime</text>
+      </svg>`;
+
+      return new Response(placeholderSvg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'public, max-age=86400',
+          'X-Image-Source': 'Placeholder'
+        }
+      });
     }
     
     return new Response(response.body, {
@@ -2521,6 +2567,70 @@ app.get('/api/media/playlist', async (c) => {
         'Access-Control-Allow-Headers': '*'
       }
     });
+  }
+});
+
+app.get('/api/media/skips', async (c) => {
+  const urlParam = c.req.query('url');
+  if (!urlParam) {
+    return c.json({ skips: null });
+  }
+
+  try {
+    let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
+
+    const iframeRes = await fetch(iframeUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': 'https://shikimori.one/'
+      }
+    });
+    const html = await iframeRes.text();
+
+    const parseTime = (str: string) => {
+      const parts = str.split(':').map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parts[0] || 0;
+    };
+
+    let opening: [number, number] | null = null;
+    let ending: [number, number] | null = null;
+
+    const skipBtnMatch = html.match(/parseSkipButton\s*\(\s*["\x27]([^"\x27]+)["\x27]/i) ||
+                         html.match(/"skip_button"\s*:\s*"([^"]+)"/i);
+    if (skipBtnMatch) {
+      const raw = skipBtnMatch[1];
+      const parts = raw.split(',');
+      for (const part of parts) {
+        const match = part.trim().match(/^(?:\[([^\]]+)\])?\s*([0-9:]+)-([0-9:]+)$/i);
+        if (match) {
+          const type = (match[1] || '').toLowerCase();
+          const start = parseTime(match[2]);
+          const end = parseTime(match[3]);
+          if (type.includes('open') || type.includes('intro') || (!type && start < 300)) {
+            opening = [start, end];
+          } else if (type.includes('end') || type.includes('credit') || (!type && start >= 300)) {
+            ending = [start, end];
+          }
+        }
+      }
+    }
+
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    c.header('Access-Control-Allow-Headers', '*');
+    return c.json({
+      success: true,
+      skips: {
+        opening,
+        ending
+      }
+    });
+  } catch (err: any) {
+    c.header('Access-Control-Allow-Origin', '*');
+    return c.json({ skips: null, error: err.message });
   }
 });
 

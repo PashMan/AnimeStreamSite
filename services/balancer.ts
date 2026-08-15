@@ -8,10 +8,19 @@ export interface PlayerInfo {
 }
 
 export interface KodikTranslation {
-  id: number;
+  id: number | string;
   title: string;
   type: string;
   iframe: string;
+  quality_label?: '4K' | '720p' | string;
+  quality_val?: number;
+  episodes_count?: number;
+  last_episode?: number;
+  provider?: string;
+  skips?: {
+    opening?: [number, number];
+    ending?: [number, number];
+  };
 }
 
 export interface BalancerData {
@@ -54,14 +63,14 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
       // Filter out Anilibria
       playersList = playersList.filter(p => p.name !== 'Anilibria');
 
-      // Add custom player for native high quality 4K encodes OR any anime containing Kodik stream
+      // Add custom player for 1080p encodes OR any anime containing Kodik stream
       const hasKodik = playersList.some(p => p.name === 'Kodik' && p.iframe);
-      const isNative4K = shikimoriId === '32281' || shikimoriId === '50594' || shikimoriId === '62568' || shikimoriId === '38826' || shikimoriId === '16782';
+      const isNative1080 = shikimoriId === '32281' || shikimoriId === '50594' || shikimoriId === '62568' || shikimoriId === '38826' || shikimoriId === '16782';
 
-      if (isNative4K || hasKodik) {
-        if (!playersList.some(p => p.name === 'KamiPlayer (4K)')) {
+      if (isNative1080 || hasKodik) {
+        if (!playersList.some(p => p.name === 'KamiPlayer (1080p)')) {
           playersList.unshift({
-            name: 'KamiPlayer (4K)',
+            name: 'KamiPlayer (1080p)',
             iframe: null,
             isCustom: true
           });

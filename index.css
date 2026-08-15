@@ -261,3 +261,52 @@ a, button, .group {
   color: #fff !important;
 }
 
+/* Custom Artplayer KamiAnime Theme Styling */
+.art-video-player {
+  border-radius: 1.5rem !important;
+  overflow: hidden !important;
+  background-color: #0d0e12 !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.art-video-player .art-bottom {
+  padding: 0 16px 12px 16px !important;
+  background: linear-gradient(to top, rgba(7, 7, 9, 0.95), rgba(7, 7, 9, 0.4) 60%, transparent) !important;
+}
+
+.art-video-player .art-control-progress-inner {
+  background-color: #8B5CF6 !important;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.5) !important;
+}
+
+.art-video-player .art-control-progress-indicator {
+  background-color: #A855F7 !important;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.8) !important;
+}
+
+.art-video-player .art-control-volume-inner {
+  background-color: #8B5CF6 !important;
+}
+
+.art-video-player .art-notice {
+  background: rgba(18, 19, 24, 0.9) !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  border-radius: 12px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.art-video-player .art-contextmenus {
+  background: #121318 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.art-video-player .art-contextmenu-item:hover {
+  background: rgba(139, 92, 246, 0.15) !important;
+  color: #8B5CF6 !important;
+}
+
