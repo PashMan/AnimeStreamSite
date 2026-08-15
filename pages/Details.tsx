@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { runClientExtraction } from "../utils/clientDecoder";
+import { runClientExtraction, runClientCascadingExtraction } from "../utils/clientDecoder";
 import {
   useSearchParams,
   useParams,
@@ -173,22 +173,9 @@ const Details: React.FC = () => {
   const [showDecoderModal, setShowDecoderModal] = useState(false);
 
   const handleFetchDecoderLogs = async () => {
-    const activePlayerObj = players.find((p) => p.name === selectedPlayer && p.iframe);
+    const validPlayers = players.filter((p): p is { name: string; iframe: string; isCustom?: boolean } => typeof p.iframe === "string" && p.iframe.length > 0);
 
-    const hlsPlayerObj =
-      activePlayerObj ||
-      players.find((p) => p.name === "Alloha" && p.iframe) ||
-      players.find((p) => p.name === "Collaps" && p.iframe) ||
-      players.find((p) => p.name === "Kodik" && p.iframe);
-
-    const baseIframe =
-      hlsPlayerObj?.iframe ||
-      selectedTranslation?.iframe ||
-      translations[0]?.iframe ||
-      players.find((p) => p.iframe)?.iframe ||
-      "";
-
-    if (!baseIframe) {
+    if (validPlayers.length === 0) {
       setDecoderLogs(["⚠️ Плееры или iframe ссылки еще не загружены"]);
       setShowDecoderModal(true);
       return;
@@ -197,16 +184,7 @@ const Details: React.FC = () => {
     setIsDecoderLogsLoading(true);
     setShowDecoderModal(true);
     try {
-      let targetIframe = baseIframe;
-      if (paramEpisode) {
-        try {
-          const u = new URL(targetIframe.startsWith("//") ? `https:${targetIframe}` : targetIframe);
-          u.searchParams.set("episode", paramEpisode);
-          targetIframe = u.toString();
-        } catch (e) {}
-      }
-
-      const clientResult = await runClientExtraction(targetIframe);
+      const clientResult = await runClientCascadingExtraction(validPlayers, selectedPlayer, paramEpisode);
       setDecoderLogs(clientResult.logs || ["⚠️ Нет данных для отображения логов."]);
     } catch (err: any) {
       setDecoderLogs([`❌ Ошибка соединения: ${err.message}`]);

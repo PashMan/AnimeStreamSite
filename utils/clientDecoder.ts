@@ -151,13 +151,20 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
   // Attempt 2: Server Debug Proxy
   logs.push(`[4] Переход к серверному маршруту расшифровки и проксирования...`);
   try {
-    const serverRes = await fetch('/api/media/debug', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ url: absoluteUrl })
+    const debugUrl = `/api/media/debug?url=${encodeURIComponent(absoluteUrl)}`;
+    let serverRes = await fetch(debugUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
     });
+
+    if (!serverRes.ok || !(serverRes.headers.get('content-type') || '').includes('application/json')) {
+      // Fallback to POST if GET fails
+      serverRes = await fetch('/api/media/debug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ url: absoluteUrl })
+      });
+    }
 
     const contentType = serverRes.headers.get('content-type') || '';
     if (serverRes.ok && contentType.includes('application/json')) {
@@ -184,5 +191,88 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
     m3u8Url: null,
     logs,
     source: 'none'
+  };
+}
+
+export interface CascadingExtractionResult {
+  m3u8Url: string | null;
+  activePlayerName: string | null;
+  activeIframeUrl: string | null;
+  logs: string[];
+}
+
+// Cascading multi-balancer stream extractor: Alloha ➔ Collaps ➔ Kodik
+export async function runClientCascadingExtraction(
+  players: { name: string; iframe: string }[],
+  selectedPlayerName?: string,
+  paramEpisode?: string
+): Promise<CascadingExtractionResult> {
+  const aggregatedLogs: string[] = [];
+  aggregatedLogs.push(`[CASCADE] Запуск каскадного поиска HLS потока (Приоритет: Alloha ➔ Collaps ➔ Kodik)...`);
+
+  const priorityOrder = ['Alloha', 'Collaps', 'Kodik'];
+  const candidates: { name: string; iframe: string }[] = [];
+
+  // If user selected a specific non-4K/1080p generic player name, prioritize it first
+  if (selectedPlayerName && selectedPlayerName !== 'KamiPlayer (4K UHD)' && selectedPlayerName !== 'KamiPlayer (1080p)') {
+    const userSel = players.find(p => p.name === selectedPlayerName && p.iframe);
+    if (userSel) candidates.push(userSel);
+  }
+
+  // Add priority order: Alloha, Collaps, Kodik
+  for (const prio of priorityOrder) {
+    const found = players.find(p => p.name === prio && p.iframe);
+    if (found && !candidates.some(c => c.name === found.name)) {
+      candidates.push(found);
+    }
+  }
+
+  // Add any remaining players
+  for (const p of players) {
+    if (p.iframe && !candidates.some(c => c.name === p.name)) {
+      candidates.push(p);
+    }
+  }
+
+  if (candidates.length === 0) {
+    aggregatedLogs.push(`[CASCADE ⚠️] Нет доступных плееров с iframe ссылками.`);
+    return { m3u8Url: null, activePlayerName: null, activeIframeUrl: null, logs: aggregatedLogs };
+  }
+
+  for (const candidate of candidates) {
+    aggregatedLogs.push(`\n========================================`);
+    aggregatedLogs.push(`[CASCADE ➔] Проверка источника: ${candidate.name}`);
+
+    let targetIframe = candidate.iframe;
+    if (paramEpisode) {
+      try {
+        const u = new URL(targetIframe.startsWith('//') ? `https:${targetIframe}` : targetIframe);
+        u.searchParams.set('episode', paramEpisode);
+        targetIframe = u.toString();
+      } catch (_) {}
+    }
+
+    const res = await runClientExtraction(targetIframe);
+    aggregatedLogs.push(...res.logs);
+
+    if (res.m3u8Url) {
+      aggregatedLogs.push(`\n[CASCADE SUCCESS 🎉] Успех! Извлечен HLS поток из источника: ${candidate.name}`);
+      return {
+        m3u8Url: res.m3u8Url,
+        activePlayerName: candidate.name,
+        activeIframeUrl: targetIframe,
+        logs: aggregatedLogs
+      };
+    } else {
+      aggregatedLogs.push(`[CASCADE ⚠️] Источник ${candidate.name} не отдал открытый HLS поток. Переход к следующему источнику в цепочке...`);
+    }
+  }
+
+  aggregatedLogs.push(`\n[CASCADE ERR] Ни один из источников (${candidates.map(c => c.name).join(', ')}) не содержит доступный HLS поток.`);
+  return {
+    m3u8Url: null,
+    activePlayerName: null,
+    activeIframeUrl: null,
+    logs: aggregatedLogs
   };
 }

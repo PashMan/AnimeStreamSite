@@ -2339,10 +2339,12 @@ async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: strin
 
     const referersToTry = [
       `https://${host}/`,
-      'https://kinopoisk.ru/',
-      'https://shikimori.one/',
+      'https://alloha.tv/',
+      'https://alloha.net/',
       'https://apicollaps.cc/',
-      'https://alloha.tv/'
+      'https://stravers.live/',
+      'https://kinopoisk.ru/',
+      'https://shikimori.one/'
     ];
 
     let html = '';
