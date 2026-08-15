@@ -499,31 +499,41 @@ app.get('/api/balancer', async (c) => {
     jobs.push((async () => {
       const t0 = Date.now();
       try {
-        const aQueries = [
-          `https://api.anilibria.tv/v3/title/search?search=${encodeURIComponent(String(title))}`,
-          `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`
-        ];
+        const cleanTitles = [
+          title ? String(title) : '',
+          title && String(title).includes('/') ? String(title).split('/')[0].trim() : '',
+          title && String(title).includes('/') ? String(title).split('/')[1].trim() : '',
+          title ? String(title).replace(/[^\w\sа-яА-ЯёЁ]/gi, ' ').replace(/\s+/g, ' ').trim() : ''
+        ].filter(Boolean);
+
+        const aQueries: { url: string; q: string }[] = [];
+        if (shikimori_id) {
+          aQueries.push({ url: `https://api.anilibria.tv/v3/title/get?shikimori=${shikimori_id}`, q: `shikimori=${shikimori_id}` });
+          aQueries.push({ url: `https://api.anilibria.top/v3/title/get?shikimori=${shikimori_id}`, q: `shikimori=${shikimori_id}` });
+          aQueries.push({ url: `https://anilibria.top/api/v1/app/titles/shikimori/${shikimori_id}`, q: `shikimori=${shikimori_id}` });
+        }
+        for (const ct of cleanTitles) {
+          aQueries.push({ url: `https://api.anilibria.tv/v3/title/search?search=${encodeURIComponent(ct)}`, q: `search=${ct}` });
+          aQueries.push({ url: `https://api.anilibria.top/v3/title/search?search=${encodeURIComponent(ct)}`, q: `search=${ct}` });
+          aQueries.push({ url: `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(ct)}`, q: `search=${ct}` });
+        }
+
         let found = false;
         let lastError = '';
 
-        for (const url of aQueries) {
+        for (const item of aQueries) {
           try {
-            const res = await fetchWithTimeout(url, {}, 3000);
+            const res = await fetchWithTimeout(item.url, {}, 3000);
             if (res.ok) {
               const d = await res.json() as any;
-              const list = d.list || d;
-              if (Array.isArray(list) && list.length > 0) {
-                let bestMatch = list[0];
-                if (year) {
-                  const ym = list.find((r: any) => (r.year || r.season?.year) === parseInt(String(year)));
-                  if (ym) bestMatch = ym;
-                }
-                const relId = bestMatch.id || bestMatch.code;
+              const rel = d.id ? d : d.release || (d.list && d.list[0]) || (Array.isArray(d) ? d[0] : null);
+              if (rel && (rel.id || rel.code)) {
+                const relId = rel.id || rel.code;
                 anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${relId}`;
                 ids.anilibria_id = typeof relId === 'number' ? relId : null;
 
                 // Add AniLibria official voiceover directly into translations list!
-                const epCount = bestMatch.player?.episodes?.last || (bestMatch.player?.list ? Object.keys(bestMatch.player.list).length : 1);
+                const epCount = rel.player?.episodes?.last || (rel.player?.list ? Object.keys(rel.player.list).length : 1);
                 if (!kodik_translations.some(t => t.title.toLowerCase().includes('anilibria') || t.title.toLowerCase().includes('анилибрия'))) {
                   kodik_translations.unshift({
                     id: `anilibria_${relId}`,
@@ -542,7 +552,7 @@ app.get('/api/balancer', async (c) => {
                   provider: 'AniLibria',
                   status: 'found',
                   details: `Успешно: найдено официальное аниме-издание AniLibria (${epCount} эп., 1080p FHD)`,
-                  queryUsed: `search=${title}`,
+                  queryUsed: item.q,
                   timeMs: Date.now() - t0,
                   httpStatus: 200,
                   quality: '1080p (4K AI)',
@@ -566,8 +576,8 @@ app.get('/api/balancer', async (c) => {
           diagnostics.push({
             provider: 'AniLibria',
             status: lastError.includes('не найден') ? 'not_found' : lastError.includes('Таймаут') ? 'timeout' : 'error',
-            details: lastError || 'Тайтл не найден в AniLibria',
-            queryUsed: `search=${title}`,
+            details: lastError || 'Тайтл не озвучивался AniLibria',
+            queryUsed: shikimori_id ? `shikimori=${shikimori_id}` : `search=${title}`,
             timeMs: Date.now() - t0
           });
         }

@@ -188,41 +188,38 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
     });
   }
 
-  // 2. AniLibria (Direct from browser)
+  // 2. AniLibria (Direct from browser with Shikimori ID & Title resolution)
   const t0Anilibria = Date.now();
   let anilibriaFound = false;
-  if (title) {
-    const cleanTitles = [
-      title,
-      title.split('/')[0].trim(),
-      title.includes('/') ? title.split('/')[1].trim() : ''
-    ].filter(Boolean);
 
-    for (const t of cleanTitles) {
+  // Step 2A: Direct Shikimori ID query to AniLibria
+  if (shikimoriId) {
+    const anilibriaShikiUrls = [
+      `https://api.anilibria.tv/v3/title/get?shikimori=${shikimoriId}`,
+      `https://api.anilibria.top/v3/title/get?shikimori=${shikimoriId}`,
+      `https://anilibria.top/api/v1/app/titles/shikimori/${shikimoriId}`
+    ];
+
+    for (const rawUrl of anilibriaShikiUrls) {
       if (anilibriaFound) break;
-      const anilibriaMirrors = [
-        `https://api.anilibria.tv/v3/title/search?search=${encodeURIComponent(t)}`,
-        `https://api.anilibria.top/v3/title/search?search=${encodeURIComponent(t)}`,
-        `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(t)}`
+      const fetchAttempts = [
+        () => fetch(rawUrl),
+        () => fetch(`https://corsproxy.io/?${encodeURIComponent(rawUrl)}`),
+        () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`)
       ];
 
-      for (const url of anilibriaMirrors) {
+      for (const doFetch of fetchAttempts) {
         try {
-          const res = await fetch(url);
+          const res = await doFetch();
           if (res.ok) {
             const d = await res.json();
-            const list = d.list || d;
-            if (Array.isArray(list) && list.length > 0) {
-              let best = list[0];
-              if (year) {
-                const ym = list.find((r: any) => (r.year || r.season?.year) === parseInt(String(year)));
-                if (ym) best = ym;
-              }
-              const relId = best.id || best.code;
+            const rel = d.id ? d : d.release || (d.list && d.list[0]) || null;
+            if (rel && (rel.id || rel.code)) {
+              const relId = rel.id || rel.code;
               anilibriaIframe = `https://www.anilibria.tv/public/iframe.php?id=${relId}`;
               ids.anilibria_id = typeof relId === 'number' ? relId : null;
 
-              const epCount = best.player?.episodes?.last || (best.player?.list ? Object.keys(best.player.list).length : 1);
+              const epCount = rel.player?.episodes?.last || (rel.player?.list ? Object.keys(rel.player.list).length : 1);
               if (!translationsMap.has('AniLibria (Оригинал + Дубляж)')) {
                 translationsMap.set('AniLibria (Оригинал + Дубляж)', {
                   id: `anilibria_${relId}`,
@@ -242,7 +239,7 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
                 provider: 'AniLibria',
                 status: 'found',
                 details: `Успешно: найдено официальное издание AniLibria (${epCount} эп., 1080p FHD)`,
-                queryUsed: `search=${t}`,
+                queryUsed: `shikimori=${shikimoriId}`,
                 timeMs: Date.now() - t0Anilibria,
                 httpStatus: 200,
                 quality: '1080p (4K AI)',
@@ -257,12 +254,89 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
     }
   }
 
+  // Step 2B: Search by title variations if not found by Shikimori ID
+  if (!anilibriaFound && title) {
+    const cleanTitles = [
+      title,
+      title.split('/')[0].trim(),
+      title.includes('/') ? title.split('/')[1].trim() : '',
+      title.replace(/[^\w\sа-яА-ЯёЁ]/gi, ' ').replace(/\s+/g, ' ').trim()
+    ].filter(Boolean);
+
+    for (const t of cleanTitles) {
+      if (anilibriaFound) break;
+      const anilibriaMirrors = [
+        `https://api.anilibria.tv/v3/title/search?search=${encodeURIComponent(t)}`,
+        `https://api.anilibria.top/v3/title/search?search=${encodeURIComponent(t)}`,
+        `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(t)}`
+      ];
+
+      for (const url of anilibriaMirrors) {
+        if (anilibriaFound) break;
+        const fetchAttempts = [
+          () => fetch(url),
+          () => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`),
+          () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`)
+        ];
+
+        for (const doFetch of fetchAttempts) {
+          try {
+            const res = await doFetch();
+            if (res.ok) {
+              const d = await res.json();
+              const list = d.list || d;
+              if (Array.isArray(list) && list.length > 0) {
+                let best = list[0];
+                if (year) {
+                  const ym = list.find((r: any) => (r.year || r.season?.year) === parseInt(String(year)));
+                  if (ym) best = ym;
+                }
+                const relId = best.id || best.code;
+                anilibriaIframe = `https://www.anilibria.tv/public/iframe.php?id=${relId}`;
+                ids.anilibria_id = typeof relId === 'number' ? relId : null;
+
+                const epCount = best.player?.episodes?.last || (best.player?.list ? Object.keys(best.player.list).length : 1);
+                if (!translationsMap.has('AniLibria (Оригинал + Дубляж)')) {
+                  translationsMap.set('AniLibria (Оригинал + Дубляж)', {
+                    id: `anilibria_${relId}`,
+                    title: 'AniLibria (Оригинал + Дубляж)',
+                    type: 'voice',
+                    iframe: anilibriaIframe,
+                    episodes_count: epCount,
+                    last_episode: epCount,
+                    quality_val: 1080,
+                    quality_label: '4K',
+                    provider: 'AniLibria'
+                  });
+                }
+
+                anilibriaFound = true;
+                diagnostics.push({
+                  provider: 'AniLibria',
+                  status: 'found',
+                  details: `Успешно: найдено официальное издание AniLibria (${epCount} эп., 1080p FHD)`,
+                  queryUsed: `search=${t}`,
+                  timeMs: Date.now() - t0Anilibria,
+                  httpStatus: 200,
+                  quality: '1080p (4K AI)',
+                  foundIframe: anilibriaIframe,
+                  itemsCount: epCount
+                });
+                break;
+              }
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
   if (!anilibriaFound) {
     diagnostics.push({
       provider: 'AniLibria',
       status: 'not_found',
-      details: 'Тайтл не найден в каталоге релизов AniLibria',
-      queryUsed: `search=${title}`,
+      details: 'Тайтл не озвучивался командой AniLibria',
+      queryUsed: shikimoriId ? `shikimori=${shikimoriId}` : `search=${title}`,
       timeMs: Date.now() - t0Anilibria
     });
   }

@@ -835,7 +835,7 @@ const Details: React.FC = () => {
         setIsPlayersLoading(true);
         setPlayersError(null);
         try {
-          const title = anime.originalName || anime.title;
+          const title = anime.russian || anime.title || anime.name || anime.originalName;
           const year = anime.year || 0;
 
           const { fetchPlayersClientSide } =
