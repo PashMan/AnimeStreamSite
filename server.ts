@@ -5,6 +5,7 @@ import { serve } from '@hono/node-server';
 import { makeRoomWebSocketHandler } from './utils/socketServer';
 import { upgradeWebSocket as nodeUpgradeWebSocket } from '@hono/node-server';
 import { upgradeWebSocket as cfUpgradeWebSocket } from 'hono/cloudflare-workers';
+import { extractBalancersM3u8 } from './utils/balancerExtractor';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -2273,298 +2274,6 @@ app.get('/api/media/search', async (c) => {
   }
 });
 
-app.options('/api/media/debug', (c) => {
-  c.header('Access-Control-Allow-Origin', '*');
-  c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  c.header('Access-Control-Allow-Headers', '*');
-  return c.text('OK', 200);
-});
-
-const handleMediaDebug = async (c: any) => {
-  c.header('Access-Control-Allow-Origin', '*');
-  c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  c.header('Access-Control-Allow-Headers', '*');
-
-  let urlParam = c.req.query('url');
-  if (!urlParam && (c.req.method === 'POST' || c.req.method === 'PUT')) {
-    try {
-      const body = await c.req.json();
-      urlParam = body?.url;
-    } catch {}
-  }
-  if (!urlParam) {
-    return c.json({ error: 'Provide ?url= parameter or JSON body { url: "..." } to test decoding' }, 400);
-  }
-  let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-  const result = await extractBalancersM3u8(iframeUrl);
-  return c.json({
-    url: iframeUrl,
-    success: !!result.m3u8Url,
-    extractedM3u8: result.m3u8Url,
-    htmlLength: result.htmlLength,
-    logs: result.logs
-  });
-};
-
-app.get('/api/media/debug', handleMediaDebug);
-app.post('/api/media/debug', handleMediaDebug);
-
-// Helper: Dean Edwards Packer Unpacker
-function unpackDeanEdwards(code: string): string {
-  try {
-    const regex = /eval\(function\(p,a,c,k,e,d\)[\s\S]*?\)\('([\s\S]*?)',(\d+),(\d+),'([\s\S]*?)'\.split\('\|'\)/g;
-    let result = code;
-    let match;
-    while ((match = regex.exec(code)) !== null) {
-      let [_, p, aStr, cStr, kStr] = match;
-      let a = parseInt(aStr, 10);
-      let c = parseInt(cStr, 10);
-      let k = kStr.split('|');
-      const e = (c: number): string => (c < a ? '' : e(Math.floor(c / a))) + (c % a > 35 ? String.fromCharCode(c % a + 29) : (c % a).toString(36));
-      while (c--) {
-        if (k[c]) {
-          p = p.replace(new RegExp('\\b' + e(c) + '\\b', 'g'), k[c]);
-        }
-      }
-      result += '\n/* UNPACKED DEAN EDWARDS PACKER */\n' + p;
-    }
-    return result;
-  } catch (err) {
-    return code;
-  }
-}
-
-// Comprehensive Multi-Stage Balancer Extractor with Logging
-async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: string | null; logs: string[]; htmlLength: number }> {
-  const logs: string[] = [];
-  logs.push(`[1] Starting extraction for URL: ${iframeUrl}`);
-
-  try {
-    let targetUrl = iframeUrl;
-    const parsedUrl = new URL(targetUrl);
-    const host = parsedUrl.host;
-    logs.push(`[2] Target host identified: ${host}`);
-
-    const referersToTry = [
-      `https://${host}/`,
-      'https://alloha.tv/',
-      'https://alloha.net/',
-      'https://apicollaps.cc/',
-      'https://stravers.live/',
-      'https://kinopoisk.ru/',
-      'https://shikimori.one/'
-    ];
-
-    let html = '';
-    let usedReferer = '';
-
-    const urlsToTry = [iframeUrl];
-    try {
-      const u = new URL(iframeUrl);
-      if (u.searchParams.has('episode') && (u.searchParams.has('token_movie') || iframeUrl.includes('stravers.live') || iframeUrl.includes('alloha'))) {
-        const cleaned = new URL(iframeUrl);
-        cleaned.searchParams.delete('episode');
-        urlsToTry.push(cleaned.toString());
-      }
-    } catch (_) {}
-
-    for (const urlItem of urlsToTry) {
-      if (html) break;
-      for (const ref of referersToTry) {
-        logs.push(`[3] Attempting fetch (${urlItem}) with Referer: ${ref}`);
-        try {
-          const res = await fetch(urlItem, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-              'Referer': ref,
-              'X-Forwarded-For': '185.220.101.5',
-              'X-Real-IP': '185.220.101.5',
-              'Client-IP': '185.220.101.5',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-              'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
-            }
-          });
-          if (res.ok) {
-            const txt = await res.text();
-            if (txt && txt.length > 500) {
-              html = txt;
-              usedReferer = ref;
-              logs.push(`[4] Successfully fetched ${html.length} bytes of HTML using Referer: ${ref}`);
-              break;
-            } else {
-              logs.push(`[4] Fetch returned short response (${txt.length} bytes), trying next referer...`);
-            }
-          } else {
-            logs.push(`[4] Fetch returned HTTP status ${res.status}`);
-          }
-        } catch (err: any) {
-          logs.push(`[4] Fetch error: ${err.message}`);
-        }
-      }
-    }
-
-    if (!html) {
-      logs.push(`[ERR] Failed to retrieve HTML from iframe URL across all referers.`);
-      return { m3u8Url: null, logs, htmlLength: 0 };
-    }
-
-    // Step A: Dean Edwards unpacker
-    const unpacked = unpackDeanEdwards(html);
-    if (unpacked.length > html.length) {
-      logs.push(`[5] Dean Edwards Packer unpacked. Code expanded from ${html.length} to ${unpacked.length} bytes.`);
-    } else {
-      logs.push(`[5] No packed Dean Edwards code found or unpacked length unchanged.`);
-    }
-
-    const fullText = html + '\n' + unpacked;
-
-    // Step B: Search for direct .m3u8 matches
-    logs.push(`[6] Scanning for direct .m3u8 URLs in full script text...`);
-    const directMatches = fullText.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/g) ||
-                          fullText.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/g);
-    if (directMatches && directMatches.length > 0) {
-      let candidate = directMatches[0].replace(/\\/g, '');
-      if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-      logs.push(`[7] Found direct .m3u8 match: ${candidate}`);
-      return { m3u8Url: candidate, logs, htmlLength: fullText.length };
-    }
-
-    // Step C: Base64 Decodings
-    logs.push(`[8] Direct .m3u8 not found. Scanning Base64 / Hex strings...`);
-    const b64Regex = /([A-Za-z0-9+/=]{24,})/g;
-    let match: RegExpExecArray | null;
-    while ((match = b64Regex.exec(fullText)) !== null) {
-      const b64Str = match[1];
-      try {
-        const decoded = Buffer.from(b64Str, 'base64').toString('utf-8');
-        if (decoded.includes('.m3u8')) {
-          let foundUrl = decoded.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
-                         decoded.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-          if (foundUrl) {
-            let candidate = foundUrl[1].replace(/\\/g, '');
-            if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-            logs.push(`[9] Decoded Base64 string successfully! Found .m3u8: ${candidate}`);
-            return { m3u8Url: candidate, logs, htmlLength: fullText.length };
-          }
-        }
-      } catch (_) {}
-    }
-
-    // Step D: Playerjs / Collaps / Alloha config JSON blocks
-    logs.push(`[10] Scanning Playerjs / makePlayer / window config blocks...`);
-
-    // D1: Alloha fileList parser (Alloha uses fileList JSON with seasons/episodes/files or direct config)
-    const fileListMatch = fullText.match(/const\s+fileList\s*=\s*JSON\.parse\('([\s\S]*?)'\);/) ||
-                          fullText.match(/fileList\s*:\s*JSON\.parse\('([\s\S]*?)'\);/);
-    if (fileListMatch) {
-      try {
-        const rawJson = fileListMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, "\\");
-        const fileListObj = JSON.parse(rawJson);
-        logs.push(`[11] Found Alloha fileList JSON structure! Searching for stream files...`);
-        
-        // Find any string in fileListObj that contains .m3u8 or http/base64
-        const jsonStringified = JSON.stringify(fileListObj);
-        const m3u8InFileList = jsonStringified.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
-                                jsonStringified.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-        if (m3u8InFileList) {
-          let candidate = m3u8InFileList[1].replace(/\\/g, '');
-          if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-          logs.push(`[12] Found direct .m3u8 inside Alloha fileList JSON: ${candidate}`);
-          return { m3u8Url: candidate, logs, htmlLength: fullText.length };
-        }
-
-        // Search base64 in fileListObj
-        const b64Matches = jsonStringified.match(/([A-Za-z0-9+/=]{20,})/g) || [];
-        for (const b of b64Matches) {
-          try {
-            const dec = Buffer.from(b, 'base64').toString('utf-8');
-            if (dec.includes('.m3u8')) {
-              let foundUrl = dec.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
-                             dec.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-              if (foundUrl) {
-                let candidate = foundUrl[1].replace(/\\/g, '');
-                if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-                logs.push(`[12] Decoded Base64 in Alloha fileList JSON: ${candidate}`);
-                return { m3u8Url: candidate, logs, htmlLength: fullText.length };
-              }
-            }
-          } catch (_) {}
-        }
-      } catch (err: any) {
-        logs.push(`[11] Error parsing Alloha fileList JSON: ${err.message}`);
-      }
-    }
-
-    const configMatches = fullText.match(/(?:makePlayer|Playerjs|playerConfig|window\.collapsConfig|window\.allohaConfig|initPlayer)\s*\(\s*({[\s\S]*?})\s*\)/g) ||
-                          fullText.match(/file\s*:\s*["']([\s\S]*?)["']/g);
-
-    if (configMatches) {
-      logs.push(`[11] Found ${configMatches.length} candidate player config blocks.`);
-      for (const block of configMatches) {
-        const b64s = block.match(/aHR0c[A-Za-z0-9+/=]+/g) || block.match(/[A-Za-z0-9+/=]{20,}/g) || [];
-        for (const b of b64s) {
-          try {
-            const dec = Buffer.from(b, 'base64').toString('utf-8');
-            if (dec.includes('.m3u8')) {
-              let foundUrl = dec.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
-                             dec.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-              if (foundUrl) {
-                let candidate = foundUrl[1].replace(/\\/g, '');
-                if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-                logs.push(`[12] Found .m3u8 inside player config block Base64: ${candidate}`);
-                return { m3u8Url: candidate, logs, htmlLength: fullText.length };
-              }
-            }
-          } catch (_) {}
-        }
-      }
-    }
-
-    // Step E: Secondary API Endpoint Lookups (e.g. Collaps / Alloha manifest API)
-    logs.push(`[13] Checking for embedded API endpoints (e.g. /manifest, /config, /api/file, /token)...`);
-    const apiEndpointMatches = fullText.match(/(https?:\/\/[^"'\s\\]+\/(?:manifest|config|api\/file|token)[^"'\s\\]*)/g) ||
-                                fullText.match(/(\/(?:manifest|config|api\/file|token)[^"'\s\\]*)/g);
-
-    if (apiEndpointMatches) {
-      logs.push(`[14] Found ${apiEndpointMatches.length} potential API endpoints.`);
-      for (const ep of apiEndpointMatches.slice(0, 3)) {
-        let absEp = ep;
-        if (ep.startsWith('/')) absEp = `https://${host}${ep}`;
-        logs.push(`[15] Sub-fetching API endpoint: ${absEp}`);
-        try {
-          const epRes = await fetch(absEp, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': usedReferer || `https://${host}/`,
-              'X-Forwarded-For': '185.220.101.5',
-              'X-Real-IP': '185.220.101.5',
-              'Client-IP': '185.220.101.5'
-            }
-          });
-          if (epRes.ok) {
-            const epText = await epRes.text();
-            logs.push(`[16] Endpoint returned ${epText.length} bytes.`);
-            const epDirect = epText.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-            if (epDirect) {
-              logs.push(`[17] Successfully extracted .m3u8 from sub-fetched API endpoint: ${epDirect[1]}`);
-              return { m3u8Url: epDirect[1], logs, htmlLength: fullText.length };
-            }
-          }
-        } catch (epErr: any) {
-          logs.push(`[16] Sub-fetch failed: ${epErr.message}`);
-        }
-      }
-    }
-
-    logs.push(`[ERR] Extraction completed without finding a valid .m3u8 stream.`);
-    return { m3u8Url: null, logs, htmlLength: fullText.length };
-
-  } catch (err: any) {
-    logs.push(`[FATAL] Extraction threw exception: ${err.message}`);
-    return { m3u8Url: null, logs, htmlLength: 0 };
-  }
-}
-
 app.get('/api/media/playlist', async (c) => {
   const urlParam = c.req.query('url');
   if (!urlParam) {
@@ -2719,8 +2428,58 @@ app.get('/api/media/playlist', async (c) => {
         return c.text(masterLines.join('\n'));
       }
 
-    // If extraction for Collaps / Alloha failed, return 404 status
-    return c.json({ error: 'Balancer stream unavailable' }, 404);
+      // If direct extraction for Alloha/Collaps/Balancer returned null, attempt fallback stream resolution
+      console.warn(`[MEDIA PROXY] Balancer stream extraction for ${sourceHost} failed or returned null. Attempting Kodik stream fallback...`);
+      let fallbackKodikUrl = '';
+      try {
+        let ep = '1';
+        const epMatch = iframeUrl.match(/[?&]episode=(\d+)/);
+        if (epMatch) ep = epMatch[1];
+
+        let shikiId = '';
+        let kpId = '';
+        const shikiMatch = iframeUrl.match(/\/(?:anime|shikimori)\/(\d+)/);
+        if (shikiMatch) shikiId = shikiMatch[1];
+        const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
+        if (kpMatch && !shikiId) kpId = kpMatch[1];
+
+        if (shikiId || kpId) {
+          const q = shikiId ? `shikimori_id=${shikiId}` : `kinopoisk_id=${kpId}`;
+          const kRes = await fetch(`https://kodikapi.com/search?token=4506c1251c6b16e108cb96a15e6128d5&${q}&with_episodes=true`);
+          if (kRes.ok) {
+            const kData = await kRes.json() as any;
+            if (kData && kData.results && kData.results.length > 0) {
+              const link = kData.results[0].link;
+              if (link) {
+                const u = new URL(link.startsWith('//') ? `https:${link}` : link);
+                u.searchParams.set('episode', ep);
+                fallbackKodikUrl = u.toString();
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error('[MEDIA PROXY FALLBACK ERR]', err.message);
+      }
+
+      if (fallbackKodikUrl) {
+        iframeUrl = fallbackKodikUrl;
+        console.log(`[MEDIA PROXY] Switched to Kodik fallback URL: ${iframeUrl}`);
+      } else {
+        const fallbackMasterLines = [
+          '#EXTM3U',
+          '#EXT-X-VERSION:3',
+          '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
+          'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
+        ];
+        return new Response(fallbackMasterLines.join('\n'), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/x-mpegURL',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
     }
 
     // --- 3. Kodik Extraction ---

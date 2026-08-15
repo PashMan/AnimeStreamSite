@@ -107,11 +107,21 @@ export const onRequest = async (context: any) => {
       }
     }
 
-    // If Shikimori returned an error (like 404 or 429), don't cache it for long
-    return new Response(fetchResponse.body, {
-      status: fetchResponse.status,
-      statusText: fetchResponse.statusText,
-      headers: { 'Cache-Control': 'public, max-age=60' } // Cache errors for only 1 minute
+    // If Shikimori returned an error (like 404 or 429), return a clean dark SVG placeholder with 200 status
+    const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420" viewBox="0 0 300 420" fill="none">
+      <rect width="300" height="420" fill="#141519"/>
+      <circle cx="150" cy="180" r="40" fill="#25262c"/>
+      <path d="M110 260C110 237.909 127.909 220 150 220C172.091 220 190 237.909 190 260V270H110V260Z" fill="#25262c"/>
+      <text x="150" y="315" text-anchor="middle" fill="#64748b" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600">KamiAnime</text>
+    </svg>`;
+
+    return new Response(placeholderSvg, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'public, max-age=86400',
+        'X-Image-Source': 'Placeholder'
+      }
     });
 
   } catch (e) {

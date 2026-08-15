@@ -909,11 +909,9 @@ const Details: React.FC = () => {
               setSelectedTranslation(matchedTranslation || translationsList[0]);
             }
             setHasFetchedPlayers(true);
-            const customPlayer = playersList.find((p) => p.isCustom);
-            if (customPlayer) {
-              setSelectedPlayer(customPlayer.name);
-            } else if (playersList.length > 0) {
-              setSelectedPlayer(playersList[0].name);
+            const isSpecial4K = id === "32281" || id === "50594" || id === "62568" || id === "38826" || id === "16782";
+            if (isSpecial4K) {
+              setSelectedPlayer("KamiPlayer (4K UHD)");
             } else {
               setSelectedPlayer("KamiPlayer (1080p)");
             }
@@ -1838,37 +1836,6 @@ const Details: React.FC = () => {
                         </div>
                       ) : (translations.length > 0 || players.length > 0) ? (
                         (() => {
-                          const activePlayerObj = players.find((p) => p.name === selectedPlayer);
-                          if (
-                            selectedPlayer !== "KamiPlayer (4K UHD)" &&
-                            activePlayerObj &&
-                            activePlayerObj.iframe
-                          ) {
-                            let iframeUrl = activePlayerObj.iframe;
-                            if (!iframeUrl.startsWith("http") && !iframeUrl.startsWith("//")) {
-                              iframeUrl = `https:${iframeUrl}`;
-                            }
-                            try {
-                              const u = new URL(iframeUrl);
-                              if (paramEpisode) {
-                                u.searchParams.set("episode", paramEpisode);
-                                u.searchParams.set("season", "1");
-                              }
-                              iframeUrl = u.toString();
-                            } catch (_) {}
-
-                            return (
-                              <iframe
-                                src={iframeUrl}
-                                className="w-full h-full border-0"
-                                allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                                allowFullScreen
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-                                title={activePlayerObj.name}
-                              />
-                            );
-                          }
-
                           const isSuzume = id === "50594" || id === "62568";
                           const isWeathering = id === "38826";
                           const isGardenOfWords = id === "16782";
@@ -1986,9 +1953,6 @@ const Details: React.FC = () => {
                               onPrevEpisode={handlePrevEp}
                               showInspectorBelow={showStreamInspector}
                               is1080Source={is1080Translation}
-                              onPlayerError={() => {
-                                console.warn("[KamiPlayer] Stream playback error, attempting alternate source");
-                              }}
                             />
                           );
                         })()

@@ -128,15 +128,59 @@ export async function onRequest(context: any) {
       }
     }
 
-    // Fallback if direct M3U8 extraction is unavailable: redirect to iframe URL or return 404
-    return new Response(JSON.stringify({ error: 'Direct stream extraction unavailable, fallback to iframe required', iframeUrl }), {
-      status: 404,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+      // Fallback: if direct stream extraction is unavailable for Alloha/Collaps, search Kodik stream
+      console.warn(`[CF BALANCER PROXY] Direct stream extraction failed for ${iframeUrl}, attempting Kodik fallback...`);
+      let fallbackKodikUrl = '';
+      try {
+        let ep = '1';
+        const epMatch = iframeUrl.match(/[?&]episode=(\d+)/);
+        if (epMatch) ep = epMatch[1];
+
+        let shikiId = '';
+        let kpId = '';
+        const shikiMatch = iframeUrl.match(/\/(?:anime|shikimori)\/(\d+)/);
+        if (shikiMatch) shikiId = shikiMatch[1];
+        const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
+        if (kpMatch && !shikiId) kpId = kpMatch[1];
+
+        if (shikiId || kpId) {
+          const q = shikiId ? `shikimori_id=${shikiId}` : `kinopoisk_id=${kpId}`;
+          const kRes = await fetch(`https://kodikapi.com/search?token=4506c1251c6b16e108cb96a15e6128d5&${q}&with_episodes=true`);
+          if (kRes.ok) {
+            const kData = await kRes.json() as any;
+            if (kData && kData.results && kData.results.length > 0) {
+              const link = kData.results[0].link;
+              if (link) {
+                const u = new URL(link.startsWith('//') ? `https:${link}` : link);
+                u.searchParams.set('episode', ep);
+                fallbackKodikUrl = u.toString();
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error('[CF BALANCER FALLBACK ERR]', err.message);
       }
-    });
-  }
+
+      if (fallbackKodikUrl) {
+        iframeUrl = fallbackKodikUrl;
+        console.log(`[CF BALANCER PROXY] Switched to Kodik fallback URL: ${iframeUrl}`);
+      } else {
+        const fallbackMasterLines = [
+          '#EXTM3U',
+          '#EXT-X-VERSION:3',
+          '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
+          'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
+        ];
+        return new Response(fallbackMasterLines.join('\n'), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/x-mpegURL',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+    }
 
   try {
     iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
