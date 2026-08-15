@@ -172,6 +172,12 @@ export async function onRequest(context: any) {
           allohaQueries.push(`https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`);
         }
       }
+      if (title) {
+        for (const t of allohaTokens) {
+          allohaQueries.push(`https://api.alloha.tv/?token=${t}&name=${encodeURIComponent(String(title))}`);
+          allohaQueries.push(`https://api.apbugall.org/?token=${t}&name=${encodeURIComponent(String(title))}`);
+        }
+      }
 
       for (const queryUrl of allohaQueries) {
         try {
@@ -195,102 +201,145 @@ export async function onRequest(context: any) {
   })());
 
   // 3. Collaps
-  if (kinopoisk_id) {
-    jobs.push((async () => {
-      try {
-        const cUrl = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
-        const res = await fetchWithTimeout(cUrl, {}, 3000);
-        if (res.ok) {
-          const d = await res.json() as any;
-          if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
-            collaps_iframe = d.results[0].iframe_url;
+  jobs.push((async () => {
+    try {
+      const cQueries: string[] = [];
+      if (kinopoisk_id) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`);
+      if (imdb_id) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`);
+      if (title) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`);
+
+      for (const cUrl of cQueries) {
+        try {
+          const res = await fetchWithTimeout(cUrl, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+              collaps_iframe = d.results[0].iframe_url;
+              break;
+            }
           }
-        }
-      } catch (_) {}
-    })());
-  }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  })());
 
   // 4. Bhcesh
-  if (kinopoisk_id) {
-    jobs.push((async () => {
-      try {
-        const bUrl = `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
-        const res = await fetchWithTimeout(bUrl, {}, 2500);
-        if (res.ok) {
-          const d = await res.json() as any;
-          if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
-            bhcesh_iframe = d.results[0].iframe_url;
+  jobs.push((async () => {
+    try {
+      const bQueries: string[] = [];
+      if (kinopoisk_id) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`);
+      if (imdb_id) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`);
+      if (title) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`);
+
+      for (const bUrl of bQueries) {
+        try {
+          const res = await fetchWithTimeout(bUrl, {}, 2500);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+              bhcesh_iframe = d.results[0].iframe_url;
+              break;
+            }
           }
-        }
-      } catch (_) {}
-    })());
-  }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  })());
 
   // 5. Bazon
-  if (kinopoisk_id) {
-    jobs.push((async () => {
-      try {
-        const bUrl = `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`;
-        const res = await fetchWithTimeout(bUrl, {}, 2500);
-        if (res.ok) {
-          const d = await res.json() as any;
-          if (d.results && d.results.length > 0) {
-            bazon_iframe = d.results[0].link || d.results[0].iframe_url;
+  jobs.push((async () => {
+    try {
+      const bzQueries: string[] = [];
+      if (kinopoisk_id) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`);
+      if (imdb_id) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&imdb=${imdb_id}`);
+      if (title) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&title=${encodeURIComponent(String(title))}`);
+
+      for (const bUrl of bzQueries) {
+        try {
+          const res = await fetchWithTimeout(bUrl, {}, 2500);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0) {
+              bazon_iframe = d.results[0].link || d.results[0].iframe_url;
+              break;
+            }
           }
-        }
-      } catch (_) {}
-    })());
-  }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  })());
 
   // 6. VideoCDN
-  if (kinopoisk_id) {
-    jobs.push((async () => {
-      try {
-        const vUrl = `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`;
-        const res = await fetchWithTimeout(vUrl, {}, 2000);
-        if (res.ok) {
-          const d = await res.json() as any;
-          if (d.data && d.data.length > 0) {
-            videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
+  jobs.push((async () => {
+    try {
+      const vQueries: string[] = [];
+      if (kinopoisk_id) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`);
+      if (imdb_id) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&imdb_id=${imdb_id}`);
+      if (title) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&title=${encodeURIComponent(String(title))}`);
+
+      for (const vUrl of vQueries) {
+        try {
+          const res = await fetchWithTimeout(vUrl, {}, 2000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.data && d.data.length > 0) {
+              videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
+              break;
+            }
           }
-        }
-      } catch (_) {}
-    })());
-  }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  })());
 
   // 7. HDVB
-  if (kinopoisk_id) {
-    jobs.push((async () => {
-      try {
-        const hUrl = `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`;
-        const res = await fetchWithTimeout(hUrl, {}, 2000);
-        if (res.ok) {
-          const d = await res.json() as any;
-          if (Array.isArray(d) && d.length > 0) {
-            hdvb_iframe = d[0].iframe_url || d[0].iframe;
+  jobs.push((async () => {
+    try {
+      const hQueries: string[] = [];
+      if (kinopoisk_id) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`);
+      if (imdb_id) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_imdb=${imdb_id}`);
+      if (title) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&title=${encodeURIComponent(String(title))}`);
+
+      for (const hUrl of hQueries) {
+        try {
+          const res = await fetchWithTimeout(hUrl, {}, 2000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (Array.isArray(d) && d.length > 0) {
+              hdvb_iframe = d[0].iframe_url || d[0].iframe;
+              break;
+            }
           }
-        }
-      } catch (_) {}
-    })());
-  }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  })());
 
   // 8. Iframe.video
-  if (kinopoisk_id) {
-    jobs.push((async () => {
-      try {
-        const iUrl = `https://iframe.video/api/v2/search?kp=${kinopoisk_id}`;
-        const res = await fetchWithTimeout(iUrl, {}, 2000);
-        if (res.ok) {
-          const d = await res.json() as any;
-          if (d.results && d.results.length > 0) {
-            iframe_video_iframe = d.results[0].path || d.results[0].iframe;
-          } else if (d.results && d.results.path) {
-            iframe_video_iframe = d.results.path;
+  jobs.push((async () => {
+    try {
+      const iQueries: string[] = [];
+      if (kinopoisk_id) iQueries.push(`https://iframe.video/api/v2/search?kp=${kinopoisk_id}`);
+      if (imdb_id) iQueries.push(`https://iframe.video/api/v2/search?imdb=${imdb_id}`);
+      if (title) iQueries.push(`https://iframe.video/api/v2/search?title=${encodeURIComponent(String(title))}`);
+
+      for (const iUrl of iQueries) {
+        try {
+          const res = await fetchWithTimeout(iUrl, {}, 2000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0) {
+              iframe_video_iframe = d.results[0].path || d.results[0].iframe;
+              break;
+            } else if (d.results && d.results.path) {
+              iframe_video_iframe = d.results.path;
+              break;
+            }
           }
-        }
-      } catch (_) {}
-    })());
-  }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  })());
 
   // 9. Pleer.video
   if (kinopoisk_id) {
@@ -311,19 +360,29 @@ export async function onRequest(context: any) {
   // 10. Anilibria
   jobs.push((async () => {
     try {
-      const aUrl = `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`;
-      const anilibriaRes = await fetchWithTimeout(aUrl, {}, 3000);
-      if (anilibriaRes.ok) {
-        const anilibriaData = await anilibriaRes.json() as any;
-        if (anilibriaData && anilibriaData.length > 0) {
-          let bestMatch = anilibriaData[0];
-          if (year) {
-            const yearMatch = anilibriaData.find((r: any) => r.year === parseInt(String(year)));
-            if (yearMatch) bestMatch = yearMatch;
+      const aQueries = [
+        `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`,
+        `https://api.anilibria.tv/v3/title/search?search=${encodeURIComponent(String(title))}`
+      ];
+      for (const aUrl of aQueries) {
+        try {
+          const anilibriaRes = await fetchWithTimeout(aUrl, {}, 3000);
+          if (anilibriaRes.ok) {
+            const anilibriaData = await anilibriaRes.json() as any;
+            const list = anilibriaData.list || anilibriaData;
+            if (Array.isArray(list) && list.length > 0) {
+              let bestMatch = list[0];
+              if (year) {
+                const yearMatch = list.find((r: any) => (r.year || r.season?.year) === parseInt(String(year)));
+                if (yearMatch) bestMatch = yearMatch;
+              }
+              const relId = bestMatch.id || bestMatch.code;
+              anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${relId}`;
+              ids.anilibria_id = typeof relId === 'number' ? relId : null;
+              break;
+            }
           }
-          anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${bestMatch.id}`;
-          ids.anilibria_id = bestMatch.id;
-        }
+        } catch (_) {}
       }
     } catch (_) {}
   })());

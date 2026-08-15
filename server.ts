@@ -454,6 +454,12 @@ app.get('/api/balancer', async (c) => {
             allohaQueries.push(`https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`);
           }
         }
+        if (title) {
+          for (const t of allohaTokens) {
+            allohaQueries.push(`https://api.alloha.tv/?token=${t}&name=${encodeURIComponent(String(title))}`);
+            allohaQueries.push(`https://api.apbugall.org/?token=${t}&name=${encodeURIComponent(String(title))}`);
+          }
+        }
 
         for (const url of allohaQueries) {
           try {
@@ -482,122 +488,165 @@ app.get('/api/balancer', async (c) => {
     })());
 
     // 3. Collaps
-    if (kinopoisk_id) {
-      jobs.push((async () => {
-        try {
-          const url = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 3000);
-          if (res.ok) {
-            const d = await res.json() as any;
-            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
-              collaps_iframe = d.results[0].iframe_url;
-              addLog(`Collaps found: ${collaps_iframe}`);
+    jobs.push((async () => {
+      try {
+        const cQueries: string[] = [];
+        if (kinopoisk_id) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`);
+        if (imdb_id) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`);
+        if (title) cQueries.push(`https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`);
+
+        for (const url of cQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 3000);
+            if (res.ok) {
+              const d = await res.json() as any;
+              if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+                collaps_iframe = d.results[0].iframe_url;
+                addLog(`Collaps found: ${collaps_iframe}`);
+                break;
+              }
             }
-          }
-        } catch (e: any) {
-          addLog('Collaps fetch skipped', { error: e.message });
+          } catch (e: any) {}
         }
-      })());
-    }
+      } catch (e: any) {
+        addLog('Collaps fetch skipped', { error: e.message });
+      }
+    })());
 
     // 4. Bhcesh
-    if (kinopoisk_id) {
-      jobs.push((async () => {
-        try {
-          const url = `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 2500);
-          if (res.ok) {
-            const d = await res.json() as any;
-            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
-              bhcesh_iframe = d.results[0].iframe_url;
-              addLog(`Bhcesh found: ${bhcesh_iframe}`);
+    jobs.push((async () => {
+      try {
+        const bQueries: string[] = [];
+        if (kinopoisk_id) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`);
+        if (imdb_id) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`);
+        if (title) bQueries.push(`https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`);
+
+        for (const url of bQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 2500);
+            if (res.ok) {
+              const d = await res.json() as any;
+              if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+                bhcesh_iframe = d.results[0].iframe_url;
+                addLog(`Bhcesh found: ${bhcesh_iframe}`);
+                break;
+              }
             }
-          }
-        } catch (e: any) {
-          addLog('Bhcesh fetch failed', { error: e.message });
+          } catch (e: any) {}
         }
-      })());
-    }
+      } catch (e: any) {
+        addLog('Bhcesh fetch failed', { error: e.message });
+      }
+    })());
 
     // 5. Bazon
-    if (kinopoisk_id) {
-      jobs.push((async () => {
-        try {
-          const url = `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 2500);
-          if (res.ok) {
-            const d = await res.json() as any;
-            if (d.results && d.results.length > 0) {
-              bazon_iframe = d.results[0].link || d.results[0].iframe_url;
-              addLog(`Bazon found: ${bazon_iframe}`);
+    jobs.push((async () => {
+      try {
+        const bzQueries: string[] = [];
+        if (kinopoisk_id) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`);
+        if (imdb_id) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&imdb=${imdb_id}`);
+        if (title) bzQueries.push(`https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&title=${encodeURIComponent(String(title))}`);
+
+        for (const url of bzQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 2500);
+            if (res.ok) {
+              const d = await res.json() as any;
+              if (d.results && d.results.length > 0) {
+                bazon_iframe = d.results[0].link || d.results[0].iframe_url;
+                addLog(`Bazon found: ${bazon_iframe}`);
+                break;
+              }
             }
-          }
-        } catch (e: any) {
-          addLog('Bazon fetch failed', { error: e.message });
+          } catch (e: any) {}
         }
-      })());
-    }
+      } catch (e: any) {
+        addLog('Bazon fetch failed', { error: e.message });
+      }
+    })());
 
     // 6. VideoCDN (Optional Balancer)
-    if (kinopoisk_id) {
-      jobs.push((async () => {
-        try {
-          const url = `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 2000);
-          if (res.ok) {
-            const d = await res.json() as any;
-            if (d.data && d.data.length > 0) {
-              videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
-              addLog(`VideoCDN found: ${videocdn_iframe}`);
+    jobs.push((async () => {
+      try {
+        const vQueries: string[] = [];
+        if (kinopoisk_id) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`);
+        if (imdb_id) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&imdb_id=${imdb_id}`);
+        if (title) vQueries.push(`https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&title=${encodeURIComponent(String(title))}`);
+
+        for (const url of vQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 2000);
+            if (res.ok) {
+              const d = await res.json() as any;
+              if (d.data && d.data.length > 0) {
+                videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
+                addLog(`VideoCDN found: ${videocdn_iframe}`);
+                break;
+              }
             }
-          }
-        } catch (e: any) {
-          addLog('VideoCDN fetch skipped', { error: e.message });
+          } catch (e: any) {}
         }
-      })());
-    }
+      } catch (e: any) {
+        addLog('VideoCDN fetch skipped', { error: e.message });
+      }
+    })());
 
     // 7. HDVB (Optional Balancer)
-    if (kinopoisk_id) {
-      jobs.push((async () => {
-        try {
-          const url = `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 2000);
-          if (res.ok) {
-            const d = await res.json() as any;
-            if (Array.isArray(d) && d.length > 0) {
-              hdvb_iframe = d[0].iframe_url || d[0].iframe;
-              addLog(`HDVB found: ${hdvb_iframe}`);
+    jobs.push((async () => {
+      try {
+        const hQueries: string[] = [];
+        if (kinopoisk_id) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`);
+        if (imdb_id) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_imdb=${imdb_id}`);
+        if (title) hQueries.push(`https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&title=${encodeURIComponent(String(title))}`);
+
+        for (const url of hQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 2000);
+            if (res.ok) {
+              const d = await res.json() as any;
+              if (Array.isArray(d) && d.length > 0) {
+                hdvb_iframe = d[0].iframe_url || d[0].iframe;
+                addLog(`HDVB found: ${hdvb_iframe}`);
+                break;
+              }
             }
-          }
-        } catch (e: any) {
-          addLog('HDVB fetch skipped', { error: e.message });
+          } catch (e: any) {}
         }
-      })());
-    }
+      } catch (e: any) {
+        addLog('HDVB fetch skipped', { error: e.message });
+      }
+    })());
 
     // 8. Iframe.video (Optional Balancer)
-    if (kinopoisk_id) {
-      jobs.push((async () => {
-        try {
-          const url = `https://iframe.video/api/v2/search?kp=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 2000);
-          if (res.ok) {
-            const d = await res.json() as any;
-            if (d.results && d.results.length > 0) {
-              iframe_video_iframe = d.results[0].path || d.results[0].iframe;
-            } else if (d.results && d.results.path) {
-              iframe_video_iframe = d.results.path;
+    jobs.push((async () => {
+      try {
+        const iQueries: string[] = [];
+        if (kinopoisk_id) iQueries.push(`https://iframe.video/api/v2/search?kp=${kinopoisk_id}`);
+        if (imdb_id) iQueries.push(`https://iframe.video/api/v2/search?imdb=${imdb_id}`);
+        if (title) iQueries.push(`https://iframe.video/api/v2/search?title=${encodeURIComponent(String(title))}`);
+
+        for (const url of iQueries) {
+          try {
+            const res = await fetchWithTimeout(url, {}, 2000);
+            if (res.ok) {
+              const d = await res.json() as any;
+              if (d.results && d.results.length > 0) {
+                iframe_video_iframe = d.results[0].path || d.results[0].iframe;
+                break;
+              } else if (d.results && d.results.path) {
+                iframe_video_iframe = d.results.path;
+                break;
+              }
             }
-            if (iframe_video_iframe) {
-              addLog(`Iframe found: ${iframe_video_iframe}`);
-            }
-          }
-        } catch (e: any) {
-          addLog('Iframe.video fetch skipped', { error: e.message });
+          } catch (e: any) {}
         }
-      })());
-    }
+        if (iframe_video_iframe) {
+          addLog(`Iframe found: ${iframe_video_iframe}`);
+        }
+      } catch (e: any) {
+        addLog('Iframe.video fetch skipped', { error: e.message });
+      }
+    })());
 
     // 9. Pleer.video
     if (kinopoisk_id) {

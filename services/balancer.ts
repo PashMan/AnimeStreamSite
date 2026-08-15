@@ -55,10 +55,10 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
         playersList = data;
       }
 
-      // Filter out non-functional or duplicate direct entries
-      playersList = playersList.filter(p => p.name !== 'Anilibria');
+      // Filter only players that have a valid iframe or isCustom
+      playersList = playersList.filter(p => p.isCustom || (p.iframe && typeof p.iframe === 'string' && p.iframe.trim().length > 0));
 
-      // Always ensure KamiPlayer (1080p) is present as the primary player
+      // Always ensure KamiPlayer (1080p) is present as the primary custom player at the front
       if (!playersList.some(p => p.name === 'KamiPlayer (1080p)')) {
         playersList.unshift({
           name: 'KamiPlayer (1080p)',
