@@ -44,48 +44,54 @@ const staticRoutes = [
 // Helper to delay execution (to avoid rate limits)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const MAX_RETRIES = 5;
-const BASE_DELAY = 3000;
+const MAX_RETRIES = 1;
+const BASE_DELAY = 1000;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
+let shikimoriReachable = true;
+
 async function fetchWithRetry(url: string, retries = 0): Promise<any> {
+    if (!shikimoriReachable && url.includes('shikimori.one')) {
+        return null;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
     try {
         const response = await fetch(url, {
             headers: { 
                 'User-Agent': USER_AGENT,
                 'Accept': 'application/json'
-            }
+            },
+            signal: controller.signal
         });
+        clearTimeout(timer);
 
         if (response.ok) {
             return await response.json();
         }
 
         const status = response.status;
-        
-        if (retries >= MAX_RETRIES) {
-            console.error(`\nFailed to fetch ${url} after ${MAX_RETRIES} retries. Status: ${status}`);
+        if (status === 403 || status === 429) {
+            console.warn(`\n[Sitemap] API returned ${status} for ${url}, skipping further external scraping.`);
+            if (url.includes('shikimori.one')) shikimoriReachable = false;
             return null;
         }
 
-        if (status === 429 || status === 403 || status >= 500) {
-            const delayTime = BASE_DELAY * Math.pow(2, retries);
-            console.warn(`\nRequest failed (${status}), retrying in ${delayTime}ms...`);
-            await delay(delayTime);
-            return fetchWithRetry(url, retries + 1);
-        }
-
-        console.error(`\nRequest failed with status ${status}`);
-        return null;
-    } catch (error) {
         if (retries >= MAX_RETRIES) {
-            console.error(`\nFailed to fetch ${url} after ${MAX_RETRIES} retries. Error:`, error);
+            console.warn(`\n[Sitemap] Failed to fetch ${url} (Status: ${status}).`);
             return null;
         }
-        const delayTime = BASE_DELAY * Math.pow(2, retries);
-        console.warn(`\nRequest failed (error), retrying in ${delayTime}ms...`);
+
+        const delayTime = BASE_DELAY;
         await delay(delayTime);
         return fetchWithRetry(url, retries + 1);
+    } catch (error: any) {
+        clearTimeout(timer);
+        if (url.includes('shikimori.one')) {
+            console.warn(`\n[Sitemap] Shikimori unreachable from build environment (${error.message || error}). Skipping external scraping.`);
+            shikimoriReachable = false;
+        }
+        return null;
     }
 }
 
