@@ -43,8 +43,8 @@ interface CustomPlayerProps {
   onPlayerError?: () => void;
 }
 
-// WebGL pristine-sampling 1080p upscaler for crisp anime lines
-class AnimeWebGL1080p {
+// WebGL pristine-sampling Super-Resolution upscaler for crisp anime lines (1080p and 4K UHD)
+class AnimeWebGLUpscaler {
   private gl: WebGLRenderingContext;
   private upscaleProgram: WebGLProgram;
   private refineProgram: WebGLProgram;
@@ -54,6 +54,7 @@ class AnimeWebGL1080p {
   private canvas: HTMLCanvasElement;
   private animId: number | null = null;
   public isActive = false;
+  public targetMode: "auto" | "1080p" | "4k" = "auto";
 
   private fbo1: WebGLFramebuffer | null = null;
   private fbo1Texture: WebGLTexture | null = null;
@@ -188,6 +189,10 @@ class AnimeWebGL1080p {
     );
   }
 
+  public setTargetMode(mode: "auto" | "1080p" | "4k") {
+    this.targetMode = mode;
+  }
+
   private initFBOs(width: number, height: number) {
     const gl = this.gl;
     if (this.fbo1) this.destroyFBOs();
@@ -245,7 +250,17 @@ class AnimeWebGL1080p {
 
     const vW = video.videoWidth;
     const vH = video.videoHeight;
-    const targetH = 1080;
+    
+    // Determine dynamic target resolution:
+    // If targetMode is 4k or (auto and source is 1080p): upscale to 4K UHD (2160p)
+    // If source is 720p or lower: upscale to 1080p Full HD
+    let targetH = 1080;
+    if (this.targetMode === "4k" || (this.targetMode === "auto" && vH >= 1000)) {
+      targetH = 2160;
+    } else {
+      targetH = 1080;
+    }
+
     const aspect = vW / vH;
     const targetW = Math.round(targetH * aspect);
 
@@ -261,7 +276,7 @@ class AnimeWebGL1080p {
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
 
-    // Pass 1: Upscale to 1080p
+    // Pass 1: Lanczos2 Super-Resolution Upscaling
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo1);
     gl.viewport(0, 0, targetW, targetH);
     gl.useProgram(this.upscaleProgram);
@@ -277,7 +292,7 @@ class AnimeWebGL1080p {
     gl.uniform2f(sizeLoc1, vW, vH);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    // Pass 2: Line sharpening
+    // Pass 2: Contrast-Preserving Line Sharpening
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, targetW, targetH);
     gl.useProgram(this.refineProgram);
@@ -328,6 +343,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     const artRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const artInstanceRef = useRef<Artplayer | null>(null);
+    const webglInstanceRef = useRef<AnimeWebGLUpscaler | null>(null);
 
     // Target skip timestamps
     const opTargetRef = useRef<number | null>(null);
@@ -340,10 +356,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     // Player Preferences (Stored in localStorage)
     const [selectedQuality, setSelectedQuality] = useState<string>("Авто");
     const [availableQualities, setAvailableQualities] = useState<
-      { html: string; level: number }[]
+      { html: string; level: number; isAiUpscale?: boolean }[]
     >([
       { html: "Авто", level: -1 },
-      { html: "1080p", level: 0 },
+      { html: "1080p (AI Upscale)", level: 0, isAiUpscale: true },
       { html: "720p", level: 1 },
       { html: "480p", level: 2 },
       { html: "360p", level: 3 },
@@ -437,7 +453,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       let art: Artplayer | null = null;
       let blobUrl: string | null = null;
       let isCancelled = false;
-      let webglInstance: AnimeWebGL1080p | null = null;
+      let webglInstance: AnimeWebGLUpscaler | null = null;
 
       const saveProgress = (t: number, d: number) => {
         if (!animeId || !episodeNumber) return;
@@ -668,24 +684,48 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     return height ? `${height}p` : "Авто";
                   };
 
-                  const levels = data.levels || hls.levels;
-                  const parsedQualities: { html: string; level: number }[] = [
+                  const levels = data.levels || hls.levels || [];
+                  const maxLevelHeight = Math.max(...levels.map((l: any) => l.height || 0), 0);
+                  const has1080Native = maxLevelHeight >= 1000;
+
+                  const parsedQualities: { html: string; level: number; isAiUpscale?: boolean }[] = [
                     { html: "Авто", level: -1 },
                   ];
 
+                  if (has1080Native) {
+                    // 1080p source stream found -> Keep 1080p and add 4K Super-Resolution
+                    const idx1080 = levels.findIndex((l: any) => (l.height || 0) >= 1000);
+                    const bestLevel = idx1080 !== -1 ? idx1080 : levels.length - 1;
+                    parsedQualities.push({
+                      html: "4K (AI Super-Res)",
+                      level: bestLevel,
+                      isAiUpscale: true,
+                    });
+                    parsedQualities.push({
+                      html: "1080p (Full HD)",
+                      level: bestLevel,
+                    });
+                  } else {
+                    // Only 720p or lower found -> Upscale to 1080p Full HD
+                    const bestLevel = levels.length > 0 ? levels.length - 1 : 0;
+                    parsedQualities.push({
+                      html: "1080p (AI Upscale)",
+                      level: bestLevel,
+                      isAiUpscale: true,
+                    });
+                  }
+
+                  // Add remaining native qualities (720p, 480p, 360p)
                   levels.forEach((l: any, index: number) => {
                     const name = getQualityName(l);
-                    if (!parsedQualities.some((q) => q.html === name)) {
+                    if (
+                      name !== "1080p" &&
+                      name !== "Авто" &&
+                      !parsedQualities.some((q) => q.html === name || q.html.startsWith(name))
+                    ) {
                       parsedQualities.push({ html: name, level: index });
                     }
                   });
-
-                  if (!parsedQualities.some((q) => q.html === "1080p")) {
-                    parsedQualities.push({
-                      html: "1080p",
-                      level: levels.length - 1,
-                    });
-                  }
 
                   setAvailableQualities(parsedQualities);
                 });
@@ -705,10 +745,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                         );
                       }
 
-                      webglInstance = new AnimeWebGL1080p(
+                      webglInstance = new AnimeWebGLUpscaler(
                         canvasRef.current,
                         videoEl,
                       );
+                      webglInstanceRef.current = webglInstance;
                       webglInstance.start();
                     } catch (e) {
                       console.error("Anime WebGL Initialization Error:", e);
@@ -823,6 +864,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         if (webglInstance) {
           webglInstance.destroy();
         }
+        webglInstanceRef.current = null;
         if (art) {
           if (animeId && episodeNumber && art.currentTime > 5) {
             saveProgress(art.currentTime, art.duration);
@@ -848,11 +890,22 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     ]);
 
     // Quality Selection Handler
-    const handleSelectQuality = (item: { html: string; level: number }) => {
+    const handleSelectQuality = (item: { html: string; level: number; isAiUpscale?: boolean }) => {
       setSelectedQuality(item.html);
       const art = artInstanceRef.current;
       if (art && (art as any).hls) {
         (art as any).hls.currentLevel = item.level;
+      }
+      if (webglInstanceRef.current) {
+        if (item.html.includes("4K")) {
+          webglInstanceRef.current.setTargetMode("4k");
+          webglInstanceRef.current.start();
+        } else if (item.html.includes("1080p") || item.html === "Авто") {
+          webglInstanceRef.current.setTargetMode("1080p");
+          webglInstanceRef.current.start();
+        } else {
+          webglInstanceRef.current.stop();
+        }
       }
       if (art && art.notice) {
         art.notice.show = `Качество: ${item.html}`;

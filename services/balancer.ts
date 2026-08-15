@@ -12,7 +12,7 @@ export interface KodikTranslation {
   title: string;
   type: string;
   iframe: string;
-  quality_label?: '4K' | '720p' | string;
+  quality_label?: '4K' | '1080p' | string;
   quality_val?: number;
   episodes_count?: number;
   last_episode?: number;

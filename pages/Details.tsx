@@ -1652,32 +1652,6 @@ const Details: React.FC = () => {
               )}
 
               <div className="flex flex-col gap-6">
-                {/* Player Switcher Bar */}
-                {players.length > 0 && (
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full custom-scrollbar">
-                      {players.map((p) => {
-                        const isSelected = selectedPlayer === p.name;
-                        return (
-                          <button
-                            key={p.name}
-                            id={`select-player-${p.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`}
-                            onClick={() => setSelectedPlayer(p.name)}
-                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap border flex items-center gap-1.5 ${
-                              isSelected
-                                ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
-                                : "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-white/10"
-                            }`}
-                          >
-                            {p.isCustom && <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />}
-                            <span>{p.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
                 {/* Primary Video Player Screen */}
                 <div className="w-full aspect-video bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
                   {isBlocked ? (
@@ -1696,158 +1670,114 @@ const Details: React.FC = () => {
                         <div className="absolute inset-0 bg-dark/90 flex flex-col items-center justify-center text-center p-6">
                           <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
                           <p className="text-slate-300 font-bold text-sm uppercase tracking-widest">
-                            Поиск плеера...
+                            Поиск лучшего качества...
                           </p>
                         </div>
-                      ) : players.find((p) => p.name === selectedPlayer)
-                          ?.iframe ||
-                        players.find((p) => p.name === selectedPlayer)
-                          ?.isCustom ? (
+                      ) : (translations.length > 0 || players.length > 0) ? (
                         (() => {
-                          const player = players.find(
-                            (p) => p.name === selectedPlayer,
-                          )!;
-                          if (player.isCustom) {
-                            const isSuzume = id === "50594" || id === "62568";
-                            const isWeathering = id === "38826";
-                            const isGardenOfWords = id === "16782";
-                            const isKimiNoNaWa = id === "32281";
+                          const isSuzume = id === "50594" || id === "62568";
+                          const isWeathering = id === "38826";
+                          const isGardenOfWords = id === "16782";
+                          const isKimiNoNaWa = id === "32281";
 
-                            let customSrc = "";
-                            let maxTracks: number | undefined = undefined;
-                            let audioTrackNames: string[] | undefined =
-                              undefined;
+                          let customSrc = "";
+                          let maxTracks: number | undefined = undefined;
+                          let audioTrackNames: string[] | undefined = undefined;
 
-                            if (
-                              isSuzume ||
-                              isWeathering ||
-                              isGardenOfWords ||
-                              isKimiNoNaWa
-                            ) {
-                              const customRawSrc = isSuzume
-                                ? "https://cdn1.kamianime.club/suzume/master.m3u8"
-                                : isWeathering
-                                  ? "https://cdn1.kamianime.club/weathering/master.m3u8"
-                                  : isGardenOfWords
-                                    ? "https://cdn1.kamianime.club/garden_of_words/master.m3u8"
-                                    : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
-                              customSrc = `/api/proxy-4k?url=${encodeURIComponent(customRawSrc)}`;
-                              maxTracks = isSuzume ? 5 : undefined;
-                              audioTrackNames = isSuzume
-                                ? [
-                                    "Crunchyroll",
-                                    "Flarrow Films",
-                                    "TVShows",
-                                    "Leviafilm",
-                                    "AniLibria",
-                                    "Ю. Сербин",
-                                    "Netflix КЗ.",
-                                    "Оригинал + Субтитры",
-                                    "Оригинал",
-                                  ]
-                                : undefined;
-                            } else {
-                              // For general anime, extract from Kodik stream! Prefer the selectedTranslation's iframe URL
-                              const baseIframe =
-                                selectedTranslation?.iframe ||
-                                players.find((p) => p.name === "Kodik")?.iframe;
-                              if (baseIframe) {
-                                let kodikIframeWithEpisode = baseIframe;
-                                try {
-                                  const url = new URL(
-                                    kodikIframeWithEpisode.startsWith("//")
-                                      ? `https:${kodikIframeWithEpisode}`
-                                      : kodikIframeWithEpisode,
+                          if (
+                            isSuzume ||
+                            isWeathering ||
+                            isGardenOfWords ||
+                            isKimiNoNaWa
+                          ) {
+                            const customRawSrc = isSuzume
+                              ? "https://cdn1.kamianime.club/suzume/master.m3u8"
+                              : isWeathering
+                                ? "https://cdn1.kamianime.club/weathering/master.m3u8"
+                                : isGardenOfWords
+                                  ? "https://cdn1.kamianime.club/garden_of_words/master.m3u8"
+                                  : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
+                            customSrc = `/api/proxy-4k?url=${encodeURIComponent(customRawSrc)}`;
+                            maxTracks = isSuzume ? 5 : undefined;
+                            audioTrackNames = isSuzume
+                              ? [
+                                  "Crunchyroll",
+                                  "Flarrow Films",
+                                  "TVShows",
+                                  "Leviafilm",
+                                  "AniLibria",
+                                  "Ю. Сербин",
+                                  "Netflix КЗ.",
+                                  "Оригинал + Субтитры",
+                                  "Оригинал",
+                                ]
+                              : undefined;
+                          } else {
+                            // Extract stream from the highest quality translation / provider
+                            const baseIframe =
+                              selectedTranslation?.iframe ||
+                              translations[0]?.iframe ||
+                              players.find((p) => p.iframe)?.iframe ||
+                              players[0]?.iframe;
+                            if (baseIframe) {
+                              let kodikIframeWithEpisode = baseIframe;
+                              try {
+                                const url = new URL(
+                                  kodikIframeWithEpisode.startsWith("//")
+                                    ? `https:${kodikIframeWithEpisode}`
+                                    : kodikIframeWithEpisode,
+                                );
+                                if (paramEpisode) {
+                                  url.searchParams.set(
+                                    "episode",
+                                    paramEpisode,
                                   );
-                                  if (paramEpisode) {
-                                    url.searchParams.set(
-                                      "episode",
-                                      paramEpisode,
-                                    );
-                                  }
-                                  kodikIframeWithEpisode = url.toString();
-                                } catch (e) {}
-                                customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
-                              } else {
-                                // Fallback to kimi-no-na-wa so it doesn't break
-                                customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
-                              }
+                                }
+                                kodikIframeWithEpisode = url.toString();
+                              } catch (e) {}
+                              customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+                            } else {
+                              customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
                             }
-
-                            const episodesCount = selectedTranslation?.last_episode || selectedTranslation?.episodes_count || (anime
-                              ? (anime.episodesAired || anime.episodes || 1)
-                              : 1);
-                            const currentEpNum = parseInt(paramEpisode || "1") || 1;
-
-                            const handleNextEp = currentEpNum < episodesCount ? () => {
-                              const nextEp = currentEpNum + 1;
-                              let newUrl = `/anime/${paramId}/episode/${nextEp}`;
-                              if (window.location.search) {
-                                newUrl += window.location.search;
-                              }
-                              navigate(newUrl);
-                            } : undefined;
-
-                            const handlePrevEp = currentEpNum > 1 ? () => {
-                              const prevEp = currentEpNum - 1;
-                              let newUrl = `/anime/${paramId}/episode/${prevEp}`;
-                              if (window.location.search) {
-                                newUrl += window.location.search;
-                              }
-                              navigate(newUrl);
-                            } : undefined;
-
-                            return (
-                              <CustomPlayer
-                                ref={nativeVideoRef}
-                                src={customSrc}
-                                maxAudioTracks={maxTracks}
-                                audioTrackNames={audioTrackNames}
-                                animeId={id}
-                                episodeNumber={paramEpisode || "1"}
-                                skips={currentSkips}
-                                onNextEpisode={handleNextEp}
-                                onPrevEpisode={handlePrevEp}
-                                onPlayerError={() => {
-                                  console.warn("[KamiPlayer] Stream playback error, retrying with next stream source if available");
-                                }}
-                              />
-                            );
                           }
-                          let finalIframeUrl = player.iframe;
-                          if (finalIframeUrl && player.name === "Alloha" && allohaMirror) {
-                            try {
-                              const absoluteUrl = finalIframeUrl.startsWith("//")
-                                ? `https:${finalIframeUrl}`
-                                : finalIframeUrl;
-                              const url = new URL(absoluteUrl);
-                              url.host = allohaMirror;
-                              finalIframeUrl = url.toString();
-                            } catch (e) {}
-                          }
-                          if (finalIframeUrl && player.name === "Kodik") {
-                            try {
-                              const absoluteUrl = finalIframeUrl.startsWith(
-                                "//",
-                              )
-                                ? `https:${finalIframeUrl}`
-                                : finalIframeUrl;
-                              const url = new URL(absoluteUrl);
-                              if (paramEpisode)
-                                url.searchParams.set("episode", paramEpisode);
-                              finalIframeUrl = url.toString();
-                            } catch (e) {}
-                          }
+
+                          const episodesCount = selectedTranslation?.last_episode || selectedTranslation?.episodes_count || (anime
+                            ? (anime.episodesAired || anime.episodes || 1)
+                            : 1);
+                          const currentEpNum = parseInt(paramEpisode || "1") || 1;
+
+                          const handleNextEp = currentEpNum < episodesCount ? () => {
+                            const nextEp = currentEpNum + 1;
+                            let newUrl = `/anime/${paramId}/episode/${nextEp}`;
+                            if (window.location.search) {
+                              newUrl += window.location.search;
+                            }
+                            navigate(newUrl);
+                          } : undefined;
+
+                          const handlePrevEp = currentEpNum > 1 ? () => {
+                            const prevEp = currentEpNum - 1;
+                            let newUrl = `/anime/${paramId}/episode/${prevEp}`;
+                            if (window.location.search) {
+                              newUrl += window.location.search;
+                            }
+                            navigate(newUrl);
+                          } : undefined;
+
                           return (
-                            <iframe
-                              ref={iframeRef}
-                              src={finalIframeUrl || undefined}
-                              width="100%"
-                              height="100%"
-                              allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
-                              referrerPolicy="origin"
-                              className="w-full h-full border-0"
-                              title="Player"
+                            <CustomPlayer
+                              ref={nativeVideoRef}
+                              src={customSrc}
+                              maxAudioTracks={maxTracks}
+                              audioTrackNames={audioTrackNames}
+                              animeId={id}
+                              episodeNumber={paramEpisode || "1"}
+                              skips={currentSkips}
+                              onNextEpisode={handleNextEp}
+                              onPrevEpisode={handlePrevEp}
+                              onPlayerError={() => {
+                                console.warn("[KamiPlayer] Stream playback error, attempting alternate source");
+                              }}
                             />
                           );
                         })()

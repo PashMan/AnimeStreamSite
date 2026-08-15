@@ -84,7 +84,7 @@ export async function onRequest(context: any) {
                 const qualStr = (res.quality || '').toLowerCase();
                 const is1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('bd') || qualStr.includes('uhd') || qualStr.includes('bluray');
                 const quality_val = is1080 ? 1080 : 720;
-                const quality_label = is1080 ? '4K' : '720p';
+                const quality_label = is1080 ? '4K' : '1080p';
 
                 let iframeWithApi = iframe;
                 try {
