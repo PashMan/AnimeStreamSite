@@ -2742,8 +2742,89 @@ app.get('/api/media/playlist', async (c) => {
 
   try {
     let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+    console.log(`[MEDIA PROXY] Extracting playlist from: ${iframeUrl}`);
+
+    // --- 1. AniLibria Direct 1080p HLS Extraction ---
+    if (iframeUrl.includes('anilibria.tv') || iframeUrl.includes('anilibria.top')) {
+      try {
+        const u = new URL(iframeUrl);
+        const relId = u.searchParams.get('id') || u.searchParams.get('code');
+        const episodeNum = parseInt(u.searchParams.get('episode') || '1') || 1;
+
+        if (relId) {
+          const apiRes = await fetch(`https://api.anilibria.tv/v3/title?id=${relId}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+          });
+          if (apiRes.ok) {
+            const data = await apiRes.json() as any;
+            if (data?.player?.list) {
+              const epData = data.player.list[String(episodeNum)] || data.player.list['1'] || Object.values(data.player.list)[0];
+              if (epData && epData.hls) {
+                const host = data.player.host || 'cache.libria.fun';
+                const fhd = epData.hls.fhd ? (epData.hls.fhd.startsWith('http') ? epData.hls.fhd : `https://${host}${epData.hls.fhd}`) : null;
+                const hd = epData.hls.hd ? (epData.hls.hd.startsWith('http') ? epData.hls.hd : `https://${host}${epData.hls.hd}`) : null;
+                const sd = epData.hls.sd ? (epData.hls.sd.startsWith('http') ? epData.hls.sd : `https://${host}${epData.hls.sd}`) : null;
+
+                const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
+                if (fhd) {
+                  masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`);
+                  masterLines.push(fhd);
+                }
+                if (hd) {
+                  masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,NAME="720p"`);
+                  masterLines.push(hd);
+                }
+                if (sd) {
+                  masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480,NAME="480p"`);
+                  masterLines.push(sd);
+                }
+
+                c.header('Content-Type', 'text/plain; charset=utf-8');
+                c.header('Access-Control-Allow-Origin', '*');
+                return c.text(masterLines.join('\n'));
+              }
+            }
+          }
+        }
+      } catch (anilibriaErr) {
+        console.error('[MEDIA PROXY] AniLibria extraction failed:', anilibriaErr);
+      }
+    }
+
+    // --- 2. Collaps / Alloha / Generic m3u8 Extraction ---
+    if (iframeUrl.includes('collaps') || iframeUrl.includes('alloha') || iframeUrl.includes('bhcesh') || iframeUrl.includes('videocdn') || iframeUrl.includes('bazon') || iframeUrl.includes('apivb')) {
+      try {
+        const iframeRes = await fetch(iframeUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': iframeUrl
+          }
+        });
+        const html = await iframeRes.text();
+        const m3u8Match = html.match(/["'](https?:\/\/[^"'\s]+\.m3u8[^"'\s]*)["']/) ||
+                          html.match(/file\s*:\s*["'](https?:\/\/[^"'\s]+\.m3u8[^"'\s]*)["']/) ||
+                          html.match(/(https?:\/\/[^"'\s]+\.m3u8[^"'\s]*)/);
+
+        if (m3u8Match) {
+          const directM3u8 = m3u8Match[1];
+          console.log(`[MEDIA PROXY] Collaps/Alloha extracted direct M3U8: ${directM3u8}`);
+          const masterLines = [
+            '#EXTM3U',
+            '#EXT-X-VERSION:3',
+            `#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`,
+            directM3u8
+          ];
+          c.header('Content-Type', 'text/plain; charset=utf-8');
+          c.header('Access-Control-Allow-Origin', '*');
+          return c.text(masterLines.join('\n'));
+        }
+      } catch (collapsErr) {
+        console.error('[MEDIA PROXY] Collaps/Alloha extraction failed:', collapsErr);
+      }
+    }
+
+    // --- 3. Kodik Extraction ---
     iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
-    console.log(`[KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
 
     // 1. Fetch iframe page
     const iframeRes = await fetch(iframeUrl, {

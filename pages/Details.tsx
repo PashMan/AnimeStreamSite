@@ -1875,19 +1875,28 @@ const Details: React.FC = () => {
                                 ]
                               : undefined;
                           } else {
-                            // Extract stream from the highest quality translation / provider
+                            // Extract stream prioritizing highest quality 1080p providers (AniLibria, Collaps, Alloha)
+                            const bestPlayerObj =
+                              players.find((p) => p.name === "AniLibria" && p.iframe) ||
+                              players.find((p) => p.name === "Collaps" && p.iframe) ||
+                              players.find((p) => p.name === "Alloha" && p.iframe) ||
+                              players.find((p) => p.name === "VideoCDN" && p.iframe) ||
+                              players.find((p) => p.name === "Kodik" && p.iframe);
+
                             const baseIframe =
+                              bestPlayerObj?.iframe ||
                               selectedTranslation?.iframe ||
                               translations[0]?.iframe ||
                               players.find((p) => p.iframe)?.iframe ||
                               players[0]?.iframe;
+
                             if (baseIframe) {
-                              let kodikIframeWithEpisode = baseIframe;
+                              let targetIframeWithEpisode = baseIframe;
                               try {
                                 const url = new URL(
-                                  kodikIframeWithEpisode.startsWith("//")
-                                    ? `https:${kodikIframeWithEpisode}`
-                                    : kodikIframeWithEpisode,
+                                  targetIframeWithEpisode.startsWith("//")
+                                    ? `https:${targetIframeWithEpisode}`
+                                    : targetIframeWithEpisode,
                                 );
                                 if (paramEpisode) {
                                   url.searchParams.set(
@@ -1895,9 +1904,9 @@ const Details: React.FC = () => {
                                     paramEpisode,
                                   );
                                 }
-                                kodikIframeWithEpisode = url.toString();
+                                targetIframeWithEpisode = url.toString();
                               } catch (e) {}
-                              customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+                              customSrc = `/api/media/playlist?url=${encodeURIComponent(targetIframeWithEpisode)}`;
                             } else {
                               customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
                             }
