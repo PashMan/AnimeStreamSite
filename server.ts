@@ -2966,6 +2966,9 @@ app.get('/api/media/playlist', async (c) => {
          'Cache-Control': 'no-cache, no-store, must-revalidate',
        }
     });
+    } catch (kodikErr: any) {
+      console.error('[KODIK PROXY ERROR]', kodikErr);
+    }
 
   } catch (error: any) {
     console.error('[MEDIA PROXY ERROR]', error);

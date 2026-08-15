@@ -171,18 +171,11 @@ export async function runClientCascadingExtraction(
     if (userSel) candidates.push(userSel);
   }
 
-  // Add priority order: Alloha, Collaps, Kodik
+  // Add priority order strictly: Alloha, Collaps, Kodik (and user selection if explicit)
   for (const prio of priorityOrder) {
     const found = players.find(p => p.name === prio && p.iframe);
     if (found && !candidates.some(c => c.name === found.name)) {
       candidates.push(found);
-    }
-  }
-
-  // Add any remaining players
-  for (const p of players) {
-    if (p.iframe && !candidates.some(c => c.name === p.name)) {
-      candidates.push(p);
     }
   }
 
@@ -207,16 +200,23 @@ export async function runClientCascadingExtraction(
     const res = await runClientExtraction(targetIframe);
     aggregatedLogs.push(...res.logs);
 
-    if (res.m3u8Url) {
-      aggregatedLogs.push(`\n[CASCADE SUCCESS 🎉] Успех! Извлечен HLS поток из источника: ${candidate.name}`);
+    let finalM3u8 = res.m3u8Url;
+    if (!finalM3u8 && (candidate.name === 'Alloha' || candidate.name === 'Collaps' || candidate.name === 'Kodik' || candidate.name.includes('KamiPlayer'))) {
+      const proxyPlaylistUrl = `/api/media/playlist?url=${encodeURIComponent(targetIframe)}`;
+      aggregatedLogs.push(`[CASCADE 🔄] Направление источника ${candidate.name} через серверный прокси плейлист: ${proxyPlaylistUrl}`);
+      finalM3u8 = proxyPlaylistUrl;
+    }
+
+    if (finalM3u8) {
+      aggregatedLogs.push(`\n[CASCADE SUCCESS 🎉] Успех! Используется HLS поток источника: ${candidate.name}`);
       return {
-        m3u8Url: res.m3u8Url,
+        m3u8Url: finalM3u8,
         activePlayerName: candidate.name,
         activeIframeUrl: targetIframe,
         logs: aggregatedLogs
       };
     } else {
-      aggregatedLogs.push(`[CASCADE ⚠️] Источник ${candidate.name} не отдал открытый HLS поток. Переход к следующему источнику в цепочке...`);
+      aggregatedLogs.push(`[CASCADE ⚠️] Источник ${candidate.name} недоступен. Переход к следующему источнику в цепочке...`);
     }
   }
 
