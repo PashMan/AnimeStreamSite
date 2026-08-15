@@ -2552,10 +2552,17 @@ app.get('/api/media/playlist', async (c) => {
       }
     }
 
-    // --- 2. Collaps / Alloha / Bhcesh / VideoCDN / Bazon HLS Extraction & Proxy ---
-    if (iframeUrl.includes('collaps') || iframeUrl.includes('alloha') || iframeUrl.includes('bhcesh') || iframeUrl.includes('videocdn') || iframeUrl.includes('bazon') || iframeUrl.includes('apivb')) {
+    // --- 2. Collaps / Alloha / Stravers / Ortified / Bhcesh / VideoCDN / Bazon HLS Extraction & Proxy ---
+    const isKodik = iframeUrl.includes('kodik') || iframeUrl.includes('vazha') || iframeUrl.includes('aniqit');
+    const isAniLibria = iframeUrl.includes('anilibria');
+
+    if (!isKodik && !isAniLibria) {
       const sourceHost = new URL(iframeUrl).host;
-      const refererHeader = iframeUrl.includes('collaps') ? 'https://apicollaps.cc/' : (iframeUrl.includes('alloha') ? 'https://alloha.tv/' : `https://${sourceHost}/`);
+      const refererHeader = (iframeUrl.includes('collaps') || iframeUrl.includes('ortified'))
+        ? 'https://apicollaps.cc/'
+        : ((iframeUrl.includes('alloha') || iframeUrl.includes('stravers') || iframeUrl.includes('apbugall'))
+          ? 'https://alloha.tv/'
+          : `https://${sourceHost}/`);
 
       const { m3u8Url, logs } = await extractBalancersM3u8(iframeUrl);
       console.log(`[MEDIA PROXY DECODER LOGS for ${sourceHost}]:\n${logs.join('\n')}`);
@@ -2633,16 +2640,17 @@ app.get('/api/media/playlist', async (c) => {
     }
 
     // --- 3. Kodik Extraction ---
-    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
+    try {
+      iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
 
-    // 1. Fetch iframe page
-    const iframeRes = await fetch(iframeUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Referer': 'https://shikimori.one/'
-      }
-    });
-    const html = await iframeRes.text();
+      // 1. Fetch iframe page
+      const iframeRes = await fetch(iframeUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+          'Referer': 'https://shikimori.one/'
+        }
+      });
+      const html = await iframeRes.text();
 
     // 2. Extract parameters
     const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*"([^"]+)"/) || html.match(/urlParams\s*=\s*({[^;]+})/);

@@ -109,69 +109,21 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
   let absoluteUrl = iframeUrl;
   if (absoluteUrl.startsWith('//')) absoluteUrl = `https:${absoluteUrl}`;
 
-  // Attempt 1: Direct Client Fetch
-  logs.push(`[2] Попытка прямого клиентского fetch (из браузера)...`);
-  try {
-    const res = await fetch(absoluteUrl, {
-      referrerPolicy: 'no-referrer',
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
-    });
-
-    if (res.ok) {
-      const html = await res.text();
-      logs.push(`[3] Успешно загружен HTML клиентским запросом (${html.length} байт).`);
-
-      // Unpack Dean Edwards
-      const unpacked = unpackDeanEdwardsClient(html);
-      if (unpacked.length > html.length) {
-        logs.push(`[4] Клиентский Dean Edwards Unpacker распаковал скрипт (${html.length} -> ${unpacked.length} байт).`);
-      }
-
-      const fullCode = html + '\n' + unpacked;
-      const parsed = parseTextForM3u8(fullCode);
-      logs.push(...parsed.logs);
-
-      if (parsed.m3u8Url) {
-        logs.push(`[SUCCESS] Клиентская распаковка успешно завершена! Stream URL найден.`);
-        return {
-          m3u8Url: parsed.m3u8Url,
-          logs,
-          source: 'client-fetch'
-        };
-      }
-    } else {
-      logs.push(`[3] Прямой fetch вернул статус ${res.status} (возможен CORS/403).`);
-    }
-  } catch (err: any) {
-    logs.push(`[3] Прямой клиентский fetch отклонен браузером (CORS restriction): ${err.message}`);
-  }
-
-  // Attempt 2: Server Debug Proxy
-  logs.push(`[4] Переход к серверному маршруту расшифровки и проксирования...`);
+  // Use same-origin server decoder endpoint (/api/media/debug) to avoid browser CORS errors
+  logs.push(`[2] Обращение к защищенному серверному декодеру (/api/media/debug)...`);
   try {
     const debugUrl = `/api/media/debug?url=${encodeURIComponent(absoluteUrl)}`;
-    let serverRes = await fetch(debugUrl, {
+    const serverRes = await fetch(debugUrl, {
       method: 'GET',
       headers: { 'Accept': 'application/json' }
     });
-
-    if (!serverRes.ok || !(serverRes.headers.get('content-type') || '').includes('application/json')) {
-      // Fallback to POST if GET fails
-      serverRes = await fetch('/api/media/debug', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ url: absoluteUrl })
-      });
-    }
 
     const contentType = serverRes.headers.get('content-type') || '';
     if (serverRes.ok && contentType.includes('application/json')) {
       const data = await serverRes.json();
       logs.push(...(data.logs || []));
       if (data.extractedM3u8) {
-        logs.push(`[SUCCESS] Серверный декодер успешно извлек HLS поток!`);
+        logs.push(`[SUCCESS] Декодер успешно извлек HLS поток!`);
         return {
           m3u8Url: data.extractedM3u8,
           logs,
@@ -180,13 +132,13 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
       }
     } else {
       const errText = await serverRes.text();
-      logs.push(`[5] Серверный дебаггер вернул ответ (HTTP ${serverRes.status}): ${errText.slice(0, 200)}`);
+      logs.push(`[3] Серверный дебаггер вернул статус ${serverRes.status}: ${errText.slice(0, 150)}`);
     }
   } catch (err: any) {
-    logs.push(`[5] Ошибка обращения к серверному дебаггеру: ${err.message}`);
+    logs.push(`[3] Ошибка обращения к декодеру: ${err.message}`);
   }
 
-  logs.push(`[ERR] Распаковка завершена без обнаружения открытого HLS потока.`);
+  logs.push(`[ERR] Источник не отдал прямой HLS поток.`);
   return {
     m3u8Url: null,
     logs,
