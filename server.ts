@@ -449,7 +449,39 @@ app.get('/api/balancer', async (c) => {
                   quality: '1080p (4K AI)',
                   foundIframe: kodik_iframe,
                   itemsCount: kodik_translations.length
-             // Prepare placeholders for Alloha and Collaps
+                });
+                break;
+              } else {
+                lastKodikError = 'Результатов по запросу не найдено (results: [])';
+              }
+            } else {
+              lastKodikError = `HTTP ${kodikRes.status}: ${kodikRes.statusText}`;
+            }
+          } catch (err: any) {
+            lastKodikError = err.message || 'Ошибка подключения к Kodik API';
+          }
+        }
+      }
+
+      if (!kodikSuccess) {
+        diagnostics.push({
+          provider: 'Kodik',
+          status: lastKodikError.includes('results: []') ? 'not_found' : 'error',
+          details: lastKodikError || 'Тайтл не найден в базе Kodik',
+          queryUsed: `shikimori_id=${shikimori_id || ''}`,
+          timeMs: Date.now() - t0Kodik
+        });
+      }
+    } catch (e: any) {
+      diagnostics.push({
+        provider: 'Kodik',
+        status: 'error',
+        details: `Критическая ошибка Kodik: ${e.message}`,
+        timeMs: Date.now() - t0Kodik
+      });
+    }
+
+    // Prepare placeholders for Alloha and Collaps
     let alloha_iframe: string | null = null;
     let collaps_iframe: string | null = null;
 

@@ -173,12 +173,13 @@ const Details: React.FC = () => {
   const [showDecoderModal, setShowDecoderModal] = useState(false);
 
   const handleFetchDecoderLogs = async () => {
+    const activePlayerObj = players.find((p) => p.name === selectedPlayer && p.iframe);
+
     const hlsPlayerObj =
-      players.find((p) => p.name === "AniLibria" && p.iframe) ||
-      players.find((p) => p.name === "Kodik" && p.iframe) ||
-      players.find((p) => p.name === "Collaps" && p.iframe) ||
+      activePlayerObj ||
       players.find((p) => p.name === "Alloha" && p.iframe) ||
-      players.find((p) => p.name === "VideoCDN" && p.iframe);
+      players.find((p) => p.name === "Collaps" && p.iframe) ||
+      players.find((p) => p.name === "Kodik" && p.iframe);
 
     const baseIframe =
       hlsPlayerObj?.iframe ||
@@ -1933,13 +1934,14 @@ const Details: React.FC = () => {
                                 ]
                               : undefined;
                           } else {
-                            // KamiPlayer extracts HLS .m3u8 from providers (AniLibria, Kodik, Collaps, Alloha, VideoCDN) for WebGL 4K AI upscaling
+                            // KamiPlayer extracts HLS .m3u8 from providers (Alloha, Collaps, Kodik) for WebGL 4K AI upscaling
+                            const activePlayerObj = players.find((p) => p.name === selectedPlayer && p.iframe);
+
                             const hlsPlayerObj =
-                              players.find((p) => p.name === "AniLibria" && p.iframe) ||
-                              players.find((p) => p.name === "Kodik" && p.iframe) ||
-                              players.find((p) => p.name === "Collaps" && p.iframe) ||
+                              activePlayerObj ||
                               players.find((p) => p.name === "Alloha" && p.iframe) ||
-                              players.find((p) => p.name === "VideoCDN" && p.iframe);
+                              players.find((p) => p.name === "Collaps" && p.iframe) ||
+                              players.find((p) => p.name === "Kodik" && p.iframe);
 
                             const baseIframe =
                               hlsPlayerObj?.iframe ||

@@ -151,8 +151,16 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
   // Attempt 2: Server Debug Proxy
   logs.push(`[4] Переход к серверному маршруту расшифровки и проксирования...`);
   try {
-    const serverRes = await fetch(`/api/media/debug?url=${encodeURIComponent(absoluteUrl)}`);
-    if (serverRes.ok) {
+    const serverRes = await fetch('/api/media/debug', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ url: absoluteUrl })
+    });
+
+    const contentType = serverRes.headers.get('content-type') || '';
+    if (serverRes.ok && contentType.includes('application/json')) {
       const data = await serverRes.json();
       logs.push(...(data.logs || []));
       if (data.extractedM3u8) {
@@ -164,7 +172,8 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
         };
       }
     } else {
-      logs.push(`[5] Серверный дебаггер вернул статус ${serverRes.status}`);
+      const errText = await serverRes.text();
+      logs.push(`[5] Серверный дебаггер вернул ответ (HTTP ${serverRes.status}): ${errText.slice(0, 200)}`);
     }
   } catch (err: any) {
     logs.push(`[5] Ошибка обращения к серверному дебаггеру: ${err.message}`);
