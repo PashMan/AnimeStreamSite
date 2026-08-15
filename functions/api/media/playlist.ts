@@ -1,3 +1,5 @@
+import { extractBalancersM3u8 } from '../../../utils/balancerExtractor';
+
 function convertChar(char: string, rotNum: number): string {
   if (!char.match(/[a-zA-Z]/)) return char;
   const code = char.charCodeAt(0);
@@ -41,7 +43,6 @@ function getProxyOrigin(request: Request): string {
 export async function onRequest(context: any) {
   const { request } = context;
 
-  // OPTIONS CORS header preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -66,8 +67,67 @@ export async function onRequest(context: any) {
     });
   }
 
+  let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+  const isKodik = iframeUrl.includes('kodik') || iframeUrl.includes('ani');
+
+  if (!isKodik) {
+    // Handling non-Kodik balancers (Alloha, Collaps, PlayerJS)
+    console.log(`[CF BALANCER PROXY] Running balancer extraction for: ${iframeUrl}`);
+    const { m3u8Url } = await extractBalancersM3u8(iframeUrl);
+
+    if (m3u8Url) {
+      try {
+        const m3u8Res = await fetch(m3u8Url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': iframeUrl
+          }
+        });
+        if (m3u8Res.ok) {
+          const m3u8Text = await m3u8Res.text();
+          if (m3u8Text && m3u8Text.trim().startsWith('#EXTM3U')) {
+            const m3u8Base = m3u8Url.substring(0, m3u8Url.lastIndexOf('/') + 1);
+            const lines = m3u8Text.replace(/\r/g, '').split('\n');
+            const proxyUrlBase = `${getProxyOrigin(request)}/api/media/segment?url=`;
+
+            const rewrittenLines = lines.map(line => {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith('#')) return line;
+              let absSegmentUrl = trimmed;
+              if (!trimmed.startsWith('http')) {
+                absSegmentUrl = trimmed.startsWith('/')
+                  ? new URL(trimmed, m3u8Url).toString()
+                  : m3u8Base + trimmed;
+              }
+              return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}`;
+            });
+
+            return new Response(rewrittenLines.join('\n'), {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/x-mpegURL',
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'no-cache, no-store, must-revalidate'
+              }
+            });
+          }
+        }
+      } catch (err: any) {
+        console.error('[CF BALANCER PROXY ERR]', err.message);
+      }
+    }
+
+    // Fallback if direct M3U8 extraction is unavailable: redirect to iframe URL or return 404
+    return new Response(JSON.stringify({ error: 'Direct stream extraction unavailable, fallback to iframe required', iframeUrl }), {
+      status: 404,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+
   try {
-    let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
     iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
     console.log(`[CF KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
 
@@ -126,7 +186,7 @@ export async function onRequest(context: any) {
     }
 
     if (!scriptUrl) {
-      scriptUrl = '/assets/js/app.serial.js'; // fallback
+      scriptUrl = '/assets/js/app.serial.js';
     }
 
     const baseUrlObj = new URL(iframeUrl);
@@ -194,9 +254,9 @@ export async function onRequest(context: any) {
       });
     }
 
-    // 5. Build dynamic Master Playlist or yield single-quality playlist based on query parameters
+    // 5. Build dynamic Master Playlist or yield single-quality playlist
     const targetQuality = urlObj.searchParams.get('quality');
-    const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 360, etc.
+    const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a);
 
     if (urlObj.searchParams.get('resolve') === 'true') {
       const resolvedLinks: Record<string, string> = {};
@@ -242,7 +302,6 @@ export async function onRequest(context: any) {
         }
         
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height},NAME="${q}p"`);
-        // Relative URI format compatible with relative redirects
         masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}`);
       });
 
@@ -271,11 +330,8 @@ export async function onRequest(context: any) {
     }
 
     const rawSrc = listSources[0].src;
-    // Decrypt the URL if it doesn't already contain manifest
     const decryptedUrl = rawSrc.includes('mp4:hls:manifest') ? rawSrc : decodeKodikUrl(rawSrc);
     const playlistUrl = decryptedUrl.startsWith('//') ? `https:${decryptedUrl}` : decryptedUrl;
-
-    console.log(`[CF KODIK PROXY] Fetched decrypted stream. Base HLS: ${playlistUrl}`);
 
     // 6. Fetch the actual M3U8 file contents
     const m3u8Res = await fetch(playlistUrl, {
@@ -286,7 +342,6 @@ export async function onRequest(context: any) {
     });
 
     if (!m3u8Res.ok) {
-      console.error(`[CF KODIK PROXY] Failed to fetch M3U8, status: ${m3u8Res.status}`);
       return new Response(`Error: Kodik manifest loading failed with status ${m3u8Res.status}`, {
         status: m3u8Res.status,
         headers: {
@@ -298,67 +353,48 @@ export async function onRequest(context: any) {
 
     const m3u8Text = await m3u8Res.text();
 
-    // Validation: Ensure the playlist starts with #EXTM3U (not HTML error or blank page)
     if (!m3u8Text || !m3u8Text.trim().startsWith('#EXTM3U')) {
-      console.error(`[CF KODIK PROXY ERROR] Manifest from Kodik is empty or invalid. Res length: ${m3u8Text?.length || 0}. Starts with:`, m3u8Text ? m3u8Text.slice(0, 500) : "empty");
-      return new Response('Error: Proxy loaded an invalid M3U8 manifest from Kodik. The source might be blocking or offline.', {
+      return new Response('Error: Proxy loaded an invalid M3U8 manifest from Kodik.', {
         status: 502,
         headers: {
           'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': '*'
+          'Access-Control-Allow-Origin': '*'
         }
       });
     }
 
     // 7. Rewrite chunk entries in M3U8
     const m3u8Base = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
-    
-    // Clean CRLF and split cleanly to avoid breaking tags
     const lines = m3u8Text.replace(/\r/g, '').split('\n');
     const proxyUrlBase = `${getProxyOrigin(request)}/api/media/segment?url=`;
 
     const rewrittenLines = lines.map(line => {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) {
-        return line;
-      }
-      
-      // Resolve path
+      if (!trimmed || trimmed.startsWith('#')) return line;
       let absSegmentUrl = trimmed;
       if (!trimmed.startsWith('http')) {
         absSegmentUrl = trimmed.startsWith('/') 
           ? new URL(trimmed, playlistUrl).toString()
           : m3u8Base + trimmed;
       }
-
-      // Add segment proxy URL
       return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}`;
     });
 
-    const rewrittenText = rewrittenLines.join('\n');
-
-    return new Response(rewrittenText, {
+    return new Response(rewrittenLines.join('\n'), {
        status: 200,
        headers: {
          'Content-Type': 'application/x-mpegURL',
          'Access-Control-Allow-Origin': '*',
-         'Access-Control-Allow-Methods': 'GET, OPTIONS',
-         'Access-Control-Allow-Headers': '*',
          'Cache-Control': 'no-cache, no-store, must-revalidate',
        }
     });
 
   } catch (error: any) {
-    console.error('[CF KODIK PROXY ERROR]', error);
     return new Response('Error: Failed to compile streaming proxy playlist. ' + error.message, {
       status: 500,
       headers: {
         'Content-Type': 'text/plain',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': '*'
+        'Access-Control-Allow-Origin': '*'
       }
     });
   }

@@ -2340,7 +2340,8 @@ async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: strin
   logs.push(`[1] Starting extraction for URL: ${iframeUrl}`);
 
   try {
-    const parsedUrl = new URL(iframeUrl);
+    let targetUrl = iframeUrl;
+    const parsedUrl = new URL(targetUrl);
     const host = parsedUrl.host;
     logs.push(`[2] Target host identified: ${host}`);
 
@@ -2357,35 +2358,48 @@ async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: strin
     let html = '';
     let usedReferer = '';
 
-    for (const ref of referersToTry) {
-      logs.push(`[3] Attempting fetch with Referer: ${ref}`);
-      try {
-        const res = await fetch(iframeUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Referer': ref,
-            'X-Forwarded-For': '185.220.101.5',
-            'X-Real-IP': '185.220.101.5',
-            'Client-IP': '185.220.101.5',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
-          }
-        });
-        if (res.ok) {
-          const txt = await res.text();
-          if (txt && txt.length > 500) {
-            html = txt;
-            usedReferer = ref;
-            logs.push(`[4] Successfully fetched ${html.length} bytes of HTML using Referer: ${ref}`);
-            break;
+    const urlsToTry = [iframeUrl];
+    try {
+      const u = new URL(iframeUrl);
+      if (u.searchParams.has('episode') && (u.searchParams.has('token_movie') || iframeUrl.includes('stravers.live') || iframeUrl.includes('alloha'))) {
+        const cleaned = new URL(iframeUrl);
+        cleaned.searchParams.delete('episode');
+        urlsToTry.push(cleaned.toString());
+      }
+    } catch (_) {}
+
+    for (const urlItem of urlsToTry) {
+      if (html) break;
+      for (const ref of referersToTry) {
+        logs.push(`[3] Attempting fetch (${urlItem}) with Referer: ${ref}`);
+        try {
+          const res = await fetch(urlItem, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              'Referer': ref,
+              'X-Forwarded-For': '185.220.101.5',
+              'X-Real-IP': '185.220.101.5',
+              'Client-IP': '185.220.101.5',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+            }
+          });
+          if (res.ok) {
+            const txt = await res.text();
+            if (txt && txt.length > 500) {
+              html = txt;
+              usedReferer = ref;
+              logs.push(`[4] Successfully fetched ${html.length} bytes of HTML using Referer: ${ref}`);
+              break;
+            } else {
+              logs.push(`[4] Fetch returned short response (${txt.length} bytes), trying next referer...`);
+            }
           } else {
-            logs.push(`[4] Fetch returned short response (${txt.length} bytes), trying next referer...`);
+            logs.push(`[4] Fetch returned HTTP status ${res.status}`);
           }
-        } else {
-          logs.push(`[4] Fetch returned HTTP status ${res.status}`);
+        } catch (err: any) {
+          logs.push(`[4] Fetch error: ${err.message}`);
         }
-      } catch (err: any) {
-        logs.push(`[4] Fetch error: ${err.message}`);
       }
     }
 
@@ -2438,6 +2452,49 @@ async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: strin
 
     // Step D: Playerjs / Collaps / Alloha config JSON blocks
     logs.push(`[10] Scanning Playerjs / makePlayer / window config blocks...`);
+
+    // D1: Alloha fileList parser (Alloha uses fileList JSON with seasons/episodes/files or direct config)
+    const fileListMatch = fullText.match(/const\s+fileList\s*=\s*JSON\.parse\('([\s\S]*?)'\);/) ||
+                          fullText.match(/fileList\s*:\s*JSON\.parse\('([\s\S]*?)'\);/);
+    if (fileListMatch) {
+      try {
+        const rawJson = fileListMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, "\\");
+        const fileListObj = JSON.parse(rawJson);
+        logs.push(`[11] Found Alloha fileList JSON structure! Searching for stream files...`);
+        
+        // Find any string in fileListObj that contains .m3u8 or http/base64
+        const jsonStringified = JSON.stringify(fileListObj);
+        const m3u8InFileList = jsonStringified.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                                jsonStringified.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
+        if (m3u8InFileList) {
+          let candidate = m3u8InFileList[1].replace(/\\/g, '');
+          if (candidate.startsWith('//')) candidate = `https:${candidate}`;
+          logs.push(`[12] Found direct .m3u8 inside Alloha fileList JSON: ${candidate}`);
+          return { m3u8Url: candidate, logs, htmlLength: fullText.length };
+        }
+
+        // Search base64 in fileListObj
+        const b64Matches = jsonStringified.match(/([A-Za-z0-9+/=]{20,})/g) || [];
+        for (const b of b64Matches) {
+          try {
+            const dec = Buffer.from(b, 'base64').toString('utf-8');
+            if (dec.includes('.m3u8')) {
+              let foundUrl = dec.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                             dec.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
+              if (foundUrl) {
+                let candidate = foundUrl[1].replace(/\\/g, '');
+                if (candidate.startsWith('//')) candidate = `https:${candidate}`;
+                logs.push(`[12] Decoded Base64 in Alloha fileList JSON: ${candidate}`);
+                return { m3u8Url: candidate, logs, htmlLength: fullText.length };
+              }
+            }
+          } catch (_) {}
+        }
+      } catch (err: any) {
+        logs.push(`[11] Error parsing Alloha fileList JSON: ${err.message}`);
+      }
+    }
+
     const configMatches = fullText.match(/(?:makePlayer|Playerjs|playerConfig|window\.collapsConfig|window\.allohaConfig|initPlayer)\s*\(\s*({[\s\S]*?})\s*\)/g) ||
                           fullText.match(/file\s*:\s*["']([\s\S]*?)["']/g);
 
@@ -2636,8 +2693,8 @@ app.get('/api/media/playlist', async (c) => {
         return c.text(masterLines.join('\n'));
       }
 
-      // If extraction for Collaps / Alloha failed, return 404 status
-      return c.json({ error: 'Balancer stream unavailable' }, 404);
+    // If extraction for Collaps / Alloha failed, return 404 status
+    return c.json({ error: 'Balancer stream unavailable' }, 404);
     }
 
     // --- 3. Kodik Extraction ---

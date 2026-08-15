@@ -109,7 +109,7 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
   let absoluteUrl = iframeUrl;
   if (absoluteUrl.startsWith('//')) absoluteUrl = `https:${absoluteUrl}`;
 
-  // Use same-origin server decoder endpoint (/api/media/debug) to avoid browser CORS errors
+  // Use same-origin server decoder endpoint (/api/media/debug)
   logs.push(`[2] Обращение к защищенному серверному декодеру (/api/media/debug)...`);
   try {
     const debugUrl = `/api/media/debug?url=${encodeURIComponent(absoluteUrl)}`;
@@ -138,7 +138,7 @@ export async function runClientExtraction(iframeUrl: string): Promise<Extraction
     logs.push(`[3] Ошибка обращения к декодеру: ${err.message}`);
   }
 
-  logs.push(`[ERR] Источник не отдал прямой HLS поток.`);
+  logs.push(`[INFO] Прямой текстовый .m3u8 не найден. Переключение на динамический прокси-маршрут балансера.`);
   return {
     m3u8Url: null,
     logs,
@@ -171,7 +171,7 @@ export async function runClientCascadingExtraction(
     if (userSel) candidates.push(userSel);
   }
 
-  // Add priority order strictly: Alloha, Collaps, Kodik (and user selection if explicit)
+  // Add priority order strictly: Alloha, Collaps, Kodik
   for (const prio of priorityOrder) {
     const found = players.find(p => p.name === prio && p.iframe);
     if (found && !candidates.some(c => c.name === found.name)) {
@@ -202,16 +202,18 @@ export async function runClientCascadingExtraction(
     let finalM3u8: string | null = null;
 
     if (isKodikOrAni) {
-      // Kodik / AniLibria use server-side Gbox/API decoding via /api/media/playlist
       finalM3u8 = `/api/media/playlist?url=${encodeURIComponent(targetIframe)}`;
       aggregatedLogs.push(`[CASCADE 🔄] Задействован декодер серверного плейлиста для ${candidate.name}: ${finalM3u8}`);
     } else {
-      // For Alloha, Collaps, and other balancers, run extraction via /api/media/debug
       const res = await runClientExtraction(targetIframe);
       aggregatedLogs.push(...res.logs);
 
       if (res.m3u8Url) {
         finalM3u8 = res.m3u8Url.startsWith('/api/') ? res.m3u8Url : `/api/media/playlist?url=${encodeURIComponent(res.m3u8Url)}`;
+        aggregatedLogs.push(`[CASCADE 🎯] Извлечен прямой HLS поток: ${finalM3u8}`);
+      } else {
+        finalM3u8 = `/api/media/playlist?url=${encodeURIComponent(targetIframe)}`;
+        aggregatedLogs.push(`[CASCADE 🔄] Задействован прокси балансера для ${candidate.name}: ${finalM3u8}`);
       }
     }
 
