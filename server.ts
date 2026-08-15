@@ -2631,30 +2631,51 @@ app.get('/api/media/playlist', async (c) => {
       const refererHeader = (iframeUrl.includes('collaps') || iframeUrl.includes('ortified'))
         ? 'https://apicollaps.cc/'
         : ((iframeUrl.includes('alloha') || iframeUrl.includes('stravers') || iframeUrl.includes('apbugall'))
-          ? 'https://alloha.tv/'
+          ? iframeUrl
           : `https://${sourceHost}/`);
 
-      const { m3u8Url, logs } = await extractBalancersM3u8(iframeUrl);
+      const { m3u8Url, headers: extraHeaders, logs } = await extractBalancersM3u8(iframeUrl);
       console.log(`[MEDIA PROXY DECODER LOGS for ${sourceHost}]:\n${logs.join('\n')}`);
 
       if (m3u8Url) {
         console.log(`[MEDIA PROXY] Successfully extracted m3u8 stream from ${sourceHost}: ${m3u8Url}`);
         
+        const fetchHeaders: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+          'Referer': extraHeaders?.['Referer'] || refererHeader,
+          'Origin': extraHeaders?.['Origin'] || `https://${sourceHost}`,
+          'X-Forwarded-For': '185.220.101.5',
+          'X-Real-IP': '185.220.101.5',
+          'Client-IP': '185.220.101.5'
+        };
+        if (extraHeaders?.['Authorizations']) {
+          fetchHeaders['Authorizations'] = extraHeaders['Authorizations'];
+        }
+        if (extraHeaders?.['Accepts-Controls']) {
+          fetchHeaders['Accepts-Controls'] = extraHeaders['Accepts-Controls'];
+        }
+
         // Fetch the actual .m3u8 playlist from CDN
         const playlistRes = await fetch(m3u8Url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': refererHeader,
-            'X-Forwarded-For': '185.220.101.5',
-            'X-Real-IP': '185.220.101.5',
-            'Client-IP': '185.220.101.5'
-          }
+          headers: fetchHeaders
         });
 
         if (playlistRes.ok) {
           const playlistText = await playlistRes.text();
           if (playlistText && playlistText.trim().startsWith('#EXTM3U')) {
             const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf('/') + 1);
+            
+            let extraParams = '';
+            if (extraHeaders?.['Authorizations']) {
+              extraParams += `&auth=${encodeURIComponent(extraHeaders['Authorizations'])}`;
+            }
+            if (extraHeaders?.['Accepts-Controls']) {
+              extraParams += `&controls=${encodeURIComponent(extraHeaders['Accepts-Controls'])}`;
+            }
+            if (extraHeaders?.['Referer']) {
+              extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
+            }
+
             const proxyUrlBase = `${getProxyOrigin(c)}/api/media/segment?url=`;
 
             const lines = playlistText.replace(/\r/g, '').split('\n');
@@ -2665,7 +2686,7 @@ app.get('/api/media/playlist', async (c) => {
               if (!trimmed.startsWith('http')) {
                 absUrl = trimmed.startsWith('/') ? new URL(trimmed, m3u8Url).toString() : baseUrl + trimmed;
               }
-              return `${proxyUrlBase}${encodeURIComponent(absUrl)}`;
+              return `${proxyUrlBase}${encodeURIComponent(absUrl)}${extraParams}`;
             });
 
             return new Response(rewrittenLines.join('\n'), {
@@ -2682,11 +2703,16 @@ app.get('/api/media/playlist', async (c) => {
         }
 
         // Fallback if playlist fetch failed: return master playlist pointing to extracted URL
+        let extraParams = '';
+        if (extraHeaders?.['Authorizations']) extraParams += `&auth=${encodeURIComponent(extraHeaders['Authorizations'])}`;
+        if (extraHeaders?.['Accepts-Controls']) extraParams += `&controls=${encodeURIComponent(extraHeaders['Accepts-Controls'])}`;
+        if (extraHeaders?.['Referer']) extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
+
         const masterLines = [
           '#EXTM3U',
           '#EXT-X-VERSION:3',
           `#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`,
-          `${getProxyOrigin(c)}/api/media/segment?url=${encodeURIComponent(m3u8Url)}`
+          `${getProxyOrigin(c)}/api/media/segment?url=${encodeURIComponent(m3u8Url)}${extraParams}`
         ];
         c.header('Content-Type', 'application/x-mpegURL');
         c.header('Access-Control-Allow-Origin', '*');
@@ -3101,7 +3127,24 @@ app.get('/api/media/segment', async (c) => {
 
   try {
     const segmentUrlObj = new URL(segmentUrl);
-    const referer = `https://${segmentUrlObj.host}/` || 'https://kodik.info/';
+    const customReferer = c.req.query('ref');
+    const authHeader = c.req.query('auth');
+    const controlsHeader = c.req.query('controls');
+    const referer = customReferer || `https://${segmentUrlObj.host}/`;
+
+    const reqHeaders: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+      'Referer': referer,
+      'Origin': customReferer ? new URL(customReferer).origin : `https://${segmentUrlObj.host}`,
+      'Accept': '*/*'
+    };
+
+    if (authHeader) {
+      reqHeaders['Authorizations'] = authHeader;
+    }
+    if (controlsHeader) {
+      reqHeaders['Accepts-Controls'] = controlsHeader;
+    }
 
     let response: Response | undefined;
     let attempts = 3;
@@ -3114,11 +3157,7 @@ app.get('/api/media/segment', async (c) => {
 
       try {
         response = await fetch(segmentUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Referer': referer,
-            'Accept': '*/*'
-          },
+          headers: reqHeaders,
           signal: controller.signal
         });
         clearTimeout(timeoutId);

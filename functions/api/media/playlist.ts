@@ -73,21 +73,32 @@ export async function onRequest(context: any) {
   if (!isKodik) {
     // Handling non-Kodik balancers (Alloha, Collaps, PlayerJS)
     console.log(`[CF BALANCER PROXY] Running balancer extraction for: ${iframeUrl}`);
-    const { m3u8Url } = await extractBalancersM3u8(iframeUrl);
+    const { m3u8Url, headers: extraHeaders } = await extractBalancersM3u8(iframeUrl);
 
     if (m3u8Url) {
       try {
+        const fetchHeaders: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+          'Referer': extraHeaders?.['Referer'] || iframeUrl,
+          'Origin': extraHeaders?.['Origin'] || `https://${new URL(iframeUrl).host}`
+        };
+        if (extraHeaders?.['Authorizations']) fetchHeaders['Authorizations'] = extraHeaders['Authorizations'];
+        if (extraHeaders?.['Accepts-Controls']) fetchHeaders['Accepts-Controls'] = extraHeaders['Accepts-Controls'];
+
         const m3u8Res = await fetch(m3u8Url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': iframeUrl
-          }
+          headers: fetchHeaders
         });
         if (m3u8Res.ok) {
           const m3u8Text = await m3u8Res.text();
           if (m3u8Text && m3u8Text.trim().startsWith('#EXTM3U')) {
             const m3u8Base = m3u8Url.substring(0, m3u8Url.lastIndexOf('/') + 1);
             const lines = m3u8Text.replace(/\r/g, '').split('\n');
+
+            let extraParams = '';
+            if (extraHeaders?.['Authorizations']) extraParams += `&auth=${encodeURIComponent(extraHeaders['Authorizations'])}`;
+            if (extraHeaders?.['Accepts-Controls']) extraParams += `&controls=${encodeURIComponent(extraHeaders['Accepts-Controls'])}`;
+            if (extraHeaders?.['Referer']) extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
+
             const proxyUrlBase = `${getProxyOrigin(request)}/api/media/segment?url=`;
 
             const rewrittenLines = lines.map(line => {
@@ -99,7 +110,7 @@ export async function onRequest(context: any) {
                   ? new URL(trimmed, m3u8Url).toString()
                   : m3u8Base + trimmed;
               }
-              return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}`;
+              return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}${extraParams}`;
             });
 
             return new Response(rewrittenLines.join('\n'), {

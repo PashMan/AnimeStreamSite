@@ -24,7 +24,7 @@ export function unpackDeanEdwards(code: string): string {
   }
 }
 
-export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: string | null; logs: string[]; htmlLength: number }> {
+export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: string | null; headers?: Record<string, string>; logs: string[]; htmlLength: number }> {
   const logs: string[] = [];
   logs.push(`[1] Starting extraction for URL: ${iframeUrl}`);
 
@@ -108,15 +108,24 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
 
     const fullText = html + '\n' + unpacked;
 
-    // Step B: Search for direct .m3u8 matches
-    logs.push(`[6] Scanning for direct .m3u8 URLs in full script text...`);
-    const directMatches = fullText.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/g) ||
+    // Step B: Search for direct .m3u8 or vkvideo.cloud matches
+    logs.push(`[6] Scanning for direct .m3u8 or vkvideo.cloud URLs in full script text...`);
+    const directMatches = fullText.match(/(https?:\/\/[^"'\s\\]+\.(?:m3u8|vkvideo\.cloud)[^"'\s\\]*)/g) ||
+                          fullText.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+\.m3u8[^"'\s\\]*)/g) ||
                           fullText.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/g);
     if (directMatches && directMatches.length > 0) {
       let candidate = directMatches[0].replace(/\\/g, '');
       if (candidate.startsWith('//')) candidate = `https:${candidate}`;
       logs.push(`[7] Found direct .m3u8 match: ${candidate}`);
-      return { m3u8Url: candidate, logs, htmlLength: fullText.length };
+      return { 
+        m3u8Url: candidate, 
+        headers: {
+          'Referer': targetUrl,
+          'Origin': `https://${host}`
+        },
+        logs, 
+        htmlLength: fullText.length 
+      };
     }
 
     // Step C: Base64 Decodings
@@ -127,14 +136,23 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
       const b64Str = match[1];
       try {
         const decoded = typeof atob === 'function' ? atob(b64Str) : Buffer.from(b64Str, 'base64').toString('utf-8');
-        if (decoded.includes('.m3u8')) {
-          let foundUrl = decoded.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+        if (decoded.includes('.m3u8') || decoded.includes('vkvideo.cloud')) {
+          let foundUrl = decoded.match(/(https?:\/\/[^"'\s\\]+\.(?:m3u8|vkvideo\.cloud)[^"'\s\\]*)/) ||
+                         decoded.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
                          decoded.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
           if (foundUrl) {
             let candidate = foundUrl[1].replace(/\\/g, '');
             if (candidate.startsWith('//')) candidate = `https:${candidate}`;
             logs.push(`[9] Decoded Base64 string successfully! Found .m3u8: ${candidate}`);
-            return { m3u8Url: candidate, logs, htmlLength: fullText.length };
+            return { 
+              m3u8Url: candidate, 
+              headers: {
+                'Referer': targetUrl,
+                'Origin': `https://${host}`
+              },
+              logs, 
+              htmlLength: fullText.length 
+            };
           }
         }
       } catch (_) {}
@@ -154,26 +172,44 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
         
         const jsonStringified = JSON.stringify(fileListObj);
         const m3u8InFileList = jsonStringified.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                                jsonStringified.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
                                 jsonStringified.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
         if (m3u8InFileList) {
           let candidate = m3u8InFileList[1].replace(/\\/g, '');
           if (candidate.startsWith('//')) candidate = `https:${candidate}`;
           logs.push(`[12] Found direct .m3u8 inside Alloha fileList JSON: ${candidate}`);
-          return { m3u8Url: candidate, logs, htmlLength: fullText.length };
+          return { 
+            m3u8Url: candidate, 
+            headers: {
+              'Referer': targetUrl,
+              'Origin': `https://${host}`
+            },
+            logs, 
+            htmlLength: fullText.length 
+          };
         }
 
         const b64Matches = jsonStringified.match(/([A-Za-z0-9+/=]{20,})/g) || [];
         for (const b of b64Matches) {
           try {
             const dec = typeof atob === 'function' ? atob(b) : Buffer.from(b, 'base64').toString('utf-8');
-            if (dec.includes('.m3u8')) {
+            if (dec.includes('.m3u8') || dec.includes('vkvideo.cloud')) {
               let foundUrl = dec.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                             dec.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
                              dec.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
               if (foundUrl) {
                 let candidate = foundUrl[1].replace(/\\/g, '');
                 if (candidate.startsWith('//')) candidate = `https:${candidate}`;
                 logs.push(`[12] Decoded Base64 in Alloha fileList JSON: ${candidate}`);
-                return { m3u8Url: candidate, logs, htmlLength: fullText.length };
+                return { 
+                  m3u8Url: candidate, 
+                  headers: {
+                    'Referer': targetUrl,
+                    'Origin': `https://${host}`
+                  },
+                  logs, 
+                  htmlLength: fullText.length 
+                };
               }
             }
           } catch (_) {}
@@ -193,14 +229,23 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
         for (const b of b64s) {
           try {
             const dec = typeof atob === 'function' ? atob(b) : Buffer.from(b, 'base64').toString('utf-8');
-            if (dec.includes('.m3u8')) {
+            if (dec.includes('.m3u8') || dec.includes('vkvideo.cloud')) {
               let foundUrl = dec.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                             dec.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
                              dec.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
               if (foundUrl) {
                 let candidate = foundUrl[1].replace(/\\/g, '');
                 if (candidate.startsWith('//')) candidate = `https:${candidate}`;
                 logs.push(`[12] Found .m3u8 inside player config block Base64: ${candidate}`);
-                return { m3u8Url: candidate, logs, htmlLength: fullText.length };
+                return { 
+                  m3u8Url: candidate, 
+                  headers: {
+                    'Referer': targetUrl,
+                    'Origin': `https://${host}`
+                  },
+                  logs, 
+                  htmlLength: fullText.length 
+                };
               }
             }
           } catch (_) {}
@@ -231,8 +276,22 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
           });
           if (vorfRes.ok) {
             const vorfData = await vorfRes.json() as any;
-            if (vorfData && vorfData.ok && vorfData.token) {
-              logs.push(`[14] Successfully obtained Alloha /vorf verification token (${vorfData.token.slice(0, 30)}...).`);
+            if (vorfData && vorfData.ok) {
+              logs.push(`[14] Successfully obtained Alloha /vorf verification response.`);
+              if (vorfData.file || vorfData.url || vorfData.playlist) {
+                const streamUrl = vorfData.file || vorfData.url || vorfData.playlist;
+                logs.push(`[15] Found stream URL in /vorf response: ${streamUrl}`);
+                return {
+                  m3u8Url: streamUrl,
+                  headers: {
+                    'Authorizations': vorfData.token ? `Bearer ${vorfData.token}` : '',
+                    'Referer': targetUrl,
+                    'Origin': `https://${host}`
+                  },
+                  logs,
+                  htmlLength: fullText.length
+                };
+              }
             }
           }
         }
