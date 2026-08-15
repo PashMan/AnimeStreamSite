@@ -13,15 +13,19 @@ const __dirname = path.dirname(__filename);
 const SITE_URL = 'https://kamianime.club';
 const SHIKIMORI_API = 'https://shikimori.one/api';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
 let supabase: any = null;
 
-if (supabaseUrl && supabaseKey) {
-  supabase = createClient(supabaseUrl, supabaseKey);
+if (supabaseUrl && supabaseKey && !supabaseUrl.includes('ulumbarwutnsodmzxpst')) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey);
+  } catch (e: any) {
+    console.warn('Supabase initialization failed:', e.message || e);
+  }
 } else {
-  console.warn('Missing Supabase credentials, skipping database routes');
+  console.log('Skipping Supabase database routes (no active credentials).');
 }
 
 const staticRoutes = [
@@ -146,8 +150,8 @@ async function fetchTopAnime() {
       if (data) {
         dmcaBlocks = data.map((d: any) => d.anime_id);
       }
-    } catch (e) {
-      console.error('Failed to fetch dmca_blocks', e);
+    } catch (e: any) {
+      console.warn('Skipping dmca_blocks:', e.message || e);
     }
   }
 
@@ -173,34 +177,43 @@ async function fetchTopAnime() {
 async function fetchForumTopics() {
   if (!supabase) return [];
   console.log('Fetching forum topics...');
-  // Fetch more topics for better indexing
-  const { data, error } = await supabase
-    .from('forum_topics')
-    .select('id')
-    .order('created_at', { ascending: false })
-    .limit(500);
-    
-  if (error) {
-      console.error('Failed to fetch forum topics:', error);
-      return [];
+  try {
+    const { data, error } = await supabase
+      .from('forum_topics')
+      .select('id')
+      .order('created_at', { ascending: false })
+      .limit(500);
+      
+    if (error) {
+        console.warn('Could not fetch forum topics:', error.message || error);
+        return [];
+    }
+    return (data || []).map((t: any) => `/forum/${t.id}`);
+  } catch (err: any) {
+    console.warn('Could not fetch forum topics:', err.message || err);
+    return [];
   }
-  return (data || []).map((t: any) => `/forum/${t.id}`);
 }
 
 async function fetchClubs() {
   if (!supabase) return [];
   console.log('Fetching clubs...');
-  const { data, error } = await supabase
-    .from('clubs')
-    .select('id')
-    .order('created_at', { ascending: false })
-    .limit(200);
-    
-  if (error) {
-      console.error('Failed to fetch clubs:', error);
-      return [];
+  try {
+    const { data, error } = await supabase
+      .from('clubs')
+      .select('id')
+      .order('created_at', { ascending: false })
+      .limit(200);
+      
+    if (error) {
+        console.warn('Could not fetch clubs:', error.message || error);
+        return [];
+    }
+    return (data || []).map((c: any) => `/club/${c.id}`);
+  } catch (err: any) {
+    console.warn('Could not fetch clubs:', err.message || err);
+    return [];
   }
-  return (data || []).map((c: any) => `/club/${c.id}`);
 }
 
 async function fetchNews() {

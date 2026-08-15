@@ -36,6 +36,7 @@ import {
   MicOff,
   Crown,
   Play,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -851,13 +852,8 @@ const Details: React.FC = () => {
               setSelectedTranslation(matchedTranslation || translationsList[0]);
             }
             setHasFetchedPlayers(true);
-            const isTv = isTvDevice();
             const customPlayer = playersList.find((p) => p.isCustom);
-            const kodikPlayer = playersList.find((p) => p.name === "Kodik");
-            if (isTv && kodikPlayer) {
-              // TV browsers often prefer standard iframe playback for maximum hardware acceleration
-              setSelectedPlayer("Kodik");
-            } else if (customPlayer) {
+            if (customPlayer) {
               setSelectedPlayer(customPlayer.name);
             } else if (playersList.length > 0) {
               setSelectedPlayer(playersList[0].name);
@@ -1656,30 +1652,15 @@ const Details: React.FC = () => {
               )}
 
               <div className="flex flex-col gap-6">
-                {/* Player Switcher Bar (Tabs) */}
-                {players.length > 0 && (
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full custom-scrollbar">
-                      {players.map((p) => {
-                        const isSelected = selectedPlayer === p.name;
-                        return (
-                          <button
-                            key={p.name}
-                            id={`select-player-${p.name.replace(/\s+/g, '-').toLowerCase()}`}
-                            onClick={() => setSelectedPlayer(p.name)}
-                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap border ${
-                              isSelected
-                                ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
-                                : "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-white/10"
-                            }`}
-                          >
-                            {p.name}
-                          </button>
-                        );
-                      })}
+                {/* Unified Player Bar */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-primary text-white border border-primary shadow-lg shadow-primary/25 flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
+                      <span>KamiPlayer (1080p)</span>
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Primary Video Player Screen */}
                 <div className="w-full aspect-video bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
@@ -1812,9 +1793,7 @@ const Details: React.FC = () => {
                                 onNextEpisode={handleNextEp}
                                 onPrevEpisode={handlePrevEp}
                                 onPlayerError={() => {
-                                  if (players.some((p) => p.name === "Kodik")) {
-                                    setSelectedPlayer("Kodik");
-                                  }
+                                  console.warn("[KamiPlayer] Stream playback error, retrying with next stream source if available");
                                 }}
                               />
                             );

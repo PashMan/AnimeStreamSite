@@ -31,10 +31,10 @@ export interface BalancerData {
 export const fetchPlayersClientSide = async (shikimoriId: string, title: string, year: string): Promise<BalancerData> => {
   if (!shikimoriId) return { players: [], kodik_translations: [] };
 
-  const cacheKey = `balancer_v3_${shikimoriId}`;
+  const cacheKey = `balancer_v4_${shikimoriId}`;
   const cached = getFromStorage(cacheKey);
 
-  // TTL: 24 hours for balancer data (prevents domain rot but keeps it ultra fast)
+  // TTL: 24 hours for balancer data
   const ttl = 24 * 60 * 60 * 1000;
   if (cached && (Date.now() - cached.timestamp < ttl)) {
     console.log(`[Balancer Service] Loaded from cache for ID ${shikimoriId}`);
@@ -42,39 +42,29 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
   }
 
   try {
-    const res = await fetch(`/api/balancer?title=${encodeURIComponent(title)}&year=${year}&shikimori_id=${shikimoriId}`);
+    const res = await fetch(`/api/balancer?title=${encodeURIComponent(title || '')}&year=${year || ''}&shikimori_id=${shikimoriId}`);
     if (res.ok) {
       const data = await res.json();
       
       let playersList: PlayerInfo[] = [];
       let translationsList: KodikTranslation[] = data.kodik_translations || [];
 
-      // Handle the new response format: { players: [], ids: {} }
       if (data && data.players && Array.isArray(data.players)) {
-        if (data.ids) {
-          console.log('[BALANCER] Anime IDs used for search:', data.ids);
-        }
         playersList = data.players;
       } else if (Array.isArray(data)) {
-        // Fallback for old format
-         playersList = data;
+        playersList = data;
       }
 
-      // Filter out Anilibria
+      // Filter out non-functional or duplicate direct entries
       playersList = playersList.filter(p => p.name !== 'Anilibria');
 
-      // Add custom player for 1080p encodes OR any anime containing Kodik stream
-      const hasKodik = playersList.some(p => p.name === 'Kodik' && p.iframe);
-      const isNative1080 = shikimoriId === '32281' || shikimoriId === '50594' || shikimoriId === '62568' || shikimoriId === '38826' || shikimoriId === '16782';
-
-      if (isNative1080 || hasKodik) {
-        if (!playersList.some(p => p.name === 'KamiPlayer (1080p)')) {
-          playersList.unshift({
-            name: 'KamiPlayer (1080p)',
-            iframe: null,
-            isCustom: true
-          });
-        }
+      // Always ensure KamiPlayer (1080p) is present as the primary player
+      if (!playersList.some(p => p.name === 'KamiPlayer (1080p)')) {
+        playersList.unshift({
+          name: 'KamiPlayer (1080p)',
+          iframe: null,
+          isCustom: true
+        });
       }
 
       const result: BalancerData = {
@@ -84,18 +74,62 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
 
       saveToStorage(cacheKey, result);
       return result;
-    } else {
-      if (cached) {
-        console.warn(`[Balancer Service] API failed, using stale balancer cache for ${shikimoriId}`);
-        return cached.data;
-      }
     }
   } catch (e) {
-    console.error('Balancer fetch failed', e);
-    if (cached) {
-      console.warn(`[Balancer Service] Balancer request error, using stale cache for ${shikimoriId}`);
-      return cached.data;
-    }
+    console.warn('[Balancer Service] Backend balancer request failed, attempting direct Kodik lookup:', e);
   }
-  return { players: [], kodik_translations: [] };
+
+  // Client-side fallback if backend balancer returned nothing or errored
+  try {
+    const kodikDirectData = await fetchKodikData(shikimoriId, title);
+    if (kodikDirectData && kodikDirectData.length > 0) {
+      const fallbackTranslations: KodikTranslation[] = kodikDirectData.map(item => ({
+        id: item.translation?.id || 0,
+        title: item.translation?.title || 'Озвучка',
+        type: item.translation?.type || 'voice',
+        iframe: item.link,
+        episodes_count: item.episodes_count || 1,
+        last_episode: item.last_episode || 1,
+        quality_label: '1080p',
+        quality_val: 1080,
+        provider: 'Kodik'
+      }));
+
+      const fallbackResult: BalancerData = {
+        players: [
+          {
+            name: 'KamiPlayer (1080p)',
+            iframe: null,
+            isCustom: true
+          },
+          {
+            name: 'Kodik',
+            iframe: kodikDirectData[0]?.link || null
+          }
+        ],
+        kodik_translations: fallbackTranslations
+      };
+
+      saveToStorage(cacheKey, fallbackResult);
+      return fallbackResult;
+    }
+  } catch (directErr) {
+    console.error('[Balancer Service] Direct Kodik fallback failed:', directErr);
+  }
+
+  if (cached) {
+    console.warn(`[Balancer Service] Using stale cache for ${shikimoriId}`);
+    return cached.data;
+  }
+
+  return { 
+    players: [
+      {
+        name: 'KamiPlayer (1080p)',
+        iframe: null,
+        isCustom: true
+      }
+    ], 
+    kodik_translations: [] 
+  };
 };
