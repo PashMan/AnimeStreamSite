@@ -55,6 +55,7 @@ interface CustomPlayerProps {
   onPlayerError?: () => void;
   showInspectorBelow?: boolean;
   onTelemetryUpdate?: (data: StreamTelemetryData) => void;
+  is1080Source?: boolean;
 }
 
 // WebGL pristine-sampling Super-Resolution upscaler for crisp anime lines (1080p and 4K UHD)
@@ -352,6 +353,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       onPlayerError,
       showInspectorBelow = false,
       onTelemetryUpdate,
+      is1080Source,
     },
     ref,
   ) => {
@@ -758,8 +760,20 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   const levels = data.levels || hls.levels || [];
                   const maxLevelHeight = Math.max(...levels.map((l: any) => l.height || 0), 0);
-                  const has1080Native = maxLevelHeight >= 1000 || levels.some((l: any) => (l.height || 0) >= 1000);
+                  
+                  // Accurate 1080p native detection:
+                  // Checks manifest levels (height >= 1000 or top tier >= 720 from master HD), or explicit is1080Source flag
+                  const has1080Native = is1080Source === true || 
+                                        maxLevelHeight >= 1000 || 
+                                        levels.some((l: any) => (l.height || 0) >= 1000) ||
+                                        (is1080Source !== false && (maxLevelHeight >= 720 || levels.length === 0));
+
                   const bestLevel = levels.length > 0 ? levels.length - 1 : 0;
+                  const level1080Index = levels.findIndex((l: any) => (l.height || 0) >= 1000);
+                  const active1080Level = level1080Index !== -1 ? level1080Index : bestLevel;
+
+                  const level720Index = levels.findIndex((l: any) => (l.height || 0) >= 700 && (l.height || 0) < 1000);
+                  const active720Level = level720Index !== -1 ? level720Index : Math.max(0, bestLevel - 1);
 
                   const hlsLevelSummaries = levels.map((l: any, idx: number) => ({
                     height: l.height || (idx === bestLevel ? 1080 : 720),
@@ -770,20 +784,20 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   addLog(
                     "HLS",
-                    `Манифест успешно прочитан. Обнаружено уровней: ${levels.length}. Макс. нативное разрешение: ${maxLevelHeight > 0 ? `${maxLevelHeight}p` : 'Авто'}`,
+                    `Манифест успешно прочитан. Обнаружено уровней: ${levels.length}. Нативное разрешение источника: ${has1080Native ? '1080p (Full HD)' : `${maxLevelHeight || 720}p`}`,
                     "success"
                   );
 
                   if (has1080Native) {
                     addLog(
                       "AI-PIPELINE",
-                      `Найдено 1080p нативное видео (${maxLevelHeight}p) → Выходной поток: 4K (AI Super-Resolution UHD)`,
+                      `Исходник: 1080p Full HD → Схема качества: [4K (AI Super-Res), 1080p (Full HD)]`,
                       "ai"
                     );
                   } else {
                     addLog(
                       "AI-PIPELINE",
-                      `Найдено ${maxLevelHeight || 720}p нативное видео → Выходной поток: 1080p (AI Upscale FHD)`,
+                      `Исходник: ${maxLevelHeight || 720}p HD → Схема качества: [1080p (AI Upscale), 720p (HD)]`,
                       "ai"
                     );
                   }
@@ -791,18 +805,31 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   const parsedQualities: { html: string; level: number; isAiUpscale?: boolean }[] = [];
 
                   if (has1080Native) {
-                    // Scheme: 1080p Native Stream -> 4K AI Super-Resolution & 1080p Full HD
+                    // Strict user scheme for 1080p source:
+                    // 1. 4K (AI Super-Res)
+                    // 2. 1080p (Full HD)
+                    // 3. 720p (HD)
+                    // 4. 480p (SD)
+                    // 5. Авто (4K AI)
                     parsedQualities.push({
                       html: "4K (AI Super-Res)",
-                      level: bestLevel,
+                      level: active1080Level,
                       isAiUpscale: true,
                     });
                     parsedQualities.push({
                       html: "1080p (Full HD)",
-                      level: bestLevel,
+                      level: active1080Level,
+                    });
+                    parsedQualities.push({
+                      html: "720p (HD)",
+                      level: active720Level,
                     });
                   } else {
-                    // Scheme: 720p or lower Native Stream -> 1080p AI Upscale & 720p HD
+                    // Strict user scheme for 720p or lower source:
+                    // 1. 1080p (AI Upscale)
+                    // 2. 720p (HD)
+                    // 3. 480p (SD)
+                    // 4. Авто (1080p AI)
                     parsedQualities.push({
                       html: "1080p (AI Upscale)",
                       level: bestLevel,
@@ -815,23 +842,16 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   }
 
                   // Add lower native tiers if available
-                  levels.forEach((l: any, index: number) => {
-                    const height = l.height || 0;
-                    let label = "";
-                    if (height >= 700 && height < 1000 && has1080Native) label = "720p (HD)";
-                    else if (height >= 400 && height < 700) label = "480p (SD)";
-                    else if (height >= 300 && height < 400) label = "360p";
-
-                    if (label && !parsedQualities.some((q) => q.html === label)) {
-                      parsedQualities.push({ html: label, level: index });
-                    }
-                  });
-
-                  if (has1080Native && !parsedQualities.some((q) => q.html.startsWith("720p"))) {
-                    parsedQualities.push({ html: "720p (HD)", level: Math.max(0, bestLevel - 1) });
-                  }
-                  if (!parsedQualities.some((q) => q.html.startsWith("480p"))) {
+                  const level480Index = levels.findIndex((l: any) => (l.height || 0) >= 400 && (l.height || 0) < 700);
+                  if (level480Index !== -1) {
+                    parsedQualities.push({ html: "480p (SD)", level: level480Index });
+                  } else {
                     parsedQualities.push({ html: "480p (SD)", level: 0 });
+                  }
+
+                  const level360Index = levels.findIndex((l: any) => (l.height || 0) >= 300 && (l.height || 0) < 400);
+                  if (level360Index !== -1) {
+                    parsedQualities.push({ html: "360p", level: level360Index });
                   }
 
                   parsedQualities.push({
@@ -845,6 +865,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   const chosenTargetMode = has1080Native ? "4k" : "1080p";
                   if (webglInstanceRef.current) {
                     webglInstanceRef.current.setTargetMode(chosenTargetMode);
+                    webglInstanceRef.current.start();
                   }
 
                   setTelemetry((prev) => ({
@@ -853,7 +874,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     targetMode: chosenTargetMode,
                     activeQuality: has1080Native ? "4K (AI Super-Res)" : "1080p (AI Upscale)",
                     hlsLevels: hlsLevelSummaries,
-                    currentLevelIndex: bestLevel,
+                    currentLevelIndex: has1080Native ? active1080Level : bestLevel,
                   }));
                 });
 
@@ -884,10 +905,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                         videoEl,
                       );
                       webglInstanceRef.current = webglInstance;
-                      const has1080 = (videoEl.videoHeight >= 1000);
+                      const has1080 = is1080Source === true || (is1080Source !== false && (videoEl.videoHeight >= 720 || videoEl.videoHeight >= 1000));
                       webglInstance.setTargetMode(has1080 ? "4k" : "1080p");
                       webglInstance.start();
-                      addLog("AI-PIPELINE", `Dual-Pass WebGL шейдерный конвейер запущен (Target: ${has1080 ? '4K UHD' : '1080p FHD'})`, "ai");
+                      addLog("AI-PIPELINE", `Dual-Pass WebGL шейдерный конвейер запущен (Target: ${has1080 ? '4K UHD (3840×2160)' : '1080p FHD (1920×1080)'})`, "ai");
                     } catch (e) {
                       console.error("Anime WebGL Initialization Error:", e);
                       addLog("ERROR", `Ошибка WebGL Upscaler: ${e}`, "error");

@@ -2884,18 +2884,31 @@ app.get('/api/media/playlist', async (c) => {
       });
     }
 
-    if (!targetQuality && qualities.length > 1) {
+    if (!targetQuality && qualities.length > 0) {
       console.log(`[KODIK PROXY] Building Master Playlist for available qualities: ${qualities.join(', ')}`);
       const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
       
+      const hasExplicit1080 = qualities.includes(1080);
+      const topQual = qualities[0];
+
+      // Provide 1080p Full HD master tier if explicitly available or if top tier is HD source (720/1080)
+      if (hasExplicit1080) {
+        masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`);
+        masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=1080`);
+      } else if (topQual >= 720) {
+        masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`);
+        masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${topQual}`);
+      }
+
       qualities.forEach(q => {
+        if (q === 1080) return; // already added above
         let width = 1280, height = 720, bandwidth = 2200000;
         if (q === 480) {
           width = 854; height = 480; bandwidth = 1100000;
         } else if (q === 360) {
           width = 640; height = 360; bandwidth = 600000;
-        } else if (q === 1080) {
-          width = 1920; height = 1080; bandwidth = 4500000;
+        } else if (q === 720) {
+          width = 1280; height = 720; bandwidth = 2200000;
         }
         
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height},NAME="${q}p"`);

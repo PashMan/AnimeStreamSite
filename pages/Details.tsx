@@ -1770,6 +1770,11 @@ const Details: React.FC = () => {
                           const isGardenOfWords = id === "16782";
                           const isKimiNoNaWa = id === "32281";
 
+                          const is1080Translation = ((selectedTranslation as any)?.quality_val === 1080) || 
+                                                    (selectedTranslation?.quality_label === '4K') || 
+                                                    isSuzume || isWeathering || isGardenOfWords || isKimiNoNaWa ||
+                                                    (players.some((p: any) => p.quality?.includes('1080') || p.quality?.includes('4K')));
+
                           let customSrc = "";
                           let maxTracks: number | undefined = undefined;
                           let audioTrackNames: string[] | undefined = undefined;
@@ -1866,6 +1871,7 @@ const Details: React.FC = () => {
                               onNextEpisode={handleNextEp}
                               onPrevEpisode={handlePrevEp}
                               showInspectorBelow={showStreamInspector}
+                              is1080Source={is1080Translation}
                               onPlayerError={() => {
                                 console.warn("[KamiPlayer] Stream playback error, attempting alternate source");
                               }}
