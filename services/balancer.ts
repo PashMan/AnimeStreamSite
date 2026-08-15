@@ -348,26 +348,26 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
   const altBalancersConfig = [
     {
       name: 'Collaps',
-      iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : null),
-      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : ''),
+      iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null)),
+      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`),
       quality: '1080p (4K AI)'
     },
     {
       name: 'Alloha',
-      iframe: kpId ? `https://alloha.tv/embed/${kpId}` : null,
-      desc: kpId ? `KP ${kpId}` : '',
+      iframe: kpId ? `https://alloha.tv/embed/${kpId}` : (imdbId ? `https://alloha.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://alloha.tv/embed/shikimori/${shikimoriId}` : null)),
+      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`),
       quality: '1080p (4K AI)'
     },
     {
       name: 'Bhcesh',
-      iframe: kpId ? `https://api.bhcesh.me/embed/kp/${kpId}` : null,
-      desc: kpId ? `Зеркало Collaps (KP ${kpId})` : 'Зеркало Collaps',
+      iframe: kpId ? `https://api.bhcesh.me/embed/kp/${kpId}` : (shikimoriId ? `https://api.bhcesh.me/embed/anime/${shikimoriId}` : null),
+      desc: kpId ? `Зеркало Collaps (KP ${kpId})` : `Зеркало Collaps (Shikimori ${shikimoriId})`,
       quality: '1080p (4K AI)'
     },
     {
       name: 'VideoCDN',
-      iframe: kpId ? `https://videocdn.tv/embed/kp/${kpId}` : (imdbId ? `https://videocdn.tv/embed/imdb/${imdbId}` : null),
-      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : ''),
+      iframe: kpId ? `https://videocdn.tv/embed/kp/${kpId}` : (imdbId ? `https://videocdn.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://videocdn.tv/embed/shikimori/${shikimoriId}` : null)),
+      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`),
       quality: '1080p (4K AI)'
     },
     {
@@ -509,23 +509,23 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
     const otherProviders = [
       {
         name: 'Collaps',
-        iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : null),
-        desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : '')
+        iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null)),
+        desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`)
       },
       {
         name: 'Alloha',
-        iframe: kpId ? `https://alloha.tv/embed/${kpId}` : null,
-        desc: kpId ? `KP ${kpId}` : ''
+        iframe: kpId ? `https://alloha.tv/embed/${kpId}` : (imdbId ? `https://alloha.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://alloha.tv/embed/shikimori/${shikimoriId}` : null)),
+        desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`)
       },
       {
         name: 'Bhcesh',
-        iframe: kpId ? `https://api.bhcesh.me/embed/kp/${kpId}` : null,
-        desc: kpId ? `Зеркало Collaps (KP ${kpId})` : 'Зеркало Collaps'
+        iframe: kpId ? `https://api.bhcesh.me/embed/kp/${kpId}` : (shikimoriId ? `https://api.bhcesh.me/embed/anime/${shikimoriId}` : null),
+        desc: kpId ? `Зеркало Collaps (KP ${kpId})` : `Зеркало Collaps (Shikimori ${shikimoriId})`
       },
       {
         name: 'VideoCDN',
-        iframe: kpId ? `https://videocdn.tv/embed/kp/${kpId}` : (imdbId ? `https://videocdn.tv/embed/imdb/${imdbId}` : null),
-        desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : '')
+        iframe: kpId ? `https://videocdn.tv/embed/kp/${kpId}` : (imdbId ? `https://videocdn.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://videocdn.tv/embed/shikimori/${shikimoriId}` : null)),
+        desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`)
       },
       {
         name: 'Bazon',

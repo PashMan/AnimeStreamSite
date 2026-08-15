@@ -1821,12 +1821,22 @@ const Details: React.FC = () => {
                             if (!iframeUrl.startsWith("http") && !iframeUrl.startsWith("//")) {
                               iframeUrl = `https:${iframeUrl}`;
                             }
+                            try {
+                              const u = new URL(iframeUrl);
+                              if (paramEpisode) {
+                                u.searchParams.set("episode", paramEpisode);
+                                u.searchParams.set("season", "1");
+                              }
+                              iframeUrl = u.toString();
+                            } catch (_) {}
+
                             return (
                               <iframe
                                 src={iframeUrl}
                                 className="w-full h-full border-0"
                                 allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                                 allowFullScreen
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                                 title={activePlayerObj.name}
                               />
                             );
@@ -1875,20 +1885,20 @@ const Details: React.FC = () => {
                                 ]
                               : undefined;
                           } else {
-                            // Extract stream prioritizing highest quality 1080p providers (AniLibria, Collaps, Alloha)
-                            const bestPlayerObj =
+                            // KamiPlayer extracts HLS .m3u8 from providers (AniLibria, Kodik, Collaps, Alloha, VideoCDN) for WebGL 4K AI upscaling
+                            const hlsPlayerObj =
                               players.find((p) => p.name === "AniLibria" && p.iframe) ||
+                              players.find((p) => p.name === "Kodik" && p.iframe) ||
                               players.find((p) => p.name === "Collaps" && p.iframe) ||
                               players.find((p) => p.name === "Alloha" && p.iframe) ||
-                              players.find((p) => p.name === "VideoCDN" && p.iframe) ||
-                              players.find((p) => p.name === "Kodik" && p.iframe);
+                              players.find((p) => p.name === "VideoCDN" && p.iframe);
 
                             const baseIframe =
-                              bestPlayerObj?.iframe ||
+                              hlsPlayerObj?.iframe ||
                               selectedTranslation?.iframe ||
                               translations[0]?.iframe ||
                               players.find((p) => p.iframe)?.iframe ||
-                              players[0]?.iframe;
+                              "";
 
                             if (baseIframe) {
                               let targetIframeWithEpisode = baseIframe;
