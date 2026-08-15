@@ -2734,10 +2734,16 @@ app.get('/api/media/search', async (c) => {
   }
 });
 
-app.get('/api/media/debug', async (c) => {
-  const urlParam = c.req.query('url');
+app.all('/api/media/debug', async (c) => {
+  let urlParam = c.req.query('url');
+  if (!urlParam && (c.req.method === 'POST' || c.req.method === 'PUT')) {
+    try {
+      const body = await c.req.json();
+      urlParam = body?.url;
+    } catch {}
+  }
   if (!urlParam) {
-    return c.json({ error: 'Provide ?url= parameter to test decoding' }, 400);
+    return c.json({ error: 'Provide ?url= parameter or JSON body { url: "..." } to test decoding' }, 400);
   }
   let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
   const result = await extractBalancersM3u8(iframeUrl);

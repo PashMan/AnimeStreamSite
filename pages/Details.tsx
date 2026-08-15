@@ -203,7 +203,13 @@ const Details: React.FC = () => {
           targetIframe = u.toString();
         } catch (e) {}
       }
-      const res = await fetch(`/api/media/debug?url=${encodeURIComponent(targetIframe)}`);
+      const res = await fetch("/api/media/debug", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ url: targetIframe })
+      });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("application/json")) {
         const data = await res.json();
