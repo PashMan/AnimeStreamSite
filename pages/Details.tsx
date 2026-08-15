@@ -277,6 +277,7 @@ const Details: React.FC = () => {
   const [isRoomInstructionOpen, setIsRoomInstructionOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [copiedRoomLink, setCopiedRoomLink] = useState(false);
+  const [showStreamInspector, setShowStreamInspector] = useState(false);
 
   useEffect(() => {
     if (roomId) {
@@ -1864,6 +1865,7 @@ const Details: React.FC = () => {
                               skips={currentSkips}
                               onNextEpisode={handleNextEp}
                               onPrevEpisode={handlePrevEp}
+                              showInspectorBelow={showStreamInspector}
                               onPlayerError={() => {
                                 console.warn("[KamiPlayer] Stream playback error, attempting alternate source");
                               }}
@@ -1963,39 +1965,56 @@ const Details: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Episode Search Filter */}
-                      {(() => {
-                        const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
-                        if (totalEps > 1) {
-                          return (
-                            <div className="relative flex items-center">
-                              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
-                              <input
-                                type="text"
-                                placeholder="Быстрый поиск серии..."
-                                className="pl-9 pr-4 py-2.5 bg-black/40 border border-white/10 hover:border-primary/40 focus:border-primary rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-full sm:w-52"
-                                value={epSearchVal}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setEpSearchVal(val);
-                                  const sanitized = val.replace(/\D/g, "");
-                                  if (sanitized) {
-                                    const epNum = parseInt(sanitized, 10);
-                                    if (epNum >= 1 && epNum <= totalEps) {
-                                      let newUrl = `/anime/${paramId}/episode/${epNum}`;
-                                      if (window.location.search) {
-                                        newUrl += window.location.search;
+                      {/* Right Action Bar: Stream Inspector HUD Toggle & Episode Search Filter */}
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          onClick={() => setShowStreamInspector(!showStreamInspector)}
+                          className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                            showStreamInspector
+                              ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-md shadow-emerald-500/10"
+                              : "bg-black/40 border-white/10 text-slate-400 hover:text-white hover:border-white/20"
+                          }`}
+                          title="Показать подробную статистику видеопотока, разрешение и логи"
+                        >
+                          <Activity className={`w-3.5 h-3.5 ${showStreamInspector ? "text-emerald-400 animate-pulse" : "text-slate-400"}`} />
+                          <span className="hidden sm:inline">{showStreamInspector ? "Скрыть логи" : "Логи потока"}</span>
+                          <span className="sm:hidden">HUD</span>
+                        </button>
+
+                        {/* Episode Search Filter */}
+                        {(() => {
+                          const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
+                          if (totalEps > 1) {
+                            return (
+                              <div className="relative flex items-center flex-1 sm:flex-initial">
+                                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
+                                <input
+                                  type="text"
+                                  placeholder="Поиск серии..."
+                                  className="pl-9 pr-4 py-2.5 bg-black/40 border border-white/10 hover:border-primary/40 focus:border-primary rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-full sm:w-48"
+                                  value={epSearchVal}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEpSearchVal(val);
+                                    const sanitized = val.replace(/\D/g, "");
+                                    if (sanitized) {
+                                      const epNum = parseInt(sanitized, 10);
+                                      if (epNum >= 1 && epNum <= totalEps) {
+                                        let newUrl = `/anime/${paramId}/episode/${epNum}`;
+                                        if (window.location.search) {
+                                          newUrl += window.location.search;
+                                        }
+                                        navigate(newUrl);
                                       }
-                                      navigate(newUrl);
                                     }
-                                  }
-                                }}
-                              />
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </div>
 
                     {/* EPISODES LIST: Compact format "[Number] - [Title]" with truncation */}
