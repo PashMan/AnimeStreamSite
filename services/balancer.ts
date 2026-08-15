@@ -110,8 +110,8 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
                     iframe = u.toString();
                   } catch (_) {}
 
-                  const qStr = (r.quality || '').toLowerCase();
-                  const is1080 = qStr.includes('1080') || qStr.includes('fhd') || qStr.includes('bd') || qStr.includes('uhd') || qStr.includes('bluray');
+                  const qualStr = (r.quality || '').toLowerCase();
+                  const is1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('bd') || qualStr.includes('uhd') || qualStr.includes('bluray');
                   const quality_val = is1080 ? 1080 : 720;
                   const quality_label = is1080 ? '4K' : '1080p';
 
@@ -398,7 +398,7 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
 
   const playersList: PlayerInfo[] = [
     {
-      name: 'KamiPlayer (1080p)',
+      name: 'KamiPlayer (4K UHD)',
       iframe: null,
       isCustom: true
     }
@@ -441,7 +441,7 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
 export const fetchPlayersClientSide = async (shikimoriId: string, title: string, year: string): Promise<BalancerData> => {
   if (!shikimoriId) return { players: [], kodik_translations: [], diagnostics: [] };
 
-  const cacheKey = `balancer_v10_${shikimoriId}`;
+  const cacheKey = `balancer_v12_${shikimoriId}`;
   const cached = getFromStorage(cacheKey);
 
   // TTL: 12 hours for balancer data

@@ -442,11 +442,11 @@ app.get('/api/balancer', async (c) => {
                 diagnostics.push({
                   provider: 'Kodik',
                   status: 'found',
-                  details: `Успешно: найдено ${kodik_translations.length} озвучек, до ${kodik_translations[0]?.episodes_count || 1} эп. (базовый поток: ${kodik_translations.some(t => t.quality_val === 1080) ? '1080p FHD' : '720p HD'})`,
+                  details: `Успешно: найдено ${kodik_translations.length} озвучек, до ${kodik_translations[0]?.episodes_count || 1} эп. (базовый поток 1080p FHD)`,
                   queryUsed: `shikimori_id=${shikimori_id || ''}`,
                   timeMs: Date.now() - t0Kodik,
                   httpStatus: 200,
-                  quality: kodik_translations.some(t => t.quality_val === 1080) ? '1080p (4K AI)' : '720p (1080p AI)',
+                  quality: '1080p (4K AI)',
                   foundIframe: kodik_iframe,
                   itemsCount: kodik_translations.length
                 });

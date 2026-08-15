@@ -354,15 +354,16 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     const [activeSubmenu, setActiveSubmenu] = useState<"main" | "quality" | "speed">("main");
 
     // Player Preferences (Stored in localStorage)
-    const [selectedQuality, setSelectedQuality] = useState<string>("Авто");
+    const [selectedQuality, setSelectedQuality] = useState<string>("4K (AI Super-Res)");
     const [availableQualities, setAvailableQualities] = useState<
       { html: string; level: number; isAiUpscale?: boolean }[]
     >([
-      { html: "Авто", level: -1 },
-      { html: "1080p (AI Upscale)", level: 0, isAiUpscale: true },
-      { html: "720p", level: 1 },
-      { html: "480p", level: 2 },
+      { html: "4K (AI Super-Res)", level: 0, isAiUpscale: true },
+      { html: "1080p (Full HD)", level: 0 },
+      { html: "720p (HD)", level: 1 },
+      { html: "480p (SD)", level: 2 },
       { html: "360p", level: 3 },
+      { html: "Авто (4K AI)", level: -1 },
     ]);
 
     const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
@@ -675,27 +676,15 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   if (isQualityAdded) return;
                   isQualityAdded = true;
 
-                  const getQualityName = (level: any) => {
-                    const height = level.height || 0;
-                    if (height >= 1000) return "1080p";
-                    if (height >= 700) return "720p";
-                    if (height >= 400) return "480p";
-                    if (height >= 300) return "360p";
-                    return height ? `${height}p` : "Авто";
-                  };
-
                   const levels = data.levels || hls.levels || [];
                   const maxLevelHeight = Math.max(...levels.map((l: any) => l.height || 0), 0);
-                  const has1080Native = maxLevelHeight >= 1000;
+                  const has1080Native = maxLevelHeight >= 1000 || levels.some((l: any) => (l.height || 0) >= 1000);
+                  const bestLevel = levels.length > 0 ? levels.length - 1 : 0;
 
-                  const parsedQualities: { html: string; level: number; isAiUpscale?: boolean }[] = [
-                    { html: "Авто", level: -1 },
-                  ];
+                  const parsedQualities: { html: string; level: number; isAiUpscale?: boolean }[] = [];
 
                   if (has1080Native) {
-                    // 1080p source stream found -> Keep 1080p and add 4K Super-Resolution
-                    const idx1080 = levels.findIndex((l: any) => (l.height || 0) >= 1000);
-                    const bestLevel = idx1080 !== -1 ? idx1080 : levels.length - 1;
+                    // Scheme: 1080p Native Stream -> 4K AI Super-Resolution & 1080p Full HD
                     parsedQualities.push({
                       html: "4K (AI Super-Res)",
                       level: bestLevel,
@@ -706,28 +695,49 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       level: bestLevel,
                     });
                   } else {
-                    // Only 720p or lower found -> Upscale to 1080p Full HD
-                    const bestLevel = levels.length > 0 ? levels.length - 1 : 0;
+                    // Scheme: 720p or lower Native Stream -> 1080p AI Upscale & 720p HD
                     parsedQualities.push({
                       html: "1080p (AI Upscale)",
                       level: bestLevel,
                       isAiUpscale: true,
                     });
+                    parsedQualities.push({
+                      html: "720p (HD)",
+                      level: bestLevel,
+                    });
                   }
 
-                  // Add remaining native qualities (720p, 480p, 360p)
+                  // Add lower native tiers if available
                   levels.forEach((l: any, index: number) => {
-                    const name = getQualityName(l);
-                    if (
-                      name !== "1080p" &&
-                      name !== "Авто" &&
-                      !parsedQualities.some((q) => q.html === name || q.html.startsWith(name))
-                    ) {
-                      parsedQualities.push({ html: name, level: index });
+                    const height = l.height || 0;
+                    let label = "";
+                    if (height >= 700 && height < 1000 && has1080Native) label = "720p (HD)";
+                    else if (height >= 400 && height < 700) label = "480p (SD)";
+                    else if (height >= 300 && height < 400) label = "360p";
+
+                    if (label && !parsedQualities.some((q) => q.html === label)) {
+                      parsedQualities.push({ html: label, level: index });
                     }
                   });
 
+                  if (has1080Native && !parsedQualities.some((q) => q.html.startsWith("720p"))) {
+                    parsedQualities.push({ html: "720p (HD)", level: Math.max(0, bestLevel - 1) });
+                  }
+                  if (!parsedQualities.some((q) => q.html.startsWith("480p"))) {
+                    parsedQualities.push({ html: "480p (SD)", level: 0 });
+                  }
+
+                  parsedQualities.push({
+                    html: has1080Native ? "Авто (4K AI)" : "Авто (1080p AI)",
+                    level: -1,
+                  });
+
                   setAvailableQualities(parsedQualities);
+                  setSelectedQuality(has1080Native ? "4K (AI Super-Res)" : "1080p (AI Upscale)");
+
+                  if (webglInstanceRef.current) {
+                    webglInstanceRef.current.setTargetMode(has1080Native ? "4k" : "1080p");
+                  }
                 });
 
                 artInstance.on("ready", () => {
@@ -741,7 +751,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                         videoContainer.appendChild(canvasRef.current);
                         canvasRef.current.setAttribute(
                           "style",
-                          "position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 0; z-index: 5;",
+                          "position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 1; z-index: 5;",
                         );
                       }
 
@@ -750,6 +760,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                         videoEl,
                       );
                       webglInstanceRef.current = webglInstance;
+                      webglInstance.setTargetMode("4k");
                       webglInstance.start();
                     } catch (e) {
                       console.error("Anime WebGL Initialization Error:", e);
