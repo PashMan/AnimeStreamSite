@@ -64,7 +64,16 @@ export async function onRequest(context: any) {
   }
 
   try {
-    const res = await fetch(targetUrl);
+    const isAniboomHost = targetUrl.includes('ya-ligh') || targetUrl.includes('aniboom') || targetUrl.includes('boom-img');
+    const reqHeaders: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Referer': isAniboomHost ? 'https://aniboom.one/' : 'https://shikimori.one/'
+    };
+    if (isAniboomHost) {
+      reqHeaders['Origin'] = 'https://aniboom.one';
+    }
+
+    const res = await fetch(targetUrl, { headers: reqHeaders });
     if (!res.ok) {
       return new Response(`Proxy failed with status ${res.status}`, {
         status: res.status,
