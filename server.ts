@@ -286,6 +286,7 @@ app.get('/api/balancer', async (c) => {
   const title = c.req.query('title');
   const year = c.req.query('year');
   const shikimori_id = c.req.query('shikimori_id');
+  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   
   console.log(`[API] Balancer: title=${title}, year=${year}, shiki=${shikimori_id}`);
   addLog('Balancer Request Started', { title, year, shikimori_id });
@@ -385,51 +386,6 @@ app.get('/api/balancer', async (c) => {
                   ids.world_art_id = world_art_id;
                 }
 
-                // Group and collect unique translations from Kodik results
-                const translationsMap = new Map<string, any>();
-                kodikData.results.forEach((res: any) => {
-                  if (res.translation && res.translation.title) {
-                    const tName = res.translation.title;
-                    const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
-                    const qualStr = (res.quality || '').toLowerCase();
-                    const is1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('bd') || qualStr.includes('uhd') || qualStr.includes('bluray');
-                    const quality_val = is1080 ? 1080 : 720;
-                    const quality_label = is1080 ? '4K' : '1080p';
-
-                    let iframeWithApi = iframe;
-                    try {
-                      const url = new URL(iframe);
-                      url.searchParams.set('api', '1');
-                      iframeWithApi = url.toString();
-                    } catch (_) {}
-
-                    if (!translationsMap.has(tName)) {
-                      translationsMap.set(tName, {
-                        id: res.translation.id,
-                        title: tName,
-                        type: res.translation.type || 'voice',
-                        iframe: iframeWithApi,
-                        episodes_count: res.episodes_count || res.last_episode || 1,
-                        last_episode: res.last_episode || res.episodes_count || 1,
-                        quality_val,
-                        quality_label,
-                        provider: 'Kodik'
-                      });
-                    } else {
-                      const existing = translationsMap.get(tName);
-                      // Upgrade quality or episode count if higher
-                      if (quality_val > (existing.quality_val || 0)) {
-                        existing.quality_val = quality_val;
-                        existing.quality_label = quality_label;
-                        existing.iframe = iframeWithApi;
-                      }
-                      if ((res.episodes_count || 0) > (existing.episodes_count || 0)) {
-                        existing.episodes_count = res.episodes_count;
-                        existing.last_episode = res.last_episode || res.episodes_count;
-                      }
-                    }
-                  }
-                });
                 // Kodik used in background purely for ID discovery (Kinopoisk / IMDb ID)
                 kodikSuccess = true;
                 break;
@@ -447,7 +403,7 @@ app.get('/api/balancer', async (c) => {
 
       if (!kodikSuccess) {
         diagnostics.push({
-          provider: 'Kodik',
+          provider: 'Kodik (Silent ID Lookup)',
           status: lastKodikError.includes('results: []') ? 'not_found' : 'error',
           details: lastKodikError || 'Тайтл не найден в базе Kodik',
           queryUsed: `shikimori_id=${shikimori_id || ''}`,
@@ -456,7 +412,7 @@ app.get('/api/balancer', async (c) => {
       }
     } catch (e: any) {
       diagnostics.push({
-        provider: 'Kodik',
+        provider: 'Kodik (Silent ID Lookup)',
         status: 'error',
         details: `Критическая ошибка Kodik: ${e.message}`,
         timeMs: Date.now() - t0Kodik
@@ -506,9 +462,9 @@ app.get('/api/balancer', async (c) => {
           try {
             const res = await fetchWithTimeout(item.url, {
               headers: {
-                'X-Forwarded-For': '185.220.101.5',
-                'X-Real-IP': '185.220.101.5',
-                'Client-IP': '185.220.101.5',
+                'X-Forwarded-For': clientIp || '',
+                'X-Real-IP': clientIp || '',
+                'Client-IP': clientIp || '',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
               }
             }, 3000);
@@ -639,7 +595,7 @@ app.get('/api/balancer', async (c) => {
 
         for (const item of cQueries) {
           try {
-            const res = await fetchWithTimeout(item.url, {}, 3000);
+            const res = await fetchWithTimeout(item.url, { headers: { 'X-Forwarded-For': clientIp || '', 'X-Real-IP': clientIp || '', 'Client-IP': clientIp || '', 'User-Agent': 'Mozilla/5.0' } }, 3000);
             if (res.ok) {
               const d = await res.json() as any;
               if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
@@ -2109,6 +2065,7 @@ app.options('/api/media/skip-timings', (c) => {
 
 app.get('/api/media/skip-timings', async (c) => {
   const urlParam = c.req.query('url');
+  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   if (!urlParam) {
     return c.json({ error: 'url parameter is required' }, 400);
   }
@@ -2256,6 +2213,7 @@ app.get('/api/media/list', async (c) => {
 app.get('/api/media/search', async (c) => {
   const token = c.req.query('token') || '17cc4ee691bc251131a9041e6e89e78e';
   const shikimori_id = c.req.query('shikimori_id');
+  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   const title = c.req.query('title');
   
   let targetUrl = `https://kodik-api.com/search?token=${token}&with_material_data=true`;
@@ -2285,6 +2243,7 @@ app.get('/api/media/search', async (c) => {
 
 app.get('/api/media/debug', async (c) => {
   const urlParam = c.req.query('url');
+  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   if (!urlParam) {
     return c.json({ success: false, error: 'url parameter is required', logs: ['[ERR] URL не передан'] }, 400);
   }
@@ -2320,7 +2279,7 @@ app.get('/api/media/debug', async (c) => {
   }
 
   try {
-    const { m3u8Url, headers, logs, htmlLength } = await extractBalancersM3u8(iframeUrl);
+    const { m3u8Url, headers, logs, htmlLength } = await extractBalancersM3u8(iframeUrl, clientIp);
     if (m3u8Url) {
       return c.json({
         success: true,
@@ -2407,6 +2366,105 @@ async function resolveAnimeHlsDirect(shikiId: string, episodeNum = 1, targetQual
       } catch (_) {}
     }
   } catch (_) {}
+
+  // 2. Silent background Kodik HLS stream extraction fallback for KamiPlayer
+  try {
+    const kodikTokens = [
+      'b7cc4293ed475c4ad1fd599d114f4435',
+      '17cc4ee691bc251131a9041e6e89e78e',
+      '45c53578f11ecfb74e31267b634cc6a8'
+    ];
+    let foundIframe = '';
+    for (const kt of kodikTokens) {
+      if (foundIframe) break;
+      try {
+        const kRes = await fetch(`https://kodikapi.com/search?token=${kt}&shikimori_id=${shikiId}&with_episodes=true`, {
+          signal: AbortSignal.timeout(3000)
+        });
+        if (kRes.ok) {
+          const kData = await kRes.json() as any;
+          if (kData?.results && kData.results.length > 0) {
+            const item = kData.results[0];
+            const link = item.link || '';
+            if (link) {
+              const u = new URL(link.startsWith('//') ? `https:${link}` : link);
+              u.searchParams.set('episode', String(episodeNum));
+              foundIframe = u.toString();
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (foundIframe) {
+      const iframeRes = await fetch(foundIframe, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://shikimori.one/'
+        },
+        signal: AbortSignal.timeout(4000)
+      }).catch(() => null);
+
+      if (iframeRes && iframeRes.ok) {
+        const html = await iframeRes.text();
+        const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*"([^"]+)"/);
+        const hashMatch = html.match(/\.hash\s*=\s*'([^']+)'/) || html.match(/\.hash\s*=\s*"([^"]+)"/);
+        const idMatch = html.match(/\.id\s*=\s*'([^']+)'/) || html.match(/\.id\s*=\s*"([^"]+)"/);
+        const typeMatch = html.match(/\.type\s*=\s*'([^']+)'/) || html.match(/\.type\s*=\s*"([^"]+)"/);
+
+        if (urlParamsMatch && hashMatch && idMatch && typeMatch) {
+          const urlParams = JSON.parse(urlParamsMatch[1]);
+          const videoHash = hashMatch[1];
+          const videoId = idMatch[1];
+          const videoType = typeMatch[1];
+          const host = new URL(foundIframe).host;
+
+          const gboxRes = await fetch(`https://${host}/gbox`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': foundIframe
+            },
+            body: new URLSearchParams({
+              hash: videoHash,
+              id: videoId,
+              type: videoType,
+              d: urlParams.d || 'kodik.info',
+              d_sign: urlParams.d_sign || '',
+              pd: urlParams.pd || '',
+              pd_sign: urlParams.pd_sign || '',
+              ref: '',
+              ref_sign: '',
+              bad_user: 'true',
+              cdn_is_working: 'true'
+            }).toString(),
+            signal: AbortSignal.timeout(4000)
+          }).catch(() => null);
+
+          if (gboxRes && gboxRes.ok) {
+            const gboxData = await gboxRes.json() as any;
+            if (gboxData && gboxData.links) {
+              const quals = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a);
+              const topQual = quals[0] || 720;
+              const linkArr = gboxData.links[String(topQual)] || gboxData.links[quals[0]];
+              if (linkArr && linkArr.length > 0) {
+                const rawSrc = linkArr[0].src;
+                const decryptedUrl = rawSrc.includes('mp4:hls:manifest') ? rawSrc : decodeKodikUrl(rawSrc);
+                const finalUrl = decryptedUrl.startsWith('//') ? `https:${decryptedUrl}` : decryptedUrl;
+
+                return new Response(`#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"\n${finalUrl}`, {
+                  headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
   return null;
 }
 
@@ -2471,10 +2529,16 @@ app.post('/api/get-stream', async (c) => {
 
 app.get('/api/media/playlist', async (c) => {
   const urlParam = c.req.query('url');
+  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   const targetQuality = c.req.query('quality');
   const isDirect = c.req.query('direct') !== 'false';
   const shikiIdQuery = c.req.query('shikimori_id') || c.req.query('shiki_id') || c.req.query('anime_id') || c.req.query('animeId') || c.req.query('id');
   if (!urlParam) {
+    if (shikiIdQuery) {
+      const epNum = parseInt(c.req.query('episode') || '1') || 1;
+      const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, epNum, targetQuality);
+      if (directAnimeHls) return directAnimeHls;
+    }
     return c.json({ error: 'url parameter is required' }, 400);
   }
 
@@ -2629,7 +2693,7 @@ app.get('/api/media/playlist', async (c) => {
           ? iframeUrl
           : `https://${sourceHost}/`);
 
-      const { m3u8Url, headers: extraHeaders, logs } = await extractBalancersM3u8(iframeUrl);
+      const { m3u8Url, headers: extraHeaders, logs } = await extractBalancersM3u8(iframeUrl, clientIp);
       console.log(`[MEDIA PROXY DECODER LOGS for ${sourceHost}]:\n${logs.join('\n')}`);
 
       if (m3u8Url) {
@@ -2639,9 +2703,9 @@ app.get('/api/media/playlist', async (c) => {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
           'Referer': extraHeaders?.['Referer'] || refererHeader,
           'Origin': extraHeaders?.['Origin'] || `https://${sourceHost}`,
-          'X-Forwarded-For': '185.220.101.5',
-          'X-Real-IP': '185.220.101.5',
-          'Client-IP': '185.220.101.5'
+          'X-Forwarded-For': clientIp || '',
+          'X-Real-IP': clientIp || '',
+          'Client-IP': clientIp || ''
         };
         if (extraHeaders?.['Authorizations']) {
           fetchHeaders['Authorizations'] = extraHeaders['Authorizations'];
@@ -2749,54 +2813,11 @@ app.get('/api/media/playlist', async (c) => {
         }
       }
 
-      let fallbackKodikUrl = '';
-      try {
-        if (shikiId || kpId) {
-          const q = shikiId ? `shikimori_id=${shikiId}` : `kinopoisk_id=${kpId}`;
-          const kodikTokensList = [
-            'b7cc4293ed475c4ad1fd599d114f4435',
-            '17cc4ee691bc251131a9041e6e89e78e',
-            '45c53578f11ecfb74e31267b634cc6a8',
-            '93699ec16dae9882a1705e4dfb12c7bb',
-            '1d643a758d41de5ccb2f66be4e3f421d'
-          ];
-          for (const token of kodikTokensList) {
-            if (fallbackKodikUrl) break;
-            const kodikEndpoints = [
-              `https://kodikapi.com/search?token=${token}&${q}&with_episodes=true`,
-              `https://kodik-api.com/search?token=${token}&${q}&with_episodes=true`
-            ];
-            for (const kUrl of kodikEndpoints) {
-              try {
-                const kRes = await fetch(kUrl, { signal: AbortSignal.timeout(3000) });
-                if (kRes.ok) {
-                  const kData = await kRes.json() as any;
-                  if (kData && kData.results && kData.results.length > 0) {
-                    const link = kData.results[0].link;
-                    if (link) {
-                      const u = new URL(link.startsWith('//') ? `https:${link}` : link);
-                      u.searchParams.set('episode', ep);
-                      fallbackKodikUrl = u.toString();
-                      break;
-                    }
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (_) {}
-
-      if (fallbackKodikUrl) {
-        iframeUrl = fallbackKodikUrl;
-        console.log(`[MEDIA PROXY] Switched to Kodik fallback URL: ${iframeUrl}`);
-      } else {
-        if (shikiId) {
-          const directAnimeHls = await resolveAnimeHlsDirect(shikiId, parseInt(ep) || 1, targetQuality);
-          if (directAnimeHls) return directAnimeHls;
-        }
-        return getErrorHlsResponse('Stream extraction unavailable for balancer');
+      if (shikiId) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiId, parseInt(ep) || 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
       }
+      return getErrorHlsResponse('Stream extraction unavailable for balancer');
     }
 
     // --- 3. Kodik Extraction ---
@@ -3129,6 +3150,7 @@ app.get('/api/media/playlist', async (c) => {
 
 app.get('/api/media/skips', async (c) => {
   const urlParam = c.req.query('url');
+  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   if (!urlParam) {
     return c.json({ skips: null });
   }

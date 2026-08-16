@@ -877,10 +877,10 @@ const Details: React.FC = () => {
             year.toString(),
           );
 
-          const playersList = data?.players || [];
-          const translationsList = data?.kodik_translations || [];
+          const playersList = (data?.players || []).filter((p: any) => (p.name || "").toLowerCase() !== "kodik");
+          const translationsList = (data?.kodik_translations || []).filter((t: any) => (t.provider || "").toLowerCase() !== "kodik");
           if (data?.diagnostics) {
-            setDiagnostics(data.diagnostics);
+            setDiagnostics(data.diagnostics.filter((d: any) => (d.provider || "").toLowerCase() !== "kodik"));
           }
           if (data?.ids) {
             setBalancerIds(data.ids);
@@ -1784,7 +1784,7 @@ const Details: React.FC = () => {
                             key={p.name}
                             onClick={() => {
                               setSelectedPlayer(p.name);
-                              setPlayerViewMode("custom");
+                              if (p.name.toLowerCase() === "alloha" || p.name.toLowerCase() === "collaps") { setPlayerViewMode("iframe"); } else { setPlayerViewMode("custom"); }
                               const matchingTrans = translations.find(
                                 (t) => (t.provider || "").toLowerCase() === p.name.toLowerCase()
                               );
@@ -2014,8 +2014,11 @@ const Details: React.FC = () => {
                               showInspectorBelow={showStreamInspector}
                               is1080Source={is1080Translation}
                               onPlayerError={() => {
-                                console.warn("[PLAYER FALLBACK] Custom player encountered an error, switching to iframe view");
-                                if (targetIframeWithEpisode) {
+                                console.warn("[PLAYER FALLBACK] Custom player encountered an error, attempting intelligent provider fallback");
+                                const altPlayer = players.find(p => p.name !== selectedPlayer && p.iframe && typeof p.iframe === 'string' && p.iframe.trim().length > 0);
+                                if (altPlayer) {
+                                  setSelectedPlayer(altPlayer.name);
+                                } else if (targetIframeWithEpisode) {
                                   setPlayerViewMode("iframe");
                                 }
                               }}
@@ -2091,7 +2094,7 @@ const Details: React.FC = () => {
                                           (p) => p.name.toLowerCase() === (t.provider || "").toLowerCase()
                                         );
                                         if (matchingPlayer) {
-                                          setSelectedPlayer(matchingPlayer.name);
+                                          setSelectedPlayer(matchingPlayer.name); if (matchingPlayer.name.toLowerCase() === "alloha" || matchingPlayer.name.toLowerCase() === "collaps") { setPlayerViewMode("iframe"); } else { setPlayerViewMode("custom"); }
                                         }
                                       }
                                     }}

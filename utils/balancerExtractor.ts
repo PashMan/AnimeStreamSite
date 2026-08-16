@@ -4,7 +4,7 @@ import { executeAllohaHandshake } from './borthCrypto';
 
 export { unpackDeanEdwards };
 
-export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: string | null; headers?: Record<string, string>; logs: string[]; htmlLength: number }> {
+export async function extractBalancersM3u8(iframeUrl: string, clientIp?: string): Promise<{ m3u8Url: string | null; headers?: Record<string, string>; logs: string[]; htmlLength: number }> {
   const logs: string[] = [];
   logs.push(`[1] Starting extraction for URL: ${iframeUrl}`);
 
@@ -29,20 +29,28 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
     logs.push(`[2] Target host identified: ${host}`);
 
     // Check if URL belongs to Alloha / Yani / Stravers / Pljjalgo / Borth balancer
-    const tokenMovieParam = parsedUrl.searchParams.get('token_movie') || parsedUrl.searchParams.get('token');
+    let tokenMovieParam = parsedUrl.searchParams.get('token_movie') || parsedUrl.searchParams.get('token');
+    if (!tokenMovieParam) {
+      const embedMatch = parsedUrl.pathname.match(/\/embed\/([a-zA-Z0-9_-]{16,})/);
+      if (embedMatch) {
+        tokenMovieParam = embedMatch[1];
+      }
+    }
+
     const isAllohaFamily = targetUrl.includes('alloha') ||
                            targetUrl.includes('stravers') ||
                            targetUrl.includes('pljjalgo') ||
                            targetUrl.includes('yani.tv') ||
                            targetUrl.includes('apbugall') ||
-                           Boolean(tokenMovieParam && tokenMovieParam.length >= 20);
+                           Boolean(tokenMovieParam && tokenMovieParam.length >= 16);
 
     if (isAllohaFamily && tokenMovieParam) {
       logs.push(`[2.1] Detected Alloha/Borth stream provider with token_movie: ${tokenMovieParam.slice(0, 8)}...`);
       const episodeParam = parsedUrl.searchParams.get('episode') || parsedUrl.searchParams.get('ep') || '1';
       const seasonParam = parsedUrl.searchParams.get('season') || '1';
       const translationParam = parsedUrl.searchParams.get('translation') || undefined;
-      const movieIdParam = parsedUrl.searchParams.get('id') || parsedUrl.pathname.replace(/[^\d]/g, '') || undefined;
+      const rawIdParam = parsedUrl.searchParams.get('id');
+      const movieIdParam = rawIdParam && /^\d+$/.test(rawIdParam) && rawIdParam.length < 10 ? rawIdParam : undefined;
 
       const handshakeResult = await executeAllohaHandshake({
         host,
@@ -174,6 +182,41 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
       }
     }
 
+    // Step A0: Check if HTML contains Alloha token_movie or embedded player URL
+    const targetEp = parsedUrl.searchParams.get('episode') || parsedUrl.searchParams.get('ep') || '1';
+    const targetSeason = parsedUrl.searchParams.get('season') || '1';
+
+    const htmlTokenMatch = html.match(/token_movie\s*[:=]\s*["']([a-zA-Z0-9_-]{16,})["']/i) ||
+                           html.match(/stravers\.live\/embed\/([a-zA-Z0-9_-]{16,})/i) ||
+                           html.match(/pljjalgo\.online\/embed\/([a-zA-Z0-9_-]{16,})/i) ||
+                           html.match(/alloha\.tv\/embed\/([a-zA-Z0-9_-]{16,})/i);
+    if (htmlTokenMatch && htmlTokenMatch[1]) {
+      const extractedToken = htmlTokenMatch[1];
+      logs.push(`[4.8] Found Alloha token_movie in HTML: ${extractedToken.slice(0, 8)}... Executing Borth handshake...`);
+      try {
+        const handshakeResult = await executeAllohaHandshake({
+          host: host || 'larkin-as.stravers.live',
+          tokenMovie: extractedToken,
+          season: targetSeason,
+          episode: targetEp
+        });
+        if (handshakeResult.manifestUrl) {
+          logs.push(`[4.9] Borth handshake via HTML token succeeded: ${handshakeResult.manifestUrl}`);
+          return {
+            m3u8Url: handshakeResult.manifestUrl,
+            headers: {
+              'Referer': handshakeResult.referer || targetUrl,
+              'Origin': handshakeResult.origin || `https://${host}`
+            },
+            logs,
+            htmlLength: html.length
+          };
+        }
+      } catch (hErr: any) {
+        logs.push(`[4.9] Borth handshake via HTML token failed: ${hErr.message}`);
+      }
+    }
+
     // Step A: Dean Edwards unpacker & String Decoders
     const unpacked = unpackDeanEdwards(html);
     if (unpacked.length > html.length) {
@@ -266,9 +309,6 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
 
     // Step D: Alloha fileList & Playerjs / Collaps configs
     logs.push(`[10] Scanning Playerjs / makePlayer / Alloha fileList config blocks...`);
-
-    const targetEp = parsedUrl.searchParams.get('episode') || parsedUrl.searchParams.get('ep') || '1';
-    const targetSeason = parsedUrl.searchParams.get('season') || '1';
 
     const fileListMatch = fullText.match(/fileList\s*:\s*JSON\.parse\('([\s\S]*?)'\)/) ||
                           fullText.match(/fileList\s*=\s*JSON\.parse\('([\s\S]*?)'\)/) ||
@@ -411,8 +451,8 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Referer': targetUrl,
               'Content-Type': 'application/x-www-form-urlencoded',
-              'X-Forwarded-For': '185.220.101.5',
-              'X-Real-IP': '185.220.101.5'
+              'X-Forwarded-For': clientIp || '',
+              'X-Real-IP': clientIp || ''
             },
             body: new URLSearchParams({
               token: tokenMatch[1],
@@ -448,8 +488,8 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
                       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                       'Referer': targetUrl,
                       'Content-Type': 'application/x-www-form-urlencoded',
-                      'X-Forwarded-For': '185.220.101.5',
-                      'X-Real-IP': '185.220.101.5'
+                      'X-Forwarded-For': clientIp || '',
+                      'X-Real-IP': clientIp || ''
                     },
                     body: new URLSearchParams({ token: authToken }).toString(),
                     signal: AbortSignal.timeout(3000)
