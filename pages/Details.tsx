@@ -1940,7 +1940,7 @@ const Details: React.FC = () => {
                                 }
                                 targetIframeWithEpisode = url.toString();
                               } catch (e) {}
-                              customSrc = `/api/media/playlist?url=${encodeURIComponent(targetIframeWithEpisode)}&shikimori_id=${id}`;
+                              customSrc = `/api/media/playlist?url=${encodeURIComponent(targetIframeWithEpisode)}&shikimori_id=${id}&episode=${paramEpisode || '1'}`;
                             } else {
                               customSrc = `/api/media/playlist?shikimori_id=${id}&episode=${paramEpisode || '1'}`;
                             }

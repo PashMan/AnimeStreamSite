@@ -105,8 +105,8 @@ export async function onRequest(context: any) {
       }
     }
 
-      // Fallback: if direct stream extraction is unavailable for Alloha/Collaps, search Kodik stream
-      console.warn(`[CF BALANCER PROXY] Direct stream extraction failed for ${iframeUrl}, attempting Kodik fallback...`);
+      // Fallback: if direct stream extraction is unavailable for Alloha/Collaps, resolve via AniLibria or Kodik
+      console.warn(`[CF BALANCER PROXY] Direct stream extraction failed for ${iframeUrl}, attempting stream fallback...`);
       let fallbackKodikUrl = '';
       try {
         let ep = urlObj.searchParams.get('episode') || '1';
@@ -120,6 +120,47 @@ export async function onRequest(context: any) {
         const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
         if (kpMatch && !shikiId && !kpId) kpId = kpMatch[1];
 
+        // 1. Try resolving AniLibria 1080p stream directly if Shikimori ID is available
+        if (shikiId) {
+          try {
+            const anilibriaRes = await fetch(`https://api.anilibria.tv/v3/title/get?shikimori=${shikiId}`, {
+              headers: { 'User-Agent': 'Mozilla/5.0' },
+              signal: AbortSignal.timeout(3000)
+            });
+            if (anilibriaRes.ok) {
+              const aniData = await anilibriaRes.json() as any;
+              const epNum = parseInt(ep) || 1;
+              const epData = aniData?.player?.list?.[String(epNum)] || aniData?.player?.list?.['1'] || (aniData?.player?.list ? Object.values(aniData.player.list)[0] : null);
+              if (epData && (epData as any).hls) {
+                const host = aniData?.player?.host || 'cache.libria.fun';
+                const fhd = (epData as any).hls.fhd ? ((epData as any).hls.fhd.startsWith('http') ? (epData as any).hls.fhd : `https://${host}${(epData as any).hls.fhd}`) : null;
+                const hd = (epData as any).hls.hd ? ((epData as any).hls.hd.startsWith('http') ? (epData as any).hls.hd : `https://${host}${(epData as any).hls.hd}`) : null;
+                const sd = (epData as any).hls.sd ? ((epData as any).hls.sd.startsWith('http') ? (epData as any).hls.sd : `https://${host}${(epData as any).hls.sd}`) : null;
+                const streamUrl = fhd || hd || sd;
+                if (streamUrl) {
+                  const masterLines = [
+                    '#EXTM3U',
+                    '#EXT-X-VERSION:3',
+                    ...(fhd ? [`#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`, `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(fhd)}`] : []),
+                    ...(hd ? [`#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,NAME="720p"`, `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(hd)}`] : []),
+                    ...(sd ? [`#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480,NAME="480p"`, `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(sd)}`] : [])
+                  ];
+                  return new Response(masterLines.join('\n'), {
+                    status: 200,
+                    headers: {
+                      'Content-Type': 'application/x-mpegURL',
+                      'Access-Control-Allow-Origin': '*',
+                      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                      'Access-Control-Allow-Headers': '*',
+                      'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                  });
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
         if (shikiId || kpId) {
           const q = shikiId ? `shikimori_id=${shikiId}` : `kinopoisk_id=${kpId}`;
           const kodikTokensList = [
@@ -131,21 +172,27 @@ export async function onRequest(context: any) {
           ];
           for (const token of kodikTokensList) {
             if (fallbackKodikUrl) break;
-            try {
-              const kRes = await fetch(`https://kodikapi.com/search?token=${token}&${q}&with_episodes=true`);
-              if (kRes.ok) {
-                const kData = await kRes.json() as any;
-                if (kData && kData.results && kData.results.length > 0) {
-                  const link = kData.results[0].link;
-                  if (link) {
-                    const u = new URL(link.startsWith('//') ? `https:${link}` : link);
-                    u.searchParams.set('episode', ep);
-                    fallbackKodikUrl = u.toString();
-                    break;
+            const endpoints = [
+              `https://kodikapi.com/search?token=${token}&${q}&with_episodes=true`,
+              `https://kodik-api.com/search?token=${token}&${q}&with_episodes=true`
+            ];
+            for (const epUrl of endpoints) {
+              try {
+                const kRes = await fetch(epUrl, { signal: AbortSignal.timeout(3000) });
+                if (kRes.ok) {
+                  const kData = await kRes.json() as any;
+                  if (kData && kData.results && kData.results.length > 0) {
+                    const link = kData.results[0].link;
+                    if (link) {
+                      const u = new URL(link.startsWith('//') ? `https:${link}` : link);
+                      u.searchParams.set('episode', ep);
+                      fallbackKodikUrl = u.toString();
+                      break;
+                    }
                   }
                 }
-              }
-            } catch (_) {}
+              } catch (_) {}
+            }
           }
         }
       } catch (err: any) {

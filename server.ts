@@ -538,6 +538,24 @@ app.get('/api/balancer', async (c) => {
               if (d && (d.status === 'success' || d.data?.iframe || d.iframe)) {
                 alloha_iframe = d.data?.iframe || d.iframe;
                 found = true;
+
+                if (d.data?.translation_iframe && typeof d.data.translation_iframe === 'object') {
+                  for (const [trKey, trObj] of Object.entries(d.data.translation_iframe as Record<string, any>)) {
+                    if (trObj && trObj.iframe) {
+                      kodik_translations.push({
+                        id: `alloha_${trKey}`,
+                        title: `Alloha: ${trObj.name || 'Озвучка'} (${trObj.quality || '1080p'})`,
+                        type: 'voice',
+                        iframe: trObj.iframe,
+                        episodes_count: 1,
+                        quality_val: 1080,
+                        quality_label: '1080p',
+                        provider: 'Alloha'
+                      });
+                    }
+                  }
+                }
+
                 diagnostics.push({
                   provider: 'Alloha',
                   status: 'found',
