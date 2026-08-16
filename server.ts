@@ -2348,10 +2348,11 @@ app.get('/api/media/playlist', async (c) => {
         }
       });
 
-      console.log(`📡 [ANIBOOM PARSER] Embed HTML response status: ${aRes.status}`);
+      console.log('Status:', aRes.status);
+      const aHtml = await aRes.text();
+      console.log('HTML preview:', aHtml.slice(0, 500));
 
       if (aRes.ok) {
-        const aHtml = await aRes.text();
         const match = aHtml.match(/data-parameters="([^"]+)"/) || aHtml.match(/data-parameters='([^']+)'/);
         if (match) {
           const rawParams = match[1]
