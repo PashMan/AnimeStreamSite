@@ -5,14 +5,11 @@ async function test() {
   const f = "/build/app.1216f2e9.js";
   const res = await fetch(host + f);
   const js = await res.text();
-  
-  // Find where a0J is defined
-  const idx = js.indexOf('function a0J(');
+  console.log("Index of 0x9068e:", js.indexOf("0x9068e"));
+  console.log("Context around 0x9068e:");
+  const idx = js.indexOf("0x9068e");
   if (idx !== -1) {
-    console.log("Found function a0J definition:");
-    console.log(js.slice(idx, idx + 1000));
-  } else {
-    console.log("Could not find function a0J definition.");
+    console.log(js.slice(idx - 100, idx + 100));
   }
 }
 

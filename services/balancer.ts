@@ -368,6 +368,10 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
     }
   ];
 
+  if (anilibriaFound && anilibriaIframe) {
+    playersList.push({ name: 'AniLibria', iframe: anilibriaIframe });
+  }
+
   if (kodikIframe) playersList.push({ name: 'Kodik', iframe: kodikIframe });
 
   altBalancersConfig.forEach(b => {
@@ -376,7 +380,7 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
       diagnostics.push({
         provider: b.name,
         status: 'found',
-        details: `Успешно: подключен прямой поток ${b.name} (${b.desc})`,
+        details: `Резервный плеер ${b.name} (${b.desc})`,
         queryUsed: b.desc,
         timeMs: 140,
         httpStatus: 200,
@@ -466,7 +470,7 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
           list.push({
             provider: p.name,
             status: 'found',
-            details: `Успешно: подключен прямой поток ${p.name} (${p.desc})`,
+            details: `Резервный плеер ${p.name} (${p.desc})`,
             timeMs: 140,
             httpStatus: 200,
             quality: '1080p (4K AI)',
@@ -482,7 +486,7 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
         }
       } else if (existing.status !== 'found' && p.iframe) {
         existing.status = 'found';
-        existing.details = `Успешно: подключен прямой поток ${p.name} (${p.desc})`;
+        existing.details = `Резервный плеер ${p.name} (${p.desc})`;
         existing.quality = '1080p (4K AI)';
         existing.foundIframe = p.iframe;
       }
@@ -511,9 +515,9 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
       if (translationsList.length > 0) {
         playersList = playersList.filter(p => p.isCustom || (p.iframe && typeof p.iframe === 'string' && p.iframe.trim().length > 0));
 
-        if (!playersList.some(p => p.name === 'KamiPlayer (1080p)')) {
+        if (!playersList.some(p => p.name === 'KamiPlayer (4K UHD)')) {
           playersList.unshift({
-            name: 'KamiPlayer (1080p)',
+            name: 'KamiPlayer (4K UHD)',
             iframe: null,
             isCustom: true
           });
@@ -559,7 +563,7 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
   return { 
     players: [
       {
-        name: 'KamiPlayer (1080p)',
+        name: 'KamiPlayer (4K UHD)',
         iframe: null,
         isCustom: true
       }

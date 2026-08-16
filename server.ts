@@ -6,6 +6,7 @@ import { makeRoomWebSocketHandler } from './utils/socketServer';
 import { upgradeWebSocket as nodeUpgradeWebSocket } from '@hono/node-server';
 import { upgradeWebSocket as cfUpgradeWebSocket } from 'hono/cloudflare-workers';
 import { extractBalancersM3u8 } from './utils/balancerExtractor';
+import { decodeKodikUrl, decryptStreamUrl, extractStreamsFromPayload, parseQualitySources, selectBestStreamUrl } from './utils/streamDecryptor';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -1798,38 +1799,7 @@ app.get('/api/image/*', async (c) => {
 });
 
 // Kodik direct stream decryptor and proxy
-function convertChar(char: string, num: number): string {
-  const alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const upper = char.toUpperCase();
-  if (alph.includes(upper)) {
-    const idx = (alph.indexOf(upper) + num) % alph.length;
-    const ch = alph[idx];
-    return char === char.toLowerCase() ? ch.toLowerCase() : ch;
-  }
-  return char;
-}
 
-function decodeKodikUrl(encoded: string, rotNum?: number): string {
-  if (rotNum !== undefined) {
-    const crypted = encoded.split('').map(c => convertChar(c, rotNum)).join('');
-    const padding = (4 - (crypted.length % 4)) % 4;
-    try {
-      const decoded = atob(crypted + '='.repeat(padding));
-      if (decoded.includes('mp4:hls:manifest')) return decoded;
-    } catch {}
-  }
-  for (let rot = 0; rot < 26; rot++) {
-    const crypted = encoded.split('').map(c => convertChar(c, rot)).join('');
-    const padding = (4 - (crypted.length % 4)) % 4;
-    try {
-      const decoded = atob(crypted + '='.repeat(padding));
-      if (decoded.includes('mp4:hls:manifest')) {
-         return decoded;
-      }
-    } catch {}
-  }
-  throw new Error('Decryption of Kodik stream URL failed');
-}
 
 function getProxyOrigin(c: any): string {
   const proto = c.req.header('x-forwarded-proto') || 'http';
@@ -2274,8 +2244,153 @@ app.get('/api/media/search', async (c) => {
   }
 });
 
+app.get('/api/media/debug', async (c) => {
+  const urlParam = c.req.query('url');
+  if (!urlParam) {
+    return c.json({ success: false, error: 'url parameter is required', logs: ['[ERR] URL не передан'] }, 400);
+  }
+
+  let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+  const isKodik = iframeUrl.includes('kodik') || iframeUrl.includes('vazha') || iframeUrl.includes('aniqit');
+  const isAniLibria = iframeUrl.includes('anilibria');
+
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  c.header('Access-Control-Allow-Headers', '*');
+
+  if (isKodik) {
+    return c.json({
+      success: true,
+      extractedM3u8: `/api/media/playlist?url=${encodeURIComponent(iframeUrl)}`,
+      logs: [
+        `[KODIK] Обнаружен плеер Kodik: ${iframeUrl}`,
+        `[KODIK] Серверный поток готов к расшифровке через /api/media/playlist`
+      ]
+    });
+  }
+
+  if (isAniLibria) {
+    return c.json({
+      success: true,
+      extractedM3u8: `/api/media/playlist?url=${encodeURIComponent(iframeUrl)}`,
+      logs: [
+        `[ANILIBRIA] Обнаружен плеер AniLibria: ${iframeUrl}`,
+        `[ANILIBRIA] Серверный HLS 1080p FHD поток готов`
+      ]
+    });
+  }
+
+  try {
+    const { m3u8Url, headers, logs, htmlLength } = await extractBalancersM3u8(iframeUrl);
+    if (m3u8Url) {
+      return c.json({
+        success: true,
+        extractedM3u8: m3u8Url,
+        headers: headers || {},
+        logs,
+        htmlLength
+      });
+    }
+
+    return c.json({
+      success: false,
+      extractedM3u8: null,
+      logs: [
+        ...logs,
+        `[WARN] Прямой незащищенный HLS поток не был найден в HTML/JS плеера ${new URL(iframeUrl).host}`
+      ],
+      htmlLength
+    });
+  } catch (err: any) {
+    return c.json({
+      success: false,
+      extractedM3u8: null,
+      logs: [`[ERR] Ошибка декодирования: ${err.message}`]
+    }, 500);
+  }
+});
+
+async function resolveAnimeHlsDirect(shikiId: string, episodeNum = 1, targetQuality?: string | null): Promise<Response | null> {
+  if (!shikiId) return null;
+  // 1. Attempt AniLibria Direct HLS extraction (1080p FHD / 720p HD)
+  try {
+    const anilibriaUrls = [
+      `https://api.anilibria.tv/v3/title/get?shikimori=${shikiId}`,
+      `https://api.anilibria.top/v3/title/get?shikimori=${shikiId}`
+    ];
+    for (const aUrl of anilibriaUrls) {
+      try {
+        const res = await fetch(aUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (res.ok) {
+          const d = await res.json() as any;
+          const rel = d.id ? d : d.release || (d.list && d.list[0]) || null;
+          if (rel && rel.player?.list) {
+            const epData = rel.player.list[String(episodeNum)] || rel.player.list['1'] || Object.values(rel.player.list)[0];
+            if (epData && epData.hls) {
+              const host = rel.player.host || 'cache.libria.fun';
+              const fhd = epData.hls.fhd ? (epData.hls.fhd.startsWith('http') ? epData.hls.fhd : `https://${host}${epData.hls.fhd}`) : null;
+              const hd = epData.hls.hd ? (epData.hls.hd.startsWith('http') ? epData.hls.hd : `https://${host}${epData.hls.hd}`) : null;
+              const sd = epData.hls.sd ? (epData.hls.sd.startsWith('http') ? epData.hls.sd : `https://${host}${epData.hls.sd}`) : null;
+
+              if (targetQuality === '1080' && fhd) {
+                return new Response(`#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\n${fhd}`, {
+                  headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
+                });
+              }
+              if (targetQuality === '720' && hd) {
+                return new Response(`#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720\n${hd}`, {
+                  headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
+                });
+              }
+
+              const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
+              if (fhd) {
+                masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`);
+                masterLines.push(fhd);
+              }
+              if (hd) {
+                masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,NAME="720p"`);
+                masterLines.push(hd);
+              }
+              if (sd) {
+                masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480,NAME="480p"`);
+                masterLines.push(sd);
+              }
+              return new Response(masterLines.join('\n'), {
+                headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
+              });
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return null;
+}
+
+function getErrorHlsResponse(reason = 'Stream unavailable') {
+  return new Response(
+    `#EXTM3U\n#EXT-X-ERROR:${encodeURIComponent(reason)}\n`,
+    {
+      status: 502,
+      headers: {
+        'Content-Type': 'application/x-mpegURL',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-Error-Reason': reason
+      }
+    }
+  );
+}
+
 app.get('/api/media/playlist', async (c) => {
   const urlParam = c.req.query('url');
+  const targetQuality = c.req.query('quality');
+  const isDirect = c.req.query('direct') !== 'false';
+  const shikiIdQuery = c.req.query('shikimori_id') || c.req.query('shiki_id') || c.req.query('anime_id') || c.req.query('animeId') || c.req.query('id');
   if (!urlParam) {
     return c.json({ error: 'url parameter is required' }, 400);
   }
@@ -2283,6 +2398,94 @@ app.get('/api/media/playlist', async (c) => {
   try {
     let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
     console.log(`[MEDIA PROXY] Extracting playlist from: ${iframeUrl}`);
+
+    // --- 0. Direct M3U8 Fetch & Rewrite (for sub-playlists or direct stream URLs) ---
+    const isDirectM3u8 = iframeUrl.toLowerCase().includes('.m3u8') || iframeUrl.toLowerCase().includes('/manifest') || c.req.query('is_manifest') === 'true';
+    if (isDirectM3u8) {
+      try {
+        const u = new URL(iframeUrl);
+        const customReferer = c.req.query('ref');
+        const authHeader = c.req.query('auth');
+        const controlsHeader = c.req.query('controls');
+        const referer = customReferer || `https://${u.host}/`;
+
+        const fetchHeaders: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+          'Referer': referer,
+          'Origin': customReferer ? new URL(customReferer).origin : `https://${u.host}`,
+          'Accept': '*/*'
+        };
+        if (authHeader) fetchHeaders['Authorizations'] = authHeader;
+        if (controlsHeader) fetchHeaders['Accepts-Controls'] = controlsHeader;
+
+        let directRes = await fetch(iframeUrl, { headers: fetchHeaders, signal: AbortSignal.timeout(6000) }).catch(() => null);
+        
+        // Retry with clean standard headers if first attempt failed
+        if (!directRes || !directRes.ok) {
+          directRes = await fetch(iframeUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+              'Referer': iframeUrl.includes('kodik') ? 'https://kodik.info/' : `https://${u.host}/`,
+              'Accept': '*/*'
+            },
+            signal: AbortSignal.timeout(6000)
+          }).catch(() => null);
+        }
+
+        if (directRes && directRes.ok) {
+          const m3u8Text = await directRes.text();
+          if (m3u8Text && m3u8Text.trim().startsWith('#EXTM3U')) {
+            const baseUrl = iframeUrl.substring(0, iframeUrl.lastIndexOf('/') + 1);
+            let extraParams = '';
+            if (authHeader) extraParams += `&auth=${encodeURIComponent(authHeader)}`;
+            if (controlsHeader) extraParams += `&controls=${encodeURIComponent(controlsHeader)}`;
+            if (customReferer) extraParams += `&ref=${encodeURIComponent(customReferer)}`;
+            if (shikiIdQuery) extraParams += `&shikimori_id=${encodeURIComponent(shikiIdQuery)}`;
+
+            const proxyUrlBase = `${getProxyOrigin(c)}/api/media/segment?url=`;
+
+            const lines = m3u8Text.replace(/\r/g, '').split('\n');
+            const rewrittenLines = lines.map(line => {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith('#')) return line;
+              let absUrl = trimmed;
+              if (!trimmed.startsWith('http')) {
+                absUrl = trimmed.startsWith('/') ? new URL(trimmed, iframeUrl).toString() : baseUrl + trimmed;
+              }
+              if (absUrl.toLowerCase().includes('.m3u8')) {
+                return `${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(absUrl)}&direct=${isDirect ? 'true' : 'false'}${extraParams}`;
+              }
+              if (isDirect) {
+                return absUrl;
+              }
+              return `${proxyUrlBase}${encodeURIComponent(absUrl)}${extraParams}`;
+            });
+
+            return new Response(rewrittenLines.join('\n'), {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/x-mpegURL',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': '*',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+              }
+            });
+          }
+        }
+
+        // If direct fetch from backend failed but client direct mode is enabled, 302 redirect client directly to URL
+        if (isDirect && iframeUrl.startsWith('http')) {
+          console.log(`[MEDIA PROXY] Direct M3U8 redirecting client to: ${iframeUrl}`);
+          return c.redirect(iframeUrl, 302);
+        }
+      } catch (directM3u8Err: any) {
+        console.error('[MEDIA PROXY] Direct M3U8 fetch failed:', directM3u8Err.message);
+        if (isDirect && iframeUrl.startsWith('http')) {
+          return c.redirect(iframeUrl, 302);
+        }
+      }
+    }
 
     // --- 1. AniLibria Direct 1080p HLS Extraction ---
     if (iframeUrl.includes('anilibria.tv') || iframeUrl.includes('anilibria.top')) {
@@ -2384,6 +2587,9 @@ app.get('/api/media/playlist', async (c) => {
             if (extraHeaders?.['Referer']) {
               extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
             }
+            if (shikiIdQuery) {
+              extraParams += `&shikimori_id=${encodeURIComponent(shikiIdQuery)}`;
+            }
 
             const proxyUrlBase = `${getProxyOrigin(c)}/api/media/segment?url=`;
 
@@ -2394,6 +2600,13 @@ app.get('/api/media/playlist', async (c) => {
               let absUrl = trimmed;
               if (!trimmed.startsWith('http')) {
                 absUrl = trimmed.startsWith('/') ? new URL(trimmed, m3u8Url).toString() : baseUrl + trimmed;
+              }
+              // If it's a sub-playlist (.m3u8), we MUST proxy it through `/api/media/playlist` to inject headers
+              if (absUrl.toLowerCase().includes('.m3u8')) {
+                return `${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(absUrl)}&direct=${isDirect ? 'true' : 'false'}${extraParams}`;
+              }
+              if (isDirect) {
+                return absUrl;
               }
               return `${proxyUrlBase}${encodeURIComponent(absUrl)}${extraParams}`;
             });
@@ -2429,71 +2642,121 @@ app.get('/api/media/playlist', async (c) => {
       }
 
       // If direct extraction for Alloha/Collaps/Balancer returned null, attempt fallback stream resolution
-      console.warn(`[MEDIA PROXY] Balancer stream extraction for ${sourceHost} failed or returned null. Attempting Kodik stream fallback...`);
-      let fallbackKodikUrl = '';
-      try {
-        let ep = '1';
-        const epMatch = iframeUrl.match(/[?&]episode=(\d+)/);
-        if (epMatch) ep = epMatch[1];
+      console.log(`[MEDIA PROXY] Balancer stream extraction for ${sourceHost} completed. Switching to fallback stream resolution...`);
+      
+      let ep = '1';
+      const epMatch = iframeUrl.match(/[?&]episode=(\d+)/);
+      if (epMatch) ep = epMatch[1];
 
-        let shikiId = '';
-        let kpId = '';
+      let shikiId = shikiIdQuery || '';
+      let kpId = '';
+      if (!shikiId) {
         const shikiMatch = iframeUrl.match(/\/(?:anime|shikimori)\/(\d+)/);
         if (shikiMatch) shikiId = shikiMatch[1];
-        const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
-        if (kpMatch && !shikiId) kpId = kpMatch[1];
+      }
+      const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
+      if (kpMatch && !shikiId) kpId = kpMatch[1];
 
+      // 1. Try resolving AniLibria 1080p stream directly if Shikimori ID is available
+      if (shikiId) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiId, parseInt(ep) || 1, targetQuality);
+        if (directAnimeHls) {
+          console.log(`[MEDIA PROXY] Successfully resolved direct anime stream via AniLibria for Shikimori ID ${shikiId}`);
+          return directAnimeHls;
+        }
+      }
+
+      let fallbackKodikUrl = '';
+      try {
         if (shikiId || kpId) {
           const q = shikiId ? `shikimori_id=${shikiId}` : `kinopoisk_id=${kpId}`;
-          const kRes = await fetch(`https://kodikapi.com/search?token=4506c1251c6b16e108cb96a15e6128d5&${q}&with_episodes=true`);
-          if (kRes.ok) {
-            const kData = await kRes.json() as any;
-            if (kData && kData.results && kData.results.length > 0) {
-              const link = kData.results[0].link;
-              if (link) {
-                const u = new URL(link.startsWith('//') ? `https:${link}` : link);
-                u.searchParams.set('episode', ep);
-                fallbackKodikUrl = u.toString();
-              }
+          const kodikTokensList = [
+            'b7cc4293ed475c4ad1fd599d114f4435',
+            '17cc4ee691bc251131a9041e6e89e78e',
+            '45c53578f11ecfb74e31267b634cc6a8',
+            '93699ec16dae9882a1705e4dfb12c7bb',
+            '1d643a758d41de5ccb2f66be4e3f421d'
+          ];
+          for (const token of kodikTokensList) {
+            if (fallbackKodikUrl) break;
+            const kodikEndpoints = [
+              `https://kodikapi.com/search?token=${token}&${q}&with_episodes=true`,
+              `https://kodik-api.com/search?token=${token}&${q}&with_episodes=true`
+            ];
+            for (const kUrl of kodikEndpoints) {
+              try {
+                const kRes = await fetch(kUrl, { signal: AbortSignal.timeout(3000) });
+                if (kRes.ok) {
+                  const kData = await kRes.json() as any;
+                  if (kData && kData.results && kData.results.length > 0) {
+                    const link = kData.results[0].link;
+                    if (link) {
+                      const u = new URL(link.startsWith('//') ? `https:${link}` : link);
+                      u.searchParams.set('episode', ep);
+                      fallbackKodikUrl = u.toString();
+                      break;
+                    }
+                  }
+                }
+              } catch (_) {}
             }
           }
         }
-      } catch (err: any) {
-        console.error('[MEDIA PROXY FALLBACK ERR]', err.message);
-      }
+      } catch (_) {}
 
       if (fallbackKodikUrl) {
         iframeUrl = fallbackKodikUrl;
         console.log(`[MEDIA PROXY] Switched to Kodik fallback URL: ${iframeUrl}`);
       } else {
-        const fallbackMasterLines = [
-          '#EXTM3U',
-          '#EXT-X-VERSION:3',
-          '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-          'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
-        ];
-        return new Response(fallbackMasterLines.join('\n'), {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/x-mpegURL',
-            'Access-Control-Allow-Origin': '*'
-          }
-        });
+        if (shikiId) {
+          const directAnimeHls = await resolveAnimeHlsDirect(shikiId, parseInt(ep) || 1, targetQuality);
+          if (directAnimeHls) return directAnimeHls;
+        }
+        return getErrorHlsResponse('Stream extraction unavailable for balancer');
       }
     }
 
     // --- 3. Kodik Extraction ---
     try {
-      iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
+      // 1. Fetch iframe page with domain fallback
+      let html = '';
+      const candidateDomains = [
+        new URL(iframeUrl).host,
+        'kodikplayer.com',
+        'kodik.info',
+        'kodik.biz',
+        'aniqit.com'
+      ];
 
-      // 1. Fetch iframe page
-      const iframeRes = await fetch(iframeUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-          'Referer': 'https://shikimori.one/'
+      for (const domain of candidateDomains) {
+        try {
+          const testUrl = new URL(iframeUrl);
+          testUrl.host = domain;
+          const iframeRes = await fetch(testUrl.toString(), {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+              'Referer': 'https://shikimori.one/'
+            },
+            signal: AbortSignal.timeout(4000)
+          });
+          if (iframeRes.ok) {
+            const bodyText = await iframeRes.text();
+            if (bodyText.includes('urlParams') || bodyText.includes('.hash')) {
+              html = bodyText;
+              iframeUrl = testUrl.toString();
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (!html) {
+        if (shikiIdQuery) {
+          const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+          if (directAnimeHls) return directAnimeHls;
         }
-      });
-      const html = await iframeRes.text();
+        return getErrorHlsResponse('Kodik HTML unavailable');
+      }
 
     // 2. Extract parameters
     const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*"([^"]+)"/) || html.match(/urlParams\s*=\s*({[^;]+})/);
@@ -2503,7 +2766,11 @@ app.get('/api/media/playlist', async (c) => {
 
     if (!urlParamsMatch || !hashMatch || !idMatch || !typeMatch) {
       console.warn('[KODIK PROXY] Could not parse iframe parameters directly.');
-      return c.json({ error: 'Could not parse Kodik iframe parameters' }, 404);
+      if (shikiIdQuery) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
+      }
+      return getErrorHlsResponse('Invalid Kodik parameters');
     }
 
     const urlParams = JSON.parse(urlParamsMatch[1]);
@@ -2554,19 +2821,11 @@ app.get('/api/media/playlist', async (c) => {
                       scriptHtml.match(/atob\("([^"'\(\)]+)"\)/);
     if (!ajaxMatch) {
       console.error('[KODIK PROXY] Gbox ajax match failed');
-      const fallbackMasterLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-        'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
-      ];
-      return new Response(fallbackMasterLines.join('\n'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/x-mpegURL',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+      if (shikiIdQuery) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
+      }
+      return getErrorHlsResponse('Gbox match failed');
     }
 
     const gboxPath = atob(ajaxMatch[1]);
@@ -2600,23 +2859,14 @@ app.get('/api/media/playlist', async (c) => {
     const gboxData = await gboxRes.json() as any;
     if (!gboxData || !gboxData.links) {
       console.error('[KODIK PROXY] Gbox returned no links', gboxData);
-      const fallbackMasterLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-        'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
-      ];
-      return new Response(fallbackMasterLines.join('\n'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/x-mpegURL',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+      if (shikiIdQuery) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
+      }
+      return getErrorHlsResponse('No links returned by Gbox');
     }
 
     // 5. Build dynamic Master Playlist or yield single-quality playlist based on query parameters
-    const targetQuality = c.req.query('quality');
     const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 480, 360
 
     if (c.req.query('resolve') === 'true') {
@@ -2653,10 +2903,10 @@ app.get('/api/media/playlist', async (c) => {
       // Provide 1080p Full HD master tier if explicitly available or if top tier is HD source (720/1080)
       if (hasExplicit1080) {
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`);
-        masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=1080`);
+        masterLines.push(`${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=1080${isDirect ? '' : '&direct=false'}${shikiIdQuery ? `&shikimori_id=${encodeURIComponent(shikiIdQuery)}` : ''}`);
       } else if (topQual >= 720) {
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`);
-        masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${topQual}`);
+        masterLines.push(`${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${topQual}${isDirect ? '' : '&direct=false'}${shikiIdQuery ? `&shikimori_id=${encodeURIComponent(shikiIdQuery)}` : ''}`);
       }
 
       qualities.forEach(q => {
@@ -2671,7 +2921,7 @@ app.get('/api/media/playlist', async (c) => {
         }
         
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height},NAME="${q}p"`);
-        masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}`);
+        masterLines.push(`${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}${isDirect ? '' : '&direct=false'}${shikiIdQuery ? `&shikimori_id=${encodeURIComponent(shikiIdQuery)}` : ''}`);
       });
 
       return new Response(masterLines.join('\n'), {
@@ -2689,19 +2939,11 @@ app.get('/api/media/playlist', async (c) => {
     const selectedQual = targetQuality || String(qualities[0] || 720);
     const listSources = gboxData.links[selectedQual] || gboxData.links[String(qualities[0] || 720)];
     if (!listSources || listSources.length === 0) {
-      const fallbackMasterLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-        'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
-      ];
-      return new Response(fallbackMasterLines.join('\n'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/x-mpegURL',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+      if (shikiIdQuery) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
+      }
+      return getErrorHlsResponse('Selected quality source not found');
     }
 
     const rawSrc = listSources[0].src;
@@ -2712,48 +2954,35 @@ app.get('/api/media/playlist', async (c) => {
     console.log(`[KODIK PROXY] Fetched decrypted stream. Base HLS: ${playlistUrl}`);
 
     // 6. Fetch the actual M3U8 file contents
-    const m3u8Res = await fetch(playlistUrl, {
+    let m3u8Res = await fetch(playlistUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://kodik.info/'
-      }
-    });
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+        'Referer': 'https://kodik.info/',
+        'Origin': 'https://kodik.info',
+        'Accept': '*/*'
+      },
+      signal: AbortSignal.timeout(6000)
+    }).catch(() => null);
 
-    if (!m3u8Res.ok) {
-      console.error(`[KODIK PROXY] Failed to fetch M3U8, status: ${m3u8Res.status}`);
-      const fallbackMasterLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-        'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
-      ];
-      return new Response(fallbackMasterLines.join('\n'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/x-mpegURL',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+    if (!m3u8Res || !m3u8Res.ok) {
+      console.error(`[KODIK PROXY] Failed to fetch M3U8 from upstream Kodik`);
+      if (shikiIdQuery) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
+      }
+      return getErrorHlsResponse('Failed to fetch M3U8 from Kodik');
     }
 
     const m3u8Text = await m3u8Res.text();
 
     // Validation: Ensure the playlist starts with #EXTM3U (not HTML error or blank page)
     if (!m3u8Text || !m3u8Text.trim().startsWith('#EXTM3U')) {
-      console.error(`[KODIK PROXY ERROR] Manifest from Kodik is empty or invalid. Res length: ${m3u8Text?.length || 0}.`);
-      const fallbackMasterLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-        'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
-      ];
-      return new Response(fallbackMasterLines.join('\n'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/x-mpegURL',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+      console.error(`[KODIK PROXY ERROR] Manifest from Kodik is empty or invalid.`);
+      if (shikiIdQuery) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
+      }
+      return getErrorHlsResponse('Invalid M3U8 manifest from Kodik');
     }
 
     // 7. Rewrite chunk entries in M3U8
@@ -2777,7 +3006,10 @@ app.get('/api/media/playlist', async (c) => {
           : m3u8Base + trimmed;
       }
 
-      // Add segment proxy URL
+      // Add segment proxy URL if not direct
+      if (isDirect) {
+        return absSegmentUrl;
+      }
       return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}`;
     });
 
@@ -2795,11 +3027,20 @@ app.get('/api/media/playlist', async (c) => {
     });
     } catch (kodikErr: any) {
       console.error('[KODIK PROXY ERROR]', kodikErr);
+      if (shikiIdQuery) {
+        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+        if (directAnimeHls) return directAnimeHls;
+      }
+      return getErrorHlsResponse('Kodik extraction error');
     }
 
   } catch (error: any) {
     console.error('[MEDIA PROXY ERROR]', error);
-    return c.json({ error: error.message || 'Media proxy error' }, 500);
+    if (shikiIdQuery) {
+      const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
+      if (directAnimeHls) return directAnimeHls;
+    }
+    return getErrorHlsResponse('Media proxy general error');
   }
 });
 
@@ -3269,8 +3510,27 @@ app.get('/api/media/download/file', async (c) => {
 // WS Room Route (must be registered before SPA fallback)
 app.get('/ws/room', handleRoomWebSocket);
 
-// SPA Fallback
-app.get('*', serveStatic({ root: './dist' }));
+// Static assets serving
+app.use('/assets/*', serveStatic({ root: './dist' }));
+app.use('/*', serveStatic({ root: './dist' }));
+
+// SPA Fallback for all navigation routes (e.g. /anime/:id, /catalog, etc.)
+app.get('*', async (c) => {
+  try {
+    const indexPath = path.join(process.cwd(), 'dist', 'index.html');
+    if (fs.existsSync(indexPath)) {
+      const html = await fs.promises.readFile(indexPath, 'utf-8');
+      return c.html(html, 200, {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      });
+    }
+  } catch (e: any) {
+    console.error('[SPA FALLBACK ERROR]', e?.message || e);
+  }
+  return c.text('Not found', 404);
+});
 
 const isCloudflareEnvironment = typeof WebSocketPair !== 'undefined';
 

@@ -88,6 +88,7 @@ export const usePlayerSync = (
   }, [id, episode, isCustomPlayer]);
 
   const lastStateUpdateStrRef = useRef<string>('');
+  const pendingPlayPromiseRef = useRef<Promise<void> | null>(null);
   const updateTimeoutRef = useRef<any>(null);
   const pendingStateUpdatesRef = useRef<Partial<SyncState>>({});
 
@@ -632,16 +633,50 @@ export const usePlayerSync = (
       if (force || state.isPlaying !== isPlayingRef.current) {
         isPlayingRef.current = state.isPlaying;
         if (state.isPlaying) {
-          const playPromise = video.play();
-          if (playPromise) {
-            playPromise.catch((e: any) => {
-               console.warn('[WS-SYNC] Play prevented, fallback to muted play:', e);
-               video.muted = true;
-               video.play().catch(console.error);
-            });
-          }
+          try {
+            const playPromise = video.play();
+            pendingPlayPromiseRef.current = playPromise || null;
+            if (playPromise && typeof playPromise.catch === "function") {
+              playPromise
+                .catch((e: any) => {
+                  if (e?.name === 'AbortError' || String(e?.message || e).includes('interrupted')) {
+                    return;
+                  }
+                  console.warn('[WS-SYNC] Play prevented, fallback to muted play:', e);
+                  video.muted = true;
+                  try {
+                    const retryPromise = video.play();
+                    pendingPlayPromiseRef.current = retryPromise || null;
+                    if (retryPromise && typeof retryPromise.catch === "function") {
+                      retryPromise
+                        .catch(() => {})
+                        .finally(() => {
+                          if (pendingPlayPromiseRef.current === retryPromise) {
+                            pendingPlayPromiseRef.current = null;
+                          }
+                        });
+                    }
+                  } catch (_) {}
+                })
+                .finally(() => {
+                  if (pendingPlayPromiseRef.current === playPromise) {
+                    pendingPlayPromiseRef.current = null;
+                  }
+                });
+            }
+          } catch (_) {}
         } else {
-          video.pause();
+          const executePause = () => {
+            try {
+              video.pause();
+            } catch (_) {}
+          };
+
+          if (pendingPlayPromiseRef.current) {
+            pendingPlayPromiseRef.current.then(executePause).catch(() => {});
+          } else {
+            executePause();
+          }
         }
       }
 

@@ -30,6 +30,7 @@ import {
   StreamLogEntry,
   StreamTelemetryData,
 } from "./StreamInspector";
+import { decryptStreamUrl } from "../utils/streamDecryptor";
 
 export const isTvDevice = (): boolean => {
   if (typeof navigator === "undefined") return false;
@@ -547,11 +548,20 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       const initPlayer = async () => {
         let finalUrl = src;
 
-        if (maxAudioTracks && src.endsWith(".m3u8")) {
+        // Decrypt and decode stream if received as an encrypted, Base64, or multi-quality string
+        if (finalUrl && !finalUrl.startsWith("/api/media/playlist")) {
+          const decrypted = decryptStreamUrl(finalUrl);
+          if (decrypted) {
+            addLog("DECODER", `Поток успешно расшифрован перед инициализацией: ${decrypted.substring(0, 60)}...`, "info");
+            finalUrl = decrypted;
+          }
+        }
+
+        if (maxAudioTracks && finalUrl.endsWith(".m3u8")) {
           try {
-            const res = await fetch(src);
+            const res = await fetch(finalUrl);
             const text = await res.text();
-            const baseUrl = src.substring(0, src.lastIndexOf("/") + 1);
+            const baseUrl = finalUrl.substring(0, finalUrl.lastIndexOf("/") + 1);
 
             const lines = text.replace(/\r/g, "").split("\n");
             let audioCount = 0;
@@ -720,21 +730,65 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                 const hls = new Hls({
                   maxMaxBufferLength: 30,
                   maxBufferSize: 60 * 1000 * 1000,
+                  enableWorker: true,
+                  lowLatencyMode: false,
+                  fragLoadingTimeOut: 25000,
+                  manifestLoadingTimeOut: 25000,
+                  levelLoadingTimeOut: 25000,
+                  fragLoadingMaxRetry: 4,
+                  levelLoadingMaxRetry: 4,
+                  manifestLoadingMaxRetry: 4,
+                  fragLoadingRetryDelay: 1000,
+                  levelLoadingRetryDelay: 1000,
+                  manifestLoadingRetryDelay: 1000,
                 });
                 (artInstance as any).hls = hls;
                 hls.attachMedia(video);
+                
+                let activeUrl = url;
+                let networkRetryCount = 0;
+
                 hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-                  hls.loadSource(url);
+                  hls.loadSource(activeUrl);
                 });
 
                 hls.on(Hls.Events.ERROR, function (event, data) {
                   addLog("ERROR", `Событие ошибки HLS: ${data.details} (Fatal: ${data.fatal})`, data.fatal ? "error" : "warn");
                   if (data.fatal) {
-                    console.error("HLS fatal error:", data.type, data.details);
+                    console.warn("HLS fatal error encountered, initiating recovery:", data.type, data.details);
                     switch (data.type) {
                       case Hls.ErrorTypes.NETWORK_ERROR:
-                        addLog("HLS", "Восстановление после сетевой ошибки HLS (startLoad)...", "warn");
-                        hls.startLoad();
+                        networkRetryCount++;
+                        if (networkRetryCount <= 4) {
+                          if (data.details === "levelLoadError" && hls.levels && hls.levels.length > 1) {
+                            addLog("HLS", "Ошибка уровня HLS (levelLoadError). Пробуем другой доступный уровень...", "warn");
+                            const nextLvl = (hls.currentLevel + 1) % hls.levels.length;
+                            hls.currentLevel = nextLvl;
+                            try { (hls as any).loadLevel(nextLvl); } catch (_) {}
+                            hls.startLoad();
+                            break;
+                          }
+                          if (activeUrl.includes('/api/media/playlist') && !activeUrl.includes('direct=false')) {
+                            addLog("HLS", "HLS столкнулся с сетевой ошибкой прямого воспроизведения. Переключаемся на защищенный прокси-поток...", "warn");
+                            const separator = activeUrl.includes('?') ? '&' : '?';
+                            const fallbackUrl = `${activeUrl}${separator}direct=false`;
+                            activeUrl = fallbackUrl;
+                            hls.loadSource(fallbackUrl);
+                            hls.startLoad();
+                            break;
+                          }
+                          addLog("HLS", "Восстановление после сетевой ошибки HLS (startLoad)...", "warn");
+                          hls.startLoad();
+                          break;
+                        } else {
+                          addLog("HLS", "Переключение на резервный поток после ошибки загрузки уровня...", "warn");
+                          if (artInstance && artInstance.notice) {
+                            artInstance.notice.show = "Ошибка сети при загрузке уровня. Переключаем...";
+                          }
+                          if (onPlayerErrorRef.current) {
+                            onPlayerErrorRef.current();
+                          }
+                        }
                         break;
                       case Hls.ErrorTypes.MEDIA_ERROR:
                         addLog("HLS", "Восстановление медиа-буфера (recoverMediaError)...", "warn");
@@ -926,6 +980,18 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
         artInstanceRef.current = art;
 
+        // Catch and ignore benign playback interruption errors in ArtPlayer event listeners
+        art.on("error", (err: any) => {
+          if (
+            err?.name === "AbortError" ||
+            err?.name === "NotAllowedError" ||
+            String(err?.message || err).includes("interrupted")
+          ) {
+            return;
+          }
+          console.warn("ArtPlayer error:", err);
+        });
+
         // Track Play / Pause & Buffering
         art.on("video:play", () => {
           setIsPlaying(true);
@@ -1087,7 +1153,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
             saveProgress(art.currentTime, art.duration);
           }
           if (art.destroy) {
-            art.destroy(false);
+            try {
+              art.destroy(false);
+            } catch (_) {}
           }
         }
         artInstanceRef.current = null;

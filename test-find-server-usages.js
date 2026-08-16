@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const fileContent = fs.readFileSync('./services/balancer.ts', 'utf8');
+const fileContent = fs.readFileSync('./server.ts', 'utf8');
 const lines = fileContent.split('\n');
 
 lines.forEach((line, index) => {

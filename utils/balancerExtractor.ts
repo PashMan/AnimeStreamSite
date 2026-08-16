@@ -1,28 +1,7 @@
 // Shared Balancer Extractor Helper for Server and Cloudflare Functions
+import { decryptStreamUrl, extractStreamsFromPayload, unpackDeanEdwards } from './streamDecryptor';
 
-export function unpackDeanEdwards(code: string): string {
-  try {
-    const regex = /eval\(function\(p,a,c,k,e,d\)[\s\S]*?\)\('([\s\S]*?)',(\d+),(\d+),'([\s\S]*?)'\.split\('\|'\)/g;
-    let result = code;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(code)) !== null) {
-      let [_, p, aStr, cStr, kStr] = match;
-      let a = parseInt(aStr, 10);
-      let c = parseInt(cStr, 10);
-      let k = kStr.split('|');
-      const e = (c: number): string => (c < a ? '' : e(Math.floor(c / a))) + (c % a > 35 ? String.fromCharCode(c % a + 29) : (c % a).toString(36));
-      while (c--) {
-        if (k[c]) {
-          p = p.replace(new RegExp('\\b' + e(c) + '\\b', 'g'), k[c]);
-        }
-      }
-      result += '\n/* UNPACKED DEAN EDWARDS PACKER */\n' + p;
-    }
-    return result;
-  } catch (_) {
-    return code;
-  }
-}
+export { unpackDeanEdwards };
 
 export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url: string | null; headers?: Record<string, string>; logs: string[]; htmlLength: number }> {
   const logs: string[] = [];
@@ -31,6 +10,19 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
   try {
     let targetUrl = iframeUrl;
     if (targetUrl.startsWith('//')) targetUrl = `https:${targetUrl}`;
+
+    if (targetUrl.includes('.m3u8') || targetUrl.includes('/playlist?url=')) {
+      logs.push(`[1.1] URL is already a direct/proxied stream: ${targetUrl}`);
+      return { m3u8Url: targetUrl, logs, htmlLength: 0 };
+    }
+
+    // Try direct string decryption on the iframe URL itself if it contains encoded tokens or parameters
+    const directDecrypted = decryptStreamUrl(targetUrl);
+    if (directDecrypted && directDecrypted !== targetUrl) {
+      logs.push(`[1.2] URL contained directly decryptable stream: ${directDecrypted}`);
+      return { m3u8Url: directDecrypted, logs, htmlLength: 0 };
+    }
+
     const parsedUrl = new URL(targetUrl);
     const host = parsedUrl.host;
     logs.push(`[2] Target host identified: ${host}`);
@@ -63,20 +55,23 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
       for (const ref of referersToTry) {
         logs.push(`[3] Attempting fetch (${urlItem}) with Referer: ${ref}`);
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 4000);
+
           const res = await fetch(urlItem, {
+            signal: controller.signal,
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
               'Referer': ref,
-              'X-Forwarded-For': '185.220.101.5',
-              'X-Real-IP': '185.220.101.5',
-              'Client-IP': '185.220.101.5',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
               'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
             }
           });
+          clearTimeout(timeoutId);
+
           if (res.ok) {
             const txt = await res.text();
-            if (txt && txt.length > 500) {
+            if (txt && txt.length > 50) {
               html = txt;
               usedReferer = ref;
               logs.push(`[4] Successfully fetched ${html.length} bytes of HTML using Referer: ${ref}`);
@@ -88,17 +83,17 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
             logs.push(`[4] Fetch returned HTTP status ${res.status}`);
           }
         } catch (err: any) {
-          logs.push(`[4] Fetch error: ${err.message}`);
+          logs.push(`[4] Fetch error (${err?.name === 'AbortError' ? 'timeout' : err.message})`);
         }
       }
     }
 
     if (!html) {
-      logs.push(`[ERR] Failed to retrieve HTML from iframe URL across all referers.`);
+      logs.push(`[INFO] Iframe content is protected/unavailable directly. Passing request to fallback balancer handlers.`);
       return { m3u8Url: null, logs, htmlLength: 0 };
     }
 
-    // Step A: Dean Edwards unpacker
+    // Step A: Dean Edwards unpacker & String Decoders
     const unpacked = unpackDeanEdwards(html);
     if (unpacked.length > html.length) {
       logs.push(`[5] Dean Edwards Packer unpacked. Code expanded from ${html.length} to ${unpacked.length} bytes.`);
@@ -106,56 +101,86 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
       logs.push(`[5] No packed Dean Edwards code found or unpacked length unchanged.`);
     }
 
-    const fullText = html + '\n' + unpacked;
+    // Search and fetch external script bundles (Alloha, Collaps, PlayerJS builds)
+    let externalScriptContent = '';
+    const scriptSrcMatches = html.match(/<script[^>]+src=["']([^"']+)["']/gi) || [];
+    for (const tag of scriptSrcMatches.slice(0, 4)) {
+      const srcMatch = tag.match(/src=["']([^"']+)["']/i);
+      if (srcMatch && srcMatch[1]) {
+        let scriptUrl = srcMatch[1];
+        if (scriptUrl.startsWith('//')) scriptUrl = `https:${scriptUrl}`;
+        else if (scriptUrl.startsWith('/')) scriptUrl = `https://${host}${scriptUrl}`;
+        else if (!scriptUrl.startsWith('http')) scriptUrl = `https://${host}/${scriptUrl}`;
 
-    // Step B: Search for direct .m3u8 or vkvideo.cloud matches
-    logs.push(`[6] Scanning for direct .m3u8 or vkvideo.cloud URLs in full script text...`);
-    const directMatches = fullText.match(/(https?:\/\/[^"'\s\\]+\.(?:m3u8|vkvideo\.cloud)[^"'\s\\]*)/g) ||
-                          fullText.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+\.m3u8[^"'\s\\]*)/g) ||
-                          fullText.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/g);
-    if (directMatches && directMatches.length > 0) {
-      let candidate = directMatches[0].replace(/\\/g, '');
-      if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-      logs.push(`[7] Found direct .m3u8 match: ${candidate}`);
-      return { 
-        m3u8Url: candidate, 
+        if (scriptUrl.includes('app.') || scriptUrl.includes('player') || scriptUrl.includes('build') || scriptUrl.includes('collaps') || scriptUrl.includes('alloha')) {
+          logs.push(`[5.1] Fetching external player script bundle: ${scriptUrl}`);
+          try {
+            const scriptRes = await fetch(scriptUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': targetUrl
+              },
+              signal: AbortSignal.timeout(3000)
+            });
+            if (scriptRes.ok) {
+              const scriptText = await scriptRes.text();
+              logs.push(`[5.2] Loaded ${scriptText.length} bytes from script bundle.`);
+              externalScriptContent += '\n' + scriptText + '\n' + unpackDeanEdwards(scriptText);
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    // Unescape Hex (\x..) and Unicode (\u..) sequences in HTML
+    let unescapedHtml = '';
+    try {
+      unescapedHtml = (html + '\n' + externalScriptContent)
+        .replace(/\\x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/\\u([0-9A-Fa-f]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    } catch (_) {}
+
+    const fullText = html + '\n' + unpacked + '\n' + externalScriptContent + '\n' + unescapedHtml;
+
+    // Step B: Use universal Decryption & Stream Extraction Engine
+    logs.push(`[6] Executing multi-algorithm decryption engine for ${host}...`);
+    const payloadResult = extractStreamsFromPayload(fullText);
+    if (payloadResult.logs && payloadResult.logs.length > 0) {
+      logs.push(...payloadResult.logs);
+    }
+
+    if (payloadResult.m3u8Url) {
+      logs.push(`[7] Successfully decrypted stream using universal engine: ${payloadResult.m3u8Url}`);
+      return {
+        m3u8Url: payloadResult.m3u8Url,
         headers: {
           'Referer': targetUrl,
           'Origin': `https://${host}`
         },
-        logs, 
-        htmlLength: fullText.length 
+        logs,
+        htmlLength: fullText.length
       };
     }
 
-    // Step C: Base64 Decodings
-    logs.push(`[8] Direct .m3u8 not found. Scanning Base64 / Hex strings...`);
-    const b64Regex = /([A-Za-z0-9+/=]{24,})/g;
+    // Step C: Base64, ROT & Reversed Decodings
+    logs.push(`[8] Deep scanning Base64, Reversed-Base64 & Hex strings...`);
+    const b64Regex = /([A-Za-z0-9+/=]{16,})/g;
     let match: RegExpExecArray | null;
     while ((match = b64Regex.exec(fullText)) !== null) {
       const b64Str = match[1];
-      try {
-        const decoded = typeof atob === 'function' ? atob(b64Str) : Buffer.from(b64Str, 'base64').toString('utf-8');
-        if (decoded.includes('.m3u8') || decoded.includes('vkvideo.cloud')) {
-          let foundUrl = decoded.match(/(https?:\/\/[^"'\s\\]+\.(?:m3u8|vkvideo\.cloud)[^"'\s\\]*)/) ||
-                         decoded.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
-                         decoded.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-          if (foundUrl) {
-            let candidate = foundUrl[1].replace(/\\/g, '');
-            if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-            logs.push(`[9] Decoded Base64 string successfully! Found .m3u8: ${candidate}`);
-            return { 
-              m3u8Url: candidate, 
-              headers: {
-                'Referer': targetUrl,
-                'Origin': `https://${host}`
-              },
-              logs, 
-              htmlLength: fullText.length 
-            };
-          }
-        }
-      } catch (_) {}
+      const decrypted = decryptStreamUrl(b64Str);
+      if (decrypted) {
+        logs.push(`[9] Decoded obfuscated string! Found stream: ${decrypted}`);
+        return {
+          m3u8Url: decrypted,
+          headers: {
+            'Referer': targetUrl,
+            'Origin': `https://${host}`
+          },
+          logs,
+          htmlLength: fullText.length
+        };
+      }
     }
 
     // Step D: Alloha fileList & Playerjs / Collaps configs
@@ -219,17 +244,39 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
       }
     }
 
-    const configMatches = fullText.match(/(?:makePlayer|Playerjs|playerConfig|window\.collapsConfig|window\.allohaConfig|initPlayer)\s*\(\s*({[\s\S]*?})\s*\)/g) ||
-                          fullText.match(/file\s*:\s*["']([\s\S]*?)["']/g);
+    const configMatches = fullText.match(/(?:makePlayer|Playerjs|playerConfig|window\.collapsConfig|window\.allohaConfig|initPlayer|initCollaps|setPlayer)\s*\(\s*({[\s\S]*?})\s*\)/g) ||
+                          fullText.match(/file\s*:\s*["']([\s\S]*?)["']/g) ||
+                          fullText.match(/playlist\s*:\s*["']([\s\S]*?)["']/g) ||
+                          fullText.match(/manifest\s*:\s*["']([\s\S]*?)["']/g) ||
+                          fullText.match(/src\s*:\s*["']([\s\S]*?\.m3u8[^"']*)["']/g);
 
     if (configMatches) {
       logs.push(`[11] Found ${configMatches.length} candidate player config blocks.`);
       for (const block of configMatches) {
-        const b64s = block.match(/aHR0c[A-Za-z0-9+/=]+/g) || block.match(/[A-Za-z0-9+/=]{20,}/g) || [];
+        // Direct stream search in config block
+        const directBlockMatch = block.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                                 block.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                                 block.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/);
+        if (directBlockMatch) {
+          let candidate = directBlockMatch[1].replace(/\\/g, '');
+          if (candidate.startsWith('//')) candidate = `https:${candidate}`;
+          logs.push(`[12] Found direct .m3u8 inside player config block: ${candidate}`);
+          return {
+            m3u8Url: candidate,
+            headers: {
+              'Referer': targetUrl,
+              'Origin': `https://${host}`
+            },
+            logs,
+            htmlLength: fullText.length
+          };
+        }
+
+        const b64s = block.match(/aHR0c[A-Za-z0-9+/=]+/g) || block.match(/[A-Za-z0-9+/=]{16,}/g) || [];
         for (const b of b64s) {
           try {
             const dec = typeof atob === 'function' ? atob(b) : Buffer.from(b, 'base64').toString('utf-8');
-            if (dec.includes('.m3u8') || dec.includes('vkvideo.cloud')) {
+            if (dec.includes('.m3u8') || dec.includes('vkvideo.cloud') || dec.includes('manifest') || dec.includes('http')) {
               let foundUrl = dec.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
                              dec.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
                              dec.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
@@ -291,6 +338,44 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
                   logs,
                   htmlLength: fullText.length
                 };
+              }
+
+              // If token was returned, test /lists.php with verified token
+              if (vorfData.token) {
+                const authToken = vorfData.token;
+                try {
+                  const listsRes = await fetch(`https://${host}/lists.php`, {
+                    method: 'POST',
+                    headers: {
+                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                      'Referer': targetUrl,
+                      'Content-Type': 'application/x-www-form-urlencoded',
+                      'X-Forwarded-For': '185.220.101.5',
+                      'X-Real-IP': '185.220.101.5'
+                    },
+                    body: new URLSearchParams({ token: authToken }).toString(),
+                    signal: AbortSignal.timeout(3000)
+                  });
+                  if (listsRes.ok) {
+                    const listText = await listsRes.text();
+                    const streamMatch = listText.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
+                                        listText.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/);
+                    if (streamMatch) {
+                      const streamUrl = streamMatch[1].replace(/\\/g, '');
+                      logs.push(`[15] Found stream URL in /lists.php response: ${streamUrl}`);
+                      return {
+                        m3u8Url: streamUrl,
+                        headers: {
+                          'Authorizations': `Bearer ${authToken}`,
+                          'Referer': targetUrl,
+                          'Origin': `https://${host}`
+                        },
+                        logs,
+                        htmlLength: fullText.length
+                      };
+                    }
+                  }
+                } catch (_) {}
               }
             }
           }

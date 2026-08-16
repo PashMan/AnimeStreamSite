@@ -96,12 +96,14 @@ const Details: React.FC = () => {
 
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selectedPlayer, setSelectedPlayer] =
-    useState<string>("KamiPlayer (1080p)");
+    useState<string>("KamiPlayer (4K UHD)");
+  const [playerViewMode, setPlayerViewMode] =
+    useState<"custom" | "iframe">("custom");
   const [allohaMirror, setAllohaMirror] =
     useState<string>("beggins-as.pljjalgo.online");
   const [players, setPlayers] = useState<
     { name: string; iframe: string | null; isCustom?: boolean }[]
-  >([{ name: "KamiPlayer (1080p)", iframe: null, isCustom: true }]);
+  >([{ name: "KamiPlayer (4K UHD)", iframe: null, isCustom: true }]);
   const [translations, setTranslations] = useState<
     {
       id: number | string;
@@ -909,12 +911,7 @@ const Details: React.FC = () => {
               setSelectedTranslation(matchedTranslation || translationsList[0]);
             }
             setHasFetchedPlayers(true);
-            const isSpecial4K = id === "32281" || id === "50594" || id === "62568" || id === "38826" || id === "16782";
-            if (isSpecial4K) {
-              setSelectedPlayer("KamiPlayer (4K UHD)");
-            } else {
-              setSelectedPlayer("KamiPlayer (1080p)");
-            }
+            setSelectedPlayer("KamiPlayer (4K UHD)");
           } else {
             setHasFetchedPlayers(true);
             throw new Error("Плееры не найдены");
@@ -1175,7 +1172,7 @@ const Details: React.FC = () => {
           }
           kodikIframeWithEpisode = url.toString();
         } catch (e) {}
-        schemaVideoUrl = `${origin}/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+        schemaVideoUrl = `${origin}/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}&shikimori_id=${id}`;
       } else {
         schemaVideoUrl = `${origin}/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
       }
@@ -1770,46 +1767,73 @@ const Details: React.FC = () => {
               <div className="flex flex-col gap-6">
                 {/* Player Switcher Bar */}
                 {players.length > 0 && (
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
-                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
-                      <Film className="w-3.5 h-3.5 text-primary" /> Плеер / Источник:
-                    </span>
-                    {players.map((p) => {
-                      const isSelected = selectedPlayer === p.name;
-                      const is1080p = p.name === "AniLibria" || p.name === "Collaps" || p.name === "Alloha";
-                      const is4K = p.name === "KamiPlayer (4K UHD)";
-                      const is720p = p.name === "Kodik";
+                  <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
+                        <Film className="w-3.5 h-3.5 text-primary" /> Плеер / Источник:
+                      </span>
+                      {players.map((p) => {
+                        const isSelected = selectedPlayer === p.name;
+                        const is1080p = p.name === "AniLibria" || p.name === "Collaps" || p.name === "Alloha";
+                        const is4K = p.name === "KamiPlayer (4K UHD)";
+                        const is720p = p.name === "Kodik";
 
-                      return (
+                        return (
+                          <button
+                            key={p.name}
+                            onClick={() => setSelectedPlayer(p.name)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 border ${
+                              isSelected
+                                ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
+                                : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
+                            }`}
+                          >
+                            <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-primary"}`} />
+                            <span>{p.name}</span>
+                            {is4K && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                4K AI
+                              </span>
+                            )}
+                            {is1080p && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-green-500/20 text-green-300 border border-green-500/30">
+                                1080p
+                              </span>
+                            )}
+                            {is720p && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                720p
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedPlayer !== "KamiPlayer (4K UHD)" && (
+                      <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
                         <button
-                          key={p.name}
-                          onClick={() => setSelectedPlayer(p.name)}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 border ${
-                            isSelected
-                              ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
-                              : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
+                          onClick={() => setPlayerViewMode("custom")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            playerViewMode === "custom"
+                              ? "bg-primary text-white shadow"
+                              : "text-slate-400 hover:text-white"
                           }`}
                         >
-                          <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-primary"}`} />
-                          <span>{p.name}</span>
-                          {is4K && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                              4K AI
-                            </span>
-                          )}
-                          {is1080p && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-green-500/20 text-green-300 border border-green-500/30">
-                              1080p
-                            </span>
-                          )}
-                          {is720p && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                              720p
-                            </span>
-                          )}
+                          4K AI Плеер
                         </button>
-                      );
-                    })}
+                        <button
+                          onClick={() => setPlayerViewMode("iframe")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            playerViewMode === "iframe"
+                              ? "bg-primary text-white shadow"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          Плеер {selectedPlayer}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1849,6 +1873,7 @@ const Details: React.FC = () => {
                           let customSrc = "";
                           let maxTracks: number | undefined = undefined;
                           let audioTrackNames: string[] | undefined = undefined;
+                          let targetIframeWithEpisode = "";
 
                           if (
                             isSuzume ||
@@ -1879,24 +1904,24 @@ const Details: React.FC = () => {
                                 ]
                               : undefined;
                           } else {
-                            // KamiPlayer extracts HLS .m3u8 from providers (Alloha, Collaps, Kodik) for WebGL 4K AI upscaling
-                            const activePlayerObj = players.find((p) => p.name === selectedPlayer && p.iframe);
-
-                            const hlsPlayerObj =
-                              activePlayerObj ||
-                              players.find((p) => p.name === "Alloha" && p.iframe) ||
-                              players.find((p) => p.name === "Collaps" && p.iframe) ||
-                              players.find((p) => p.name === "Kodik" && p.iframe);
+                            // Player source resolution:
+                            const explicitPlayer = selectedPlayer !== "KamiPlayer (4K UHD)" 
+                              ? players.find((p) => p.name === selectedPlayer && p.iframe)
+                              : null;
 
                             const baseIframe =
-                              hlsPlayerObj?.iframe ||
+                              explicitPlayer?.iframe ||
                               selectedTranslation?.iframe ||
                               translations[0]?.iframe ||
+                              players.find((p) => p.name === "AniLibria" && p.iframe)?.iframe ||
+                              players.find((p) => p.name === "Kodik" && p.iframe)?.iframe ||
+                              players.find((p) => p.name === "Collaps" && p.iframe)?.iframe ||
+                              players.find((p) => p.name === "Alloha" && p.iframe)?.iframe ||
                               players.find((p) => p.iframe)?.iframe ||
                               "";
 
                             if (baseIframe) {
-                              let targetIframeWithEpisode = baseIframe;
+                              targetIframeWithEpisode = baseIframe;
                               try {
                                 const url = new URL(
                                   targetIframeWithEpisode.startsWith("//")
@@ -1911,10 +1936,22 @@ const Details: React.FC = () => {
                                 }
                                 targetIframeWithEpisode = url.toString();
                               } catch (e) {}
-                              customSrc = `/api/media/playlist?url=${encodeURIComponent(targetIframeWithEpisode)}`;
+                              customSrc = `/api/media/playlist?url=${encodeURIComponent(targetIframeWithEpisode)}&shikimori_id=${id}`;
                             } else {
-                              customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
+                              customSrc = `/api/media/playlist?shikimori_id=${id}&episode=${paramEpisode || '1'}`;
                             }
+                          }
+
+                          if (playerViewMode === "iframe" && targetIframeWithEpisode) {
+                            return (
+                              <iframe
+                                src={targetIframeWithEpisode}
+                                title={`${selectedPlayer} Player`}
+                                className="w-full h-full border-0 bg-black"
+                                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                                allowFullScreen
+                              />
+                            );
                           }
 
                           const episodesCount = selectedTranslation?.last_episode || selectedTranslation?.episodes_count || (anime
