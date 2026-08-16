@@ -59,6 +59,20 @@ import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
 import { filterProfanity } from "../utils/profanity";
 
+const getResolvedKodikUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
+  const num = epNum || 1;
+  const target = t?.kodik_iframe || (t?.iframe && !t.iframe.includes("collaps") && !t.iframe.includes("ortified") ? t.iframe : null) || defaultUrl;
+  if (!target) return null;
+  try {
+    const url = new URL(target.startsWith("//") ? `https:${target}` : target);
+    url.searchParams.set("episode", String(num));
+    return url.toString();
+  } catch (_) {
+    const sep = target.includes("?") ? "&" : "?";
+    return `${target}${sep}episode=${num}`;
+  }
+};
+
 const getResolvedIframeUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
   const num = epNum || 1;
   if (!t) {
@@ -1730,19 +1744,38 @@ const Details: React.FC = () => {
                                   ]
                                 : undefined;
                             } else {
-                              // For general anime, extract using getResolvedIframeUrl (Quality > Quantity rule)
+                              // For general anime, extract Kodik stream URL for KamiPlayer or Collaps fallback
                               const epNum = parseInt(paramEpisode || "1") || 1;
                               const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
-                              const resolvedIframe = getResolvedIframeUrl(selectedTranslation, epNum, defaultKodik);
-                              const fallbackKodik = selectedTranslation?.kodik_iframe || defaultKodik;
+                              const kodikStream = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
 
-                              if (resolvedIframe) {
-                                let mediaUrl = `/api/media/playlist?url=${encodeURIComponent(resolvedIframe)}`;
-                                if (fallbackKodik && fallbackKodik !== resolvedIframe) {
-                                  mediaUrl += `&fallback_url=${encodeURIComponent(fallbackKodik)}`;
-                                }
-                                customSrc = mediaUrl;
+                              if (kodikStream) {
+                                customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikStream)}`;
                               } else {
+                                const defaultCollaps = players.find((p) => p.name === "Collaps")?.iframe;
+                                const collapsIframeUrl = getResolvedIframeUrl(selectedTranslation, epNum, defaultCollaps);
+                                if (collapsIframeUrl) {
+                                  let finalCollapsUrl = collapsIframeUrl;
+                                  if (finalCollapsUrl.startsWith("//")) finalCollapsUrl = `https:${finalCollapsUrl}`;
+                                  try {
+                                    const u = new URL(finalCollapsUrl);
+                                    if (paramEpisode) u.searchParams.set("episode", paramEpisode);
+                                    finalCollapsUrl = u.toString();
+                                  } catch (_) {}
+
+                                  return (
+                                    <iframe
+                                      ref={iframeRef}
+                                      src={`/api/collaps/embed?url=${encodeURIComponent(finalCollapsUrl)}`}
+                                      width="100%"
+                                      height="100%"
+                                      allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full border-0 rounded-2xl"
+                                      title="KamiPlayer (Collaps)"
+                                    />
+                                  );
+                                }
                                 customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
                               }
                             }
@@ -1799,7 +1832,7 @@ const Details: React.FC = () => {
                           const epNum = parseInt(paramEpisode || "1") || 1;
                           let finalIframeUrl = getResolvedIframeUrl(selectedTranslation, epNum, player.iframe) || player.iframe;
 
-                          if (finalIframeUrl && (player.name === "Kodik" || player.name === "Collaps")) {
+                          if (finalIframeUrl && (player.name === "Kodik" || player.name === "Collaps" || finalIframeUrl.includes("collaps") || finalIframeUrl.includes("ortified"))) {
                             try {
                               const absoluteUrl = finalIframeUrl.startsWith(
                                 "//",
@@ -1812,16 +1845,27 @@ const Details: React.FC = () => {
                               finalIframeUrl = url.toString();
                             } catch (e) {}
                           }
+
+                          const isCollaps = finalIframeUrl && (
+                            finalIframeUrl.includes("collaps") ||
+                            finalIframeUrl.includes("ortified") ||
+                            player.name === "Collaps"
+                          );
+
+                          const playerSrc = isCollaps && finalIframeUrl
+                            ? `/api/collaps/embed?url=${encodeURIComponent(finalIframeUrl)}`
+                            : (finalIframeUrl || undefined);
+
                           return (
                             <iframe
                               ref={iframeRef}
-                              src={finalIframeUrl || undefined}
+                              src={playerSrc}
                               width="100%"
                               height="100%"
                               allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
-                              referrerPolicy="origin"
-                              className="w-full h-full border-0"
-                              title="Player"
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full border-0 rounded-2xl"
+                              title={player.name || "Player"}
                             />
                           );
                         })()

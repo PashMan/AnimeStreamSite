@@ -2270,6 +2270,53 @@ app.get('/api/media/search', async (c) => {
   }
 });
 
+app.get('/api/collaps/embed', (c) => {
+  let urlParam = c.req.query('url');
+  if (!urlParam) {
+    return c.text('url parameter is required', 400);
+  }
+
+  if (urlParam.startsWith('//')) {
+    urlParam = `https:${urlParam}`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>KamiPlayer Collaps</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    src="${urlParam.replace(/"/g, '&quot;')}"
+    allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
+    referrerpolicy="no-referrer"
+    allowfullscreen>
+  </iframe>
+</body>
+</html>`;
+
+  return c.html(html);
+});
+
 app.get('/api/media/playlist', async (c) => {
   let urlParam = c.req.query('url');
   const fallbackUrl = c.req.query('fallback_url');
@@ -2305,9 +2352,11 @@ app.get('/api/media/playlist', async (c) => {
       console.warn(`[COLLAPS PROXY] Collaps extraction failed: ${cErr.message}`);
     }
     // If Collaps extraction failed and fallbackUrl exists, use fallbackUrl
-    if (fallbackUrl) {
+    if (fallbackUrl && !fallbackUrl.includes('collaps') && !fallbackUrl.includes('ortified')) {
       console.log(`[MEDIA PROXY] Falling back to secondary stream URL: ${fallbackUrl}`);
       urlParam = fallbackUrl;
+    } else {
+      return c.json({ error: 'Collaps streaming proxy is unavailable. Please use direct iframe player.' }, 400);
     }
   }
 
