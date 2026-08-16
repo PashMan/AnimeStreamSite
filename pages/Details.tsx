@@ -61,7 +61,17 @@ import { filterProfanity } from "../utils/profanity";
 
 const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
   const num = epNum || 1;
-  const target = t?.aniboom_iframe || (t?.iframe && t.iframe.includes("aniboom") ? t.iframe : null) || (defaultUrl && defaultUrl.includes("aniboom") ? defaultUrl : null);
+  let target: string | null = null;
+  if (t) {
+    if (t.aniboom_iframe) {
+      target = t.aniboom_iframe;
+    } else if (t.iframe && t.iframe.includes("aniboom")) {
+      target = t.iframe;
+    }
+  } else if (defaultUrl && defaultUrl.includes("aniboom")) {
+    target = defaultUrl;
+  }
+
   if (!target) return null;
   try {
     const url = new URL(target.startsWith("//") ? `https:${target}` : target);
@@ -1799,8 +1809,33 @@ const Details: React.FC = () => {
                               if (aniboomStream) {
                                 customSrc = `/api/media/playlist?url=${encodeURIComponent(aniboomStream)}`;
                               } else {
+                                const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+                                const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
+                                if (kodikIframeUrl) {
+                                  let finalKodikUrl = kodikIframeUrl;
+                                  if (finalKodikUrl.startsWith("//")) finalKodikUrl = `https:${finalKodikUrl}`;
+                                  try {
+                                    const u = new URL(finalKodikUrl);
+                                    if (paramEpisode) u.searchParams.set("episode", paramEpisode);
+                                    finalKodikUrl = u.toString();
+                                  } catch (_) {}
+
+                                  return (
+                                    <iframe
+                                      ref={iframeRef}
+                                      src={finalKodikUrl}
+                                      width="100%"
+                                      height="100%"
+                                      allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full border-0 rounded-2xl"
+                                      title="KamiPlayer (Kodik)"
+                                    />
+                                  );
+                                }
+
                                 const defaultCollaps = players.find((p) => p.name === "Collaps")?.iframe;
-                                const collapsIframeUrl = getResolvedIframeUrl(selectedTranslation, epNum, defaultCollaps);
+                                const collapsIframeUrl = getResolvedCollapsUrl(selectedTranslation, epNum, defaultCollaps);
                                 if (collapsIframeUrl) {
                                   let finalCollapsUrl = collapsIframeUrl;
                                   if (finalCollapsUrl.startsWith("//")) finalCollapsUrl = `https:${finalCollapsUrl}`;
@@ -1854,6 +1889,7 @@ const Details: React.FC = () => {
                               <CustomPlayer
                                 ref={nativeVideoRef}
                                 src={customSrc}
+                                poster={anime?.image || anime?.banner}
                                 maxAudioTracks={maxTracks}
                                 audioTrackNames={audioTrackNames}
                                 animeId={id}
@@ -1861,10 +1897,10 @@ const Details: React.FC = () => {
                                 onNextEpisode={handleNextEp}
                                 onPrevEpisode={handlePrevEp}
                                 onPlayerError={() => {
-                                  if (players.some((p) => p.name === "Collaps")) {
-                                    setSelectedPlayer("Collaps");
-                                  } else if (players.some((p) => p.name === "Kodik")) {
+                                  if (players.some((p) => p.name === "Kodik")) {
                                     setSelectedPlayer("Kodik");
+                                  } else if (players.some((p) => p.name === "Collaps")) {
+                                    setSelectedPlayer("Collaps");
                                   }
                                 }}
                               />

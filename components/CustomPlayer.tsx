@@ -27,6 +27,7 @@ export const isTvDevice = (): boolean => {
 
 interface CustomPlayerProps {
   src: string;
+  poster?: string;
   maxAudioTracks?: number;
   audioTrackNames?: string[];
   autoPlay?: boolean;
@@ -506,6 +507,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         art = new Artplayer({
           container: artRef.current,
           url: finalUrl,
+          poster: poster || "",
           type:
             src.includes(".m3u8") || src.includes("/playlist")
               ? "m3u8"
