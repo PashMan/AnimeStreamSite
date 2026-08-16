@@ -61,7 +61,7 @@ import { filterProfanity } from "../utils/profanity";
 
 const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
   const num = epNum || 1;
-  const target = t?.aniboom_iframe || (t?.iframe && t.iframe.includes("aniboom") ? t.iframe : null) || defaultUrl || `https://aniboom.one/embed/7P9qko4qQ8v?episode=${num}&translation=16`;
+  const target = t?.aniboom_iframe || (t?.iframe && t.iframe.includes("aniboom") ? t.iframe : null) || (defaultUrl && defaultUrl.includes("aniboom") ? defaultUrl : null);
   if (!target) return null;
   try {
     const url = new URL(target.startsWith("//") ? `https:${target}` : target);

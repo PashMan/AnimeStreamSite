@@ -1871,12 +1871,16 @@ app.get('/api/proxy-4k', async (c) => {
   if (!targetUrl) return c.text('Missing url parameter', 400);
 
   try {
-    const res = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Referer': 'https://shikimori.one/'
-      }
-    });
+    const isAniboomHost = targetUrl.includes('ya-ligh') || targetUrl.includes('aniboom') || targetUrl.includes('boom-img');
+    const reqHeaders: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Referer': isAniboomHost ? 'https://aniboom.one/' : 'https://shikimori.one/'
+    };
+    if (isAniboomHost) {
+      reqHeaders['Origin'] = 'https://aniboom.one';
+    }
+
+    const res = await fetch(targetUrl, { headers: reqHeaders });
     if (!res.ok) {
       return c.text(`Proxy failed with status ${res.status}`, res.status as any);
     }
@@ -1906,7 +1910,19 @@ app.get('/api/proxy-4k', async (c) => {
       const lines = text.replace(/\r/g, '').split('\n');
       const rewrittenLines = lines.map(line => {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) return line;
+        if (!trimmed) return line;
+        if (trimmed.startsWith('#')) {
+          if (trimmed.includes('URI="')) {
+            return trimmed.replace(/URI="([^"]+)"/, (m, p1) => {
+              let absUrl = p1;
+              if (!p1.startsWith('http')) {
+                absUrl = p1.startsWith('/') ? new URL(p1, targetUrl).toString() : parentUrl + p1;
+              }
+              return `URI="${getProxyOrigin(c)}/api/proxy-4k?url=${encodeURIComponent(absUrl)}"`;
+            });
+          }
+          return line;
+        }
         
         let absUrl = trimmed;
         if (!trimmed.startsWith('http')) {
@@ -2401,16 +2417,18 @@ app.get('/api/media/playlist', async (c) => {
               const baseUrl = hlsSrc.substring(0, hlsSrc.lastIndexOf('/') + 1);
               const rewritten = m3u8Content.split('\n').map(line => {
                 const trimmed = line.trim();
-                if (!trimmed || trimmed.startsWith('#')) {
+                if (!trimmed) return line;
+                if (trimmed.startsWith('#')) {
                   if (trimmed.includes('URI="')) {
                     return trimmed.replace(/URI="([^"]+)"/, (m, p1) => {
                       const fullUri = p1.startsWith('http') ? p1 : new URL(p1, baseUrl).toString();
-                      return `URI="${fullUri}"`;
+                      return `URI="${getProxyOrigin(c)}/api/proxy-4k?url=${encodeURIComponent(fullUri)}"`;
                     });
                   }
                   return line;
                 }
-                return trimmed.startsWith('http') ? trimmed : new URL(trimmed, baseUrl).toString();
+                const fullUri = trimmed.startsWith('http') ? trimmed : new URL(trimmed, baseUrl).toString();
+                return `${getProxyOrigin(c)}/api/proxy-4k?url=${encodeURIComponent(fullUri)}`;
               }).join('\n');
 
               console.log(`✅ [ANIBOOM PARSER] Successfully compiled & delivered M3U8 manifest (${rewritten.split('\n').length} lines)`);
