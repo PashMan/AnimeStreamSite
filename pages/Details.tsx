@@ -1735,6 +1735,35 @@ const Details: React.FC = () => {
                               const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
                               const resolvedIframe = getResolvedIframeUrl(selectedTranslation, epNum, defaultKodik);
 
+                              const isCollaps = resolvedIframe && (
+                                resolvedIframe.includes("collaps") ||
+                                resolvedIframe.includes("ortified") ||
+                                selectedTranslation?.provider === "Collaps" ||
+                                selectedTranslation?.title?.includes("Collaps")
+                              );
+
+                              if (isCollaps && resolvedIframe) {
+                                let collapsUrl = resolvedIframe;
+                                try {
+                                  const url = new URL(collapsUrl.startsWith("//") ? `https:${collapsUrl}` : collapsUrl);
+                                  if (paramEpisode) url.searchParams.set("episode", paramEpisode);
+                                  collapsUrl = url.toString();
+                                } catch (e) {}
+
+                                return (
+                                  <iframe
+                                    ref={iframeRef}
+                                    src={collapsUrl}
+                                    width="100%"
+                                    height="100%"
+                                    allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
+                                    referrerPolicy="origin"
+                                    className="w-full h-full border-0"
+                                    title="KamiPlayer (Collaps 1080p)"
+                                  />
+                                );
+                              }
+
                               if (resolvedIframe) {
                                 customSrc = `/api/media/playlist?url=${encodeURIComponent(resolvedIframe)}`;
                               } else {
@@ -1849,7 +1878,11 @@ const Details: React.FC = () => {
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Crown className="w-4 h-4 text-primary fill-current shrink-0" />
                             <span className="text-xs sm:text-sm font-black uppercase tracking-wider truncate">
-                              {selectedTranslation?.title || (translations[0]?.title) || "Дубляж KamiAnime"}
+                              {selectedTranslation
+                                ? `${selectedTranslation.title} • ${selectedTranslation.last_episode || selectedTranslation.episodes_count || 1} сер.`
+                                : translations[0]
+                                  ? `${translations[0].title} • ${translations[0].last_episode || translations[0].episodes_count || 1} сер.`
+                                  : "Дубляж KamiAnime"}
                             </span>
                           </div>
                           <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-300 ${isNotifierOpen ? "rotate-180" : ""}`} />
@@ -1862,6 +1895,7 @@ const Details: React.FC = () => {
                                 const isSelected = selectedTranslation
                                   ? t.title === selectedTranslation.title
                                   : index === 0;
+                                const epTotal = t.last_episode || t.episodes_count || 1;
                                 return (
                                   <button
                                     key={t.id || index}
@@ -1880,7 +1914,12 @@ const Details: React.FC = () => {
                                         : "text-slate-400 hover:text-white hover:bg-white/5"
                                     }`}
                                   >
-                                    <span className="truncate pr-2">{t.title}</span>
+                                    <div className="flex items-center gap-2 truncate pr-2">
+                                      <span className="truncate">{t.title}</span>
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-300 shrink-0">
+                                        {epTotal} сер.
+                                      </span>
+                                    </div>
                                     {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
                                   </button>
                                 );
