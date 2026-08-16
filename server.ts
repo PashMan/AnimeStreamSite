@@ -2325,6 +2325,79 @@ app.get('/api/media/playlist', async (c) => {
     return c.json({ error: 'url parameter is required' }, 400);
   }
 
+  // If Aniboom URL, extract M3U8 directly from data-parameters
+  const isAniboom = urlParam.includes('aniboom') || urlParam.includes('boom-img');
+  if (isAniboom) {
+    console.log(`[ANIBOOM PROXY] Attempting playlist extraction for: ${urlParam}`);
+    try {
+      let aniboomUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+      const aRes = await fetch(aniboomUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Referer': 'https://animego.org/',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        }
+      });
+      if (aRes.ok) {
+        const aHtml = await aRes.text();
+        const match = aHtml.match(/data-parameters="([^"]+)"/);
+        if (match) {
+          const decoded = JSON.parse(match[1].replace(/&quot;/g, '"'));
+          let hlsSrc = '';
+          if (decoded.hls) {
+            const hlsObj = typeof decoded.hls === 'string' ? JSON.parse(decoded.hls) : decoded.hls;
+            hlsSrc = hlsObj.src;
+          }
+          if (hlsSrc) {
+            if (hlsSrc.startsWith('//')) hlsSrc = `https:${hlsSrc}`;
+            console.log(`[ANIBOOM PROXY] Resolved direct M3U8 master playlist: ${hlsSrc}`);
+
+            if (c.req.query('resolve') === 'true') {
+              return c.json({ url: hlsSrc, poster: decoded.poster, qualities: [1080, 720, 480, 360] });
+            }
+
+            const m3u8Res = await fetch(hlsSrc, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Referer': 'https://aniboom.one/',
+                'Origin': 'https://aniboom.one'
+              }
+            });
+            if (m3u8Res.ok) {
+              const m3u8Content = await m3u8Res.text();
+              const baseUrl = hlsSrc.substring(0, hlsSrc.lastIndexOf('/') + 1);
+              const rewritten = m3u8Content.split('\n').map(line => {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) {
+                  if (trimmed.includes('URI="')) {
+                    return trimmed.replace(/URI="([^"]+)"/, (m, p1) => {
+                      const fullUri = p1.startsWith('http') ? p1 : new URL(p1, baseUrl).toString();
+                      return `URI="${fullUri}"`;
+                    });
+                  }
+                  return line;
+                }
+                return trimmed.startsWith('http') ? trimmed : new URL(trimmed, baseUrl).toString();
+              }).join('\n');
+
+              return new Response(rewritten, {
+                status: 200,
+                headers: {
+                  'Content-Type': 'application/vnd.apple.mpegurl',
+                  'Access-Control-Allow-Origin': '*',
+                  'Cache-Control': 'no-cache, no-store, must-revalidate'
+                }
+              });
+            }
+            return c.redirect(hlsSrc, 302);
+          }
+        }
+      }
+    } catch (aErr: any) {
+      console.warn(`[ANIBOOM PROXY] Aniboom extraction failed: ${aErr.message}`);
+    }
+  }
+
   // If Collaps URL, attempt Collaps extraction first
   const isCollaps = urlParam.includes('collaps') || urlParam.includes('ortified');
   if (isCollaps) {

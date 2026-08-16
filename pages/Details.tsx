@@ -73,6 +73,20 @@ const getResolvedKodikUrl = (t: any, epNum: number, defaultUrl?: string | null) 
   }
 };
 
+const getResolvedCollapsUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
+  const num = epNum || 1;
+  const target = t?.collaps_iframe || (t?.iframe && (t.iframe.includes("collaps") || t.iframe.includes("ortified")) ? t.iframe : null) || defaultUrl;
+  if (!target) return null;
+  try {
+    const url = new URL(target.startsWith("//") ? `https:${target}` : target);
+    url.searchParams.set("episode", String(num));
+    return url.toString();
+  } catch (_) {
+    const sep = target.includes("?") ? "&" : "?";
+    return `${target}${sep}episode=${num}`;
+  }
+};
+
 const getResolvedIframeUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
   const num = epNum || 1;
   if (!t) {
@@ -89,25 +103,19 @@ const getResolvedIframeUrl = (t: any, epNum: number, defaultUrl?: string | null)
     return null;
   }
 
-  // Quality > Quantity Rule:
-  // If translation has Collaps 1080p AND episode num exists in Collaps:
+  if (defaultUrl && (defaultUrl.includes("collaps") || defaultUrl.includes("ortified"))) {
+    return getResolvedCollapsUrl(t, num, defaultUrl);
+  }
+
   if (
     t.collaps_iframe &&
     t.has_1080_collaps &&
     num <= (t.collaps_episodes_count || 1)
   ) {
-    try {
-      const url = new URL(t.collaps_iframe.startsWith("//") ? `https:${t.collaps_iframe}` : t.collaps_iframe);
-      url.searchParams.set("episode", String(num));
-      return url.toString();
-    } catch (_) {
-      const sep = t.collaps_iframe.includes("?") ? "&" : "?";
-      return `${t.collaps_iframe}${sep}episode=${num}`;
-    }
+    return getResolvedCollapsUrl(t, num, defaultUrl);
   }
 
-  // Fallback: If Collaps lacks 1080p OR episode num is missing in Collaps (e.g. ep 8): use Kodik stream
-  const fallbackIframe = t.kodik_iframe || t.iframe || t.collaps_iframe || defaultUrl;
+  const fallbackIframe = t.kodik_iframe || (t.iframe && !t.iframe.includes("collaps") && !t.iframe.includes("ortified") ? t.iframe : null) || t.collaps_iframe || defaultUrl;
   if (fallbackIframe) {
     try {
       const url = new URL(fallbackIframe.startsWith("//") ? `https:${fallbackIframe}` : fallbackIframe);
@@ -390,6 +398,21 @@ const Details: React.FC = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!selectedPlayer) return;
+    const ep = paramEpisode || "1";
+    const tr = selectedTranslation?.title || selectedTranslation?.author || "По умолчанию";
+    if (selectedPlayer === "KamiPlayer") {
+      console.log(`🎬 [Player Engine] ACTIVE PLAYER: KamiPlayer (Кастомный Artplayer) | Источник: Kodik HLS Stream Parser | Серия: ${ep} | Озвучка: ${tr}`);
+    } else if (selectedPlayer === "Collaps") {
+      console.log(`🎬 [Player Engine] ACTIVE PLAYER: Collaps Embed (/api/collaps/embed) | Источник: Collaps | Серия: ${ep} | Озвучка: ${tr}`);
+    } else if (selectedPlayer === "Kodik") {
+      console.log(`🎬 [Player Engine] ACTIVE PLAYER: Kodik Standard Iframe | Источник: Kodik | Серия: ${ep} | Озвучка: ${tr}`);
+    } else {
+      console.log(`🎬 [Player Engine] ACTIVE PLAYER: ${selectedPlayer} | Серия: ${ep} | Озвучка: ${tr}`);
+    }
+  }, [selectedPlayer, selectedTranslation, paramEpisode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1814,23 +1837,23 @@ const Details: React.FC = () => {
                                 onNextEpisode={handleNextEp}
                                 onPrevEpisode={handlePrevEp}
                                 onPlayerError={() => {
-                                  if (selectedTranslation?.provider === "Collaps" || selectedTranslation?.title?.includes("Collaps")) {
-                                    if (players.some((p) => p.name === "Collaps")) {
-                                      setSelectedPlayer("Collaps");
-                                      return;
-                                    }
-                                  }
-                                  if (players.some((p) => p.name === "Kodik")) {
-                                    setSelectedPlayer("Kodik");
-                                  } else if (players.some((p) => p.name === "Collaps")) {
+                                  if (players.some((p) => p.name === "Collaps")) {
                                     setSelectedPlayer("Collaps");
+                                  } else if (players.some((p) => p.name === "Kodik")) {
+                                    setSelectedPlayer("Kodik");
                                   }
                                 }}
                               />
                             );
                           }
                           const epNum = parseInt(paramEpisode || "1") || 1;
-                          let finalIframeUrl = getResolvedIframeUrl(selectedTranslation, epNum, player.iframe) || player.iframe;
+                          let finalIframeUrl = (
+                            player.name === "Collaps" || player.name.toLowerCase().includes("collaps")
+                              ? getResolvedCollapsUrl(selectedTranslation, epNum, player.iframe)
+                              : player.name === "Kodik" || player.name.toLowerCase().includes("kodik")
+                                ? getResolvedKodikUrl(selectedTranslation, epNum, player.iframe)
+                                : getResolvedIframeUrl(selectedTranslation, epNum, player.iframe)
+                          ) || player.iframe;
 
                           if (finalIframeUrl && (player.name === "Kodik" || player.name === "Collaps" || finalIframeUrl.includes("collaps") || finalIframeUrl.includes("ortified"))) {
                             try {
