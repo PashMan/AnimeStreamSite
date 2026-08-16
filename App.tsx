@@ -16,14 +16,20 @@ const lazyWithRetry = <T extends React.ComponentType<any>>(
       return await factory();
     } catch (error: any) {
       console.warn('[Vite] Chunk load error, attempting recovery:', error);
-      const storageKey = `retry_${window.location.pathname}`;
-      const hasRetried = sessionStorage.getItem(storageKey);
-      if (!hasRetried) {
-        sessionStorage.setItem(storageKey, 'true');
-        window.location.reload();
-        return new Promise(() => {}); // Wait for reload
+      const isChunkError =
+        error?.message?.includes('Failed to fetch dynamically imported module') ||
+        error?.message?.includes('Importing a module script failed') ||
+        error?.name === 'TypeError';
+
+      if (isChunkError) {
+        const storageKey = `retry_chunk_${window.location.pathname}`;
+        const hasRetried = sessionStorage.getItem(storageKey);
+        if (!hasRetried) {
+          sessionStorage.setItem(storageKey, Date.now().toString());
+          window.location.reload();
+          return new Promise(() => {}); // Wait for reload
+        }
       }
-      sessionStorage.removeItem(storageKey);
       throw error;
     }
   });
@@ -47,11 +53,13 @@ class RouteErrorBoundary extends Component<
     console.error('[RouteErrorBoundary caught error]:', error, errorInfo);
     if (
       error.message?.includes('Failed to fetch dynamically imported module') ||
-      error.message?.includes('Importing a module script failed')
+      error.message?.includes('Importing a module script failed') ||
+      error.name === 'TypeError'
     ) {
       const key = `boundary_retry_${window.location.pathname}`;
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, 'true');
+      const lastRetry = sessionStorage.getItem(key);
+      if (!lastRetry || Date.now() - parseInt(lastRetry, 10) > 10000) {
+        sessionStorage.setItem(key, Date.now().toString());
         window.location.reload();
       }
     }
@@ -90,17 +98,17 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <Navigate to="/" replace />;
 };
 
-// Eager load critical pages
+// Eager load core critical pages to eliminate chunk load errors
 import Home from './pages/Home';
+import Details from './pages/Details';
+import Catalog from './pages/Catalog';
 
-// Lazy load non-critical pages with chunk retry support
-const Catalog = lazyWithRetry(() => import('./pages/Catalog'));
+// Lazy load non-critical secondary pages with chunk retry support
 const Manga = lazyWithRetry(() => import('./pages/Manga'));
 const Games = lazyWithRetry(() => import('./pages/Games'));
 const Collections = lazyWithRetry(() => import('./pages/Collections'));
 const CollectionDetail = lazyWithRetry(() => import('./pages/CollectionDetail'));
 const CommunityCollectionDetail = lazyWithRetry(() => import('./pages/CommunityCollectionDetail'));
-const Details = lazyWithRetry(() => import('./pages/Details'));
 const TextPage = lazyWithRetry(() => import('./pages/TextPage'));
 const NewsDetails = lazyWithRetry(() => import('./pages/NewsDetails'));
 const Forum = lazyWithRetry(() => import('./pages/Forum'));
