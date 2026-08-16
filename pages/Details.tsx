@@ -66,10 +66,19 @@ const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null
   try {
     const url = new URL(target.startsWith("//") ? `https:${target}` : target);
     url.searchParams.set("episode", String(num));
+    if (!url.searchParams.has("translation")) {
+      url.searchParams.set("translation", "16");
+    }
     return url.toString();
   } catch (_) {
-    const sep = target.includes("?") ? "&" : "?";
-    return `${target}${sep}episode=${num}`;
+    let result = target;
+    if (!result.includes("episode=")) {
+      result += (result.includes("?") ? "&" : "?") + `episode=${num}`;
+    }
+    if (!result.includes("translation=")) {
+      result += (result.includes("?") ? "&" : "?") + `translation=16`;
+    }
+    return result;
   }
 };
 

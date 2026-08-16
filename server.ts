@@ -2330,6 +2330,14 @@ app.get('/api/media/playlist', async (c) => {
     console.log(`[ANIBOOM PROXY] Attempting playlist extraction for: ${urlParam}`);
     try {
       let aniboomUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+      // Ensure episode and translation params are present (Aniboom returns 404 without translation param)
+      if (!aniboomUrl.includes('episode=')) {
+        aniboomUrl += (aniboomUrl.includes('?') ? '&' : '?') + 'episode=1';
+      }
+      if (!aniboomUrl.includes('translation=')) {
+        aniboomUrl += (aniboomUrl.includes('?') ? '&' : '?') + 'translation=16';
+      }
+
       const aRes = await fetch(aniboomUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -2392,8 +2400,10 @@ app.get('/api/media/playlist', async (c) => {
           }
         }
       }
+      return c.json({ error: `Aniboom extraction failed. HTTP Status: ${aRes.status}` }, 500);
     } catch (aErr: any) {
       console.warn(`[ANIBOOM PROXY] Aniboom extraction failed: ${aErr.message}`);
+      return c.json({ error: `Aniboom proxy error: ${aErr.message}` }, 500);
     }
   }
 
