@@ -186,58 +186,75 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
     // Step D: Alloha fileList & Playerjs / Collaps configs
     logs.push(`[10] Scanning Playerjs / makePlayer / Alloha fileList config blocks...`);
 
+    const targetEp = parsedUrl.searchParams.get('episode') || parsedUrl.searchParams.get('ep') || '1';
+    const targetSeason = parsedUrl.searchParams.get('season') || '1';
+
     const fileListMatch = fullText.match(/fileList\s*:\s*JSON\.parse\('([\s\S]*?)'\)/) ||
                           fullText.match(/fileList\s*=\s*JSON\.parse\('([\s\S]*?)'\)/) ||
-                          fullText.match(/const\s+fileList\s*=\s*JSON\.parse\('([\s\S]*?)'\)/);
+                          fullText.match(/const\s+fileList\s*=\s*JSON\.parse\('([\s\S]*?)'\)/) ||
+                          fullText.match(/fileList\s*=\s*({[\s\S]*?});/) ||
+                          fullText.match(/var\s+fileList\s*=\s*({[\s\S]*?});/) ||
+                          fullText.match(/window\.fileList\s*=\s*({[\s\S]*?});/);
     if (fileListMatch) {
       try {
-        const rawJson = fileListMatch[1].replace(/\\'/g, "'").replace(/\\\\/g, "\\");
-        const fileListObj = JSON.parse(rawJson);
-        logs.push(`[11] Found Alloha fileList JSON structure! Searching inside JSON...`);
-        
-        const jsonStringified = JSON.stringify(fileListObj);
-        const m3u8InFileList = jsonStringified.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
-                                jsonStringified.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
-                                jsonStringified.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-        if (m3u8InFileList) {
-          let candidate = m3u8InFileList[1].replace(/\\/g, '');
-          if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-          logs.push(`[12] Found direct .m3u8 inside Alloha fileList JSON: ${candidate}`);
-          return { 
-            m3u8Url: candidate, 
-            headers: {
-              'Referer': targetUrl,
-              'Origin': `https://${host}`
-            },
-            logs, 
-            htmlLength: fullText.length 
-          };
+        let rawJson = fileListMatch[1];
+        if (rawJson.startsWith("'") && rawJson.endsWith("'")) {
+          rawJson = rawJson.slice(1, -1);
+        }
+        rawJson = rawJson.replace(/\\'/g, "'").replace(/\\\\/g, "\\");
+        let fileListObj: any = null;
+        try {
+          fileListObj = JSON.parse(rawJson);
+        } catch {
+          // If already an object match
+          try {
+            fileListObj = new Function(`return (${fileListMatch[1]})`)();
+          } catch (_) {}
         }
 
-        const b64Matches = jsonStringified.match(/([A-Za-z0-9+/=]{20,})/g) || [];
-        for (const b of b64Matches) {
-          try {
-            const dec = typeof atob === 'function' ? atob(b) : Buffer.from(b, 'base64').toString('utf-8');
-            if (dec.includes('.m3u8') || dec.includes('vkvideo.cloud')) {
-              let foundUrl = dec.match(/(https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/) ||
-                             dec.match(/(https?:\/\/[^"'\s\\]+vkvideo\.cloud[^"'\s\\]+)/) ||
-                             dec.match(/(\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*)/);
-              if (foundUrl) {
-                let candidate = foundUrl[1].replace(/\\/g, '');
-                if (candidate.startsWith('//')) candidate = `https:${candidate}`;
-                logs.push(`[12] Decoded Base64 in Alloha fileList JSON: ${candidate}`);
-                return { 
-                  m3u8Url: candidate, 
-                  headers: {
-                    'Referer': targetUrl,
-                    'Origin': `https://${host}`
-                  },
-                  logs, 
-                  htmlLength: fullText.length 
-                };
+        if (fileListObj) {
+          logs.push(`[11] Found Alloha fileList structure! Resolving streams for Season ${targetSeason}, Episode ${targetEp}...`);
+          
+          // Function to recursively inspect fileList
+          const extractFromObject = (obj: any): string | null => {
+            if (!obj) return null;
+            if (typeof obj === 'string') {
+              const dec = decryptStreamUrl(obj);
+              if (dec) return dec;
+            }
+            if (typeof obj === 'object') {
+              // Try targeted season and episode
+              if (obj[targetSeason] && typeof obj[targetSeason] === 'object') {
+                const epObj = obj[targetSeason][targetEp] || obj[targetSeason]['1'] || Object.values(obj[targetSeason])[0];
+                const res = extractFromObject(epObj);
+                if (res) return res;
+              }
+              if (obj[targetEp]) {
+                const res = extractFromObject(obj[targetEp]);
+                if (res) return res;
+              }
+              // Iterate all values
+              for (const k of Object.keys(obj)) {
+                const res = extractFromObject(obj[k]);
+                if (res) return res;
               }
             }
-          } catch (_) {}
+            return null;
+          };
+
+          const resolvedAllohaStream = extractFromObject(fileListObj);
+          if (resolvedAllohaStream) {
+            logs.push(`[12] Resolved Alloha stream from fileList: ${resolvedAllohaStream}`);
+            return {
+              m3u8Url: resolvedAllohaStream,
+              headers: {
+                'Referer': targetUrl,
+                'Origin': `https://${host}`
+              },
+              logs,
+              htmlLength: fullText.length
+            };
+          }
         }
       } catch (err: any) {
         logs.push(`[11] Error parsing Alloha fileList JSON: ${err.message}`);

@@ -70,18 +70,22 @@ export async function onRequest(context: any) {
             if (extraHeaders?.['Accepts-Controls']) extraParams += `&controls=${encodeURIComponent(extraHeaders['Accepts-Controls'])}`;
             if (extraHeaders?.['Referer']) extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
 
-            const proxyUrlBase = `${getProxyOrigin(request)}/api/media/segment?url=`;
+            const proxyOrigin = getProxyOrigin(request);
 
             const rewrittenLines = lines.map(line => {
               const trimmed = line.trim();
               if (!trimmed || trimmed.startsWith('#')) return line;
-              let absSegmentUrl = trimmed;
+              let absUrl = trimmed;
               if (!trimmed.startsWith('http')) {
-                absSegmentUrl = trimmed.startsWith('/')
+                absUrl = trimmed.startsWith('/')
                   ? new URL(trimmed, m3u8Url).toString()
                   : m3u8Base + trimmed;
               }
-              return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}${extraParams}`;
+              // If it is a sub-playlist (.m3u8), proxy through /api/media/playlist
+              if (absUrl.toLowerCase().includes('.m3u8')) {
+                return `${proxyOrigin}/api/media/playlist?url=${encodeURIComponent(absUrl)}${extraParams}`;
+              }
+              return `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(absUrl)}${extraParams}`;
             });
 
             return new Response(rewrittenLines.join('\n'), {
@@ -89,6 +93,8 @@ export async function onRequest(context: any) {
               headers: {
                 'Content-Type': 'application/x-mpegURL',
                 'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': '*',
                 'Cache-Control': 'no-cache, no-store, must-revalidate'
               }
             });
@@ -103,30 +109,43 @@ export async function onRequest(context: any) {
       console.warn(`[CF BALANCER PROXY] Direct stream extraction failed for ${iframeUrl}, attempting Kodik fallback...`);
       let fallbackKodikUrl = '';
       try {
-        let ep = '1';
+        let ep = urlObj.searchParams.get('episode') || '1';
         const epMatch = iframeUrl.match(/[?&]episode=(\d+)/);
         if (epMatch) ep = epMatch[1];
 
-        let shikiId = '';
-        let kpId = '';
+        let shikiId = urlObj.searchParams.get('shikimori_id') || '';
+        let kpId = urlObj.searchParams.get('kinopoisk_id') || '';
         const shikiMatch = iframeUrl.match(/\/(?:anime|shikimori)\/(\d+)/);
-        if (shikiMatch) shikiId = shikiMatch[1];
+        if (shikiMatch && !shikiId) shikiId = shikiMatch[1];
         const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
-        if (kpMatch && !shikiId) kpId = kpMatch[1];
+        if (kpMatch && !shikiId && !kpId) kpId = kpMatch[1];
 
         if (shikiId || kpId) {
           const q = shikiId ? `shikimori_id=${shikiId}` : `kinopoisk_id=${kpId}`;
-          const kRes = await fetch(`https://kodikapi.com/search?token=4506c1251c6b16e108cb96a15e6128d5&${q}&with_episodes=true`);
-          if (kRes.ok) {
-            const kData = await kRes.json() as any;
-            if (kData && kData.results && kData.results.length > 0) {
-              const link = kData.results[0].link;
-              if (link) {
-                const u = new URL(link.startsWith('//') ? `https:${link}` : link);
-                u.searchParams.set('episode', ep);
-                fallbackKodikUrl = u.toString();
+          const kodikTokensList = [
+            'b7cc4293ed475c4ad1fd599d114f4435',
+            '17cc4ee691bc251131a9041e6e89e78e',
+            '45c53578f11ecfb74e31267b634cc6a8',
+            '93699ec16dae9882a1705e4dfb12c7bb',
+            '1d643a758d41de5ccb2f66be4e3f421d'
+          ];
+          for (const token of kodikTokensList) {
+            if (fallbackKodikUrl) break;
+            try {
+              const kRes = await fetch(`https://kodikapi.com/search?token=${token}&${q}&with_episodes=true`);
+              if (kRes.ok) {
+                const kData = await kRes.json() as any;
+                if (kData && kData.results && kData.results.length > 0) {
+                  const link = kData.results[0].link;
+                  if (link) {
+                    const u = new URL(link.startsWith('//') ? `https:${link}` : link);
+                    u.searchParams.set('episode', ep);
+                    fallbackKodikUrl = u.toString();
+                    break;
+                  }
+                }
               }
-            }
+            } catch (_) {}
           }
         }
       } catch (err: any) {
@@ -137,17 +156,24 @@ export async function onRequest(context: any) {
         iframeUrl = fallbackKodikUrl;
         console.log(`[CF BALANCER PROXY] Switched to Kodik fallback URL: ${iframeUrl}`);
       } else {
-        const fallbackMasterLines = [
+        const proxyOrigin = getProxyOrigin(request);
+        const errorPlaylist = [
           '#EXTM3U',
           '#EXT-X-VERSION:3',
-          '#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"',
-          'https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8'
+          '#EXT-X-TARGETDURATION:10',
+          '#EXT-X-MEDIA-SEQUENCE:0',
+          '#EXTINF:10.0,',
+          `${proxyOrigin}/api/media/segment?error=stream_not_found`,
+          '#EXT-X-ENDLIST'
         ];
-        return new Response(fallbackMasterLines.join('\n'), {
+        return new Response(errorPlaylist.join('\n'), {
           status: 200,
           headers: {
             'Content-Type': 'application/x-mpegURL',
-            'Access-Control-Allow-Origin': '*'
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
           }
         });
       }

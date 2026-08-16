@@ -1875,11 +1875,12 @@ const Details: React.FC = () => {
                           let audioTrackNames: string[] | undefined = undefined;
                           let targetIframeWithEpisode = "";
 
+                          const isSpecial4KMovie = isSuzume || isWeathering || isGardenOfWords || isKimiNoNaWa;
+                          const isKamiPlayerSelected = selectedPlayer === "KamiPlayer (4K UHD)" || !selectedPlayer;
+
                           if (
-                            isSuzume ||
-                            isWeathering ||
-                            isGardenOfWords ||
-                            isKimiNoNaWa
+                            isSpecial4KMovie &&
+                            isKamiPlayerSelected
                           ) {
                             const customRawSrc = isSuzume
                               ? "https://cdn1.kamianime.club/suzume/master.m3u8"
