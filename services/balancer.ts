@@ -8,10 +8,19 @@ export interface PlayerInfo {
 }
 
 export interface KodikTranslation {
-  id: number;
+  id: number | string;
   title: string;
   type: string;
   iframe: string;
+  episodes_count?: number;
+  last_episode?: number;
+  provider?: string;
+  has_1080_collaps?: boolean;
+  collaps_iframe?: string | null;
+  kodik_iframe?: string | null;
+  collaps_episodes_count?: number;
+  kodik_episodes_count?: number;
+  quality_label?: string;
 }
 
 export interface BalancerData {

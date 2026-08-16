@@ -58,6 +58,55 @@ import { BrowserDownloadWidget } from "../components/BrowserDownloadWidget";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
 import { filterProfanity } from "../utils/profanity";
+
+const getResolvedIframeUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
+  const num = epNum || 1;
+  if (!t) {
+    if (defaultUrl) {
+      try {
+        const url = new URL(defaultUrl.startsWith("//") ? `https:${defaultUrl}` : defaultUrl);
+        url.searchParams.set("episode", String(num));
+        return url.toString();
+      } catch (_) {
+        const sep = defaultUrl.includes("?") ? "&" : "?";
+        return `${defaultUrl}${sep}episode=${num}`;
+      }
+    }
+    return null;
+  }
+
+  // Quality > Quantity Rule:
+  // If translation has Collaps 1080p AND episode num exists in Collaps:
+  if (
+    t.collaps_iframe &&
+    t.has_1080_collaps &&
+    num <= (t.collaps_episodes_count || 1)
+  ) {
+    try {
+      const url = new URL(t.collaps_iframe.startsWith("//") ? `https:${t.collaps_iframe}` : t.collaps_iframe);
+      url.searchParams.set("episode", String(num));
+      return url.toString();
+    } catch (_) {
+      const sep = t.collaps_iframe.includes("?") ? "&" : "?";
+      return `${t.collaps_iframe}${sep}episode=${num}`;
+    }
+  }
+
+  // Fallback: If Collaps lacks 1080p OR episode num is missing in Collaps (e.g. ep 8): use Kodik stream
+  const fallbackIframe = t.kodik_iframe || t.iframe || t.collaps_iframe || defaultUrl;
+  if (fallbackIframe) {
+    try {
+      const url = new URL(fallbackIframe.startsWith("//") ? `https:${fallbackIframe}` : fallbackIframe);
+      url.searchParams.set("episode", String(num));
+      return url.toString();
+    } catch (_) {
+      const sep = fallbackIframe.includes("?") ? "&" : "?";
+      return `${fallbackIframe}${sep}episode=${num}`;
+    }
+  }
+
+  return null;
+};
 import { generateAnimeSEO } from "../utils/seoGenerator";
 
 const Details: React.FC = () => {
@@ -989,23 +1038,12 @@ const Details: React.FC = () => {
             : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
       schemaVideoUrl = `${origin}/api/proxy-4k?url=${encodeURIComponent(customRawSrc)}`;
     } else {
-      const baseIframe =
-        selectedTranslation?.iframe ||
-        players.find((p) => p.name === "Kodik")?.iframe;
-      if (baseIframe) {
-        let kodikIframeWithEpisode = baseIframe;
-        try {
-          const url = new URL(
-            kodikIframeWithEpisode.startsWith("//")
-              ? `https:${kodikIframeWithEpisode}`
-              : kodikIframeWithEpisode,
-          );
-          if (paramEpisode) {
-            url.searchParams.set("episode", paramEpisode);
-          }
-          kodikIframeWithEpisode = url.toString();
-        } catch (e) {}
-        schemaVideoUrl = `${origin}/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+      const epNum = parseInt(paramEpisode || "1") || 1;
+      const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+      const resolvedIframe = getResolvedIframeUrl(selectedTranslation, epNum, defaultKodik);
+
+      if (resolvedIframe) {
+        schemaVideoUrl = `${origin}/api/media/playlist?url=${encodeURIComponent(resolvedIframe)}`;
       } else {
         schemaVideoUrl = `${origin}/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
       }
@@ -1692,29 +1730,14 @@ const Details: React.FC = () => {
                                   ]
                                 : undefined;
                             } else {
-                              // For general anime, extract from Kodik stream! Prefer the selectedTranslation's iframe URL
-                              const baseIframe =
-                                selectedTranslation?.iframe ||
-                                players.find((p) => p.name === "Kodik")?.iframe;
-                              if (baseIframe) {
-                                let kodikIframeWithEpisode = baseIframe;
-                                try {
-                                  const url = new URL(
-                                    kodikIframeWithEpisode.startsWith("//")
-                                      ? `https:${kodikIframeWithEpisode}`
-                                      : kodikIframeWithEpisode,
-                                  );
-                                  if (paramEpisode) {
-                                    url.searchParams.set(
-                                      "episode",
-                                      paramEpisode,
-                                    );
-                                  }
-                                  kodikIframeWithEpisode = url.toString();
-                                } catch (e) {}
-                                customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
+                              // For general anime, extract using getResolvedIframeUrl (Quality > Quantity rule)
+                              const epNum = parseInt(paramEpisode || "1") || 1;
+                              const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+                              const resolvedIframe = getResolvedIframeUrl(selectedTranslation, epNum, defaultKodik);
+
+                              if (resolvedIframe) {
+                                customSrc = `/api/media/playlist?url=${encodeURIComponent(resolvedIframe)}`;
                               } else {
-                                // Fallback to kimi-no-na-wa so it doesn't break
                                 customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
                               }
                             }
@@ -1753,15 +1776,25 @@ const Details: React.FC = () => {
                                 onNextEpisode={handleNextEp}
                                 onPrevEpisode={handlePrevEp}
                                 onPlayerError={() => {
+                                  if (selectedTranslation?.provider === "Collaps" || selectedTranslation?.title?.includes("Collaps")) {
+                                    if (players.some((p) => p.name === "Collaps")) {
+                                      setSelectedPlayer("Collaps");
+                                      return;
+                                    }
+                                  }
                                   if (players.some((p) => p.name === "Kodik")) {
                                     setSelectedPlayer("Kodik");
+                                  } else if (players.some((p) => p.name === "Collaps")) {
+                                    setSelectedPlayer("Collaps");
                                   }
                                 }}
                               />
                             );
                           }
-                          let finalIframeUrl = player.iframe;
-                          if (finalIframeUrl && player.name === "Kodik") {
+                          const epNum = parseInt(paramEpisode || "1") || 1;
+                          let finalIframeUrl = getResolvedIframeUrl(selectedTranslation, epNum, player.iframe) || player.iframe;
+
+                          if (finalIframeUrl && (player.name === "Kodik" || player.name === "Collaps")) {
                             try {
                               const absoluteUrl = finalIframeUrl.startsWith(
                                 "//",
@@ -1835,6 +1868,11 @@ const Details: React.FC = () => {
                                     onClick={() => {
                                       setSelectedTranslation(t);
                                       setIsNotifierOpen(false);
+                                      if (t.provider === "Collaps" || (t.title && t.title.includes("Collaps"))) {
+                                        if (players.some((p) => p.name === "Collaps")) {
+                                          setSelectedPlayer("Collaps");
+                                        }
+                                      }
                                     }}
                                     className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-between ${
                                       isSelected

@@ -83,6 +83,8 @@ export async function onRequest(context: any) {
     }
   } catch (e) {}
 
+  let collaps_info: { iframe: string; has1080: boolean; epCount: number } | null = null;
+
   // 2. Collaps
   try {
     let collapsUrl = '';
@@ -99,14 +101,83 @@ export async function onRequest(context: any) {
       if (collapsRes.ok) {
         const collapsData = await collapsRes.json() as any;
         if (collapsData.results && collapsData.results.length > 0 && collapsData.results[0].iframe_url) {
+          const item = collapsData.results[0];
           const collapsPlayer = players.find(p => p.name === 'Collaps');
           if (collapsPlayer) {
-            collapsPlayer.iframe = collapsData.results[0].iframe_url;
+            collapsPlayer.iframe = item.iframe_url;
           }
+
+          const qualStr = String(item.quality || '').toLowerCase();
+          const has1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('4k') || qualStr.includes('2160');
+
+          let epCount = 1;
+          if (item.seasons && Array.isArray(item.seasons) && item.seasons.length > 0) {
+            const lastSeason = item.seasons[item.seasons.length - 1];
+            if (lastSeason.episodes && Array.isArray(lastSeason.episodes)) {
+              epCount = lastSeason.episodes.length;
+            }
+          }
+
+          collaps_info = {
+            iframe: item.iframe_url,
+            has1080,
+            epCount
+          };
         }
       }
     }
   } catch (e: any) {}
+
+  // Merge Kodik and Collaps translations
+  if (collaps_info) {
+    const badge = collaps_info.has1080 ? '4K' : '1080';
+    if (kodik_translations && kodik_translations.length > 0) {
+      kodik_translations = kodik_translations.map((t: any) => {
+        const baseTitle = t.title.replace(/\s*\((4K|1080)\)\s*/gi, '').trim();
+        return {
+          ...t,
+          title: `${baseTitle} (${badge})`,
+          has_1080_collaps: collaps_info!.has1080,
+          collaps_iframe: collaps_info!.iframe,
+          kodik_iframe: t.iframe,
+          collaps_episodes_count: collaps_info!.epCount,
+          kodik_episodes_count: t.episodes_count || 1,
+          episodes_count: Math.max(collaps_info!.epCount, t.episodes_count || 1),
+          last_episode: Math.max(collaps_info!.epCount, t.last_episode || 1),
+          quality_label: badge
+        };
+      });
+    } else {
+      kodik_translations = [{
+        id: 'collaps_main',
+        title: `Collaps (${badge})`,
+        type: 'voice',
+        provider: 'Collaps',
+        iframe: collaps_info.iframe,
+        has_1080_collaps: collaps_info.has1080,
+        collaps_iframe: collaps_info.iframe,
+        kodik_iframe: null,
+        collaps_episodes_count: collaps_info.epCount,
+        kodik_episodes_count: 0,
+        episodes_count: collaps_info.epCount,
+        last_episode: collaps_info.epCount,
+        quality_label: badge
+      }];
+    }
+  } else if (kodik_translations && kodik_translations.length > 0) {
+    kodik_translations = kodik_translations.map((t: any) => {
+      const baseTitle = t.title.replace(/\s*\((4K|1080)\)\s*/gi, '').trim();
+      return {
+        ...t,
+        title: `${baseTitle} (1080)`,
+        has_1080_collaps: false,
+        collaps_iframe: null,
+        kodik_iframe: t.iframe,
+        kodik_episodes_count: t.episodes_count || 1,
+        quality_label: '1080'
+      };
+    });
+  }
 
   return new Response(JSON.stringify({ players, ids, kodik_translations }), {
     status: 200,
