@@ -645,18 +645,25 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               const proxyUrlBase = `${window.location.origin}/api/proxy-4k?url=`;
 
               // Intercept each segment/manifest request and route through our proxy to bypass CORS
-              player.extend("RequestModifier", () => ({
-                modifyRequest: (req: { url: string }) => {
-                  let target = req.url;
+              player.extend("RequestModifier", () => {
+                const processUrl = (urlStr: string): string => {
+                  if (!urlStr) return urlStr;
+                  let target = urlStr;
 
                   // Prevent infinite proxy wrapping if it's already a proxied URL
                   if (target.startsWith(proxyUrlBase) || target.includes("/api/proxy-4k")) {
-                    return req;
+                    return target;
                   }
 
                   // If path is relative or points to localhost (not starting with http), restore CDN address
                   if (!target.startsWith("http")) {
                     target = baseCdnDir + target;
+                  } else if (target.startsWith(window.location.origin) && !target.includes("/api/proxy-4k")) {
+                    // This is a relative URL resolved against our origin by the browser (e.g. /api/chunk_1_00001.m4s)
+                    const filename = target.split("?")[0].split("/").pop();
+                    if (filename) {
+                      target = baseCdnDir + filename;
+                    }
                   } else if (target !== actualMpdUrl && !target.startsWith(baseCdnDir)) {
                     const filename = target.split("?")[0].split("/").pop();
                     if (filename) {
@@ -664,11 +671,21 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     }
                   }
 
-                  // Wrap request in our proxy
-                  req.url = proxyUrlBase + encodeURIComponent(target);
-                  return req;
-                }
-              }), true);
+                  return proxyUrlBase + encodeURIComponent(target);
+                };
+
+                return {
+                  modifyRequestURL: (urlVal: string) => {
+                    return processUrl(urlVal);
+                  },
+                  modifyRequest: (req: any) => {
+                    if (req && req.url) {
+                      req.url = processUrl(req.url);
+                    }
+                    return req;
+                  }
+                };
+              }, true);
 
               player.initialize(video, url, true);
               (artInstance as any).dash = player;
