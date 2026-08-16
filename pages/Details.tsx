@@ -327,16 +327,16 @@ const Details: React.FC = () => {
 
       const aniboomStreamUrl = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
 
-      if (!aniboomStreamUrl) {
+      if (!aniboomStreamUrl && !id) {
         if (isCurrent) {
           const failureTelemetry = {
             ...gatherTelemetry,
-            reason: "Ни один из проверенных источников (selectedTranslation.aniboom_iframe, selectedTranslation.iframe, defaultAniboom) не содержал подстроку 'aniboom'."
+            reason: "Ни один из проверенных источников не содержал подстроку 'aniboom', и Shikimori ID отсутствует."
           };
           addLog(
             "Сбор параметров", 
             "error", 
-            "Ссылка на плеер AniBoom не обнаружена в доступных источниках. Проверьте детали JSON.",
+            "Ссылка на плеер AniBoom и Shikimori ID не обнаружены. Невозможно выполнить резолв.",
             failureTelemetry
           );
           setIsResolvingStream(false);
@@ -346,22 +346,33 @@ const Details: React.FC = () => {
         return;
       }
 
-      addLog(
-        "Сбор параметров", 
-        "success", 
-        `Параметры успешно собраны. Ссылка: ${aniboomStreamUrl}`,
-        {
-          resolvedUrl: aniboomStreamUrl,
-          queryParameters: {
-            episode: epNum,
-            translation: "16 (стандарт)"
-          },
-          sourceUsed: tAsAny?.aniboom_iframe ? "translation.aniboom_iframe" : (tAsAny?.iframe && tAsAny.iframe.includes("aniboom") ? "translation.iframe" : "defaultAniboom")
-        }
-      );
+      if (aniboomStreamUrl) {
+        addLog(
+          "Сбор параметров", 
+          "success", 
+          `Параметры успешно собраны. Ссылка: ${aniboomStreamUrl}`,
+          {
+            resolvedUrl: aniboomStreamUrl,
+            queryParameters: {
+              episode: epNum,
+              translation: selectedTranslation?.title || "16 (стандарт)"
+            },
+            sourceUsed: tAsAny?.aniboom_iframe ? "translation.aniboom_iframe" : (tAsAny?.iframe && tAsAny.iframe.includes("aniboom") ? "translation.iframe" : "defaultAniboom")
+          }
+        );
+      } else {
+        addLog(
+          "Сбор параметров", 
+          "info", 
+          `Ссылка на AniBoom отсутствует локально. Будет выполнен автоматический поиск на бэкенде по Shikimori ID: ${id} и озвучке: ${selectedTranslation?.title || "По умолчанию"}`
+        );
+      }
 
       try {
-        const fetchUrl = `/api/media/aniboom/resolve?url=${encodeURIComponent(aniboomStreamUrl)}&shikimori_id=${id}&episode=${epNum}${bypassCacheNext ? "&nocache=true" : ""}`;
+        const fetchUrl = aniboomStreamUrl
+          ? `/api/media/aniboom/resolve?url=${encodeURIComponent(aniboomStreamUrl)}&shikimori_id=${id}&episode=${epNum}${bypassCacheNext ? "&nocache=true" : ""}`
+          : `/api/media/aniboom/resolve?shikimori_id=${id}&episode=${epNum}&translation_id=${encodeURIComponent(selectedTranslation?.title || "")}${bypassCacheNext ? "&nocache=true" : ""}`;
+
         addLog("Запрос к бэкенду", "info", `Отправка GET-запроса к: ${fetchUrl}`);
 
         const res = await fetch(fetchUrl);
@@ -1159,7 +1170,12 @@ const Details: React.FC = () => {
             const isTv = isTvDevice();
             const customPlayer = playersList.find((p) => p.isCustom);
             const kodikPlayer = playersList.find((p) => p.name === "Kodik");
-            if (isTv && kodikPlayer) {
+            
+            const isCurrentPlayerValid = selectedPlayer && playersList.some((p) => p.name === selectedPlayer);
+            
+            if (isCurrentPlayerValid) {
+              // Keep currently selected player to prevent jarring resets on episode/translation change
+            } else if (isTv && kodikPlayer) {
               // TV browsers often prefer standard iframe playback for maximum hardware acceleration
               setSelectedPlayer("Kodik");
             } else if (customPlayer) {

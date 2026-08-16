@@ -626,8 +626,102 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               }
 
               const player = dashjs.MediaPlayer().create();
+
+              // Calculate the base directory of the MPD file on CDN
+              // If the URL is already proxied, we extract the actual target URL from the query param
+              let actualMpdUrl = url;
+              if (url.includes("/api/proxy-4k")) {
+                try {
+                  const queryStart = url.indexOf("url=");
+                  if (queryStart !== -1) {
+                    actualMpdUrl = decodeURIComponent(url.substring(queryStart + 4));
+                  }
+                } catch (e) {
+                  console.error("Error decoding MPD URL in CustomPlayer:", e);
+                }
+              }
+
+              const baseCdnDir = actualMpdUrl.substring(0, actualMpdUrl.lastIndexOf("/") + 1);
+              const proxyUrlBase = `${window.location.origin}/api/proxy-4k?url=`;
+
+              // Intercept each segment/manifest request and route through our proxy to bypass CORS
+              player.extend("RequestModifier", () => ({
+                modifyRequest: (req: { url: string }) => {
+                  let target = req.url;
+
+                  // Prevent infinite proxy wrapping if it's already a proxied URL
+                  if (target.startsWith(proxyUrlBase) || target.includes("/api/proxy-4k")) {
+                    return req;
+                  }
+
+                  // If path is relative or points to localhost (not starting with http), restore CDN address
+                  if (!target.startsWith("http")) {
+                    target = baseCdnDir + target;
+                  } else if (target !== actualMpdUrl && !target.startsWith(baseCdnDir)) {
+                    const filename = target.split("?")[0].split("/").pop();
+                    if (filename) {
+                      target = baseCdnDir + filename;
+                    }
+                  }
+
+                  // Wrap request in our proxy
+                  req.url = proxyUrlBase + encodeURIComponent(target);
+                  return req;
+                }
+              }), true);
+
               player.initialize(video, url, true);
               (artInstance as any).dash = player;
+
+              // Populate qualities on stream initialization
+              player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+                const videoBitrates = (player as any).getBitrateInfoListFor("video");
+                if (videoBitrates && videoBitrates.length > 0) {
+                  const parsedQualities = [
+                    { html: "Авто", level: -1 }
+                  ];
+                  videoBitrates.forEach((bitrateInfo: any, index: number) => {
+                    const height = bitrateInfo.height;
+                    const name = height ? `${height}p` : `${bitrateInfo.bitrate} kbps`;
+                    if (!parsedQualities.some(q => q.html === name)) {
+                      parsedQualities.push({ html: name, level: index });
+                    }
+                  });
+                  // Sort descending by level (highest quality first)
+                  parsedQualities.sort((a, b) => b.level - a.level);
+                  setAvailableQualities(parsedQualities);
+                }
+              });
+
+              // Bind the Anime4K WebGL Upscaler for pristine 1080p rendering
+              artInstance.on("ready", () => {
+                const videoEl = artInstance.video;
+                const isTv = isTvDevice();
+
+                if (canvasRef.current && videoEl && !isTv) {
+                  try {
+                    const videoContainer = videoEl.parentElement;
+                    if (videoContainer) {
+                      if (!videoContainer.querySelector("canvas.anime-webgl-canvas")) {
+                        videoContainer.appendChild(canvasRef.current);
+                        canvasRef.current.className = "anime-webgl-canvas";
+                        canvasRef.current.setAttribute(
+                          "style",
+                          "position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 0; z-index: 5;",
+                        );
+                      }
+                    }
+
+                    webglInstance = new AnimeWebGL1080p(
+                      canvasRef.current,
+                      videoEl,
+                    );
+                    webglInstance.start();
+                  } catch (e) {
+                    console.error("Anime WebGL Initialization Error with DASH:", e);
+                  }
+                }
+              });
 
               artInstance.on("destroy", () => {
                 try {
@@ -849,6 +943,30 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       const art = artInstanceRef.current;
       if (art && (art as any).hls) {
         (art as any).hls.currentLevel = item.level;
+      } else if (art && (art as any).dash) {
+        const player = (art as any).dash;
+        if (item.level === -1) {
+          player.updateSettings({
+            streaming: {
+              abr: {
+                autoSwitchBitrate: {
+                  video: true
+                }
+              }
+            }
+          });
+        } else {
+          player.updateSettings({
+            streaming: {
+              abr: {
+                autoSwitchBitrate: {
+                  video: false
+                }
+              }
+            }
+          });
+          player.setQualityFor("video", item.level);
+        }
       }
       if (art && art.notice) {
         art.notice.show = `Качество: ${item.html}`;
