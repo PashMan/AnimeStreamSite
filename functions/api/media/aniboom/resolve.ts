@@ -79,11 +79,12 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
     }
   }
 
-  console.log(`[AnimeGo Scraper] Found ${candidates.length} search candidate pages`);
+  console.log(`[AnimeGo Scraper] Found ${candidates.length} search candidate pages. Verifying the top candidate.`);
 
   let matchedAnimegoId: string | null = null;
+  const candidatesToVerify = candidates.slice(0, 1);
 
-  for (const cand of candidates) {
+  for (const cand of candidatesToVerify) {
     const detailUrl = `https://${activeDomain}${cand.path}`;
     try {
       console.log(`[AnimeGo Scraper] Verification check for candidate page: ${detailUrl}`);
