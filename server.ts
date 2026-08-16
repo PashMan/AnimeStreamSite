@@ -2327,7 +2327,7 @@ app.get('/api/media/playlist', async (c) => {
   // If Aniboom URL, extract M3U8 directly from data-parameters
   const isAniboom = urlParam.includes('aniboom') || urlParam.includes('boom-img');
   if (isAniboom) {
-    console.log(`[ANIBOOM PROXY] Attempting playlist extraction for: ${urlParam}`);
+    console.log(`🔍 [ANIBOOM PARSER] Received request for URL: ${urlParam}`);
     try {
       let aniboomUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
       // Ensure episode and translation params are present (Aniboom returns 404 without translation param)
@@ -2338,6 +2338,8 @@ app.get('/api/media/playlist', async (c) => {
         aniboomUrl += (aniboomUrl.includes('?') ? '&' : '?') + 'translation=16';
       }
 
+      console.log(`🌐 [ANIBOOM PARSER] Normalized embed URL: ${aniboomUrl}`);
+
       const aRes = await fetch(aniboomUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -2345,23 +2347,43 @@ app.get('/api/media/playlist', async (c) => {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
         }
       });
+
+      console.log(`📡 [ANIBOOM PARSER] Embed HTML response status: ${aRes.status}`);
+
       if (aRes.ok) {
         const aHtml = await aRes.text();
-        const match = aHtml.match(/data-parameters="([^"]+)"/);
+        const match = aHtml.match(/data-parameters="([^"]+)"/) || aHtml.match(/data-parameters='([^']+)'/);
         if (match) {
-          const decoded = JSON.parse(match[1].replace(/&quot;/g, '"'));
+          const rawParams = match[1]
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/&#039;/g, "'")
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
+
+          const decoded = JSON.parse(rawParams);
           let hlsSrc = '';
           if (decoded.hls) {
             const hlsObj = typeof decoded.hls === 'string' ? JSON.parse(decoded.hls) : decoded.hls;
-            hlsSrc = hlsObj.src;
+            hlsSrc = hlsObj.src || hlsObj.url || '';
           }
+
+          console.log(`📦 [ANIBOOM PARSER] Parsed metadata:`, {
+            id: decoded.id,
+            maxQuality: decoded.qualityVideo ? `${decoded.qualityVideo}p` : 'Auto',
+            durationSec: decoded.duration,
+            poster: decoded.poster,
+            hlsMasterUrl: hlsSrc
+          });
+
           if (hlsSrc) {
             if (hlsSrc.startsWith('//')) hlsSrc = `https:${hlsSrc}`;
-            console.log(`[ANIBOOM PROXY] Resolved direct M3U8 master playlist: ${hlsSrc}`);
 
             if (c.req.query('resolve') === 'true') {
               return c.json({ url: hlsSrc, poster: decoded.poster, qualities: [1080, 720, 480, 360] });
             }
+
+            console.log(`🚀 [ANIBOOM PARSER] Fetching M3U8 playlist from CDN: ${hlsSrc}`);
 
             const m3u8Res = await fetch(hlsSrc, {
               headers: {
@@ -2370,6 +2392,9 @@ app.get('/api/media/playlist', async (c) => {
                 'Origin': 'https://aniboom.one'
               }
             });
+
+            console.log(`📡 [ANIBOOM PARSER] CDN M3U8 status: ${m3u8Res.status}`);
+
             if (m3u8Res.ok) {
               const m3u8Content = await m3u8Res.text();
               const baseUrl = hlsSrc.substring(0, hlsSrc.lastIndexOf('/') + 1);
@@ -2387,6 +2412,8 @@ app.get('/api/media/playlist', async (c) => {
                 return trimmed.startsWith('http') ? trimmed : new URL(trimmed, baseUrl).toString();
               }).join('\n');
 
+              console.log(`✅ [ANIBOOM PARSER] Successfully compiled & delivered M3U8 manifest (${rewritten.split('\n').length} lines)`);
+
               return new Response(rewritten, {
                 status: 200,
                 headers: {
@@ -2396,13 +2423,20 @@ app.get('/api/media/playlist', async (c) => {
                 }
               });
             }
+            console.log(`⚠️ [ANIBOOM PARSER] Direct M3U8 fetch failed, returning 302 redirect to: ${hlsSrc}`);
             return c.redirect(hlsSrc, 302);
+          } else {
+            console.error(`❌ [ANIBOOM PARSER] 'hls' parameter missing in decoded JSON`);
           }
+        } else {
+          console.error(`❌ [ANIBOOM PARSER] Could not find data-parameters attribute in embed HTML`);
         }
+      } else {
+        console.error(`❌ [ANIBOOM PARSER] Embed HTML fetch failed with status: ${aRes.status}`);
       }
       return c.json({ error: `Aniboom extraction failed. HTTP Status: ${aRes.status}` }, 500);
     } catch (aErr: any) {
-      console.warn(`[ANIBOOM PROXY] Aniboom extraction failed: ${aErr.message}`);
+      console.warn(`❌ [ANIBOOM PARSER] Exception occurred: ${aErr.message}`);
       return c.json({ error: `Aniboom proxy error: ${aErr.message}` }, 500);
     }
   }
