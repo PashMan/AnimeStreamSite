@@ -1,5 +1,18 @@
 // Borth Header Cryptographic Permutation Engine for Alloha / Yani / Stravers Balancers
-import crypto from 'crypto';
+
+function generateSessionHash(bytes: number = 32): string {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.getRandomValues === 'function') {
+    const array = new Uint8Array(bytes);
+    globalThis.crypto.getRandomValues(array);
+    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+  }
+  let result = '';
+  const chars = '0123456789abcdef';
+  for (let i = 0; i < bytes * 2; i++) {
+    result += chars[Math.floor(Math.random() * 16)];
+  }
+  return result;
+}
 
 function isPrime(n: number): boolean {
   if (n < 2) return false;
@@ -160,7 +173,7 @@ export async function executeAllohaHandshake(params: {
 
   logs.push(`[BORTH] Initiating handshake for host: ${host}, tokenMovie: ${tokenMovie}, episode: ${episode}`);
 
-  const sessionHash = crypto.randomBytes(32).toString('hex');
+  const sessionHash = generateSessionHash(32);
   const clientPayload = JSON.stringify({
     ts: Date.now(),
     tz: -180,
