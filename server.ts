@@ -622,6 +622,7 @@ app.get('/api/balancer', async (c) => {
 
     let aniboom_iframe: string | null = null;
     let animego_aniboom_urls: string[] = [];
+    let animego_aniboom_map: Array<{ voice: string; url: string }> = [];
 
     // 11. AnimeGO (Aniboom embed parser)
     jobs.push((async () => {
@@ -649,18 +650,43 @@ app.get('/api/balancer', async (c) => {
             if (playerRes.ok) {
               const json = await playerRes.json() as any;
               const html = json.data?.content || '';
-              const matches = [...html.matchAll(/(?:\/\/|https?:\/\/|\\\/\\\/)aniboom\.one\/embed\/([a-zA-Z0-9_-]+)(\?[^"'\s\\]*)?/g)];
-              const urls = matches.map(m => {
-                let u = `https://aniboom.one/embed/${m[1]}`;
-                if (m[2]) {
-                  u += m[2].replace(/&amp;/g, '&').replace(/\\/g, '');
+
+              // Match all tags with data-player containing aniboom
+              const buttonMatches = [...html.matchAll(/<[a-z0-9]+[^>]+data-player="([^"]+)"[^>]*>/gi)];
+              for (const m of buttonMatches) {
+                const fullTag = m[0];
+                const rawPlayerUrl = m[1].replace(/&amp;/g, '&').replace(/\\/g, '');
+                const providerTitle = fullTag.match(/data-provider-title="([^"]+)"/i)?.[1];
+                const translationTitle = fullTag.match(/data-translation-title="([^"]+)"/i)?.[1];
+
+                if (providerTitle === 'AniBoom' || rawPlayerUrl.includes('aniboom')) {
+                  let cleanUrl = rawPlayerUrl;
+                  if (cleanUrl.startsWith('//')) cleanUrl = 'https:' + cleanUrl;
+                  if (translationTitle) {
+                    animego_aniboom_map.push({ voice: translationTitle, url: cleanUrl });
+                  }
+                  animego_aniboom_urls.push(cleanUrl);
                 }
-                return u;
-              });
-              animego_aniboom_urls = Array.from(new Set(urls));
+              }
+
+              // Fallback regex match if no button tags were matched
+              if (animego_aniboom_urls.length === 0) {
+                const matches = [...html.matchAll(/(?:\/\/|https?:\/\/|\\\/\\\/)aniboom\.one\/embed\/([a-zA-Z0-9_-]+)(\?[^"'\s\\]*)?/g)];
+                const urls = matches.map(m => {
+                  let u = `https://aniboom.one/embed/${m[1]}`;
+                  if (m[2]) {
+                    u += m[2].replace(/&amp;/g, '&').replace(/\\/g, '');
+                  }
+                  return u;
+                });
+                animego_aniboom_urls = Array.from(new Set(urls));
+              } else {
+                animego_aniboom_urls = Array.from(new Set(animego_aniboom_urls));
+              }
+
               if (animego_aniboom_urls.length > 0) {
                 aniboom_iframe = animego_aniboom_urls[0];
-                addLog(`AnimeGO Aniboom found: ${aniboom_iframe} (Total: ${animego_aniboom_urls.length})`);
+                addLog(`AnimeGO Aniboom found: ${aniboom_iframe} (Total URLs: ${animego_aniboom_urls.length}, Voices: ${animego_aniboom_map.length})`);
               }
             }
           }
@@ -694,16 +720,24 @@ app.get('/api/balancer', async (c) => {
 
     // Merge Kodik, Collaps, and Aniboom translations
     const defaultAniboomUrl = aniboom_iframe || 'https://aniboom.one/embed/7P9qko4qQ8v';
+    const matchVoiceToAniboom = (titleText: string): string => {
+      const baseTitle = titleText.replace(/\s*\((4K|1080)\)\s*/gi, '').trim().toLowerCase();
+      if (animego_aniboom_map.length > 0) {
+        const found = animego_aniboom_map.find(m => {
+          const v = m.voice.toLowerCase();
+          return v === baseTitle || v.includes(baseTitle) || baseTitle.includes(v);
+        });
+        if (found) return found.url;
+      }
+      return defaultAniboomUrl;
+    };
+
     if (collaps_info) {
       const badge = collaps_info.has1080 ? '4K' : '1080';
       if (kodik_translations && kodik_translations.length > 0) {
         kodik_translations = kodik_translations.map((t: any) => {
           const baseTitle = t.title.replace(/\s*\((4K|1080)\)\s*/gi, '').trim();
-          let matchedAniboom = defaultAniboomUrl;
-          if (animego_aniboom_urls.length > 0) {
-            const found = animego_aniboom_urls.find(u => u.includes(`translation=${t.id}`));
-            if (found) matchedAniboom = found;
-          }
+          const matchedAniboom = matchVoiceToAniboom(baseTitle);
           return {
             ...t,
             title: `${baseTitle} (${badge})`,
@@ -728,6 +762,7 @@ app.get('/api/balancer', async (c) => {
           has_1080_collaps: collaps_info.has1080,
           collaps_iframe: collaps_info.iframe,
           kodik_iframe: null,
+          aniboom_iframe: defaultAniboomUrl,
           collaps_episodes_count: collaps_info.epCount,
           kodik_episodes_count: 0,
           episodes_count: collaps_info.epCount,
@@ -738,11 +773,7 @@ app.get('/api/balancer', async (c) => {
     } else if (kodik_translations && kodik_translations.length > 0) {
       kodik_translations = kodik_translations.map((t: any) => {
         const baseTitle = t.title.replace(/\s*\((4K|1080)\)\s*/gi, '').trim();
-        let matchedAniboom = defaultAniboomUrl;
-        if (animego_aniboom_urls.length > 0) {
-          const found = animego_aniboom_urls.find(u => u.includes(`translation=${t.id}`));
-          if (found) matchedAniboom = found;
-        }
+        const matchedAniboom = matchVoiceToAniboom(baseTitle);
         return {
           ...t,
           title: `${baseTitle} (1080)`,

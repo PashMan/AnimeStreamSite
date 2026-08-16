@@ -79,9 +79,9 @@ const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null
   try {
     const url = new URL(target.startsWith("//") ? `https:${target}` : target);
     url.searchParams.set("episode", String(num));
-    if (t?.id) {
-      url.searchParams.set("translation", String(t.id));
-    } else if (!url.searchParams.has("translation")) {
+    // NOTE: Keep original translation parameter from Aniboom/AnimeGO target URL.
+    // Do NOT overwrite with Kodik internal translation ID (t.id).
+    if (!url.searchParams.has("translation")) {
       url.searchParams.set("translation", "16");
     }
     const resolved = url.toString();
@@ -93,7 +93,7 @@ const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null
       result += (result.includes("?") ? "&" : "?") + `episode=${num}`;
     }
     if (!result.includes("translation=")) {
-      result += (result.includes("?") ? "&" : "?") + `translation=${t?.id || '16'}`;
+      result += (result.includes("?") ? "&" : "?") + `translation=16`;
     }
     console.log(`🔥 [Aniboom Resolver] RESOLVED (STRING): ${result}`);
     return result;
