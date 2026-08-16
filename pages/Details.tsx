@@ -82,8 +82,6 @@ const Details: React.FC = () => {
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selectedPlayer, setSelectedPlayer] =
     useState<string>("KamiPlayer (1080p)");
-  const [allohaMirror, setAllohaMirror] =
-    useState<string>("beggins-as.pljjalgo.online");
   const [players, setPlayers] = useState<
     { name: string; iframe: string | null; isCustom?: boolean }[]
   >([{ name: "KamiPlayer (1080p)", iframe: null, isCustom: true }]);
@@ -1763,16 +1761,6 @@ const Details: React.FC = () => {
                             );
                           }
                           let finalIframeUrl = player.iframe;
-                          if (finalIframeUrl && player.name === "Alloha" && allohaMirror) {
-                            try {
-                              const absoluteUrl = finalIframeUrl.startsWith("//")
-                                ? `https:${finalIframeUrl}`
-                                : finalIframeUrl;
-                              const url = new URL(absoluteUrl);
-                              url.host = allohaMirror;
-                              finalIframeUrl = url.toString();
-                            } catch (e) {}
-                          }
                           if (finalIframeUrl && player.name === "Kodik") {
                             try {
                               const absoluteUrl = finalIframeUrl.startsWith(

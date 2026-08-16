@@ -301,8 +301,11 @@ app.get('/api/balancer', async (c) => {
       });
       clearTimeout(id);
       return response;
-    } catch (error) {
+    } catch (error: any) {
       clearTimeout(id);
+      if (error.name === 'AbortError') {
+        throw new Error(`Timeout after ${timeoutMs}ms`);
+      }
       throw error;
     }
   };
@@ -406,7 +409,6 @@ app.get('/api/balancer', async (c) => {
     }
 
     // Prepare placeholders for prospective providers
-    let alloha_iframe: string | null = null;
     let collaps_iframe: string | null = null;
     let bhcesh_iframe: string | null = null;
     let videocdn_iframe: string | null = null;
@@ -419,60 +421,20 @@ app.get('/api/balancer', async (c) => {
     // Concurrently fetch alternate providers to minimize response latency
     const jobs: Promise<void>[] = [];
 
-    // 2. Alloha
+    // 3. Collaps
     jobs.push((async () => {
       try {
-        const allohaTokens = [
-          'd317441359e505c343c2063edc97e7',
-          '04941a9a3ca3ac16e2b4327347bbc1',
-          '96b62ea8e72e7452b652e461ab8b89'
-        ];
-        const allohaQueries: string[] = [];
+        let collapsUrl = '';
         if (kinopoisk_id) {
-          for (const t of allohaTokens) {
-            allohaQueries.push(`https://api.alloha.tv/?token=${t}&kp=${kinopoisk_id}`);
-            allohaQueries.push(`https://api.apbugall.org/?token=${t}&kp=${kinopoisk_id}`);
-          }
-        }
-        if (imdb_id) {
-          for (const t of allohaTokens) {
-            allohaQueries.push(`https://api.alloha.tv/?token=${t}&imdb=${imdb_id}`);
-            allohaQueries.push(`https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`);
-          }
+          collapsUrl = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
+        } else if (imdb_id) {
+          collapsUrl = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`;
+        } else if (title) {
+          collapsUrl = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(title)}`;
         }
 
-        for (const url of allohaQueries) {
-          try {
-            const res = await fetchWithTimeout(url, {}, 3000);
-            if (res.ok) {
-              const d = await res.json() as any;
-              if (d && d.status === 'success' && d.data && d.data.iframe) {
-                alloha_iframe = d.data.iframe;
-                addLog(`Alloha found: ${alloha_iframe}`);
-                break;
-              } else if (d && d.data && d.data.iframe) {
-                alloha_iframe = d.data.iframe;
-                break;
-              } else if (d && d.iframe) {
-                alloha_iframe = d.iframe;
-                break;
-              }
-            }
-          } catch (e: any) {
-            // Silently try next token/mirror
-          }
-        }
-      } catch (e: any) {
-        addLog('Alloha jobs execution failed', { error: e.message });
-      }
-    })());
-
-    // 3. Collaps
-    if (kinopoisk_id) {
-      jobs.push((async () => {
-        try {
-          const url = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
-          const res = await fetchWithTimeout(url, {}, 3000);
+        if (collapsUrl) {
+          const res = await fetchWithTimeout(collapsUrl, {}, 3000);
           if (res.ok) {
             const d = await res.json() as any;
             if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
@@ -480,11 +442,11 @@ app.get('/api/balancer', async (c) => {
               addLog(`Collaps found: ${collaps_iframe}`);
             }
           }
-        } catch (e: any) {
-          console.warn('[COLLAPS] failed:', e.message);
         }
-      })());
-    }
+      } catch (e: any) {
+        addLog('[COLLAPS] failed', { error: e.message });
+      }
+    })());
 
     // 4. Bhcesh
     if (kinopoisk_id) {
@@ -500,7 +462,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[BHCESH] failed:', e.message);
+          addLog('[BHCESH] failed', { error: e.message });
         }
       })());
     }
@@ -519,7 +481,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[BAZON] failed:', e.message);
+          addLog('[BAZON] failed', { error: e.message });
         }
       })());
     }
@@ -538,7 +500,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[VIDEOCDN] failed:', e.message);
+          addLog('[VIDEOCDN] failed', { error: e.message });
         }
       })());
     }
@@ -557,7 +519,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[HDVB] failed:', e.message);
+          addLog('[HDVB] failed', { error: e.message });
         }
       })());
     }
@@ -580,7 +542,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[IFRAME.VIDEO] failed:', e.message);
+          addLog('[IFRAME.VIDEO] failed', { error: e.message });
         }
       })());
     }
@@ -599,7 +561,7 @@ app.get('/api/balancer', async (c) => {
             }
           }
         } catch (e: any) {
-          console.warn('[PLEER] failed:', e.message);
+          addLog('[PLEER] failed', { error: e.message });
         }
       })());
     }
@@ -639,7 +601,6 @@ app.get('/api/balancer', async (c) => {
       players.push({ name: 'Kodik', iframe: null });
     }
 
-    if (alloha_iframe) players.push({ name: 'Alloha', iframe: alloha_iframe });
     if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
     if (bhcesh_iframe) players.push({ name: 'Bhcesh', iframe: bhcesh_iframe });
     if (videocdn_iframe) players.push({ name: 'VideoCDN', iframe: videocdn_iframe });

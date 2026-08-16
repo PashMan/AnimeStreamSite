@@ -18,7 +18,7 @@ export async function onRequest(context: any) {
 
   const players: any[] = [
     { name: 'Kodik', iframe: null },
-    { name: 'Alloha', iframe: null }
+    { name: 'Collaps', iframe: null }
   ];
   
   let kinopoisk_id: string | null = null;
@@ -83,24 +83,25 @@ export async function onRequest(context: any) {
     }
   } catch (e) {}
 
-  // 2. Alloha
+  // 2. Collaps
   try {
-    const allohaToken = '96b62ea8e72e7452b652e461ab8b89';
-    let allohaUrl = '';
+    let collapsUrl = '';
     if (kinopoisk_id) {
-      allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&kp=${kinopoisk_id}`;
+      collapsUrl = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
     } else if (imdb_id) {
-      allohaUrl = `https://api.apbugall.org/?token=${allohaToken}&imdb=${imdb_id}`;
+      collapsUrl = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`;
+    } else if (title) {
+      collapsUrl = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(title)}`;
     }
 
-    if (allohaUrl) {
-      const allohaRes = await fetch(allohaUrl);
-      if (allohaRes.ok) {
-        const allohaData = await allohaRes.json() as any;
-        if (allohaData && allohaData.status === 'success' && allohaData.data && allohaData.data.iframe) {
-          const allohaPlayer = players.find(p => p.name === 'Alloha');
-          if (allohaPlayer) {
-            allohaPlayer.iframe = allohaData.data.iframe;
+    if (collapsUrl) {
+      const collapsRes = await fetch(collapsUrl);
+      if (collapsRes.ok) {
+        const collapsData = await collapsRes.json() as any;
+        if (collapsData.results && collapsData.results.length > 0 && collapsData.results[0].iframe_url) {
+          const collapsPlayer = players.find(p => p.name === 'Collaps');
+          if (collapsPlayer) {
+            collapsPlayer.iframe = collapsData.results[0].iframe_url;
           }
         }
       }
