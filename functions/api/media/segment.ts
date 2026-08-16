@@ -38,23 +38,8 @@ export async function onRequest(context: any) {
   }
 
   try {
-    const parsedReqUrl = new URL(request.url);
-    const customReferer = parsedReqUrl.searchParams.get('ref');
-    const authHeader = parsedReqUrl.searchParams.get('auth');
-    const controlsHeader = parsedReqUrl.searchParams.get('controls');
-
     const segmentUrlObj = new URL(segmentUrl);
-    const referer = customReferer || `https://${segmentUrlObj.host}/`;
-
-    const reqHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-      'Referer': referer,
-      'Origin': customReferer ? new URL(customReferer).origin : `https://${segmentUrlObj.host}`,
-      'Accept': '*/*'
-    };
-
-    if (authHeader) reqHeaders['Authorizations'] = authHeader;
-    if (controlsHeader) reqHeaders['Accepts-Controls'] = controlsHeader;
+    const referer = `https://${segmentUrlObj.host}/` || 'https://kodik.info/';
 
     let response: Response | undefined;
     let attempts = 3;
@@ -67,7 +52,11 @@ export async function onRequest(context: any) {
 
       try {
         response = await fetch(segmentUrl, {
-          headers: reqHeaders,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Referer': referer,
+            'Accept': '*/*'
+          },
           signal: controller.signal
         });
         clearTimeout(timeoutId);

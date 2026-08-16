@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { runClientExtraction, runClientCascadingExtraction } from "../utils/clientDecoder";
 import {
   useSearchParams,
   useParams,
@@ -37,19 +36,6 @@ import {
   MicOff,
   Crown,
   Play,
-  PlayCircle,
-  Sparkles,
-  Activity,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Clock,
-  Database,
-  Layers,
-  Terminal,
-  Wifi,
-  Info,
-  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -71,7 +57,6 @@ import { CustomPlayer, isTvDevice } from "../components/CustomPlayer";
 import { BrowserDownloadWidget } from "../components/BrowserDownloadWidget";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
-import { BalancerDiagnostic } from "../services/balancer";
 import { filterProfanity } from "../utils/profanity";
 import { generateAnimeSEO } from "../utils/seoGenerator";
 
@@ -96,52 +81,26 @@ const Details: React.FC = () => {
 
   const [anime, setAnime] = useState<Anime | null>(null);
   const [selectedPlayer, setSelectedPlayer] =
-    useState<string>("KamiPlayer (4K UHD)");
-  const [playerViewMode, setPlayerViewMode] =
-    useState<"custom" | "iframe">("custom");
+    useState<string>("KamiPlayer (1080p)");
   const [allohaMirror, setAllohaMirror] =
     useState<string>("beggins-as.pljjalgo.online");
   const [players, setPlayers] = useState<
     { name: string; iframe: string | null; isCustom?: boolean }[]
-  >([{ name: "KamiPlayer (4K UHD)", iframe: null, isCustom: true }]);
+  >([{ name: "KamiPlayer (1080p)", iframe: null, isCustom: true }]);
   const [translations, setTranslations] = useState<
-    {
-      id: number | string;
-      title: string;
-      type: string;
-      iframe: string;
-      quality_label?: string;
-      episodes_count?: number;
-      last_episode?: number;
-      provider?: string;
-    }[]
+    { id: number; title: string; type: string; iframe: string; episodes_count?: number; last_episode?: number }[]
   >([]);
   const [selectedTranslation, setSelectedTranslation] = useState<{
-    id: number | string;
+    id: number;
     title: string;
     type: string;
     iframe: string;
-    quality_label?: string;
     episodes_count?: number;
     last_episode?: number;
-    provider?: string;
   } | null>(null);
-  const [currentSkips, setCurrentSkips] = useState<{
-    opening?: [number, number];
-    ending?: [number, number];
-  } | undefined>(undefined);
   const [hasFetchedPlayers, setHasFetchedPlayers] = useState(false);
   const [isPlayersLoading, setIsPlayersLoading] = useState(false);
   const [playersError, setPlayersError] = useState<string | null>(null);
-  const [diagnostics, setDiagnostics] = useState<BalancerDiagnostic[]>([]);
-  const [balancerIds, setBalancerIds] = useState<{
-    shikimori_id?: string | null;
-    kinopoisk_id?: string | null;
-    imdb_id?: string | null;
-    world_art_id?: string | null;
-    anilibria_id?: number | null;
-  }>({});
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [related, setRelated] = useState<{ relation: string; anime: Anime }[]>(
     [],
   );
@@ -169,31 +128,6 @@ const Details: React.FC = () => {
   const [isBlocked, setIsBlocked] = useState(false);
   const [epSearchVal, setEpSearchVal] = useState("");
   const [isNotifierOpen, setIsNotifierOpen] = useState(false);
-
-  const [decoderLogs, setDecoderLogs] = useState<string[]>([]);
-  const [isDecoderLogsLoading, setIsDecoderLogsLoading] = useState(false);
-  const [showDecoderModal, setShowDecoderModal] = useState(false);
-
-  const handleFetchDecoderLogs = async () => {
-    const validPlayers = players.filter((p): p is { name: string; iframe: string; isCustom?: boolean } => typeof p.iframe === "string" && p.iframe.length > 0);
-
-    if (validPlayers.length === 0) {
-      setDecoderLogs(["⚠️ Плееры или iframe ссылки еще не загружены"]);
-      setShowDecoderModal(true);
-      return;
-    }
-
-    setIsDecoderLogsLoading(true);
-    setShowDecoderModal(true);
-    try {
-      const clientResult = await runClientCascadingExtraction(validPlayers, selectedPlayer, paramEpisode);
-      setDecoderLogs(clientResult.logs || ["⚠️ Нет данных для отображения логов."]);
-    } catch (err: any) {
-      setDecoderLogs([`❌ Ошибка соединения: ${err.message}`]);
-    } finally {
-      setIsDecoderLogsLoading(false);
-    }
-  };
 
   // Auto scroll to active episode on change
   useEffect(() => {
@@ -307,7 +241,6 @@ const Details: React.FC = () => {
   const [isRoomInstructionOpen, setIsRoomInstructionOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [copiedRoomLink, setCopiedRoomLink] = useState(false);
-  const [showStreamInspector, setShowStreamInspector] = useState(false);
 
   useEffect(() => {
     if (roomId) {
@@ -455,8 +388,6 @@ const Details: React.FC = () => {
       setPlayers([{ name: "Kodik", iframe: null }]);
       setTranslations([]);
       setSelectedTranslation(null);
-      setDiagnostics([]);
-      setBalancerIds({});
       setHasFetchedPlayers(false);
       setSelectedPlayer("Kodik");
 
@@ -866,7 +797,7 @@ const Details: React.FC = () => {
         setIsPlayersLoading(true);
         setPlayersError(null);
         try {
-          const title = anime.russian || anime.title || anime.name || anime.originalName;
+          const title = anime.originalName || anime.title;
           const year = anime.year || 0;
 
           const { fetchPlayersClientSide } =
@@ -877,14 +808,8 @@ const Details: React.FC = () => {
             year.toString(),
           );
 
-          const playersList = (data?.players || []).filter((p: any) => (p.name || "").toLowerCase() !== "kodik");
-          const translationsList = (data?.kodik_translations || []).filter((t: any) => (t.provider || "").toLowerCase() !== "kodik");
-          if (data?.diagnostics) {
-            setDiagnostics(data.diagnostics.filter((d: any) => (d.provider || "").toLowerCase() !== "kodik"));
-          }
-          if (data?.ids) {
-            setBalancerIds(data.ids);
-          }
+          const playersList = data?.players || [];
+          const translationsList = data?.kodik_translations || [];
 
           if (playersList.length > 0) {
             // Append episode to iframe URLs if paramEpisode exists
@@ -911,7 +836,19 @@ const Details: React.FC = () => {
               setSelectedTranslation(matchedTranslation || translationsList[0]);
             }
             setHasFetchedPlayers(true);
-            setSelectedPlayer("KamiPlayer (4K UHD)");
+            const isTv = isTvDevice();
+            const customPlayer = playersList.find((p) => p.isCustom);
+            const kodikPlayer = playersList.find((p) => p.name === "Kodik");
+            if (isTv && kodikPlayer) {
+              // TV browsers often prefer standard iframe playback for maximum hardware acceleration
+              setSelectedPlayer("Kodik");
+            } else if (customPlayer) {
+              setSelectedPlayer(customPlayer.name);
+            } else if (playersList.length > 0) {
+              setSelectedPlayer(playersList[0].name);
+            } else {
+              setSelectedPlayer("KamiPlayer (1080p)");
+            }
           } else {
             setHasFetchedPlayers(true);
             throw new Error("Плееры не найдены");
@@ -929,108 +866,6 @@ const Details: React.FC = () => {
       fetchPlayers();
     }
   }, [anime, hasFetchedPlayers, isPlayersLoading, playersError, paramEpisode]);
-
-  const handleRefreshPlayers = async () => {
-    if (!anime) return;
-    setIsPlayersLoading(true);
-    setPlayersError(null);
-    try {
-      const key = `balancer_v5_${anime.id}`;
-      try {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      } catch (_) {}
-
-      const title = anime.originalName || anime.title;
-      const year = anime.year || 0;
-      const { fetchPlayersClientSide } = await import("../services/balancer");
-      const data = await fetchPlayersClientSide(
-        anime.id,
-        title,
-        year.toString(),
-      );
-
-      if (data?.diagnostics) {
-        setDiagnostics(data.diagnostics);
-      }
-      if (data?.ids) {
-        setBalancerIds(data.ids);
-      }
-      const playersList = data?.players || [];
-      const translationsList = data?.kodik_translations || [];
-
-      if (playersList.length > 0) {
-        if (paramEpisode) {
-          playersList.forEach((p) => {
-            if (p.iframe) {
-              const separator = p.iframe.includes("?") ? "&" : "?";
-              p.iframe = `${p.iframe}${separator}episode=${paramEpisode}`;
-            }
-          });
-          translationsList.forEach((t) => {
-            if (t.iframe) {
-              const separator = t.iframe.includes("?") ? "&" : "?";
-              t.iframe = `${t.iframe}${separator}episode=${paramEpisode}`;
-            }
-          });
-        }
-        setPlayers(playersList);
-        setTranslations(translationsList);
-        if (translationsList.length > 0) {
-          const matchedTranslation = selectedTranslation
-            ? translationsList.find((t: any) => t.title === selectedTranslation.title)
-            : null;
-          setSelectedTranslation(matchedTranslation || translationsList[0]);
-        }
-      }
-    } catch (err: any) {
-      console.error("Refresh Balancer Error:", err);
-      setPlayersError(err.message || "Ошибка обновления источников");
-    } finally {
-      setIsPlayersLoading(false);
-    }
-  };
-
-  // Fetch opening / ending skip timings for selected translation and episode
-  useEffect(() => {
-    let isMounted = true;
-    const baseIframe =
-      selectedTranslation?.iframe ||
-      players.find((p) => p.name === "Kodik")?.iframe;
-
-    if (!baseIframe) {
-      setCurrentSkips(undefined);
-      return;
-    }
-
-    let targetIframe = baseIframe;
-    try {
-      const url = new URL(
-        targetIframe.startsWith("//") ? `https:${targetIframe}` : targetIframe,
-      );
-      if (paramEpisode) {
-        url.searchParams.set("episode", paramEpisode);
-      }
-      targetIframe = url.toString();
-    } catch (e) {}
-
-    fetch(`/api/media/skips?url=${encodeURIComponent(targetIframe)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (isMounted && data?.success && data?.skips) {
-          setCurrentSkips(data.skips);
-        } else if (isMounted) {
-          setCurrentSkips(undefined);
-        }
-      })
-      .catch(() => {
-        if (isMounted) setCurrentSkips(undefined);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedTranslation?.iframe, paramEpisode, players]);
 
   if (isMainLoading)
     return (
@@ -1172,7 +1007,7 @@ const Details: React.FC = () => {
           }
           kodikIframeWithEpisode = url.toString();
         } catch (e) {}
-        schemaVideoUrl = `${origin}/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}&shikimori_id=${id}`;
+        schemaVideoUrl = `${origin}/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
       } else {
         schemaVideoUrl = `${origin}/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
       }
@@ -1765,80 +1600,28 @@ const Details: React.FC = () => {
               )}
 
               <div className="flex flex-col gap-6">
-                {/* Player Switcher Bar */}
+                {/* Player Switcher Bar (Tabs) */}
                 {players.length > 0 && (
-                  <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 custom-scrollbar">
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
-                        <Film className="w-3.5 h-3.5 text-primary" /> Плеер / Источник:
-                      </span>
-                      {players
-                        .filter((p) => p.name.toLowerCase() !== "kodik")
-                        .map((p) => {
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full custom-scrollbar">
+                      {players.map((p) => {
                         const isSelected = selectedPlayer === p.name;
-                        const is1080p = p.name === "AniLibria" || p.name === "Collaps" || p.name === "Alloha";
-                        const is4K = p.name === "KamiPlayer (4K UHD)";
-
                         return (
                           <button
                             key={p.name}
-                            onClick={() => {
-                              setSelectedPlayer(p.name);
-                              if (p.name.toLowerCase() === "alloha" || p.name.toLowerCase() === "collaps") { setPlayerViewMode("iframe"); } else { setPlayerViewMode("custom"); }
-                              const matchingTrans = translations.find(
-                                (t) => (t.provider || "").toLowerCase() === p.name.toLowerCase()
-                              );
-                              if (matchingTrans) {
-                                setSelectedTranslation(matchingTrans);
-                              }
-                            }}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 border ${
+                            id={`select-player-${p.name.replace(/\s+/g, '-').toLowerCase()}`}
+                            onClick={() => setSelectedPlayer(p.name)}
+                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap border ${
                               isSelected
                                 ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
-                                : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
+                                : "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-white/10"
                             }`}
                           >
-                            <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-primary"}`} />
-                            <span>{p.name}</span>
-                            {is4K && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                4K AI
-                              </span>
-                            )}
-                            {is1080p && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-green-500/20 text-green-300 border border-green-500/30">
-                                1080p
-                              </span>
-                            )}
+                            {p.name}
                           </button>
                         );
                       })}
                     </div>
-
-                    {selectedPlayer !== "KamiPlayer (4K UHD)" && (
-                      <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shrink-0">
-                        <button
-                          onClick={() => setPlayerViewMode("custom")}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                            playerViewMode === "custom"
-                              ? "bg-primary text-white shadow"
-                              : "text-slate-400 hover:text-white"
-                          }`}
-                        >
-                          4K AI Плеер
-                        </button>
-                        <button
-                          onClick={() => setPlayerViewMode("iframe")}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                            playerViewMode === "iframe"
-                              ? "bg-primary text-white shadow"
-                              : "text-slate-400 hover:text-white"
-                          }`}
-                        >
-                          Плеер {selectedPlayer}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -1860,168 +1643,159 @@ const Details: React.FC = () => {
                         <div className="absolute inset-0 bg-dark/90 flex flex-col items-center justify-center text-center p-6">
                           <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
                           <p className="text-slate-300 font-bold text-sm uppercase tracking-widest">
-                            Поиск лучшего качества...
+                            Поиск плеера...
                           </p>
                         </div>
-                      ) : (translations.length > 0 || players.length > 0) ? (
+                      ) : players.find((p) => p.name === selectedPlayer)
+                          ?.iframe ||
+                        players.find((p) => p.name === selectedPlayer)
+                          ?.isCustom ? (
                         (() => {
-                          const isSuzume = id === "50594" || id === "62568";
-                          const isWeathering = id === "38826";
-                          const isGardenOfWords = id === "16782";
-                          const isKimiNoNaWa = id === "32281";
+                          const player = players.find(
+                            (p) => p.name === selectedPlayer,
+                          )!;
+                          if (player.isCustom) {
+                            const isSuzume = id === "50594" || id === "62568";
+                            const isWeathering = id === "38826";
+                            const isGardenOfWords = id === "16782";
+                            const isKimiNoNaWa = id === "32281";
 
-                          const is1080Translation = ((selectedTranslation as any)?.quality_val === 1080) || 
-                                                    (selectedTranslation?.quality_label === '4K') || 
-                                                    isSuzume || isWeathering || isGardenOfWords || isKimiNoNaWa ||
-                                                    (players.some((p: any) => p.quality?.includes('1080') || p.quality?.includes('4K')));
+                            let customSrc = "";
+                            let maxTracks: number | undefined = undefined;
+                            let audioTrackNames: string[] | undefined =
+                              undefined;
 
-                          let customSrc = "";
-                          let maxTracks: number | undefined = undefined;
-                          let audioTrackNames: string[] | undefined = undefined;
-                          let targetIframeWithEpisode = "";
-
-                          const isSpecial4KMovie = isSuzume || isWeathering || isGardenOfWords || isKimiNoNaWa;
-                          const isKamiPlayerSelected = selectedPlayer === "KamiPlayer (4K UHD)" || !selectedPlayer;
-
-                          if (
-                            isSpecial4KMovie &&
-                            isKamiPlayerSelected
-                          ) {
-                            const customRawSrc = isSuzume
-                              ? "https://cdn1.kamianime.club/suzume/master.m3u8"
-                              : isWeathering
-                                ? "https://cdn1.kamianime.club/weathering/master.m3u8"
-                                : isGardenOfWords
-                                  ? "https://cdn1.kamianime.club/garden_of_words/master.m3u8"
-                                  : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
-                            customSrc = `/api/proxy-4k?url=${encodeURIComponent(customRawSrc)}`;
-                            maxTracks = isSuzume ? 5 : undefined;
-                            audioTrackNames = isSuzume
-                              ? [
-                                  "Crunchyroll",
-                                  "Flarrow Films",
-                                  "TVShows",
-                                  "Leviafilm",
-                                  "AniLibria",
-                                  "Ю. Сербин",
-                                  "Netflix КЗ.",
-                                  "Оригинал + Субтитры",
-                                  "Оригинал",
-                                ]
-                              : undefined;
-                          } else {
-                            // Player source resolution:
-                            let explicitIframe = "";
-                            if (selectedPlayer && selectedPlayer !== "KamiPlayer (4K UHD)") {
-                              // 1. If currently selected translation belongs to the selected player
-                              if (
-                                selectedTranslation &&
-                                (selectedTranslation.provider || "").toLowerCase() === selectedPlayer.toLowerCase() &&
-                                selectedTranslation.iframe
-                              ) {
-                                explicitIframe = selectedTranslation.iframe;
+                            if (
+                              isSuzume ||
+                              isWeathering ||
+                              isGardenOfWords ||
+                              isKimiNoNaWa
+                            ) {
+                              const customRawSrc = isSuzume
+                                ? "https://cdn1.kamianime.club/suzume/master.m3u8"
+                                : isWeathering
+                                  ? "https://cdn1.kamianime.club/weathering/master.m3u8"
+                                  : isGardenOfWords
+                                    ? "https://cdn1.kamianime.club/garden_of_words/master.m3u8"
+                                    : "https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8";
+                              customSrc = `/api/proxy-4k?url=${encodeURIComponent(customRawSrc)}`;
+                              maxTracks = isSuzume ? 5 : undefined;
+                              audioTrackNames = isSuzume
+                                ? [
+                                    "Crunchyroll",
+                                    "Flarrow Films",
+                                    "TVShows",
+                                    "Leviafilm",
+                                    "AniLibria",
+                                    "Ю. Сербин",
+                                    "Netflix КЗ.",
+                                    "Оригинал + Субтитры",
+                                    "Оригинал",
+                                  ]
+                                : undefined;
+                            } else {
+                              // For general anime, extract from Kodik stream! Prefer the selectedTranslation's iframe URL
+                              const baseIframe =
+                                selectedTranslation?.iframe ||
+                                players.find((p) => p.name === "Kodik")?.iframe;
+                              if (baseIframe) {
+                                let kodikIframeWithEpisode = baseIframe;
+                                try {
+                                  const url = new URL(
+                                    kodikIframeWithEpisode.startsWith("//")
+                                      ? `https:${kodikIframeWithEpisode}`
+                                      : kodikIframeWithEpisode,
+                                  );
+                                  if (paramEpisode) {
+                                    url.searchParams.set(
+                                      "episode",
+                                      paramEpisode,
+                                    );
+                                  }
+                                  kodikIframeWithEpisode = url.toString();
+                                } catch (e) {}
+                                customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikIframeWithEpisode)}`;
                               } else {
-                                // 2. Find any translation from the selected player
-                                const matchingTrans = translations.find(
-                                  (t) => (t.provider || "").toLowerCase() === selectedPlayer.toLowerCase() && t.iframe
-                                );
-                                const matchingPlayer = players.find(
-                                  (p) => p.name.toLowerCase() === selectedPlayer.toLowerCase() && p.iframe
-                                );
-                                explicitIframe = matchingTrans?.iframe || matchingPlayer?.iframe || "";
+                                // Fallback to kimi-no-na-wa so it doesn't break
+                                customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
                               }
                             }
 
-                            const baseIframe =
-                              explicitIframe ||
-                              selectedTranslation?.iframe ||
-                              translations[0]?.iframe ||
-                              players.find((p) => p.name === "Alloha" && p.iframe)?.iframe ||
-                              players.find((p) => p.name === "Collaps" && p.iframe)?.iframe ||
-                              players.find((p) => p.name === "AniLibria" && p.iframe)?.iframe ||
-                              players.find((p) => p.iframe)?.iframe ||
-                              "";
+                            const episodesCount = selectedTranslation?.last_episode || selectedTranslation?.episodes_count || (anime
+                              ? (anime.episodesAired || anime.episodes || 1)
+                              : 1);
+                            const currentEpNum = parseInt(paramEpisode || "1") || 1;
 
-                            if (baseIframe) {
-                              targetIframeWithEpisode = baseIframe;
-                              try {
-                                const url = new URL(
-                                  targetIframeWithEpisode.startsWith("//")
-                                    ? `https:${targetIframeWithEpisode}`
-                                    : targetIframeWithEpisode,
-                                );
-                                if (paramEpisode) {
-                                  url.searchParams.set(
-                                    "episode",
-                                    paramEpisode,
-                                  );
-                                }
-                                targetIframeWithEpisode = url.toString();
-                              } catch (e) {}
-                              customSrc = `/api/media/playlist?url=${encodeURIComponent(targetIframeWithEpisode)}&shikimori_id=${id}&episode=${paramEpisode || '1'}`;
-                            } else {
-                              customSrc = `/api/media/playlist?shikimori_id=${id}&episode=${paramEpisode || '1'}`;
-                            }
-                          }
+                            const handleNextEp = currentEpNum < episodesCount ? () => {
+                              const nextEp = currentEpNum + 1;
+                              let newUrl = `/anime/${paramId}/episode/${nextEp}`;
+                              if (window.location.search) {
+                                newUrl += window.location.search;
+                              }
+                              navigate(newUrl);
+                            } : undefined;
 
-                          if (playerViewMode === "iframe" && targetIframeWithEpisode) {
+                            const handlePrevEp = currentEpNum > 1 ? () => {
+                              const prevEp = currentEpNum - 1;
+                              let newUrl = `/anime/${paramId}/episode/${prevEp}`;
+                              if (window.location.search) {
+                                newUrl += window.location.search;
+                              }
+                              navigate(newUrl);
+                            } : undefined;
+
                             return (
-                              <iframe
-                                src={targetIframeWithEpisode}
-                                title={`${selectedPlayer} Player`}
-                                className="w-full h-full border-0 bg-black"
-                                allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope"
-                                allowFullScreen
-                                referrerPolicy="no-referrer"
+                              <CustomPlayer
+                                ref={nativeVideoRef}
+                                src={customSrc}
+                                maxAudioTracks={maxTracks}
+                                audioTrackNames={audioTrackNames}
+                                animeId={id}
+                                episodeNumber={paramEpisode || "1"}
+                                onNextEpisode={handleNextEp}
+                                onPrevEpisode={handlePrevEp}
+                                onPlayerError={() => {
+                                  if (players.some((p) => p.name === "Kodik")) {
+                                    setSelectedPlayer("Kodik");
+                                  }
+                                }}
                               />
                             );
                           }
-
-                          const episodesCount = selectedTranslation?.last_episode || selectedTranslation?.episodes_count || (anime
-                            ? (anime.episodesAired || anime.episodes || 1)
-                            : 1);
-                          const currentEpNum = parseInt(paramEpisode || "1") || 1;
-
-                          const handleNextEp = currentEpNum < episodesCount ? () => {
-                            const nextEp = currentEpNum + 1;
-                            let newUrl = `/anime/${paramId}/episode/${nextEp}`;
-                            if (window.location.search) {
-                              newUrl += window.location.search;
-                            }
-                            navigate(newUrl);
-                          } : undefined;
-
-                          const handlePrevEp = currentEpNum > 1 ? () => {
-                            const prevEp = currentEpNum - 1;
-                            let newUrl = `/anime/${paramId}/episode/${prevEp}`;
-                            if (window.location.search) {
-                              newUrl += window.location.search;
-                            }
-                            navigate(newUrl);
-                          } : undefined;
-
+                          let finalIframeUrl = player.iframe;
+                          if (finalIframeUrl && player.name === "Alloha" && allohaMirror) {
+                            try {
+                              const absoluteUrl = finalIframeUrl.startsWith("//")
+                                ? `https:${finalIframeUrl}`
+                                : finalIframeUrl;
+                              const url = new URL(absoluteUrl);
+                              url.host = allohaMirror;
+                              finalIframeUrl = url.toString();
+                            } catch (e) {}
+                          }
+                          if (finalIframeUrl && player.name === "Kodik") {
+                            try {
+                              const absoluteUrl = finalIframeUrl.startsWith(
+                                "//",
+                              )
+                                ? `https:${finalIframeUrl}`
+                                : finalIframeUrl;
+                              const url = new URL(absoluteUrl);
+                              if (paramEpisode)
+                                url.searchParams.set("episode", paramEpisode);
+                              finalIframeUrl = url.toString();
+                            } catch (e) {}
+                          }
                           return (
-                            <CustomPlayer
-                              ref={nativeVideoRef}
-                              src={customSrc}
-                              maxAudioTracks={maxTracks}
-                              audioTrackNames={audioTrackNames}
-                              animeId={id}
-                              episodeNumber={paramEpisode || "1"}
-                              skips={currentSkips}
-                              onNextEpisode={handleNextEp}
-                              onPrevEpisode={handlePrevEp}
-                              showInspectorBelow={showStreamInspector}
-                              is1080Source={is1080Translation}
-                              onPlayerError={() => {
-                                console.warn("[PLAYER FALLBACK] Custom player encountered an error, attempting intelligent provider fallback");
-                                const altPlayer = players.find(p => p.name !== selectedPlayer && p.iframe && typeof p.iframe === 'string' && p.iframe.trim().length > 0);
-                                if (altPlayer) {
-                                  setSelectedPlayer(altPlayer.name);
-                                } else if (targetIframeWithEpisode) {
-                                  setPlayerViewMode("iframe");
-                                }
-                              }}
+                            <iframe
+                              ref={iframeRef}
+                              src={finalIframeUrl || undefined}
+                              width="100%"
+                              height="100%"
+                              allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
+                              referrerPolicy="origin"
+                              className="w-full h-full border-0"
+                              title="Player"
                             />
                           );
                         })()
@@ -2051,24 +1825,11 @@ const Details: React.FC = () => {
                           onClick={() => setIsNotifierOpen(!isNotifierOpen)}
                           className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-primary border border-white/5 py-3 px-4 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
                             <Crown className="w-4 h-4 text-primary fill-current shrink-0" />
                             <span className="text-xs sm:text-sm font-black uppercase tracking-wider truncate">
                               {selectedTranslation?.title || (translations[0]?.title) || "Дубляж KamiAnime"}
                             </span>
-                            {/* Selected Quality & Episodes Tag */}
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
-                                (selectedTranslation?.quality_label || "4K") === "4K"
-                                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
-                                  : "bg-white/10 text-slate-300 border border-white/10"
-                              }`}>
-                                {selectedTranslation?.quality_label || "4K"}
-                              </span>
-                              <span className="text-[11px] text-slate-400 font-semibold">
-                                {((selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || (anime.episodesAired || anime.episodes || 1))} эп.
-                              </span>
-                            </div>
                           </div>
                           <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-300 ${isNotifierOpen ? "rotate-180" : ""}`} />
                         </button>
@@ -2080,57 +1841,21 @@ const Details: React.FC = () => {
                                 const isSelected = selectedTranslation
                                   ? t.title === selectedTranslation.title
                                   : index === 0;
-                                const qualityLabel = t.quality_label || "4K";
-                                const epsCount = t.last_episode || t.episodes_count || anime.episodesAired || anime.episodes || 1;
-
                                 return (
                                   <button
                                     key={t.id || index}
                                     onClick={() => {
                                       setSelectedTranslation(t);
                                       setIsNotifierOpen(false);
-                                      if (t.provider) {
-                                        const matchingPlayer = players.find(
-                                          (p) => p.name.toLowerCase() === (t.provider || "").toLowerCase()
-                                        );
-                                        if (matchingPlayer) {
-                                          setSelectedPlayer(matchingPlayer.name); if (matchingPlayer.name.toLowerCase() === "alloha" || matchingPlayer.name.toLowerCase() === "collaps") { setPlayerViewMode("iframe"); } else { setPlayerViewMode("custom"); }
-                                        }
-                                      }
                                     }}
-                                    className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-between gap-2 ${
+                                    className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-between ${
                                       isSelected
-                                        ? "bg-white/10 text-primary"
-                                        : "text-slate-300 hover:text-white hover:bg-white/5"
+                                        ? "bg-white/5 text-primary"
+                                        : "text-slate-400 hover:text-white hover:bg-white/5"
                                     }`}
                                   >
-                                    <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-                                      {t.provider && (
-                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
-                                          t.provider.toLowerCase() === 'alloha'
-                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                            : t.provider.toLowerCase() === 'anilibria'
-                                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                                            : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                                        }`}>
-                                          {t.provider}
-                                        </span>
-                                      )}
-                                      <span className="truncate">{t.title}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
-                                        qualityLabel === "4K"
-                                          ? "bg-purple-500/25 text-purple-300 border border-purple-500/40"
-                                          : "bg-white/10 text-slate-400 border border-white/10"
-                                      }`}>
-                                        {qualityLabel}
-                                      </span>
-                                      <span className="text-[10px] text-slate-400 font-medium lowercase">
-                                        {epsCount} эп.
-                                      </span>
-                                      {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
-                                    </div>
+                                    <span className="truncate pr-2">{t.title}</span>
+                                    {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
                                   </button>
                                 );
                               })}
@@ -2139,56 +1864,39 @@ const Details: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Right Action Bar: Stream Inspector HUD Toggle & Episode Search Filter */}
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <button
-                          onClick={() => setShowStreamInspector(!showStreamInspector)}
-                          className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                            showStreamInspector
-                              ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-md shadow-emerald-500/10"
-                              : "bg-black/40 border-white/10 text-slate-400 hover:text-white hover:border-white/20"
-                          }`}
-                          title="Показать подробную статистику видеопотока, разрешение и логи"
-                        >
-                          <Activity className={`w-3.5 h-3.5 ${showStreamInspector ? "text-emerald-400 animate-pulse" : "text-slate-400"}`} />
-                          <span className="hidden sm:inline">{showStreamInspector ? "Скрыть логи" : "Логи потока"}</span>
-                          <span className="sm:hidden">HUD</span>
-                        </button>
-
-                        {/* Episode Search Filter */}
-                        {(() => {
-                          const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
-                          if (totalEps > 1) {
-                            return (
-                              <div className="relative flex items-center flex-1 sm:flex-initial">
-                                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
-                                <input
-                                  type="text"
-                                  placeholder="Поиск серии..."
-                                  className="pl-9 pr-4 py-2.5 bg-black/40 border border-white/10 hover:border-primary/40 focus:border-primary rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-full sm:w-48"
-                                  value={epSearchVal}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setEpSearchVal(val);
-                                    const sanitized = val.replace(/\D/g, "");
-                                    if (sanitized) {
-                                      const epNum = parseInt(sanitized, 10);
-                                      if (epNum >= 1 && epNum <= totalEps) {
-                                        let newUrl = `/anime/${paramId}/episode/${epNum}`;
-                                        if (window.location.search) {
-                                          newUrl += window.location.search;
-                                        }
-                                        navigate(newUrl);
+                      {/* Episode Search Filter */}
+                      {(() => {
+                        const totalEps = (selectedTranslation?.last_episode || selectedTranslation?.episodes_count) || anime.episodesAired || anime.episodes || 1;
+                        if (totalEps > 1) {
+                          return (
+                            <div className="relative flex items-center">
+                              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3.5 pointer-events-none" />
+                              <input
+                                type="text"
+                                placeholder="Быстрый поиск серии..."
+                                className="pl-9 pr-4 py-2.5 bg-black/40 border border-white/10 hover:border-primary/40 focus:border-primary rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none transition-all w-full sm:w-52"
+                                value={epSearchVal}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEpSearchVal(val);
+                                  const sanitized = val.replace(/\D/g, "");
+                                  if (sanitized) {
+                                    const epNum = parseInt(sanitized, 10);
+                                    if (epNum >= 1 && epNum <= totalEps) {
+                                      let newUrl = `/anime/${paramId}/episode/${epNum}`;
+                                      if (window.location.search) {
+                                        newUrl += window.location.search;
                                       }
+                                      navigate(newUrl);
                                     }
-                                  }}
-                                />
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
+                                  }
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     {/* EPISODES LIST: Compact format "[Number] - [Title]" with truncation */}
@@ -2258,311 +1966,6 @@ const Details: React.FC = () => {
                     </div>
                   </div>
                 )}
-
-                {/* Balancer Diagnostics & Source Errors Inspector */}
-                {anime && (() => {
-                  const foundProvidersCount = diagnostics.filter((d) => d.status === "found").length > 0
-                    ? diagnostics.filter((d) => d.status === "found").length
-                    : (translations.length > 0 ? Array.from(new Set(translations.map((t: any) => t.provider || "Kodik"))).length : 0);
-
-                  const displayDiagnostics = diagnostics.length > 0
-                    ? diagnostics
-                    : [
-                        {
-                          provider: "Kodik",
-                          status: translations.length > 0 ? ("found" as const) : ("not_found" as const),
-                          details: translations.length > 0
-                            ? `Успешно: найдено ${translations.length} озвучек (прямой поток Kodik)`
-                            : "Опрос зеркала Kodik...",
-                          queryUsed: `shikimori_id=${id}`,
-                          quality: translations.some((t: any) => (t.quality_val || 0) >= 1080) ? "1080p (4K AI)" : "720p (1080p AI)"
-                        },
-                        {
-                          provider: "AniLibria",
-                          status: translations.some((t: any) => (t.provider || "").toLowerCase() === "anilibria") ? ("found" as const) : ("not_found" as const),
-                          details: translations.some((t: any) => (t.provider || "").toLowerCase() === "anilibria")
-                            ? "Успешно: найден официальный FHD 1080p релиз AniLibria"
-                            : "Тайтл не найден в каталоге AniLibria",
-                          quality: "1080p (4K AI)"
-                        },
-                        { provider: "Alloha", status: "not_found" as const, details: balancerIds.kinopoisk_id ? `Поток недоступен на данном хосте (KP ${balancerIds.kinopoisk_id})` : "Требуется Kinopoisk ID" },
-                        { provider: "Collaps", status: "not_found" as const, details: balancerIds.kinopoisk_id ? `Поток недоступен на данном хосте (KP ${balancerIds.kinopoisk_id})` : "Требуется Kinopoisk ID" },
-                        { provider: "Bhcesh", status: "not_found" as const, details: "Зеркало Collaps недоступно" },
-                        { provider: "VideoCDN", status: "not_found" as const, details: balancerIds.kinopoisk_id ? `Поток недоступен на данном хосте (KP ${balancerIds.kinopoisk_id})` : "Требуется Kinopoisk ID" },
-                        { provider: "Bazon", status: "not_found" as const, details: balancerIds.kinopoisk_id ? `Поток недоступен на данном хосте (KP ${balancerIds.kinopoisk_id})` : "Требуется Kinopoisk ID" },
-                        { provider: "HDVB", status: "not_found" as const, details: balancerIds.kinopoisk_id ? `Поток недоступен на данном хосте (KP ${balancerIds.kinopoisk_id})` : "Требуется Kinopoisk ID" },
-                        { provider: "Iframe.video", status: "not_found" as const, details: balancerIds.imdb_id ? `Поток недоступен на данном хосте (IMDb ${balancerIds.imdb_id})` : "Требуется IMDb ID" },
-                        { provider: "Pleer.video", status: "not_found" as const, details: balancerIds.kinopoisk_id ? `Поток недоступен на данном хосте (KP ${balancerIds.kinopoisk_id})` : "Требуется Kinopoisk ID" }
-                      ];
-
-                  return (
-                    <div
-                      id="balancer-diagnostics-card"
-                      className="bg-[#18191e]/90 border border-white/10 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 shadow-2xl backdrop-blur-md space-y-4"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-                            <Activity className="w-5 h-5 animate-pulse" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="text-sm font-black text-white uppercase tracking-wider">
-                                Статус источников и балансировщика
-                              </h4>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                  foundProvidersCount > 0
-                                    ? "bg-green-500/15 text-green-400 border border-green-500/30"
-                                    : isPlayersLoading
-                                      ? "bg-blue-500/15 text-blue-400 border border-blue-500/30 animate-pulse"
-                                      : "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30"
-                                }`}
-                              >
-                                {foundProvidersCount > 0
-                                  ? `Источники активны (${foundProvidersCount})`
-                                  : isPlayersLoading
-                                    ? "Опрос балансировщиков..."
-                                    : "Ожидание"}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              {foundProvidersCount} из {displayDiagnostics.length} провайдеров вернули поток
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={handleFetchDecoderLogs}
-                            className="px-3.5 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm shadow-purple-500/10"
-                            title="Открыть подробный лог процесса декодирования плеера"
-                          >
-                            <Terminal className="w-3.5 h-3.5 text-purple-400" />
-                            <span>Логи декодирования</span>
-                          </button>
-
-                          <button
-                            onClick={handleRefreshPlayers}
-                            disabled={isPlayersLoading}
-                            className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                            title="Сбросить кэш и перепроверить все плееры"
-                          >
-                            <RefreshCw
-                              className={`w-3.5 h-3.5 ${isPlayersLoading ? "animate-spin text-primary" : ""}`}
-                            />
-                            <span className="hidden sm:inline">Перепроверить</span>
-                          </button>
-
-                          <button
-                            onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
-                            className="px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <span>{isDiagnosticsOpen ? "Скрыть отчёт ошибок" : "Показать отчёт ошибок"}</span>
-                            <ChevronDown
-                              className={`w-4 h-4 transition-transform duration-300 ${
-                                isDiagnosticsOpen ? "rotate-180" : ""
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* DECODER LOGS MODAL / EXPANDABLE PANEL */}
-                      {showDecoderModal && (
-                        <div className="p-4 rounded-xl bg-black/80 border border-purple-500/30 text-xs font-mono space-y-3 animate-in fade-in duration-200">
-                          <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                            <div className="flex items-center gap-2 text-purple-300 font-bold">
-                              <Terminal className="w-4 h-4 text-purple-400" />
-                              <span>Логи распаковки и декодирования HLS потока</span>
-                            </div>
-                            <button
-                              onClick={() => setShowDecoderModal(false)}
-                              className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-white/5 cursor-pointer"
-                            >
-                              ✕ Закрыть
-                            </button>
-                          </div>
-
-                          {isDecoderLogsLoading ? (
-                            <div className="py-6 flex items-center justify-center gap-2 text-slate-400 font-sans">
-                              <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
-                              <span>Декодирование и опрос источника...</span>
-                            </div>
-                          ) : (
-                            <div className="max-h-64 overflow-y-auto space-y-1.5 p-2 bg-black/50 rounded-lg custom-scrollbar">
-                              {decoderLogs.map((log, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`text-[11px] leading-relaxed break-all ${
-                                    log.includes("[ERR]") || log.includes("[FATAL]") || log.includes("❌")
-                                      ? "text-red-400 font-semibold"
-                                      : log.includes("[SUCCESS]") || log.includes("[7]") || log.includes("[9]") || log.includes("[12]") || log.includes("[17]")
-                                        ? "text-green-400 font-semibold"
-                                        : log.includes("[UNPACK]") || log.includes("[5]")
-                                          ? "text-purple-300"
-                                          : "text-slate-300"
-                                  }`}
-                                >
-                                  {log}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Pipeline & External IDs Overview */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                        <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1.5">
-                          <div className="flex items-center gap-2 font-bold text-slate-300">
-                            <Layers className="w-4 h-4 text-purple-400" />
-                            <span>Алгоритм KamiPlayer AI Upscale:</span>
-                          </div>
-                          <p className="text-slate-400 leading-relaxed text-[11px]">
-                            {translations.some((t: any) => (t.quality_val || 0) >= 1080) ? (
-                              <>
-                                <span className="text-green-400 font-bold">Найден нативный 1080p FHD</span> (AniLibria / Kodik 1080p).
-                                В плеере включен нейросетевой апскейлинг <strong className="text-purple-300">до 4K Ultra HD</strong>.
-                              </>
-                            ) : (
-                              <>
-                                Обнаружен базовый поток <strong>720p HD</strong> (Kodik). KamiPlayer применяет нейросетевую интерполяцию WebGL <strong className="text-blue-300">до 1080p</strong>.
-                              </>
-                            )}
-                          </p>
-                        </div>
-
-                        <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1.5">
-                          <div className="flex items-center gap-2 font-bold text-slate-300">
-                            <Database className="w-4 h-4 text-primary" />
-                            <span>Идентификаторы тайтла:</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
-                            <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
-                              Shiki: <strong className="text-white">{anime.id}</strong>
-                            </span>
-                            {balancerIds.kinopoisk_id && (
-                              <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
-                                KP: <strong className="text-yellow-400">{balancerIds.kinopoisk_id}</strong>
-                              </span>
-                            )}
-                            {balancerIds.imdb_id && (
-                              <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
-                                IMDb: <strong className="text-amber-300">{balancerIds.imdb_id}</strong>
-                              </span>
-                            )}
-                            {balancerIds.world_art_id && (
-                              <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
-                                WorldArt: <strong className="text-cyan-300">{balancerIds.world_art_id}</strong>
-                              </span>
-                            )}
-                            {balancerIds.anilibria_id && (
-                              <span className="px-2 py-0.5 bg-black/40 rounded border border-white/10 text-slate-300">
-                                AniLibria: <strong className="text-green-300">{balancerIds.anilibria_id}</strong>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Detailed Errors & Providers Breakdown */}
-                      {isDiagnosticsOpen && (
-                        <div className="space-y-2 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-200">
-                          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between pb-1">
-                            <span>Статус каждого провайдера и ошибки:</span>
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              Параллельный опрос (3.5s timeout)
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-2">
-                            {displayDiagnostics.map((diag, index) => {
-                              const isFound = diag.status === "found";
-                              const isTimeout = diag.status === "timeout";
-                              const isUnauthorized = diag.status === "unauthorized";
-
-                              return (
-                                <div
-                                  key={diag.provider || index}
-                                  className={`p-3 rounded-xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                                    isFound
-                                      ? "bg-green-500/[0.05] border-green-500/20"
-                                      : isUnauthorized
-                                        ? "bg-red-500/[0.05] border-red-500/20"
-                                        : isTimeout
-                                          ? "bg-yellow-500/[0.05] border-yellow-500/20"
-                                          : "bg-white/[0.02] border-white/5"
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-3 min-w-0">
-                                    <div className="mt-0.5 shrink-0">
-                                      {isFound ? (
-                                        <CheckCircle2 className="w-4 h-4 text-green-400" />
-                                      ) : isUnauthorized ? (
-                                        <XCircle className="w-4 h-4 text-red-400" />
-                                      ) : isTimeout ? (
-                                        <Clock className="w-4 h-4 text-yellow-400" />
-                                      ) : (
-                                        <AlertCircle className="w-4 h-4 text-slate-500" />
-                                      )}
-                                    </div>
-
-                                    <div className="space-y-1 min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-bold text-white text-xs tracking-wide">
-                                          {diag.provider}
-                                        </span>
-                                        <span
-                                          className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
-                                            isFound
-                                              ? "bg-green-500/20 text-green-300 border border-green-500/30"
-                                              : isUnauthorized
-                                                ? "bg-red-500/20 text-red-300 border border-red-500/30"
-                                                : isTimeout
-                                                  ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
-                                                  : "bg-white/5 text-slate-400 border border-white/10"
-                                          }`}
-                                        >
-                                          {isFound
-                                            ? "НАЙДЕН"
-                                            : isUnauthorized
-                                              ? "ОШИБКА ТОКЕНА / IP"
-                                              : isTimeout
-                                                ? "ТАЙМАУТ СЕТИ"
-                                                : "НЕ НАЙДЕН"}
-                                        </span>
-                                        {diag.quality && (
-                                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                            {diag.quality}
-                                          </span>
-                                        )}
-                                        {diag.timeMs && (
-                                          <span className="text-[10px] text-slate-500 font-mono">
-                                            {diag.timeMs}ms
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-[11px] text-slate-400 break-words leading-normal">
-                                        {diag.details}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  {diag.queryUsed && (
-                                    <div className="shrink-0 text-[10px] font-mono text-slate-500 bg-black/30 px-2 py-1 rounded border border-white/5">
-                                      {diag.queryUsed}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
               </div>
             </section>
 

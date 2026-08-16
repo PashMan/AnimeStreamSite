@@ -1,5 +1,32 @@
-import { extractBalancersM3u8 } from '../../../utils/balancerExtractor';
-import { decodeKodikUrl, decryptStreamUrl } from '../../../utils/streamDecryptor';
+function convertChar(char: string, rotNum: number): string {
+  if (!char.match(/[a-zA-Z]/)) return char;
+  const code = char.charCodeAt(0);
+  let start = 65; // 'A'
+  if (code >= 97) start = 97; // 'a'
+  return String.fromCharCode(((code - start + rotNum) % 26) + start);
+}
+
+function decodeKodikUrl(encoded: string, rotNum?: number): string {
+  if (rotNum !== undefined) {
+    const crypted = encoded.split('').map(c => convertChar(c, rotNum)).join('');
+    const padding = (4 - (crypted.length % 4)) % 4;
+    try {
+      const decoded = atob(crypted + '='.repeat(padding));
+      if (decoded.includes('mp4:hls:manifest')) return decoded;
+    } catch {}
+  }
+  for (let rot = 0; rot < 26; rot++) {
+    const crypted = encoded.split('').map(c => convertChar(c, rot)).join('');
+    const padding = (4 - (crypted.length % 4)) % 4;
+    try {
+      const decoded = atob(crypted + '='.repeat(padding));
+      if (decoded.includes('mp4:hls:manifest')) {
+         return decoded;
+      }
+    } catch {}
+  }
+  throw new Error('Decryption of Kodik stream URL failed');
+}
 
 function getProxyOrigin(request: Request): string {
   const url = new URL(request.url);
@@ -14,6 +41,7 @@ function getProxyOrigin(request: Request): string {
 export async function onRequest(context: any) {
   const { request } = context;
 
+  // OPTIONS CORS header preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -38,185 +66,8 @@ export async function onRequest(context: any) {
     });
   }
 
-  let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-  const isKodik = iframeUrl.includes('kodik') || iframeUrl.includes('ani');
-
-  if (!isKodik) {
-    // Handling non-Kodik balancers (Alloha, Collaps, PlayerJS)
-    console.log(`[CF BALANCER PROXY] Running balancer extraction for: ${iframeUrl}`);
-    const { m3u8Url, headers: extraHeaders } = await extractBalancersM3u8(iframeUrl);
-
-    if (m3u8Url) {
-      try {
-        const fetchHeaders: Record<string, string> = {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-          'Referer': extraHeaders?.['Referer'] || iframeUrl,
-          'Origin': extraHeaders?.['Origin'] || `https://${new URL(iframeUrl).host}`
-        };
-        if (extraHeaders?.['Authorizations']) fetchHeaders['Authorizations'] = extraHeaders['Authorizations'];
-        if (extraHeaders?.['Accepts-Controls']) fetchHeaders['Accepts-Controls'] = extraHeaders['Accepts-Controls'];
-
-        const m3u8Res = await fetch(m3u8Url, {
-          headers: fetchHeaders
-        });
-        if (m3u8Res.ok) {
-          const m3u8Text = await m3u8Res.text();
-          if (m3u8Text && m3u8Text.trim().startsWith('#EXTM3U')) {
-            const m3u8Base = m3u8Url.substring(0, m3u8Url.lastIndexOf('/') + 1);
-            const lines = m3u8Text.replace(/\r/g, '').split('\n');
-
-            let extraParams = '';
-            if (extraHeaders?.['Authorizations']) extraParams += `&auth=${encodeURIComponent(extraHeaders['Authorizations'])}`;
-            if (extraHeaders?.['Accepts-Controls']) extraParams += `&controls=${encodeURIComponent(extraHeaders['Accepts-Controls'])}`;
-            if (extraHeaders?.['Referer']) extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
-
-            const proxyOrigin = getProxyOrigin(request);
-
-            const rewrittenLines = lines.map(line => {
-              const trimmed = line.trim();
-              if (!trimmed || trimmed.startsWith('#')) return line;
-              let absUrl = trimmed;
-              if (!trimmed.startsWith('http')) {
-                absUrl = trimmed.startsWith('/')
-                  ? new URL(trimmed, m3u8Url).toString()
-                  : m3u8Base + trimmed;
-              }
-              // If it is a sub-playlist (.m3u8), proxy through /api/media/playlist
-              if (absUrl.toLowerCase().includes('.m3u8')) {
-                return `${proxyOrigin}/api/media/playlist?url=${encodeURIComponent(absUrl)}${extraParams}`;
-              }
-              return `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(absUrl)}${extraParams}`;
-            });
-
-            return new Response(rewrittenLines.join('\n'), {
-              status: 200,
-              headers: {
-                'Content-Type': 'application/x-mpegURL',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': '*',
-                'Cache-Control': 'no-cache, no-store, must-revalidate'
-              }
-            });
-          }
-        }
-      } catch (err: any) {
-        console.error('[CF BALANCER PROXY ERR]', err.message);
-      }
-    }
-
-      // Fallback: if direct stream extraction is unavailable for Alloha/Collaps, resolve via AniLibria or Kodik
-      console.warn(`[CF BALANCER PROXY] Direct stream extraction failed for ${iframeUrl}, attempting stream fallback...`);
-      let fallbackKodikUrl = '';
-      try {
-        let ep = urlObj.searchParams.get('episode') || '1';
-        const epMatch = iframeUrl.match(/[?&]episode=(\d+)/);
-        if (epMatch) ep = epMatch[1];
-
-        let shikiId = urlObj.searchParams.get('shikimori_id') || '';
-        let kpId = urlObj.searchParams.get('kinopoisk_id') || '';
-        const shikiMatch = iframeUrl.match(/\/(?:anime|shikimori)\/(\d+)/);
-        if (shikiMatch && !shikiId) shikiId = shikiMatch[1];
-        const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
-        if (kpMatch && !shikiId && !kpId) kpId = kpMatch[1];
-
-        // 1. Try resolving AniLibria 1080p stream directly if Shikimori ID is available
-        if (shikiId) {
-          try {
-            const anilibriaRes = await fetch(`https://api.anilibria.tv/v3/title/get?shikimori=${shikiId}`, {
-              headers: { 'User-Agent': 'Mozilla/5.0' },
-              signal: AbortSignal.timeout(3000)
-            });
-            if (anilibriaRes.ok) {
-              const aniData = await anilibriaRes.json() as any;
-              const epNum = parseInt(ep) || 1;
-              const epData = aniData?.player?.list?.[String(epNum)] || aniData?.player?.list?.['1'] || (aniData?.player?.list ? Object.values(aniData.player.list)[0] : null);
-              if (epData && (epData as any).hls) {
-                const host = aniData?.player?.host || 'cache.libria.fun';
-                const fhd = (epData as any).hls.fhd ? ((epData as any).hls.fhd.startsWith('http') ? (epData as any).hls.fhd : `https://${host}${(epData as any).hls.fhd}`) : null;
-                const hd = (epData as any).hls.hd ? ((epData as any).hls.hd.startsWith('http') ? (epData as any).hls.hd : `https://${host}${(epData as any).hls.hd}`) : null;
-                const sd = (epData as any).hls.sd ? ((epData as any).hls.sd.startsWith('http') ? (epData as any).hls.sd : `https://${host}${(epData as any).hls.sd}`) : null;
-                const streamUrl = fhd || hd || sd;
-                if (streamUrl) {
-                  const masterLines = [
-                    '#EXTM3U',
-                    '#EXT-X-VERSION:3',
-                    ...(fhd ? [`#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`, `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(fhd)}`] : []),
-                    ...(hd ? [`#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,NAME="720p"`, `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(hd)}`] : []),
-                    ...(sd ? [`#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480,NAME="480p"`, `${proxyOrigin}/api/media/segment?url=${encodeURIComponent(sd)}`] : [])
-                  ];
-                  return new Response(masterLines.join('\n'), {
-                    status: 200,
-                    headers: {
-                      'Content-Type': 'application/x-mpegURL',
-                      'Access-Control-Allow-Origin': '*',
-                      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                      'Access-Control-Allow-Headers': '*',
-                      'Cache-Control': 'no-cache, no-store, must-revalidate'
-                    }
-                  });
-                }
-              }
-            }
-          } catch (_) {}
-        }
-
-        if (shikiId || kpId) {
-          const q = shikiId ? `shikimori_id=${shikiId}` : `kinopoisk_id=${kpId}`;
-          const kodikTokensList = [
-            'b7cc4293ed475c4ad1fd599d114f4435',
-            '17cc4ee691bc251131a9041e6e89e78e',
-            '45c53578f11ecfb74e31267b634cc6a8',
-            '93699ec16dae9882a1705e4dfb12c7bb',
-            '1d643a758d41de5ccb2f66be4e3f421d'
-          ];
-          for (const token of kodikTokensList) {
-            if (fallbackKodikUrl) break;
-            const endpoints = [
-              `https://kodikapi.com/search?token=${token}&${q}&with_episodes=true`,
-              `https://kodik-api.com/search?token=${token}&${q}&with_episodes=true`
-            ];
-            for (const epUrl of endpoints) {
-              try {
-                const kRes = await fetch(epUrl, { signal: AbortSignal.timeout(3000) });
-                if (kRes.ok) {
-                  const kData = await kRes.json() as any;
-                  if (kData && kData.results && kData.results.length > 0) {
-                    const link = kData.results[0].link;
-                    if (link) {
-                      const u = new URL(link.startsWith('//') ? `https:${link}` : link);
-                      u.searchParams.set('episode', ep);
-                      fallbackKodikUrl = u.toString();
-                      break;
-                    }
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (err: any) {
-        console.error('[CF BALANCER FALLBACK ERR]', err.message);
-      }
-
-      if (fallbackKodikUrl) {
-        iframeUrl = fallbackKodikUrl;
-        console.log(`[CF BALANCER PROXY] Switched to Kodik fallback URL: ${iframeUrl}`);
-      } else {
-        return new Response(JSON.stringify({ error: 'stream_not_found', message: 'Stream extraction unavailable for balancer' }), {
-          status: 404,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': '*',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          }
-        });
-      }
-    }
-
   try {
+    let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
     iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
     console.log(`[CF KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
 
@@ -275,7 +126,7 @@ export async function onRequest(context: any) {
     }
 
     if (!scriptUrl) {
-      scriptUrl = '/assets/js/app.serial.js';
+      scriptUrl = '/assets/js/app.serial.js'; // fallback
     }
 
     const baseUrlObj = new URL(iframeUrl);
@@ -343,9 +194,9 @@ export async function onRequest(context: any) {
       });
     }
 
-    // 5. Build dynamic Master Playlist or yield single-quality playlist
+    // 5. Build dynamic Master Playlist or yield single-quality playlist based on query parameters
     const targetQuality = urlObj.searchParams.get('quality');
-    const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a);
+    const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 360, etc.
 
     if (urlObj.searchParams.get('resolve') === 'true') {
       const resolvedLinks: Record<string, string> = {};
@@ -391,6 +242,7 @@ export async function onRequest(context: any) {
         }
         
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height},NAME="${q}p"`);
+        // Relative URI format compatible with relative redirects
         masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}`);
       });
 
@@ -419,8 +271,11 @@ export async function onRequest(context: any) {
     }
 
     const rawSrc = listSources[0].src;
+    // Decrypt the URL if it doesn't already contain manifest
     const decryptedUrl = rawSrc.includes('mp4:hls:manifest') ? rawSrc : decodeKodikUrl(rawSrc);
     const playlistUrl = decryptedUrl.startsWith('//') ? `https:${decryptedUrl}` : decryptedUrl;
+
+    console.log(`[CF KODIK PROXY] Fetched decrypted stream. Base HLS: ${playlistUrl}`);
 
     // 6. Fetch the actual M3U8 file contents
     const m3u8Res = await fetch(playlistUrl, {
@@ -431,6 +286,7 @@ export async function onRequest(context: any) {
     });
 
     if (!m3u8Res.ok) {
+      console.error(`[CF KODIK PROXY] Failed to fetch M3U8, status: ${m3u8Res.status}`);
       return new Response(`Error: Kodik manifest loading failed with status ${m3u8Res.status}`, {
         status: m3u8Res.status,
         headers: {
@@ -442,48 +298,67 @@ export async function onRequest(context: any) {
 
     const m3u8Text = await m3u8Res.text();
 
+    // Validation: Ensure the playlist starts with #EXTM3U (not HTML error or blank page)
     if (!m3u8Text || !m3u8Text.trim().startsWith('#EXTM3U')) {
-      return new Response('Error: Proxy loaded an invalid M3U8 manifest from Kodik.', {
+      console.error(`[CF KODIK PROXY ERROR] Manifest from Kodik is empty or invalid. Res length: ${m3u8Text?.length || 0}. Starts with:`, m3u8Text ? m3u8Text.slice(0, 500) : "empty");
+      return new Response('Error: Proxy loaded an invalid M3U8 manifest from Kodik. The source might be blocking or offline.', {
         status: 502,
         headers: {
           'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*'
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': '*'
         }
       });
     }
 
     // 7. Rewrite chunk entries in M3U8
     const m3u8Base = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
+    
+    // Clean CRLF and split cleanly to avoid breaking tags
     const lines = m3u8Text.replace(/\r/g, '').split('\n');
     const proxyUrlBase = `${getProxyOrigin(request)}/api/media/segment?url=`;
 
     const rewrittenLines = lines.map(line => {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return line;
+      if (!trimmed || trimmed.startsWith('#')) {
+        return line;
+      }
+      
+      // Resolve path
       let absSegmentUrl = trimmed;
       if (!trimmed.startsWith('http')) {
         absSegmentUrl = trimmed.startsWith('/') 
           ? new URL(trimmed, playlistUrl).toString()
           : m3u8Base + trimmed;
       }
+
+      // Add segment proxy URL
       return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}`;
     });
 
-    return new Response(rewrittenLines.join('\n'), {
+    const rewrittenText = rewrittenLines.join('\n');
+
+    return new Response(rewrittenText, {
        status: 200,
        headers: {
          'Content-Type': 'application/x-mpegURL',
          'Access-Control-Allow-Origin': '*',
+         'Access-Control-Allow-Methods': 'GET, OPTIONS',
+         'Access-Control-Allow-Headers': '*',
          'Cache-Control': 'no-cache, no-store, must-revalidate',
        }
     });
 
   } catch (error: any) {
+    console.error('[CF KODIK PROXY ERROR]', error);
     return new Response('Error: Failed to compile streaming proxy playlist. ' + error.message, {
       status: 500,
       headers: {
         'Content-Type': 'text/plain',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
       }
     });
   }

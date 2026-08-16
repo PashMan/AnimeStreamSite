@@ -17,31 +17,13 @@ import {
   Pause,
   Maximize2,
   Sliders,
-  Activity,
-  Terminal,
-  Cpu,
-  Copy,
-  Wifi,
-  Sparkles,
-  Info,
 } from "lucide-react";
-import {
-  StreamInspector,
-  StreamLogEntry,
-  StreamTelemetryData,
-} from "./StreamInspector";
-import { decryptStreamUrl } from "../utils/streamDecryptor";
 
 export const isTvDevice = (): boolean => {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
   return /TV|SmartTV|Tizen|WebOS|VIDAA|Android.*TV|HbbTV|CrKey|Roku|AppleTV|BRAVIA|NetCast|GoogleTV|Opera TV|Viera|SmartHub|Large Screen/i.test(ua);
 };
-
-export interface AnimeSkipTimings {
-  opening?: [number, number];
-  ending?: [number, number];
-}
 
 interface CustomPlayerProps {
   src: string;
@@ -50,17 +32,13 @@ interface CustomPlayerProps {
   autoPlay?: boolean;
   animeId?: string;
   episodeNumber?: string;
-  skips?: AnimeSkipTimings;
   onNextEpisode?: () => void;
   onPrevEpisode?: () => void;
   onPlayerError?: () => void;
-  showInspectorBelow?: boolean;
-  onTelemetryUpdate?: (data: StreamTelemetryData) => void;
-  is1080Source?: boolean;
 }
 
-// WebGL pristine-sampling Super-Resolution upscaler for crisp anime lines (1080p and 4K UHD)
-class AnimeWebGLUpscaler {
+// WebGL pristine-sampling 1080p upscaler for crisp anime lines
+class AnimeWebGL1080p {
   private gl: WebGLRenderingContext;
   private upscaleProgram: WebGLProgram;
   private refineProgram: WebGLProgram;
@@ -70,7 +48,6 @@ class AnimeWebGLUpscaler {
   private canvas: HTMLCanvasElement;
   private animId: number | null = null;
   public isActive = false;
-  public targetMode: "auto" | "1080p" | "4k" = "auto";
 
   private fbo1: WebGLFramebuffer | null = null;
   private fbo1Texture: WebGLTexture | null = null;
@@ -205,10 +182,6 @@ class AnimeWebGLUpscaler {
     );
   }
 
-  public setTargetMode(mode: "auto" | "1080p" | "4k") {
-    this.targetMode = mode;
-  }
-
   private initFBOs(width: number, height: number) {
     const gl = this.gl;
     if (this.fbo1) this.destroyFBOs();
@@ -266,17 +239,7 @@ class AnimeWebGLUpscaler {
 
     const vW = video.videoWidth;
     const vH = video.videoHeight;
-    
-    // Determine dynamic target resolution:
-    // If targetMode is 4k or (auto and source is 1080p): upscale to 4K UHD (2160p)
-    // If source is 720p or lower: upscale to 1080p Full HD
-    let targetH = 1080;
-    if (this.targetMode === "4k" || (this.targetMode === "auto" && vH >= 1000)) {
-      targetH = 2160;
-    } else {
-      targetH = 1080;
-    }
-
+    const targetH = 1080;
     const aspect = vW / vH;
     const targetW = Math.round(targetH * aspect);
 
@@ -292,7 +255,7 @@ class AnimeWebGLUpscaler {
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
 
-    // Pass 1: Lanczos2 Super-Resolution Upscaling
+    // Pass 1: Upscale to 1080p
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo1);
     gl.viewport(0, 0, targetW, targetH);
     gl.useProgram(this.upscaleProgram);
@@ -308,7 +271,7 @@ class AnimeWebGLUpscaler {
     gl.uniform2f(sizeLoc1, vW, vH);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    // Pass 2: Contrast-Preserving Line Sharpening
+    // Pass 2: Line sharpening
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, targetW, targetH);
     gl.useProgram(this.refineProgram);
@@ -348,13 +311,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       autoPlay,
       animeId,
       episodeNumber,
-      skips,
       onNextEpisode,
       onPrevEpisode,
       onPlayerError,
-      showInspectorBelow = false,
-      onTelemetryUpdate,
-      is1080Source,
     },
     ref,
   ) => {
@@ -362,72 +321,21 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     const artRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const artInstanceRef = useRef<Artplayer | null>(null);
-    const webglInstanceRef = useRef<AnimeWebGLUpscaler | null>(null);
-
-    // Stream Inspector & Diagnostics State
-    const [showHudOverlay, setShowHudOverlay] = useState(false);
-    const [streamLogs, setStreamLogs] = useState<StreamLogEntry[]>([]);
-    const [telemetry, setTelemetry] = useState<StreamTelemetryData>({
-      src: src || "",
-      provider: src.includes("kodik") || src.includes("/api/media/playlist") ? "Kodik Balancer" : "Kami CDN",
-      nativeWidth: 0,
-      nativeHeight: 0,
-      renderWidth: 0,
-      renderHeight: 0,
-      fps: 24,
-      droppedFrames: 0,
-      totalFrames: 0,
-      activeQuality: "4K (AI Super-Res)",
-      targetMode: "4k",
-      isAiActive: true,
-      hlsLevels: [],
-      currentLevelIndex: 0,
-      bufferAheadSeconds: 0,
-      bandwidthMbps: 0,
-      currentTime: 0,
-      duration: 0,
-      playbackState: "idle",
-    });
-
-    const addLog = (
-      tag: StreamLogEntry["tag"],
-      message: string,
-      type: StreamLogEntry["type"] = "info"
-    ) => {
-      const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, "0")}:${now
-        .getMinutes()
-        .toString()
-        .padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}`;
-      const entry: StreamLogEntry = {
-        id: `${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        time: timeStr,
-        tag,
-        type,
-        message,
-      };
-      setStreamLogs((prev) => [...prev.slice(-99), entry]);
-    };
-
-    // Target skip timestamps
-    const opTargetRef = useRef<number | null>(null);
-    const edTargetRef = useRef<number | null>(null);
 
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [activeSubmenu, setActiveSubmenu] = useState<"main" | "quality" | "speed">("main");
 
     // Player Preferences (Stored in localStorage)
-    const [selectedQuality, setSelectedQuality] = useState<string>("4K (AI Super-Res)");
+    const [selectedQuality, setSelectedQuality] = useState<string>("Авто");
     const [availableQualities, setAvailableQualities] = useState<
-      { html: string; level: number; isAiUpscale?: boolean }[]
+      { html: string; level: number }[]
     >([
-      { html: "4K (AI Super-Res)", level: 0, isAiUpscale: true },
-      { html: "1080p (Full HD)", level: 0 },
-      { html: "720p (HD)", level: 1 },
-      { html: "480p (SD)", level: 2 },
+      { html: "Авто", level: -1 },
+      { html: "1080p", level: 0 },
+      { html: "720p", level: 1 },
+      { html: "480p", level: 2 },
       { html: "360p", level: 3 },
-      { html: "Авто (4K AI)", level: -1 },
     ]);
 
     const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
@@ -518,7 +426,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       let art: Artplayer | null = null;
       let blobUrl: string | null = null;
       let isCancelled = false;
-      let webglInstance: AnimeWebGLUpscaler | null = null;
+      let webglInstance: AnimeWebGL1080p | null = null;
 
       const saveProgress = (t: number, d: number) => {
         if (!animeId || !episodeNumber) return;
@@ -548,20 +456,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       const initPlayer = async () => {
         let finalUrl = src;
 
-        // Decrypt and decode stream if received as an encrypted, Base64, or multi-quality string
-        if (finalUrl && !finalUrl.startsWith("/api/media/playlist")) {
-          const decrypted = decryptStreamUrl(finalUrl);
-          if (decrypted) {
-            addLog("DECODER", `Поток успешно расшифрован перед инициализацией: ${decrypted.substring(0, 60)}...`, "info");
-            finalUrl = decrypted;
-          }
-        }
-
-        if (maxAudioTracks && finalUrl.endsWith(".m3u8")) {
+        if (maxAudioTracks && src.endsWith(".m3u8")) {
           try {
-            const res = await fetch(finalUrl);
+            const res = await fetch(src);
             const text = await res.text();
-            const baseUrl = finalUrl.substring(0, finalUrl.lastIndexOf("/") + 1);
+            const baseUrl = src.substring(0, src.lastIndexOf("/") + 1);
 
             const lines = text.replace(/\r/g, "").split("\n");
             let audioCount = 0;
@@ -690,21 +589,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                 ]
               : []),
             {
-              name: "stream-hud-btn",
-              position: "right",
-              index: 19,
-              html: `
-                <span class="art-icon art-icon-stream-hud" style="cursor: pointer; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; color: #fff;" title="Инспектор потока и статистика">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                  </svg>
-                </span>
-              `,
-              click: function () {
-                setShowHudOverlay((prev) => !prev);
-              },
-            },
-            {
               name: "custom-settings-btn",
               position: "right",
               index: 20,
@@ -723,95 +607,27 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           ],
           customType: {
             m3u8: function (video, url, artInstance) {
-              addLog("RESOLVER", `Инициализация HLS видеопотока: ${url.substring(0, 75)}...`, "info");
               if (Hls.isSupported()) {
                 if ((artInstance as any).hls)
                   (artInstance as any).hls.destroy();
                 const hls = new Hls({
                   maxMaxBufferLength: 30,
                   maxBufferSize: 60 * 1000 * 1000,
-                  enableWorker: true,
-                  lowLatencyMode: false,
-                  fragLoadingTimeOut: 25000,
-                  manifestLoadingTimeOut: 25000,
-                  levelLoadingTimeOut: 25000,
-                  fragLoadingMaxRetry: 4,
-                  levelLoadingMaxRetry: 4,
-                  manifestLoadingMaxRetry: 4,
-                  fragLoadingRetryDelay: 1000,
-                  levelLoadingRetryDelay: 1000,
-                  manifestLoadingRetryDelay: 1000,
                 });
                 (artInstance as any).hls = hls;
                 hls.attachMedia(video);
-                
-                let activeUrl = url;
-                let networkRetryCount = 0;
-
                 hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-                  hls.loadSource(activeUrl);
+                  hls.loadSource(url);
                 });
 
                 hls.on(Hls.Events.ERROR, function (event, data) {
-                  addLog("ERROR", `Событие ошибки HLS: ${data.details} (Fatal: ${data.fatal})`, data.fatal ? "error" : "warn");
                   if (data.fatal) {
-                    console.warn("HLS fatal error encountered, initiating recovery:", data.type, data.details);
+                    console.error("HLS fatal error:", data.type, data.details);
                     switch (data.type) {
                       case Hls.ErrorTypes.NETWORK_ERROR:
-                        networkRetryCount++;
-                        if (data.details === "manifestLoadError" || data.details === "manifestParsingError") {
-                          if (networkRetryCount <= 1 && activeUrl.includes('/api/media/playlist') && !activeUrl.includes('direct=false')) {
-                            addLog("HLS", "Ошибка загрузки манифеста. Пробуем резервный прокси...", "warn");
-                            const separator = activeUrl.includes('?') ? '&' : '?';
-                            const fallbackUrl = `${activeUrl}${separator}direct=false`;
-                            activeUrl = fallbackUrl;
-                            hls.loadSource(fallbackUrl);
-                            hls.startLoad();
-                            break;
-                          } else {
-                            addLog("HLS", "Манифест недоступен. Переключаемся на резервный плеер...", "warn");
-                            if (artInstance && artInstance.notice) {
-                              artInstance.notice.show = "Поток недоступен. Переключение на плеер источника...";
-                            }
-                            if (onPlayerErrorRef.current) {
-                              onPlayerErrorRef.current();
-                            }
-                            break;
-                          }
-                        }
-                        if (networkRetryCount <= 4) {
-                          if (data.details === "levelLoadError" && hls.levels && hls.levels.length > 1) {
-                            addLog("HLS", "Ошибка уровня HLS (levelLoadError). Пробуем другой доступный уровень...", "warn");
-                            const nextLvl = (hls.currentLevel + 1) % hls.levels.length;
-                            hls.currentLevel = nextLvl;
-                            try { (hls as any).loadLevel(nextLvl); } catch (_) {}
-                            hls.startLoad();
-                            break;
-                          }
-                          if (activeUrl.includes('/api/media/playlist') && !activeUrl.includes('direct=false')) {
-                            addLog("HLS", "HLS столкнулся с сетевой ошибкой прямого воспроизведения. Переключаемся на защищенный прокси-поток...", "warn");
-                            const separator = activeUrl.includes('?') ? '&' : '?';
-                            const fallbackUrl = `${activeUrl}${separator}direct=false`;
-                            activeUrl = fallbackUrl;
-                            hls.loadSource(fallbackUrl);
-                            hls.startLoad();
-                            break;
-                          }
-                          addLog("HLS", "Восстановление после сетевой ошибки HLS (startLoad)...", "warn");
-                          hls.startLoad();
-                          break;
-                        } else {
-                          addLog("HLS", "Переключение на резервный поток после ошибки загрузки уровня...", "warn");
-                          if (artInstance && artInstance.notice) {
-                            artInstance.notice.show = "Ошибка сети при загрузке уровня. Переключаем...";
-                          }
-                          if (onPlayerErrorRef.current) {
-                            onPlayerErrorRef.current();
-                          }
-                        }
+                        hls.startLoad();
                         break;
                       case Hls.ErrorTypes.MEDIA_ERROR:
-                        addLog("HLS", "Восстановление медиа-буфера (recoverMediaError)...", "warn");
                         hls.recoverMediaError();
                         break;
                       default:
@@ -832,136 +648,40 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   if (isQualityAdded) return;
                   isQualityAdded = true;
 
-                  const levels = data.levels || hls.levels || [];
-                  const maxLevelHeight = Math.max(...levels.map((l: any) => l.height || 0), 0);
-                  
-                  // Accurate 1080p native detection:
-                  // Checks manifest levels (height >= 1000 or top tier >= 720 from master HD), or explicit is1080Source flag
-                  const has1080Native = is1080Source === true || 
-                                        maxLevelHeight >= 1000 || 
-                                        levels.some((l: any) => (l.height || 0) >= 1000) ||
-                                        (is1080Source !== false && (maxLevelHeight >= 720 || levels.length === 0));
+                  const getQualityName = (level: any) => {
+                    const height = level.height || 0;
+                    if (height >= 1000) return "1080p";
+                    if (height >= 700) return "720p";
+                    if (height >= 400) return "480p";
+                    if (height >= 300) return "360p";
+                    return height ? `${height}p` : "Авто";
+                  };
 
-                  const bestLevel = levels.length > 0 ? levels.length - 1 : 0;
-                  const level1080Index = levels.findIndex((l: any) => (l.height || 0) >= 1000);
-                  const active1080Level = level1080Index !== -1 ? level1080Index : bestLevel;
+                  const levels = data.levels || hls.levels;
+                  const parsedQualities: { html: string; level: number }[] = [
+                    { html: "Авто", level: -1 },
+                  ];
 
-                  const level720Index = levels.findIndex((l: any) => (l.height || 0) >= 700 && (l.height || 0) < 1000);
-                  const active720Level = level720Index !== -1 ? level720Index : Math.max(0, bestLevel - 1);
-
-                  const hlsLevelSummaries = levels.map((l: any, idx: number) => ({
-                    height: l.height || (idx === bestLevel ? 1080 : 720),
-                    width: l.width || Math.round((l.height || 720) * 1.777),
-                    bitrate: l.bitrate || 2000000,
-                    name: l.name || `${l.height || 720}p`,
-                  }));
-
-                  addLog(
-                    "HLS",
-                    `Манифест успешно прочитан. Обнаружено уровней: ${levels.length}. Нативное разрешение источника: ${has1080Native ? '1080p (Full HD)' : `${maxLevelHeight || 720}p`}`,
-                    "success"
-                  );
-
-                  if (has1080Native) {
-                    addLog(
-                      "AI-PIPELINE",
-                      `Исходник: 1080p Full HD → Схема качества: [4K (AI Super-Res), 1080p (Full HD)]`,
-                      "ai"
-                    );
-                  } else {
-                    addLog(
-                      "AI-PIPELINE",
-                      `Исходник: ${maxLevelHeight || 720}p HD → Схема качества: [1080p (AI Upscale), 720p (HD)]`,
-                      "ai"
-                    );
-                  }
-
-                  const parsedQualities: { html: string; level: number; isAiUpscale?: boolean }[] = [];
-
-                  if (has1080Native) {
-                    // Strict user scheme for 1080p source:
-                    // 1. 4K (AI Super-Res)
-                    // 2. 1080p (Full HD)
-                    // 3. 720p (HD)
-                    // 4. 480p (SD)
-                    // 5. Авто (4K AI)
-                    parsedQualities.push({
-                      html: "4K (AI Super-Res)",
-                      level: active1080Level,
-                      isAiUpscale: true,
-                    });
-                    parsedQualities.push({
-                      html: "1080p (Full HD)",
-                      level: active1080Level,
-                    });
-                    parsedQualities.push({
-                      html: "720p (HD)",
-                      level: active720Level,
-                    });
-                  } else {
-                    // Strict user scheme for 720p or lower source:
-                    // 1. 1080p (AI Upscale)
-                    // 2. 720p (HD)
-                    // 3. 480p (SD)
-                    // 4. Авто (1080p AI)
-                    parsedQualities.push({
-                      html: "1080p (AI Upscale)",
-                      level: bestLevel,
-                      isAiUpscale: true,
-                    });
-                    parsedQualities.push({
-                      html: "720p (HD)",
-                      level: bestLevel,
-                    });
-                  }
-
-                  // Add lower native tiers if available
-                  const level480Index = levels.findIndex((l: any) => (l.height || 0) >= 400 && (l.height || 0) < 700);
-                  if (level480Index !== -1) {
-                    parsedQualities.push({ html: "480p (SD)", level: level480Index });
-                  } else {
-                    parsedQualities.push({ html: "480p (SD)", level: 0 });
-                  }
-
-                  const level360Index = levels.findIndex((l: any) => (l.height || 0) >= 300 && (l.height || 0) < 400);
-                  if (level360Index !== -1) {
-                    parsedQualities.push({ html: "360p", level: level360Index });
-                  }
-
-                  parsedQualities.push({
-                    html: has1080Native ? "Авто (4K AI)" : "Авто (1080p AI)",
-                    level: -1,
+                  levels.forEach((l: any, index: number) => {
+                    const name = getQualityName(l);
+                    if (!parsedQualities.some((q) => q.html === name)) {
+                      parsedQualities.push({ html: name, level: index });
+                    }
                   });
 
-                  setAvailableQualities(parsedQualities);
-                  setSelectedQuality(has1080Native ? "4K (AI Super-Res)" : "1080p (AI Upscale)");
-
-                  const chosenTargetMode = has1080Native ? "4k" : "1080p";
-                  if (webglInstanceRef.current) {
-                    webglInstanceRef.current.setTargetMode(chosenTargetMode);
-                    webglInstanceRef.current.start();
+                  if (!parsedQualities.some((q) => q.html === "1080p")) {
+                    parsedQualities.push({
+                      html: "1080p",
+                      level: levels.length - 1,
+                    });
                   }
 
-                  setTelemetry((prev) => ({
-                    ...prev,
-                    src: url,
-                    targetMode: chosenTargetMode,
-                    activeQuality: has1080Native ? "4K (AI Super-Res)" : "1080p (AI Upscale)",
-                    hlsLevels: hlsLevelSummaries,
-                    currentLevelIndex: has1080Native ? active1080Level : bestLevel,
-                  }));
-                });
-
-                hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-                  addLog("HLS", `Переключение активного уровня HLS на #${data.level}`, "info");
-                  setTelemetry((prev) => ({ ...prev, currentLevelIndex: data.level }));
+                  setAvailableQualities(parsedQualities);
                 });
 
                 artInstance.on("ready", () => {
                   const videoEl = artInstance.video;
                   const isTv = isTvDevice();
-
-                  addLog("DECODER", `Аппаратный декодер инициализирован (${videoEl.videoWidth || 1280}×${videoEl.videoHeight || 720})`, "success");
 
                   if (canvasRef.current && videoEl && !isTv) {
                     try {
@@ -970,22 +690,17 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                         videoContainer.appendChild(canvasRef.current);
                         canvasRef.current.setAttribute(
                           "style",
-                          "position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 1; z-index: 5;",
+                          "position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 0; z-index: 5;",
                         );
                       }
 
-                      webglInstance = new AnimeWebGLUpscaler(
+                      webglInstance = new AnimeWebGL1080p(
                         canvasRef.current,
                         videoEl,
                       );
-                      webglInstanceRef.current = webglInstance;
-                      const has1080 = is1080Source === true || (is1080Source !== false && (videoEl.videoHeight >= 720 || videoEl.videoHeight >= 1000));
-                      webglInstance.setTargetMode(has1080 ? "4k" : "1080p");
                       webglInstance.start();
-                      addLog("AI-PIPELINE", `Dual-Pass WebGL шейдерный конвейер запущен (Target: ${has1080 ? '4K UHD (3840×2160)' : '1080p FHD (1920×1080)'})`, "ai");
                     } catch (e) {
                       console.error("Anime WebGL Initialization Error:", e);
-                      addLog("ERROR", `Ошибка WebGL Upscaler: ${e}`, "error");
                     }
                   }
                 });
@@ -1000,123 +715,29 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
         artInstanceRef.current = art;
 
-        // Catch and ignore benign playback interruption errors in ArtPlayer event listeners
-        art.on("error", (err: any) => {
-          if (
-            err?.name === "AbortError" ||
-            err?.name === "NotAllowedError" ||
-            String(err?.message || err).includes("interrupted")
-          ) {
-            return;
-          }
-          console.warn("ArtPlayer error:", err);
-        });
+        // Track Play / Pause
+        art.on("video:play", () => setIsPlaying(true));
+        art.on("video:pause", () => setIsPlaying(false));
 
-        // Track Play / Pause & Buffering
-        art.on("video:play", () => {
-          setIsPlaying(true);
-          addLog("PLAYBACK", "Воспроизведение активно", "success");
-        });
-        art.on("video:pause", () => {
-          setIsPlaying(false);
-          addLog("PLAYBACK", "Воспроизведение приостановлено", "info");
-        });
-        art.on("video:waiting", () => {
-          addLog("BUFFER", "Загрузка буфера видеопотока...", "warn");
-        });
-        art.on("video:playing", () => {
-          addLog("PLAYBACK", "Поток стабилен, буфер синхронизирован", "info");
-        });
-
-        // Periodic Live Telemetry Monitor (1s polling)
-        const telemetryInterval = setInterval(() => {
-          if (!art || !art.video) return;
-          const vid = art.video;
-          const natW = vid.videoWidth || 0;
-          const natH = vid.videoHeight || 0;
-          const is4kCandidate = natH >= 1000;
-          const targetH = is4kCandidate ? 2160 : 1080;
-          const targetW = natH > 0 ? Math.round(targetH * (natW / natH)) : (is4kCandidate ? 3840 : 1920);
-
-          let bufferSec = 0;
-          if (vid.buffered && vid.buffered.length > 0) {
-            const curr = vid.currentTime;
-            for (let i = 0; i < vid.buffered.length; i++) {
-              if (vid.buffered.start(i) <= curr && curr <= vid.buffered.end(i)) {
-                bufferSec = vid.buffered.end(i) - curr;
-                break;
-              }
-            }
-          }
-
-          setTelemetry((prev) => {
-            const updated: StreamTelemetryData = {
-              ...prev,
-              src: finalUrl || src,
-              provider: src.includes("/api/media/playlist") ? "Kodik (Прокси-поток)" : src.includes("anilibria") ? "AniLibria HLS" : "Kami CDN",
-              nativeWidth: natW || prev.nativeWidth,
-              nativeHeight: natH || prev.nativeHeight,
-              renderWidth: targetW,
-              renderHeight: targetH,
-              fps: 24,
-              droppedFrames: (vid as any).webkitDroppedFrameCount || 0,
-              totalFrames: (vid as any).webkitDecodedFrameCount || 0,
-              bufferAheadSeconds: bufferSec,
-              currentTime: vid.currentTime,
-              duration: vid.duration || 0,
-              playbackState: vid.paused ? "paused" : "playing",
-            };
-            if (onTelemetryUpdate) onTelemetryUpdate(updated);
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(new CustomEvent("kami:stream_telemetry", { detail: updated }));
-            }
-            return updated;
-          });
-        }, 1000);
-
-        // Time updates: Progress, Skip Opening & Skip Ending logic
+        // Time updates: Progress, Skip Opening (+85s) & Skip Ending logic
         art.on("video:timeupdate", () => {
           if (!art) return;
           const curr = art.currentTime;
           const dur = art.duration;
           saveProgress(curr, dur);
 
-          // Opening badge check (uses real Kodik timestamps if available)
-          if (skips?.opening) {
-            const [opStart, opEnd] = skips.opening;
-            if (curr >= opStart && curr < opEnd) {
-              opTargetRef.current = opEnd;
-              setShowSkipOpBtn(true);
-            } else {
-              setShowSkipOpBtn(false);
-            }
+          // Opening badge: between 10s and 110s
+          if (curr >= 10 && curr <= 110) {
+            setShowSkipOpBtn(true);
           } else {
-            // Fallback opening badge: between 10s and 110s
-            if (curr >= 10 && curr <= 110) {
-              opTargetRef.current = curr + 85;
-              setShowSkipOpBtn(true);
-            } else {
-              setShowSkipOpBtn(false);
-            }
+            setShowSkipOpBtn(false);
           }
 
-          // Ending badge check (uses real Kodik timestamps if available)
-          if (skips?.ending) {
-            const [edStart, edEnd] = skips.ending;
-            if (curr >= edStart && (edEnd ? curr <= edEnd : true)) {
-              edTargetRef.current = edEnd || dur;
-              setShowSkipEdBtn(true);
-            } else {
-              setShowSkipEdBtn(false);
-            }
+          // Ending badge: in last 85 seconds of the episode (when dur > 180s)
+          if (dur > 180 && curr >= dur - 85) {
+            setShowSkipEdBtn(true);
           } else {
-            // Fallback ending badge: in last 85 seconds of the episode (when dur > 180s)
-            if (dur > 180 && curr >= dur - 85) {
-              edTargetRef.current = dur;
-              setShowSkipEdBtn(true);
-            } else {
-              setShowSkipEdBtn(false);
-            }
+            setShowSkipEdBtn(false);
           }
         });
 
@@ -1167,15 +788,12 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         if (webglInstance) {
           webglInstance.destroy();
         }
-        webglInstanceRef.current = null;
         if (art) {
           if (animeId && episodeNumber && art.currentTime > 5) {
             saveProgress(art.currentTime, art.duration);
           }
           if (art.destroy) {
-            try {
-              art.destroy(false);
-            } catch (_) {}
+            art.destroy(false);
           }
         }
         artInstanceRef.current = null;
@@ -1195,22 +813,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     ]);
 
     // Quality Selection Handler
-    const handleSelectQuality = (item: { html: string; level: number; isAiUpscale?: boolean }) => {
+    const handleSelectQuality = (item: { html: string; level: number }) => {
       setSelectedQuality(item.html);
       const art = artInstanceRef.current;
       if (art && (art as any).hls) {
         (art as any).hls.currentLevel = item.level;
-      }
-      if (webglInstanceRef.current) {
-        if (item.html.includes("4K")) {
-          webglInstanceRef.current.setTargetMode("4k");
-          webglInstanceRef.current.start();
-        } else if (item.html.includes("1080p") || item.html === "Авто") {
-          webglInstanceRef.current.setTargetMode("1080p");
-          webglInstanceRef.current.start();
-        } else {
-          webglInstanceRef.current.stop();
-        }
       }
       if (art && art.notice) {
         art.notice.show = `Качество: ${item.html}`;
@@ -1231,28 +838,23 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       setActiveSubmenu("main");
     };
 
-    // Skip Opening Action
+    // Skip Opening Action (+85s)
     const handleSkipOpening = () => {
       const art = artInstanceRef.current;
       if (art) {
-        const targetTime = opTargetRef.current || (art.currentTime + 85);
-        art.currentTime = targetTime;
+        art.currentTime += 85;
         if (art.notice) {
-          art.notice.show = "Опенинг пропущен";
+          art.notice.show = "+85s Пропуск опенинга";
         }
       }
       setShowSkipOpBtn(false);
     };
 
-    // Skip Ending Action -> Jump to Next Episode or end of ending
+    // Skip Ending Action -> Jump to Next Episode
     const handleSkipEnding = () => {
-      const art = artInstanceRef.current;
       if (onNextEpisodeRef.current) {
         onNextEpisodeRef.current();
-      } else if (art && edTargetRef.current) {
-        art.currentTime = edTargetRef.current;
       }
-      setShowSkipEdBtn(false);
     };
 
     // Download Episode Action
@@ -1300,7 +902,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           className="absolute inset-0 w-full h-full object-contain opacity-0 z-10"
         />
 
-        {/* Dynamic Quick Skip Opening Badge */}
+        {/* Dynamic Quick Skip Opening Badge (+85s) */}
         {skipOpening && showSkipOpBtn && (
           <div className="absolute bottom-16 left-6 z-30 animate-in fade-in slide-in-from-bottom-2 duration-200">
             <button
@@ -1308,7 +910,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black/80 hover:bg-[#8B5CF6] text-white border border-white/20 hover:border-[#8B5CF6] font-sans font-bold text-xs shadow-2xl backdrop-blur-md transition-all active:scale-95 cursor-pointer"
             >
               <FastForward className="w-4 h-4 text-[#8B5CF6] group-hover:text-white" />
-              <span>Пропустить опенинг</span>
+              <span>Пропустить опенинг (+85s)</span>
             </button>
           </div>
         )}
@@ -1323,184 +925,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               <span>Следующая серия</span>
               <SkipForward className="w-4 h-4" />
             </button>
-          </div>
-        )}
-
-        {/* TOP-LEFT LIVE STREAM RESOLUTION & AI UPSCALE PILL (Click opens HUD inspector) */}
-        <button
-          onClick={() => setShowHudOverlay((prev) => !prev)}
-          className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-[#121318] border border-white/15 hover:border-[#8B5CF6]/60 shadow-xl backdrop-blur-md transition-all text-xs font-bold text-white group cursor-pointer"
-          title="Нажмите для открытия инспектора видеопотока и логов"
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-[0_0_8px_#34d399]" />
-          <span className="text-slate-300 group-hover:text-white transition-colors">
-            {telemetry.nativeHeight ? `${telemetry.nativeHeight}p` : "1080p"}
-          </span>
-          <span className="text-slate-500 font-mono text-[10px]">→</span>
-          <span className="text-[#A78BFA] font-extrabold flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-[#C4B5FD]" />
-            {telemetry.targetMode === "4k" ? "4K AI" : "1080p AI"}
-          </span>
-          <span className="px-1.5 py-0.5 rounded bg-white/10 text-[9px] text-slate-300 font-mono uppercase tracking-wider group-hover:bg-[#8B5CF6]/30 group-hover:text-[#A78BFA] transition-colors">
-            HUD
-          </span>
-        </button>
-
-        {/* IN-PLAYER LIVE STREAM HUD OVERLAY */}
-        {showHudOverlay && (
-          <div
-            className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md p-4 sm:p-6 flex flex-col justify-between font-sans text-white animate-in fade-in duration-200"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setShowHudOverlay(false);
-            }}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 flex items-center justify-center text-[#A78BFA]">
-                  <Activity className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                    Диагностика и логирование видеопотока
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      LIVE
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Источник: <span className="text-slate-200 font-mono">{telemetry.provider}</span> • Статус: {isPlaying ? "Воспроизведение" : "Пауза"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const report = `=== KAMI STREAM REPORT ===\nURL: ${telemetry.src}\nNative: ${telemetry.nativeWidth}x${telemetry.nativeHeight}\nRender: ${telemetry.renderWidth}x${telemetry.renderHeight} (${telemetry.targetMode})\nQuality: ${selectedQuality}\nBuffer: ${telemetry.bufferAheadSeconds.toFixed(1)}s\nLevels: ${JSON.stringify(telemetry.hlsLevels)}\nLogs:\n${streamLogs.map(l => `[${l.time}][${l.tag}] ${l.message}`).join("\n")}`;
-                    navigator.clipboard.writeText(report);
-                    if (artInstanceRef.current && artInstanceRef.current.notice) {
-                      artInstanceRef.current.notice.show = "Отчёт логов скопирован в буфер!";
-                    }
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Копировать отчёт</span>
-                </button>
-                <button
-                  onClick={() => setShowHudOverlay(false)}
-                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-3">
-              <div className="bg-[#121318] border border-white/10 rounded-xl p-2.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Нативный поток (Декодер)
-                </span>
-                <span className="text-sm font-mono font-black text-white mt-0.5 block">
-                  {telemetry.nativeWidth || 1920}×{telemetry.nativeHeight || 1080}
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  HLS Level: #{telemetry.currentLevelIndex}
-                </span>
-              </div>
-
-              <div className="bg-[#121318] border border-[#8B5CF6]/30 rounded-xl p-2.5 bg-gradient-to-br from-[#8B5CF6]/10 to-transparent">
-                <span className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-wider block flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-[#C4B5FD]" />
-                  Выходной рендеринг (AI)
-                </span>
-                <span className="text-sm font-mono font-black text-[#C4B5FD] mt-0.5 block">
-                  {telemetry.renderWidth || 3840}×{telemetry.renderHeight || 2160}
-                </span>
-                <span className="text-[10px] text-emerald-400 font-semibold">
-                  {telemetry.targetMode === "4k" ? "4K Super-Resolution Active" : "1080p AI Active"}
-                </span>
-              </div>
-
-              <div className="bg-[#121318] border border-white/10 rounded-xl p-2.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Буфер потока
-                </span>
-                <span className="text-sm font-mono font-black text-emerald-400 mt-0.5 block">
-                  +{telemetry.bufferAheadSeconds.toFixed(1)} сек.
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  Потери кадров: {telemetry.droppedFrames}
-                </span>
-              </div>
-
-              <div className="bg-[#121318] border border-white/10 rounded-xl p-2.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Выбранный режим
-                </span>
-                <span className="text-xs font-bold text-white mt-1 block truncate">
-                  {selectedQuality}
-                </span>
-                <span className="text-[10px] text-[#A78BFA]">
-                  {telemetry.hlsLevels.length} уровней качества
-                </span>
-              </div>
-            </div>
-
-            {/* Live Terminal Logs */}
-            <div className="flex-1 bg-black/90 border border-white/10 rounded-xl p-3 flex flex-col font-mono text-xs overflow-hidden min-h-[140px]">
-              <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2">
-                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-                  <Terminal className="w-3.5 h-3.5 text-emerald-400" />
-                  Журнал событий видеопотока в реальном времени
-                </span>
-                <button
-                  onClick={() => setStreamLogs([])}
-                  className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  Очистить
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                {streamLogs.length === 0 ? (
-                  <div className="text-slate-600 italic text-[11px] py-4 text-center">
-                    Ожидание событий воспроизведения потока...
-                  </div>
-                ) : (
-                  streamLogs.map((log) => {
-                    const tagColors: Record<string, string> = {
-                      RESOLVER: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-                      HLS: "text-purple-400 bg-purple-500/10 border-purple-500/20",
-                      "AI-PIPELINE": "text-emerald-300 bg-emerald-500/20 border-emerald-500/30",
-                      DECODER: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
-                      PLAYBACK: "text-slate-300 bg-white/5 border-white/10",
-                      BUFFER: "text-amber-300 bg-amber-500/10 border-amber-500/20",
-                      QUALITY: "text-pink-400 bg-pink-500/10 border-pink-500/20",
-                      ERROR: "text-rose-400 bg-rose-500/20 border-rose-500/40",
-                    };
-                    const colorClass = tagColors[log.tag] || "text-slate-400 bg-white/5 border-white/10";
-                    return (
-                      <div key={log.id} className="flex items-start gap-2 text-[11px] leading-relaxed">
-                        <span className="text-slate-500 shrink-0 select-none">[{log.time}]</span>
-                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border shrink-0 ${colorClass}`}>
-                          {log.tag}
-                        </span>
-                        <span className="text-slate-300 break-all">{log.message}</span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Stream URL info */}
-            <div className="pt-2 flex items-center justify-between text-[10px] text-slate-500">
-              <span className="truncate max-w-[80%] font-mono">
-                Stream: {telemetry.src}
-              </span>
-              <span>Клавиша HUD: [H] или иконка пульса</span>
-            </div>
           </div>
         )}
 
@@ -1720,36 +1144,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     </button>
                   </div>
 
-                  {/* 7. Инспектор видеопотока и логи */}
-                  <button
-                    onClick={() => {
-                      setIsSettingsOpen(false);
-                      setShowHudOverlay(true);
-                    }}
-                    className="flex items-center justify-between py-3 px-2.5 rounded-xl hover:bg-white/5 transition-colors cursor-pointer text-left group"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:text-emerald-300 transition-colors">
-                        <Activity className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-white flex items-center gap-1.5">
-                          Инспектор потока и логи
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300">
-                            HUD
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {telemetry.nativeHeight ? `${telemetry.nativeHeight}p` : "1080p"} → {telemetry.targetMode === "4k" ? "4K Super-Res" : "1080p AI"}
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-                  </button>
-
                   <div className="my-2 border-t border-white/5" />
 
-                  {/* 8. Скачать серию */}
+                  {/* 7. Скачать серию */}
                   <button
                     onClick={handleDownloadEpisode}
                     className="flex items-center justify-between py-3 px-2.5 rounded-xl hover:bg-white/5 transition-colors cursor-pointer text-left group"
@@ -1931,17 +1328,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                 </button>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Optional Expanded Stream Inspector Below Player */}
-        {showInspectorBelow && (
-          <div className="mt-4">
-            <StreamInspector
-              telemetry={telemetry}
-              logs={streamLogs}
-              onClearLogs={() => setStreamLogs([])}
-            />
           </div>
         )}
       </div>

@@ -5,9 +5,6 @@ import { serve } from '@hono/node-server';
 import { makeRoomWebSocketHandler } from './utils/socketServer';
 import { upgradeWebSocket as nodeUpgradeWebSocket } from '@hono/node-server';
 import { upgradeWebSocket as cfUpgradeWebSocket } from 'hono/cloudflare-workers';
-import { extractBalancersM3u8 } from './utils/balancerExtractor';
-import { generateBorth, executeAllohaHandshake } from './utils/borthCrypto';
-import { decodeKodikUrl, decryptStreamUrl, extractStreamsFromPayload, parseQualitySources, selectBestStreamUrl } from './utils/streamDecryptor';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -286,7 +283,6 @@ app.get('/api/balancer', async (c) => {
   const title = c.req.query('title');
   const year = c.req.query('year');
   const shikimori_id = c.req.query('shikimori_id');
-  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   
   console.log(`[API] Balancer: title=${title}, year=${year}, shiki=${shikimori_id}`);
   addLog('Balancer Request Started', { title, year, shikimori_id });
@@ -325,333 +321,337 @@ app.get('/api/balancer', async (c) => {
 
     const ids = {
       shikimori_id,
-      kinopoisk_id: null as string | null,
-      imdb_id: null as string | null,
-      world_art_id: null as string | null,
+      kinopoisk_id,
+      imdb_id,
+      world_art_id,
       anilibria_id: null as number | null
     };
 
-    const diagnostics: {
-      provider: string;
-      status: 'found' | 'not_found' | 'error' | 'timeout' | 'unauthorized';
-      details: string;
-      queryUsed?: string;
-      timeMs?: number;
-      httpStatus?: number;
-      quality?: string;
-      foundIframe?: string | null;
-      itemsCount?: number;
-    }[] = [];
-
     // 1. Kodik (Primary source & ID resolver)
-    const t0Kodik = Date.now();
     try {
       const kodikTokens = [
-        'b7cc4293ed475c4ad1fd599d114f4435',
-        '17cc4ee691bc251131a9041e6e89e78e',
-        '45c53578f11ecfb74e31267b634cc6a8',
-        '93699ec16dae9882a1705e4dfb12c7bb',
-        '1d643a758d41de5ccb2f66be4e3f421d'
-      ];
-      const kodikMirrors = [
-        'https://kodikapi.com/search',
-        'https://kodik-api.com/search',
-        'https://kodik.info/search'
+        'b7cc4293ed475c4ad1fd599d114f4435', // User custom 1
+        '17cc4ee691bc251131a9041e6e89e78e', // Original
+        '45c53578f11ecfb74e31267b634cc6a8'  // User custom 2
       ];
 
-      let kodikSuccess = false;
-      let lastKodikError = '';
-
-      for (const mirror of kodikMirrors) {
-        if (kodikSuccess) break;
-        for (const token of kodikTokens) {
-          try {
-            const kodikUrl = `${mirror}?token=${token}&${shikimori_id ? `shikimori_id=${shikimori_id}` : `title=${encodeURIComponent(String(title))}`}&with_material_data=true&with_episodes=true`;
-            const kodikRes = await fetchWithTimeout(kodikUrl, {
-              headers: {
-                'Referer': 'https://shikimori.one/',
-                'Origin': 'https://shikimori.one/'
+      for (const token of kodikTokens) {
+        try {
+          const kodikUrl = `https://kodik-api.com/search?token=${token}&${shikimori_id ? `shikimori_id=${shikimori_id}` : `title=${encodeURIComponent(String(title))}`}&with_material_data=true`;
+          const kodikRes = await fetchWithTimeout(kodikUrl, {}, 3500);
+          if (kodikRes.ok) {
+            const kodikData = await kodikRes.json() as any;
+            if (kodikData.results && kodikData.results.length > 0) {
+              const resultWithIds = kodikData.results.find((r: any) => r.kinopoisk_id || r.imdb_id || r.worldart_id);
+              if (resultWithIds) {
+                kinopoisk_id = resultWithIds.kinopoisk_id || null;
+                imdb_id = resultWithIds.imdb_id || null;
+                world_art_id = resultWithIds.worldart_id || null;
+                ids.kinopoisk_id = kinopoisk_id;
+                ids.imdb_id = imdb_id;
+                ids.world_art_id = world_art_id;
               }
-            }, 3500);
-            if (kodikRes.ok) {
-              const kodikData = await kodikRes.json() as any;
-              if (kodikData.results && kodikData.results.length > 0) {
-                const resultWithIds = kodikData.results.find((r: any) => r.kinopoisk_id || r.imdb_id || r.worldart_id);
-                if (resultWithIds) {
-                  kinopoisk_id = resultWithIds.kinopoisk_id ? String(resultWithIds.kinopoisk_id) : null;
-                  imdb_id = resultWithIds.imdb_id ? String(resultWithIds.imdb_id) : null;
-                  world_art_id = resultWithIds.worldart_id ? String(resultWithIds.worldart_id) : null;
-                  ids.kinopoisk_id = kinopoisk_id;
-                  ids.imdb_id = imdb_id;
-                  ids.world_art_id = world_art_id;
+
+              // Group and collect unique translations from Kodik results
+              const translationsMap = new Map();
+              kodikData.results.forEach((res: any) => {
+                if (res.translation && res.translation.title) {
+                  const tName = res.translation.title;
+                  const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+                  if (!translationsMap.has(tName)) {
+                    try {
+                      const url = new URL(iframe);
+                      url.searchParams.set('api', '1');
+                      translationsMap.set(tName, {
+                        id: res.translation.id,
+                        title: tName,
+                        type: res.translation.type,
+                        iframe: url.toString(),
+                        episodes_count: res.episodes_count || 1,
+                        last_episode: res.last_episode || 1
+                      });
+                    } catch (_) {
+                      translationsMap.set(tName, {
+                        id: res.translation.id,
+                        title: tName,
+                        type: res.translation.type,
+                        iframe: iframe,
+                        episodes_count: res.episodes_count || 1,
+                        last_episode: res.last_episode || 1
+                      });
+                    }
+                  }
                 }
+              });
+              kodik_translations = Array.from(translationsMap.values());
 
-                // Kodik used in background purely for ID discovery (Kinopoisk / IMDb ID)
-                kodikSuccess = true;
-                break;
-              } else {
-                lastKodikError = 'Результатов по запросу не найдено (results: [])';
+              const res = kodikData.results[0];
+              let link = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+              try {
+                const url = new URL(link);
+                url.searchParams.set('api', '1');
+                kodik_iframe = url.toString();
+              } catch (_) {
+                kodik_iframe = link;
               }
-            } else {
-              lastKodikError = `HTTP ${kodikRes.status}: ${kodikRes.statusText}`;
+              break; // Successfully got Kodik results, no need to try other tokens
             }
-          } catch (err: any) {
-            lastKodikError = err.message || 'Ошибка подключения к Kodik API';
           }
+        } catch (err: any) {
+          console.warn(`[KODIK] Failed with token ${token}:`, err.message);
         }
       }
-
-      if (!kodikSuccess) {
-        diagnostics.push({
-          provider: 'Kodik (Silent ID Lookup)',
-          status: lastKodikError.includes('results: []') ? 'not_found' : 'error',
-          details: lastKodikError || 'Тайтл не найден в базе Kodik',
-          queryUsed: `shikimori_id=${shikimori_id || ''}`,
-          timeMs: Date.now() - t0Kodik
-        });
-      }
     } catch (e: any) {
-      diagnostics.push({
-        provider: 'Kodik (Silent ID Lookup)',
-        status: 'error',
-        details: `Критическая ошибка Kodik: ${e.message}`,
-        timeMs: Date.now() - t0Kodik
-      });
+      addLog('Kodik fetch failed', { error: e.message });
     }
 
-    // Prepare placeholders for Alloha and Collaps
+    // Prepare placeholders for prospective providers
     let alloha_iframe: string | null = null;
     let collaps_iframe: string | null = null;
+    let bhcesh_iframe: string | null = null;
+    let videocdn_iframe: string | null = null;
+    let bazon_iframe: string | null = null;
+    let hdvb_iframe: string | null = null;
+    let iframe_video_iframe: string | null = null;
+    let pleer_iframe: string | null = null;
+    let anilibria_iframe: string | null = null;
 
-    // Concurrently fetch Alloha & Collaps
+    // Concurrently fetch alternate providers to minimize response latency
     const jobs: Promise<void>[] = [];
 
     // 2. Alloha
     jobs.push((async () => {
-      const t0 = Date.now();
       try {
         const allohaTokens = [
           'd317441359e505c343c2063edc97e7',
           '04941a9a3ca3ac16e2b4327347bbc1',
           '96b62ea8e72e7452b652e461ab8b89'
         ];
-        const allohaQueries: { url: string; q: string }[] = [];
+        const allohaQueries: string[] = [];
         if (kinopoisk_id) {
           for (const t of allohaTokens) {
-            allohaQueries.push({ url: `https://api.alloha.tv/?token=${t}&kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
-            allohaQueries.push({ url: `https://api.apbugall.org/?token=${t}&kp=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
+            allohaQueries.push(`https://api.alloha.tv/?token=${t}&kp=${kinopoisk_id}`);
+            allohaQueries.push(`https://api.apbugall.org/?token=${t}&kp=${kinopoisk_id}`);
           }
         }
         if (imdb_id) {
           for (const t of allohaTokens) {
-            allohaQueries.push({ url: `https://api.alloha.tv/?token=${t}&imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
-            allohaQueries.push({ url: `https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`, q: `imdb=${imdb_id}` });
-          }
-        }
-        if (title) {
-          for (const t of allohaTokens) {
-            allohaQueries.push({ url: `https://api.alloha.tv/?token=${t}&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
-            allohaQueries.push({ url: `https://api.apbugall.org/?token=${t}&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
+            allohaQueries.push(`https://api.alloha.tv/?token=${t}&imdb=${imdb_id}`);
+            allohaQueries.push(`https://api.apbugall.org/?token=${t}&imdb=${imdb_id}`);
           }
         }
 
-        let found = false;
-        let lastError = kinopoisk_id ? 'Поиск в Alloha не дал результатов' : 'Kinopoisk ID отсутствует для точного поиска в Alloha';
-
-        for (const item of allohaQueries) {
+        for (const url of allohaQueries) {
           try {
-            const res = await fetchWithTimeout(item.url, {
-              headers: {
-                'X-Forwarded-For': clientIp || '',
-                'X-Real-IP': clientIp || '',
-                'Client-IP': clientIp || '',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-              }
-            }, 3000);
-            const status = res.status;
+            const res = await fetchWithTimeout(url, {}, 3000);
             if (res.ok) {
               const d = await res.json() as any;
-              if (d && (d.status === 'success' || d.data?.iframe || d.iframe)) {
-                alloha_iframe = d.data?.iframe || d.iframe;
-                found = true;
-
-                // 1. Movie translations
-                if (d.data?.translation_iframe && typeof d.data.translation_iframe === 'object') {
-                  for (const [trKey, trObj] of Object.entries(d.data.translation_iframe as Record<string, any>)) {
-                    if (trObj && trObj.iframe) {
-                      kodik_translations.push({
-                        id: `alloha_${trKey}`,
-                        title: `Alloha: ${trObj.name || 'Озвучка'} (${trObj.quality || '1080p'})`,
-                        type: 'voice',
-                        iframe: trObj.iframe,
-                        episodes_count: 1,
-                        last_episode: 1,
-                        quality_val: 1080,
-                        quality_label: '1080p',
-                        provider: 'Alloha'
-                      });
-                    }
-                  }
-                }
-
-                // 2. Serial / Anime translations
-                if (d.data?.seasons && typeof d.data.seasons === 'object') {
-                  const seasonsObj = d.data.seasons;
-                  const s1 = seasonsObj['1'] || Object.values(seasonsObj)[0] as any;
-                  if (s1?.episodes) {
-                    const epCount = Object.keys(s1.episodes).length;
-                    const ep1 = s1.episodes['1'] || Object.values(s1.episodes)[0] as any;
-                    if (ep1?.translation && typeof ep1.translation === 'object') {
-                      for (const [trId, trVal] of Object.entries(ep1.translation as Record<string, any>)) {
-                        if (trVal?.iframe) {
-                          kodik_translations.push({
-                            id: `alloha_${trId}`,
-                            title: `Alloha: ${trVal.translation || 'Озвучка'} (${trVal.quality || '1080p'})`,
-                            type: 'voice',
-                            iframe: trVal.iframe,
-                            episodes_count: epCount,
-                            last_episode: epCount,
-                            quality_val: 1080,
-                            quality_label: '1080p',
-                            provider: 'Alloha'
-                          });
-                        }
-                      }
-                    }
-                  }
-                }
-
-                // 3. Fallback generic Alloha entry if no specific translations were extracted
-                if (!kodik_translations.some(t => t.provider === 'Alloha') && alloha_iframe) {
-                  kodik_translations.push({
-                    id: 'alloha_main',
-                    title: 'Alloha (Оригинал + Дубляж)',
-                    type: 'voice',
-                    iframe: alloha_iframe,
-                    episodes_count: d.data?.last_episode || d.data?.seasons_count || 1,
-                    last_episode: d.data?.last_episode || d.data?.seasons_count || 1,
-                    quality_val: 1080,
-                    quality_label: '1080p',
-                    provider: 'Alloha'
-                  });
-                }
-
-                diagnostics.push({
-                  provider: 'Alloha',
-                  status: 'found',
-                  details: `Успешно: найден плеер Alloha TV (1080p)`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: status,
-                  quality: '1080p (4K AI)',
-                  foundIframe: alloha_iframe
-                });
+              if (d && d.status === 'success' && d.data && d.data.iframe) {
+                alloha_iframe = d.data.iframe;
+                addLog(`Alloha found: ${alloha_iframe}`);
                 break;
-              } else if (d && d.error) {
-                lastError = `Ошибка Alloha API: ${d.error}`;
-              } else if (d && d.status === 'error') {
-                lastError = `Alloha: ${d.message || 'Тайтл не найден'}`;
+              } else if (d && d.data && d.data.iframe) {
+                alloha_iframe = d.data.iframe;
+                break;
+              } else if (d && d.iframe) {
+                alloha_iframe = d.iframe;
+                break;
               }
-            } else if (status === 401 || status === 403) {
-              lastError = `HTTP ${status}: Токен Alloha заблокирован или требует авторизации домена`;
-            } else {
-              lastError = `HTTP ${status}: ${res.statusText}`;
             }
           } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (3000ms)' : e.message;
+            // Silently try next token/mirror
           }
         }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'Alloha',
-            status: lastError.includes('401') || lastError.includes('403') ? 'unauthorized' : lastError.includes('Таймаут') ? 'timeout' : 'not_found',
-            details: lastError,
-            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `title=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
       } catch (e: any) {
-        diagnostics.push({
-          provider: 'Alloha',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
+        addLog('Alloha jobs execution failed', { error: e.message });
       }
     })());
 
     // 3. Collaps
-    jobs.push((async () => {
-      const t0 = Date.now();
-      try {
-        const cQueries: { url: string; q: string }[] = [];
-        if (kinopoisk_id) cQueries.push({ url: `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`, q: `kp=${kinopoisk_id}` });
-        if (imdb_id) cQueries.push({ url: `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&imdb_id=${imdb_id}`, q: `imdb=${imdb_id}` });
-        if (title) cQueries.push({ url: `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&name=${encodeURIComponent(String(title))}`, q: `name=${title}` });
-
-        let found = false;
-        let lastError = 'Тайтл не найден в базе Collaps';
-
-        for (const item of cQueries) {
-          try {
-            const res = await fetchWithTimeout(item.url, { headers: { 'X-Forwarded-For': clientIp || '', 'X-Real-IP': clientIp || '', 'Client-IP': clientIp || '', 'User-Agent': 'Mozilla/5.0' } }, 3000);
-            if (res.ok) {
-              const d = await res.json() as any;
-              if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
-                collaps_iframe = d.results[0].iframe_url;
-                found = true;
-                diagnostics.push({
-                  provider: 'Collaps',
-                  status: 'found',
-                  details: `Успешно: найден плеер Collaps CDN`,
-                  queryUsed: item.q,
-                  timeMs: Date.now() - t0,
-                  httpStatus: 200,
-                  foundIframe: collaps_iframe
-                });
-                break;
-              } else {
-                lastError = 'Тайтл отсутствует в базе Collaps по данному ID';
-              }
-            } else {
-              lastError = `HTTP ${res.status}: ${res.statusText}`;
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://apicollaps.cc/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+              collaps_iframe = d.results[0].iframe_url;
+              addLog(`Collaps found: ${collaps_iframe}`);
             }
-          } catch (e: any) {
-            lastError = e.name === 'AbortError' ? 'Таймаут соединения (3000ms)' : e.message;
+          }
+        } catch (e: any) {
+          console.warn('[COLLAPS] failed:', e.message);
+        }
+      })());
+    }
+
+    // 4. Bhcesh
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://api.bhcesh.me/list?token=eedefb541aeba871dcfc756e6b31c02e&kinopoisk_id=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0 && d.results[0].iframe_url) {
+              bhcesh_iframe = d.results[0].iframe_url;
+              addLog(`Bhcesh found: ${bhcesh_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[BHCESH] failed:', e.message);
+        }
+      })());
+    }
+
+    // 5. Bazon
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://bazon.cc/api/search?token=2848f79ca09d4bbbf419bcdb464b4d11&kp=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0) {
+              bazon_iframe = d.results[0].link || d.results[0].iframe_url;
+              addLog(`Bazon found: ${bazon_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[BAZON] failed:', e.message);
+        }
+      })());
+    }
+
+    // 6. VideoCDN
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://videocdn.tv/api/short?api_token=pfp3D870PGEY3Afjti0gMtSfmn2aZqih&kinopoisk_id=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.data && d.data.length > 0) {
+              videocdn_iframe = d.data[0].iframe_src || d.data[0].iframe;
+              addLog(`VideoCDN found: ${videocdn_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[VIDEOCDN] failed:', e.message);
+        }
+      })());
+    }
+
+    // 7. HDVB
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://apivb.info/api/videos.json?token=5e2fe4c70bafd9a7414c4f170ee1b192&id_kp=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (Array.isArray(d) && d.length > 0) {
+              hdvb_iframe = d[0].iframe_url || d[0].iframe;
+              addLog(`HDVB found: ${hdvb_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[HDVB] failed:', e.message);
+        }
+      })());
+    }
+
+    // 8. Iframe
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://iframe.video/api/v2/search?kp=${kinopoisk_id}`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.results && d.results.length > 0) {
+              iframe_video_iframe = d.results[0].path || d.results[0].iframe;
+            } else if (d.results && d.results.path) {
+              iframe_video_iframe = d.results.path;
+            }
+            if (iframe_video_iframe) {
+              addLog(`Iframe found: ${iframe_video_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[IFRAME.VIDEO] failed:', e.message);
+        }
+      })());
+    }
+
+    // 9. Pleer.video
+    if (kinopoisk_id) {
+      jobs.push((async () => {
+        try {
+          const url = `https://pleer.video/${kinopoisk_id}.json`;
+          const res = await fetchWithTimeout(url, {}, 3000);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d.embeds && d.embeds.length > 0) {
+              pleer_iframe = d.embeds[0].iframe;
+              addLog(`Pleer found: ${pleer_iframe}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('[PLEER] failed:', e.message);
+        }
+      })());
+    }
+
+    // 10. Anilibria
+    jobs.push((async () => {
+      try {
+        const url = `https://anilibria.top/api/v1/app/search/releases?query=${encodeURIComponent(String(title))}`;
+        const anilibriaRes = await fetchWithTimeout(url, {}, 3000);
+        if (anilibriaRes.ok) {
+          const anilibriaData = await anilibriaRes.json() as any;
+          if (anilibriaData && anilibriaData.length > 0) {
+            let bestMatch = anilibriaData[0];
+            if (year) {
+              const yearMatch = anilibriaData.find((r: any) => r.year === parseInt(String(year)));
+              if (yearMatch) bestMatch = yearMatch;
+            }
+            anilibria_iframe = `https://www.anilibria.tv/public/iframe.php?id=${bestMatch.id}`;
+            ids.anilibria_id = bestMatch.id;
+            addLog(`Anilibria found: ${anilibria_iframe}`);
           }
         }
-
-        if (!found) {
-          diagnostics.push({
-            provider: 'Collaps',
-            status: lastError.includes('Таймаут') ? 'timeout' : lastError.includes('отсутствует') ? 'not_found' : 'error',
-            details: lastError,
-            queryUsed: kinopoisk_id ? `kp=${kinopoisk_id}` : `name=${title}`,
-            timeMs: Date.now() - t0
-          });
-        }
       } catch (e: any) {
-        diagnostics.push({
-          provider: 'Collaps',
-          status: 'error',
-          details: `Ошибка: ${e.message}`,
-          timeMs: Date.now() - t0
-        });
+        addLog('Anilibria fetch failed', { error: e.message });
       }
     })());
 
-    // Resolve Alloha and Collaps promises concurrently
+    // Resolve all promises concurrently
     await Promise.allSettled(jobs);
 
-    // Build list of active players: Alloha, Collaps
+    // Build list of successfully resolved players
     const players: any[] = [];
+    if (kodik_iframe) {
+      players.push({ name: 'Kodik', iframe: kodik_iframe });
+    } else {
+      // Default placeholder just in case
+      players.push({ name: 'Kodik', iframe: null });
+    }
+
     if (alloha_iframe) players.push({ name: 'Alloha', iframe: alloha_iframe });
     if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
+    if (bhcesh_iframe) players.push({ name: 'Bhcesh', iframe: bhcesh_iframe });
+    if (videocdn_iframe) players.push({ name: 'VideoCDN', iframe: videocdn_iframe });
+    if (bazon_iframe) players.push({ name: 'Bazon', iframe: bazon_iframe });
+    if (hdvb_iframe) players.push({ name: 'HDVB', iframe: hdvb_iframe });
+    if (iframe_video_iframe) players.push({ name: 'Iframe', iframe: iframe_video_iframe });
+    if (pleer_iframe) players.push({ name: 'Pleer', iframe: pleer_iframe });
+    if (anilibria_iframe) players.push({ name: 'Anilibria', iframe: anilibria_iframe });
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
-    addLog(`Balancer Completed`, { playersCount: players.length, ids, diagnosticsCount: diagnostics.length });
-    return c.json({ players, ids, kodik_translations, diagnostics });
+    addLog(`Balancer Completed`, { playersCount: players.length, ids });
+    return c.json({ players, ids, kodik_translations });
   } catch (error: any) {
     addLog('Balancer API Exception', { message: error.message });
     return c.json({ error: 'Failed to fetch balancer data' }, 500);
@@ -1692,92 +1692,60 @@ app.get('/api/image/*', async (c) => {
   };
 
   try {
-    let response: any = null;
-    try {
-      response = await fetch(targetUrl, { headers });
-    } catch (_) {}
+    let response = await fetch(targetUrl, { headers });
     
-    // First fallback: desu.shikimori.one
-    if (!response || !response.ok) {
-      try {
-        const desuUrl = `https://desu.shikimori.one/${imagePath}${c.req.url.includes('?') ? c.req.url.substring(c.req.url.indexOf('?')) : ''}`;
-        response = await fetch(desuUrl, { headers });
-      } catch (_) {}
+    // First fallback: desu.shikimori.one (often where images actually live now)
+    if (!response.ok) {
+      const desuUrl = `https://desu.shikimori.one/${imagePath}${c.req.url.includes('?') ? c.req.url.substring(c.req.url.indexOf('?')) : ''}`;
+      response = await fetch(desuUrl, { headers });
     }
 
     // Second Fallback to Jikan API if Shikimori returns error (404, 403, etc.)
-    if (!response || !response.ok) {
+    if (!response.ok) {
       const animeIdMatch = imagePath.match(/\/(\d+)\.jpg$/);
       if (animeIdMatch) {
         const animeId = animeIdMatch[1];
+        console.log(`[DEBUG] Image error (${response.status}) on Shikimori for ID: ${animeId}, trying Jikan fallback`);
+        
         try {
           let imageUrl = jikanImageCache.get(animeId);
           
           if (!imageUrl) {
-            // First check Shikimori details API for current image path
-            try {
-              const shikiApiRes = await fetch(`https://shikimori.one/api/animes/${animeId}`, {
-                headers: { 'User-Agent': headers['User-Agent'] }
-              });
-              if (shikiApiRes.ok) {
-                const shikiData = await shikiApiRes.json() as any;
-                const origPath = shikiData.image?.original || shikiData.image?.preview;
-                if (origPath && !origPath.includes('missing_')) {
-                  imageUrl = origPath.startsWith('http') ? origPath : `https://shikimori.one${origPath}`;
-                }
+            // Jikan API has rate limits (3 requests per second)
+            const jikanRes = await fetch(`https://api.jikan.moe/v4/anime/${animeId}`);
+            if (jikanRes.ok) {
+              const jikanData = await jikanRes.json() as any;
+              imageUrl = jikanData.data?.images?.jpg?.large_image_url || jikanData.data?.images?.jpg?.image_url;
+              if (imageUrl) {
+                jikanImageCache.set(animeId, imageUrl);
+              } else {
+                console.warn(`[DEBUG] Jikan found anime ${animeId} but no image URL`);
               }
-            } catch (_) {}
-
-            // If not found, try Jikan API
-            if (!imageUrl) {
-              try {
-                const jikanRes = await fetch(`https://api.jikan.moe/v4/anime/${animeId}`);
-                if (jikanRes.ok) {
-                  const jikanData = await jikanRes.json() as any;
-                  imageUrl = jikanData.data?.images?.jpg?.large_image_url || jikanData.data?.images?.jpg?.image_url;
-                }
-              } catch (_) {}
-            }
-
-            if (imageUrl) {
-              jikanImageCache.set(animeId, imageUrl);
+            } else {
+              console.error(`[DEBUG] Jikan API error for ${animeId}: ${jikanRes.status}`);
             }
           }
 
           if (imageUrl) {
-            try {
-              const fallbackRes = await fetch(imageUrl);
-              if (fallbackRes.ok) {
-                return new Response(fallbackRes.body, {
-                  status: 200,
-                  headers: {
-                    'Content-Type': fallbackRes.headers.get('content-type') || 'image/jpeg',
-                    'Cache-Control': 'public, max-age=2592000',
-                    'X-Image-Source': 'Jikan-Fallback'
-                  }
-                });
-              }
-            } catch (_) {}
+            const fallbackRes = await fetch(imageUrl);
+            if (fallbackRes.ok) {
+              console.log(`[DEBUG] Jikan fallback SUCCESS for ID: ${animeId}`);
+              return new Response(fallbackRes.body, {
+                status: 200,
+                headers: {
+                  'Content-Type': fallbackRes.headers.get('content-type') || 'image/jpeg',
+                  'Cache-Control': 'public, max-age=2592000',
+                  'X-Image-Source': 'Jikan-Fallback'
+                }
+              });
+            } else {
+              console.error(`[DEBUG] Jikan image fetch failed for ${imageUrl}: ${fallbackRes.status}`);
+            }
           }
-        } catch (_) {}
-      }
-
-      // If still not ok (e.g. 404), return a clean dark placeholder SVG so client never fails
-      const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420" viewBox="0 0 300 420" fill="none">
-        <rect width="300" height="420" fill="#141519"/>
-        <circle cx="150" cy="180" r="40" fill="#25262c"/>
-        <path d="M110 260C110 237.909 127.909 220 150 220C172.091 220 190 237.909 190 260V270H110V260Z" fill="#25262c"/>
-        <text x="150" y="315" text-anchor="middle" fill="#64748b" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600">KamiAnime</text>
-      </svg>`;
-
-      return new Response(placeholderSvg, {
-        status: 200,
-        headers: {
-          'Content-Type': 'image/svg+xml',
-          'Cache-Control': 'public, max-age=86400',
-          'X-Image-Source': 'Placeholder'
+        } catch (e) {
+          console.error('[DEBUG] Jikan fallback failed', e);
         }
-      });
+      }
     }
     
     return new Response(response.body, {
@@ -1794,7 +1762,38 @@ app.get('/api/image/*', async (c) => {
 });
 
 // Kodik direct stream decryptor and proxy
+function convertChar(char: string, num: number): string {
+  const alph = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const upper = char.toUpperCase();
+  if (alph.includes(upper)) {
+    const idx = (alph.indexOf(upper) + num) % alph.length;
+    const ch = alph[idx];
+    return char === char.toLowerCase() ? ch.toLowerCase() : ch;
+  }
+  return char;
+}
 
+function decodeKodikUrl(encoded: string, rotNum?: number): string {
+  if (rotNum !== undefined) {
+    const crypted = encoded.split('').map(c => convertChar(c, rotNum)).join('');
+    const padding = (4 - (crypted.length % 4)) % 4;
+    try {
+      const decoded = atob(crypted + '='.repeat(padding));
+      if (decoded.includes('mp4:hls:manifest')) return decoded;
+    } catch {}
+  }
+  for (let rot = 0; rot < 26; rot++) {
+    const crypted = encoded.split('').map(c => convertChar(c, rot)).join('');
+    const padding = (4 - (crypted.length % 4)) % 4;
+    try {
+      const decoded = atob(crypted + '='.repeat(padding));
+      if (decoded.includes('mp4:hls:manifest')) {
+         return decoded;
+      }
+    } catch {}
+  }
+  throw new Error('Decryption of Kodik stream URL failed');
+}
 
 function getProxyOrigin(c: any): string {
   const proto = c.req.header('x-forwarded-proto') || 'http';
@@ -2065,7 +2064,6 @@ app.options('/api/media/skip-timings', (c) => {
 
 app.get('/api/media/skip-timings', async (c) => {
   const urlParam = c.req.query('url');
-  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   if (!urlParam) {
     return c.json({ error: 'url parameter is required' }, 400);
   }
@@ -2213,7 +2211,6 @@ app.get('/api/media/list', async (c) => {
 app.get('/api/media/search', async (c) => {
   const token = c.req.query('token') || '17cc4ee691bc251131a9041e6e89e78e';
   const shikimori_id = c.req.query('shikimori_id');
-  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
   const title = c.req.query('title');
   
   let targetUrl = `https://kodik-api.com/search?token=${token}&with_material_data=true`;
@@ -2241,626 +2238,25 @@ app.get('/api/media/search', async (c) => {
   }
 });
 
-app.get('/api/media/debug', async (c) => {
-  const urlParam = c.req.query('url');
-  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
-  if (!urlParam) {
-    return c.json({ success: false, error: 'url parameter is required', logs: ['[ERR] URL не передан'] }, 400);
-  }
-
-  let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-  const isKodik = iframeUrl.includes('kodik') || iframeUrl.includes('vazha') || iframeUrl.includes('aniqit');
-  const isAniLibria = iframeUrl.includes('anilibria');
-
-  c.header('Access-Control-Allow-Origin', '*');
-  c.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  c.header('Access-Control-Allow-Headers', '*');
-
-  if (isKodik) {
-    return c.json({
-      success: true,
-      extractedM3u8: `/api/media/playlist?url=${encodeURIComponent(iframeUrl)}`,
-      logs: [
-        `[KODIK] Обнаружен плеер Kodik: ${iframeUrl}`,
-        `[KODIK] Серверный поток готов к расшифровке через /api/media/playlist`
-      ]
-    });
-  }
-
-  if (isAniLibria) {
-    return c.json({
-      success: true,
-      extractedM3u8: `/api/media/playlist?url=${encodeURIComponent(iframeUrl)}`,
-      logs: [
-        `[ANILIBRIA] Обнаружен плеер AniLibria: ${iframeUrl}`,
-        `[ANILIBRIA] Серверный HLS 1080p FHD поток готов`
-      ]
-    });
-  }
-
-  try {
-    const { m3u8Url, headers, logs, htmlLength } = await extractBalancersM3u8(iframeUrl, clientIp);
-    if (m3u8Url) {
-      return c.json({
-        success: true,
-        extractedM3u8: m3u8Url,
-        headers: headers || {},
-        logs,
-        htmlLength
-      });
-    }
-
-    return c.json({
-      success: false,
-      extractedM3u8: null,
-      logs: [
-        ...logs,
-        `[WARN] Прямой незащищенный HLS поток не был найден в HTML/JS плеера ${new URL(iframeUrl).host}`
-      ],
-      htmlLength
-    });
-  } catch (err: any) {
-    return c.json({
-      success: false,
-      extractedM3u8: null,
-      logs: [`[ERR] Ошибка декодирования: ${err.message}`]
-    }, 500);
-  }
-});
-
-async function resolveAnimeHlsDirect(shikiId: string, episodeNum = 1, targetQuality?: string | null): Promise<Response | null> {
-  if (!shikiId) return null;
-  // 1. Attempt AniLibria Direct HLS extraction (1080p FHD / 720p HD)
-  try {
-    const anilibriaUrls = [
-      `https://api.anilibria.tv/v3/title/get?shikimori=${shikiId}`,
-      `https://api.anilibria.top/v3/title/get?shikimori=${shikiId}`
-    ];
-    for (const aUrl of anilibriaUrls) {
-      try {
-        const res = await fetch(aUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(3500)
-        });
-        if (res.ok) {
-          const d = await res.json() as any;
-          const rel = d.id ? d : d.release || (d.list && d.list[0]) || null;
-          if (rel && rel.player?.list) {
-            const epData = rel.player.list[String(episodeNum)] || rel.player.list['1'] || Object.values(rel.player.list)[0];
-            if (epData && epData.hls) {
-              const host = rel.player.host || 'cache.libria.fun';
-              const fhd = epData.hls.fhd ? (epData.hls.fhd.startsWith('http') ? epData.hls.fhd : `https://${host}${epData.hls.fhd}`) : null;
-              const hd = epData.hls.hd ? (epData.hls.hd.startsWith('http') ? epData.hls.hd : `https://${host}${epData.hls.hd}`) : null;
-              const sd = epData.hls.sd ? (epData.hls.sd.startsWith('http') ? epData.hls.sd : `https://${host}${epData.hls.sd}`) : null;
-
-              if (targetQuality === '1080' && fhd) {
-                return new Response(`#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\n${fhd}`, {
-                  headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
-                });
-              }
-              if (targetQuality === '720' && hd) {
-                return new Response(`#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720\n${hd}`, {
-                  headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
-                });
-              }
-
-              const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
-              if (fhd) {
-                masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`);
-                masterLines.push(fhd);
-              }
-              if (hd) {
-                masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,NAME="720p"`);
-                masterLines.push(hd);
-              }
-              if (sd) {
-                masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480,NAME="480p"`);
-                masterLines.push(sd);
-              }
-              return new Response(masterLines.join('\n'), {
-                headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
-              });
-            }
-          }
-        }
-      } catch (_) {}
-    }
-  } catch (_) {}
-
-  // 2. Silent background Kodik HLS stream extraction fallback for KamiPlayer
-  try {
-    const kodikTokens = [
-      'b7cc4293ed475c4ad1fd599d114f4435',
-      '17cc4ee691bc251131a9041e6e89e78e',
-      '45c53578f11ecfb74e31267b634cc6a8'
-    ];
-    let foundIframe = '';
-    for (const kt of kodikTokens) {
-      if (foundIframe) break;
-      try {
-        const kRes = await fetch(`https://kodikapi.com/search?token=${kt}&shikimori_id=${shikiId}&with_episodes=true`, {
-          signal: AbortSignal.timeout(3000)
-        });
-        if (kRes.ok) {
-          const kData = await kRes.json() as any;
-          if (kData?.results && kData.results.length > 0) {
-            const item = kData.results[0];
-            const link = item.link || '';
-            if (link) {
-              const u = new URL(link.startsWith('//') ? `https:${link}` : link);
-              u.searchParams.set('episode', String(episodeNum));
-              foundIframe = u.toString();
-              break;
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    if (foundIframe) {
-      const iframeRes = await fetch(foundIframe, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': 'https://shikimori.one/'
-        },
-        signal: AbortSignal.timeout(4000)
-      }).catch(() => null);
-
-      if (iframeRes && iframeRes.ok) {
-        const html = await iframeRes.text();
-        const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*"([^"]+)"/);
-        const hashMatch = html.match(/\.hash\s*=\s*'([^']+)'/) || html.match(/\.hash\s*=\s*"([^"]+)"/);
-        const idMatch = html.match(/\.id\s*=\s*'([^']+)'/) || html.match(/\.id\s*=\s*"([^"]+)"/);
-        const typeMatch = html.match(/\.type\s*=\s*'([^']+)'/) || html.match(/\.type\s*=\s*"([^"]+)"/);
-
-        if (urlParamsMatch && hashMatch && idMatch && typeMatch) {
-          const urlParams = JSON.parse(urlParamsMatch[1]);
-          const videoHash = hashMatch[1];
-          const videoId = idMatch[1];
-          const videoType = typeMatch[1];
-          const host = new URL(foundIframe).host;
-
-          const gboxRes = await fetch(`https://${host}/gbox`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': foundIframe
-            },
-            body: new URLSearchParams({
-              hash: videoHash,
-              id: videoId,
-              type: videoType,
-              d: urlParams.d || 'kodik.info',
-              d_sign: urlParams.d_sign || '',
-              pd: urlParams.pd || '',
-              pd_sign: urlParams.pd_sign || '',
-              ref: '',
-              ref_sign: '',
-              bad_user: 'true',
-              cdn_is_working: 'true'
-            }).toString(),
-            signal: AbortSignal.timeout(4000)
-          }).catch(() => null);
-
-          if (gboxRes && gboxRes.ok) {
-            const gboxData = await gboxRes.json() as any;
-            if (gboxData && gboxData.links) {
-              const quals = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a);
-              const topQual = quals[0] || 720;
-              const linkArr = gboxData.links[String(topQual)] || gboxData.links[quals[0]];
-              if (linkArr && linkArr.length > 0) {
-                const rawSrc = linkArr[0].src;
-                const decryptedUrl = rawSrc.includes('mp4:hls:manifest') ? rawSrc : decodeKodikUrl(rawSrc);
-                const finalUrl = decryptedUrl.startsWith('//') ? `https:${decryptedUrl}` : decryptedUrl;
-
-                return new Response(`#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"\n${finalUrl}`, {
-                  headers: { 'Content-Type': 'application/x-mpegURL', 'Access-Control-Allow-Origin': '*' }
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch (_) {}
-
-  return null;
-}
-
-function getErrorHlsResponse(reason = 'Stream unavailable') {
-  return new Response(
-    `#EXTM3U\n#EXT-X-ERROR:${encodeURIComponent(reason)}\n`,
-    {
-      status: 502,
-      headers: {
-        'Content-Type': 'application/x-mpegURL',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Error-Reason': reason
-      }
-    }
-  );
-}
-
-app.post('/api/get-stream', async (c) => {
-  try {
-    const body = await c.req.json().catch(() => ({}));
-    const movieId = body.movieId || body.movie_id || body.id;
-    const tokenMovie = body.tokenMovie || body.token_movie || body.token;
-    const host = body.host || 'larkin-as.stravers.live';
-    const season = String(body.season || '1');
-    const episode = String(body.episode || '1');
-    const translation = body.translation ? String(body.translation) : undefined;
-
-    if (!tokenMovie && !movieId) {
-      return c.json({ error: 'movieId or tokenMovie is required' }, 400);
-    }
-
-    const handshakeResult = await executeAllohaHandshake({
-      host,
-      tokenMovie: tokenMovie || '',
-      movieId: movieId ? String(movieId) : undefined,
-      season,
-      episode,
-      translation
-    });
-
-    if (handshakeResult.manifestUrl) {
-      return c.json({
-        manifestUrl: handshakeResult.manifestUrl,
-        streamToken: handshakeResult.authorizations?.replace('Bearer ', '') || '',
-        acceptsControls: handshakeResult.acceptsControls || '',
-        referer: handshakeResult.referer,
-        origin: handshakeResult.origin,
-        logs: handshakeResult.logs
-      });
-    }
-
-    return c.json({
-      error: 'Failed to extract video stream via Borth handshake',
-      logs: handshakeResult.logs
-    }, 404);
-  } catch (error: any) {
-    console.error('[API GET-STREAM ERR]', error);
-    return c.json({ error: error.message || 'Handshake failed' }, 500);
-  }
-});
-
 app.get('/api/media/playlist', async (c) => {
   const urlParam = c.req.query('url');
-  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
-  const targetQuality = c.req.query('quality');
-  const isDirect = c.req.query('direct') !== 'false';
-  const shikiIdQuery = c.req.query('shikimori_id') || c.req.query('shiki_id') || c.req.query('anime_id') || c.req.query('animeId') || c.req.query('id');
   if (!urlParam) {
-    if (shikiIdQuery) {
-      const epNum = parseInt(c.req.query('episode') || '1') || 1;
-      const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, epNum, targetQuality);
-      if (directAnimeHls) return directAnimeHls;
-    }
     return c.json({ error: 'url parameter is required' }, 400);
   }
 
   try {
     let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-    console.log(`[MEDIA PROXY] Extracting playlist from: ${iframeUrl}`);
+    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
+    console.log(`[KODIK PROXY] Extracting playlist from: ${iframeUrl}`);
 
-    // --- 0. Direct M3U8 Fetch & Rewrite (for sub-playlists or direct stream URLs) ---
-    const isDirectM3u8 = iframeUrl.toLowerCase().includes('.m3u8') || iframeUrl.toLowerCase().includes('/manifest') || c.req.query('is_manifest') === 'true';
-    if (isDirectM3u8) {
-      try {
-        const u = new URL(iframeUrl);
-        const customReferer = c.req.query('ref');
-        const authHeader = c.req.query('auth');
-        const controlsHeader = c.req.query('controls');
-        const referer = customReferer || `https://${u.host}/`;
-
-        const fetchHeaders: Record<string, string> = {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-          'Referer': referer,
-          'Origin': customReferer ? new URL(customReferer).origin : `https://${u.host}`,
-          'Accept': '*/*'
-        };
-        if (authHeader) fetchHeaders['Authorizations'] = authHeader;
-        if (controlsHeader) fetchHeaders['Accepts-Controls'] = controlsHeader;
-
-        let directRes = await fetch(iframeUrl, { headers: fetchHeaders, signal: AbortSignal.timeout(6000) }).catch(() => null);
-        
-        // Retry with clean standard headers if first attempt failed
-        if (!directRes || !directRes.ok) {
-          directRes = await fetch(iframeUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-              'Referer': iframeUrl.includes('kodik') ? 'https://kodik.info/' : `https://${u.host}/`,
-              'Accept': '*/*'
-            },
-            signal: AbortSignal.timeout(6000)
-          }).catch(() => null);
-        }
-
-        if (directRes && directRes.ok) {
-          const m3u8Text = await directRes.text();
-          if (m3u8Text && m3u8Text.trim().startsWith('#EXTM3U')) {
-            const baseUrl = iframeUrl.substring(0, iframeUrl.lastIndexOf('/') + 1);
-            let extraParams = '';
-            if (authHeader) extraParams += `&auth=${encodeURIComponent(authHeader)}`;
-            if (controlsHeader) extraParams += `&controls=${encodeURIComponent(controlsHeader)}`;
-            if (customReferer) extraParams += `&ref=${encodeURIComponent(customReferer)}`;
-            if (shikiIdQuery) extraParams += `&shikimori_id=${encodeURIComponent(shikiIdQuery)}`;
-
-            const proxyUrlBase = `${getProxyOrigin(c)}/api/media/segment?url=`;
-
-            const lines = m3u8Text.replace(/\r/g, '').split('\n');
-            const rewrittenLines = lines.map(line => {
-              const trimmed = line.trim();
-              if (!trimmed || trimmed.startsWith('#')) return line;
-              let absUrl = trimmed;
-              if (!trimmed.startsWith('http')) {
-                absUrl = trimmed.startsWith('/') ? new URL(trimmed, iframeUrl).toString() : baseUrl + trimmed;
-              }
-              if (absUrl.toLowerCase().includes('.m3u8')) {
-                return `${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(absUrl)}&direct=${isDirect ? 'true' : 'false'}${extraParams}`;
-              }
-              if (isDirect) {
-                return absUrl;
-              }
-              return `${proxyUrlBase}${encodeURIComponent(absUrl)}${extraParams}`;
-            });
-
-            return new Response(rewrittenLines.join('\n'), {
-              status: 200,
-              headers: {
-                'Content-Type': 'application/x-mpegURL',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': '*',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-              }
-            });
-          }
-        }
-
-        // If direct fetch from backend failed but client direct mode is enabled, 302 redirect client directly to URL
-        if (isDirect && iframeUrl.startsWith('http')) {
-          console.log(`[MEDIA PROXY] Direct M3U8 redirecting client to: ${iframeUrl}`);
-          return c.redirect(iframeUrl, 302);
-        }
-      } catch (directM3u8Err: any) {
-        console.error('[MEDIA PROXY] Direct M3U8 fetch failed:', directM3u8Err.message);
-        if (isDirect && iframeUrl.startsWith('http')) {
-          return c.redirect(iframeUrl, 302);
-        }
+    // 1. Fetch iframe page
+    const iframeRes = await fetch(iframeUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Referer': 'https://shikimori.one/'
       }
-    }
-
-    // --- 1. AniLibria Direct 1080p HLS Extraction ---
-    if (iframeUrl.includes('anilibria.tv') || iframeUrl.includes('anilibria.top')) {
-      try {
-        const u = new URL(iframeUrl);
-        const relId = u.searchParams.get('id') || u.searchParams.get('code');
-        const episodeNum = parseInt(u.searchParams.get('episode') || '1') || 1;
-
-        if (relId) {
-          const apiRes = await fetch(`https://api.anilibria.tv/v3/title?id=${relId}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-          });
-          if (apiRes.ok) {
-            const data = await apiRes.json() as any;
-            if (data?.player?.list) {
-              const epData = data.player.list[String(episodeNum)] || data.player.list['1'] || Object.values(data.player.list)[0];
-              if (epData && epData.hls) {
-                const host = data.player.host || 'cache.libria.fun';
-                const fhd = epData.hls.fhd ? (epData.hls.fhd.startsWith('http') ? epData.hls.fhd : `https://${host}${epData.hls.fhd}`) : null;
-                const hd = epData.hls.hd ? (epData.hls.hd.startsWith('http') ? epData.hls.hd : `https://${host}${epData.hls.hd}`) : null;
-                const sd = epData.hls.sd ? (epData.hls.sd.startsWith('http') ? epData.hls.sd : `https://${host}${epData.hls.sd}`) : null;
-
-                const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
-                if (fhd) {
-                  masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`);
-                  masterLines.push(fhd);
-                }
-                if (hd) {
-                  masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,NAME="720p"`);
-                  masterLines.push(hd);
-                }
-                if (sd) {
-                  masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480,NAME="480p"`);
-                  masterLines.push(sd);
-                }
-
-                c.header('Content-Type', 'text/plain; charset=utf-8');
-                c.header('Access-Control-Allow-Origin', '*');
-                return c.text(masterLines.join('\n'));
-              }
-            }
-          }
-        }
-      } catch (anilibriaErr) {
-        console.error('[MEDIA PROXY] AniLibria extraction failed:', anilibriaErr);
-      }
-    }
-
-    // --- 2. Collaps / Alloha / Stravers / Ortified / Bhcesh / VideoCDN / Bazon HLS Extraction & Proxy ---
-    const isKodik = iframeUrl.includes('kodik') || iframeUrl.includes('vazha') || iframeUrl.includes('aniqit');
-    const isAniLibria = iframeUrl.includes('anilibria');
-
-    if (!isKodik && !isAniLibria) {
-      const sourceHost = new URL(iframeUrl).host;
-      const refererHeader = (iframeUrl.includes('collaps') || iframeUrl.includes('ortified'))
-        ? 'https://apicollaps.cc/'
-        : ((iframeUrl.includes('alloha') || iframeUrl.includes('stravers') || iframeUrl.includes('apbugall'))
-          ? iframeUrl
-          : `https://${sourceHost}/`);
-
-      const { m3u8Url, headers: extraHeaders, logs } = await extractBalancersM3u8(iframeUrl, clientIp);
-      console.log(`[MEDIA PROXY DECODER LOGS for ${sourceHost}]:\n${logs.join('\n')}`);
-
-      if (m3u8Url) {
-        console.log(`[MEDIA PROXY] Successfully extracted m3u8 stream from ${sourceHost}: ${m3u8Url}`);
-        
-        const fetchHeaders: Record<string, string> = {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-          'Referer': extraHeaders?.['Referer'] || refererHeader,
-          'Origin': extraHeaders?.['Origin'] || `https://${sourceHost}`,
-          'X-Forwarded-For': clientIp || '',
-          'X-Real-IP': clientIp || '',
-          'Client-IP': clientIp || ''
-        };
-        if (extraHeaders?.['Authorizations']) {
-          fetchHeaders['Authorizations'] = extraHeaders['Authorizations'];
-        }
-        if (extraHeaders?.['Accepts-Controls']) {
-          fetchHeaders['Accepts-Controls'] = extraHeaders['Accepts-Controls'];
-        }
-
-        // Fetch the actual .m3u8 playlist from CDN
-        const playlistRes = await fetch(m3u8Url, {
-          headers: fetchHeaders
-        });
-
-        if (playlistRes.ok) {
-          const playlistText = await playlistRes.text();
-          if (playlistText && playlistText.trim().startsWith('#EXTM3U')) {
-            const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf('/') + 1);
-            
-            let extraParams = '';
-            if (extraHeaders?.['Authorizations']) {
-              extraParams += `&auth=${encodeURIComponent(extraHeaders['Authorizations'])}`;
-            }
-            if (extraHeaders?.['Accepts-Controls']) {
-              extraParams += `&controls=${encodeURIComponent(extraHeaders['Accepts-Controls'])}`;
-            }
-            if (extraHeaders?.['Referer']) {
-              extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
-            }
-            if (shikiIdQuery) {
-              extraParams += `&shikimori_id=${encodeURIComponent(shikiIdQuery)}`;
-            }
-
-            const proxyUrlBase = `${getProxyOrigin(c)}/api/media/segment?url=`;
-
-            const lines = playlistText.replace(/\r/g, '').split('\n');
-            const rewrittenLines = lines.map(line => {
-              const trimmed = line.trim();
-              if (!trimmed || trimmed.startsWith('#')) return line;
-              let absUrl = trimmed;
-              if (!trimmed.startsWith('http')) {
-                absUrl = trimmed.startsWith('/') ? new URL(trimmed, m3u8Url).toString() : baseUrl + trimmed;
-              }
-              // If it's a sub-playlist (.m3u8), we MUST proxy it through `/api/media/playlist` to inject headers
-              if (absUrl.toLowerCase().includes('.m3u8')) {
-                return `${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(absUrl)}&direct=${isDirect ? 'true' : 'false'}${extraParams}`;
-              }
-              if (isDirect) {
-                return absUrl;
-              }
-              return `${proxyUrlBase}${encodeURIComponent(absUrl)}${extraParams}`;
-            });
-
-            return new Response(rewrittenLines.join('\n'), {
-              status: 200,
-              headers: {
-                'Content-Type': 'application/x-mpegURL',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': '*',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-              }
-            });
-          }
-        }
-
-        // Fallback if playlist fetch failed: return master playlist pointing to extracted URL
-        let extraParams = '';
-        if (extraHeaders?.['Authorizations']) extraParams += `&auth=${encodeURIComponent(extraHeaders['Authorizations'])}`;
-        if (extraHeaders?.['Accepts-Controls']) extraParams += `&controls=${encodeURIComponent(extraHeaders['Accepts-Controls'])}`;
-        if (extraHeaders?.['Referer']) extraParams += `&ref=${encodeURIComponent(extraHeaders['Referer'])}`;
-
-        const masterLines = [
-          '#EXTM3U',
-          '#EXT-X-VERSION:3',
-          `#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,NAME="1080p"`,
-          `${getProxyOrigin(c)}/api/media/segment?url=${encodeURIComponent(m3u8Url)}${extraParams}`
-        ];
-        c.header('Content-Type', 'application/x-mpegURL');
-        c.header('Access-Control-Allow-Origin', '*');
-        return c.text(masterLines.join('\n'));
-      }
-
-      // If direct extraction for Alloha/Collaps/Balancer returned null, attempt fallback stream resolution
-      console.log(`[MEDIA PROXY] Balancer stream extraction for ${sourceHost} completed. Switching to fallback stream resolution...`);
-      
-      let ep = '1';
-      const epMatch = iframeUrl.match(/[?&]episode=(\d+)/);
-      if (epMatch) ep = epMatch[1];
-
-      let shikiId = shikiIdQuery || '';
-      let kpId = '';
-      if (!shikiId) {
-        const shikiMatch = iframeUrl.match(/\/(?:anime|shikimori)\/(\d+)/);
-        if (shikiMatch) shikiId = shikiMatch[1];
-      }
-      const kpMatch = iframeUrl.match(/\/(?:kp|embed)\/(\d+)/);
-      if (kpMatch && !shikiId) kpId = kpMatch[1];
-
-      // 1. Try resolving AniLibria 1080p stream directly if Shikimori ID is available
-      if (shikiId) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiId, parseInt(ep) || 1, targetQuality);
-        if (directAnimeHls) {
-          console.log(`[MEDIA PROXY] Successfully resolved direct anime stream via AniLibria for Shikimori ID ${shikiId}`);
-          return directAnimeHls;
-        }
-      }
-
-      if (shikiId) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiId, parseInt(ep) || 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
-      }
-      return getErrorHlsResponse('Stream extraction unavailable for balancer');
-    }
-
-    // --- 3. Kodik Extraction ---
-    try {
-      // 1. Fetch iframe page with domain fallback
-      let html = '';
-      const candidateDomains = [
-        new URL(iframeUrl).host,
-        'kodikplayer.com',
-        'kodik.info',
-        'kodik.biz',
-        'aniqit.com'
-      ];
-
-      for (const domain of candidateDomains) {
-        try {
-          const testUrl = new URL(iframeUrl);
-          testUrl.host = domain;
-          const iframeRes = await fetch(testUrl.toString(), {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-              'Referer': 'https://shikimori.one/'
-            },
-            signal: AbortSignal.timeout(4000)
-          });
-          if (iframeRes.ok) {
-            const bodyText = await iframeRes.text();
-            if (bodyText.includes('urlParams') || bodyText.includes('.hash')) {
-              html = bodyText;
-              iframeUrl = testUrl.toString();
-              break;
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (!html) {
-        if (shikiIdQuery) {
-          const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-          if (directAnimeHls) return directAnimeHls;
-        }
-        return getErrorHlsResponse('Kodik HTML unavailable');
-      }
+    });
+    const html = await iframeRes.text();
 
     // 2. Extract parameters
     const urlParamsMatch = html.match(/urlParams\s*=\s*'([^']+)'/) || html.match(/urlParams\s*=\s*"([^"]+)"/) || html.match(/urlParams\s*=\s*({[^;]+})/);
@@ -2869,12 +2265,8 @@ app.get('/api/media/playlist', async (c) => {
     const typeMatch = html.match(/\.type\s*=\s*'([^']+)'/) || html.match(/\.type\s*=\s*"([^"]+)"/) || html.match(/\.type\s*=\s*['"]([^'"]+)['"]/);
 
     if (!urlParamsMatch || !hashMatch || !idMatch || !typeMatch) {
-      console.warn('[KODIK PROXY] Could not parse iframe parameters directly.');
-      if (shikiIdQuery) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
-      }
-      return getErrorHlsResponse('Invalid Kodik parameters');
+      console.error('[KODIK PROXY] Failed to parse iframe params');
+      return c.json({ error: 'Failed to parse iframe parameters. Stream might be offline.' }, 500);
     }
 
     const urlParams = JSON.parse(urlParamsMatch[1]);
@@ -2925,11 +2317,7 @@ app.get('/api/media/playlist', async (c) => {
                       scriptHtml.match(/atob\("([^"'\(\)]+)"\)/);
     if (!ajaxMatch) {
       console.error('[KODIK PROXY] Gbox ajax match failed');
-      if (shikiIdQuery) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
-      }
-      return getErrorHlsResponse('Gbox match failed');
+      return c.json({ error: 'Could not extract player API script' }, 500);
     }
 
     const gboxPath = atob(ajaxMatch[1]);
@@ -2963,14 +2351,17 @@ app.get('/api/media/playlist', async (c) => {
     const gboxData = await gboxRes.json() as any;
     if (!gboxData || !gboxData.links) {
       console.error('[KODIK PROXY] Gbox returned no links', gboxData);
-      if (shikiIdQuery) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
-      }
-      return getErrorHlsResponse('No links returned by Gbox');
+      return new Response('Error: Failed to retrieve stream links from Kodik', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
     }
 
     // 5. Build dynamic Master Playlist or yield single-quality playlist based on query parameters
+    const targetQuality = c.req.query('quality');
     const qualities = Object.keys(gboxData.links).map(Number).sort((a,b) => b - a); // descending quality: 720, 480, 360
 
     if (c.req.query('resolve') === 'true') {
@@ -2997,35 +2388,22 @@ app.get('/api/media/playlist', async (c) => {
       });
     }
 
-    if (!targetQuality && qualities.length > 0) {
+    if (!targetQuality && qualities.length > 1) {
       console.log(`[KODIK PROXY] Building Master Playlist for available qualities: ${qualities.join(', ')}`);
       const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
       
-      const hasExplicit1080 = qualities.includes(1080);
-      const topQual = qualities[0];
-
-      // Provide 1080p Full HD master tier if explicitly available or if top tier is HD source (720/1080)
-      if (hasExplicit1080) {
-        masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`);
-        masterLines.push(`${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=1080${isDirect ? '' : '&direct=false'}${shikiIdQuery ? `&shikimori_id=${encodeURIComponent(shikiIdQuery)}` : ''}`);
-      } else if (topQual >= 720) {
-        masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1920x1080,NAME="1080p"`);
-        masterLines.push(`${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${topQual}${isDirect ? '' : '&direct=false'}${shikiIdQuery ? `&shikimori_id=${encodeURIComponent(shikiIdQuery)}` : ''}`);
-      }
-
       qualities.forEach(q => {
-        if (q === 1080) return; // already added above
         let width = 1280, height = 720, bandwidth = 2200000;
         if (q === 480) {
           width = 854; height = 480; bandwidth = 1100000;
         } else if (q === 360) {
           width = 640; height = 360; bandwidth = 600000;
-        } else if (q === 720) {
-          width = 1280; height = 720; bandwidth = 2200000;
+        } else if (q === 1080) {
+          width = 1920; height = 1080; bandwidth = 4500000;
         }
         
         masterLines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height},NAME="${q}p"`);
-        masterLines.push(`${getProxyOrigin(c)}/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}${isDirect ? '' : '&direct=false'}${shikiIdQuery ? `&shikimori_id=${encodeURIComponent(shikiIdQuery)}` : ''}`);
+        masterLines.push(`/api/media/playlist?url=${encodeURIComponent(iframeUrl)}&quality=${q}`);
       });
 
       return new Response(masterLines.join('\n'), {
@@ -3043,11 +2421,13 @@ app.get('/api/media/playlist', async (c) => {
     const selectedQual = targetQuality || String(qualities[0] || 720);
     const listSources = gboxData.links[selectedQual] || gboxData.links[String(qualities[0] || 720)];
     if (!listSources || listSources.length === 0) {
-      if (shikiIdQuery) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
-      }
-      return getErrorHlsResponse('Selected quality source not found');
+      return new Response('Error: No video stream matches found for target quality', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
     }
 
     const rawSrc = listSources[0].src;
@@ -3058,35 +2438,38 @@ app.get('/api/media/playlist', async (c) => {
     console.log(`[KODIK PROXY] Fetched decrypted stream. Base HLS: ${playlistUrl}`);
 
     // 6. Fetch the actual M3U8 file contents
-    let m3u8Res = await fetch(playlistUrl, {
+    const m3u8Res = await fetch(playlistUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-        'Referer': 'https://kodik.info/',
-        'Origin': 'https://kodik.info',
-        'Accept': '*/*'
-      },
-      signal: AbortSignal.timeout(6000)
-    }).catch(() => null);
-
-    if (!m3u8Res || !m3u8Res.ok) {
-      console.error(`[KODIK PROXY] Failed to fetch M3U8 from upstream Kodik`);
-      if (shikiIdQuery) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://kodik.info/'
       }
-      return getErrorHlsResponse('Failed to fetch M3U8 from Kodik');
+    });
+
+    if (!m3u8Res.ok) {
+      console.error(`[KODIK PROXY] Failed to fetch M3U8, status: ${m3u8Res.status}`);
+      return new Response(`Error: Kodik manifest loading failed with status ${m3u8Res.status}`, {
+        status: m3u8Res.status,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
     }
 
     const m3u8Text = await m3u8Res.text();
 
     // Validation: Ensure the playlist starts with #EXTM3U (not HTML error or blank page)
     if (!m3u8Text || !m3u8Text.trim().startsWith('#EXTM3U')) {
-      console.error(`[KODIK PROXY ERROR] Manifest from Kodik is empty or invalid.`);
-      if (shikiIdQuery) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
-      }
-      return getErrorHlsResponse('Invalid M3U8 manifest from Kodik');
+      console.error(`[KODIK PROXY ERROR] Manifest from Kodik is empty or invalid. Res length: ${m3u8Text?.length || 0}. Starts with:`, m3u8Text ? m3u8Text.slice(0, 500) : "empty");
+      return new Response('Error: Proxy loaded an invalid M3U8 manifest from Kodik. The source might be blocking or offline.', {
+        status: 502,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': '*'
+        }
+      });
     }
 
     // 7. Rewrite chunk entries in M3U8
@@ -3110,10 +2493,7 @@ app.get('/api/media/playlist', async (c) => {
           : m3u8Base + trimmed;
       }
 
-      // Add segment proxy URL if not direct
-      if (isDirect) {
-        return absSegmentUrl;
-      }
+      // Add segment proxy URL
       return `${proxyUrlBase}${encodeURIComponent(absSegmentUrl)}`;
     });
 
@@ -3129,87 +2509,18 @@ app.get('/api/media/playlist', async (c) => {
          'Cache-Control': 'no-cache, no-store, must-revalidate',
        }
     });
-    } catch (kodikErr: any) {
-      console.error('[KODIK PROXY ERROR]', kodikErr);
-      if (shikiIdQuery) {
-        const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-        if (directAnimeHls) return directAnimeHls;
-      }
-      return getErrorHlsResponse('Kodik extraction error');
-    }
 
   } catch (error: any) {
-    console.error('[MEDIA PROXY ERROR]', error);
-    if (shikiIdQuery) {
-      const directAnimeHls = await resolveAnimeHlsDirect(shikiIdQuery, 1, targetQuality);
-      if (directAnimeHls) return directAnimeHls;
-    }
-    return getErrorHlsResponse('Media proxy general error');
-  }
-});
-
-app.get('/api/media/skips', async (c) => {
-  const urlParam = c.req.query('url');
-  const clientIp = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '';
-  if (!urlParam) {
-    return c.json({ skips: null });
-  }
-
-  try {
-    let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
-    iframeUrl = iframeUrl.replace(/(kodik\.info|kodik\.cc|kodik\.biz|kodik\.net|kodik\.tv|kodik\.club|kodik\.site|kodik\.space|kodik\.ru|kodikonline\.com|kodikhd\.club|kodik-api\.com)/g, 'kodikplayer.com');
-
-    const iframeRes = await fetch(iframeUrl, {
+    console.error('[KODIK PROXY ERROR]', error);
+    return new Response('Error: Failed to compile streaming proxy playlist. ' + error.message, {
+      status: 500,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Referer': 'https://shikimori.one/'
+        'Content-Type': 'text/plain',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
       }
     });
-    const html = await iframeRes.text();
-
-    const parseTime = (str: string) => {
-      const parts = str.split(':').map(Number);
-      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-      if (parts.length === 2) return parts[0] * 60 + parts[1];
-      return parts[0] || 0;
-    };
-
-    let opening: [number, number] | null = null;
-    let ending: [number, number] | null = null;
-
-    const skipBtnMatch = html.match(/parseSkipButton\s*\(\s*["\x27]([^"\x27]+)["\x27]/i) ||
-                         html.match(/"skip_button"\s*:\s*"([^"]+)"/i);
-    if (skipBtnMatch) {
-      const raw = skipBtnMatch[1];
-      const parts = raw.split(',');
-      for (const part of parts) {
-        const match = part.trim().match(/^(?:\[([^\]]+)\])?\s*([0-9:]+)-([0-9:]+)$/i);
-        if (match) {
-          const type = (match[1] || '').toLowerCase();
-          const start = parseTime(match[2]);
-          const end = parseTime(match[3]);
-          if (type.includes('open') || type.includes('intro') || (!type && start < 300)) {
-            opening = [start, end];
-          } else if (type.includes('end') || type.includes('credit') || (!type && start >= 300)) {
-            ending = [start, end];
-          }
-        }
-      }
-    }
-
-    c.header('Access-Control-Allow-Origin', '*');
-    c.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    c.header('Access-Control-Allow-Headers', '*');
-    return c.json({
-      success: true,
-      skips: {
-        opening,
-        ending
-      }
-    });
-  } catch (err: any) {
-    c.header('Access-Control-Allow-Origin', '*');
-    return c.json({ skips: null, error: err.message });
   }
 });
 
@@ -3232,24 +2543,7 @@ app.get('/api/media/segment', async (c) => {
 
   try {
     const segmentUrlObj = new URL(segmentUrl);
-    const customReferer = c.req.query('ref');
-    const authHeader = c.req.query('auth');
-    const controlsHeader = c.req.query('controls');
-    const referer = customReferer || `https://${segmentUrlObj.host}/`;
-
-    const reqHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-      'Referer': referer,
-      'Origin': customReferer ? new URL(customReferer).origin : `https://${segmentUrlObj.host}`,
-      'Accept': '*/*'
-    };
-
-    if (authHeader) {
-      reqHeaders['Authorizations'] = authHeader;
-    }
-    if (controlsHeader) {
-      reqHeaders['Accepts-Controls'] = controlsHeader;
-    }
+    const referer = `https://${segmentUrlObj.host}/` || 'https://kodik.info/';
 
     let response: Response | undefined;
     let attempts = 3;
@@ -3262,7 +2556,11 @@ app.get('/api/media/segment', async (c) => {
 
       try {
         response = await fetch(segmentUrl, {
-          headers: reqHeaders,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Referer': referer,
+            'Accept': '*/*'
+          },
           signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -3615,27 +2913,8 @@ app.get('/api/media/download/file', async (c) => {
 // WS Room Route (must be registered before SPA fallback)
 app.get('/ws/room', handleRoomWebSocket);
 
-// Static assets serving
-app.use('/assets/*', serveStatic({ root: './dist' }));
-app.use('/*', serveStatic({ root: './dist' }));
-
-// SPA Fallback for all navigation routes (e.g. /anime/:id, /catalog, etc.)
-app.get('*', async (c) => {
-  try {
-    const indexPath = path.join(process.cwd(), 'dist', 'index.html');
-    if (fs.existsSync(indexPath)) {
-      const html = await fs.promises.readFile(indexPath, 'utf-8');
-      return c.html(html, 200, {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      });
-    }
-  } catch (e: any) {
-    console.error('[SPA FALLBACK ERROR]', e?.message || e);
-  }
-  return c.text('Not found', 404);
-});
+// SPA Fallback
+app.get('*', serveStatic({ root: './dist' }));
 
 const isCloudflareEnvironment = typeof WebSocketPair !== 'undefined';
 

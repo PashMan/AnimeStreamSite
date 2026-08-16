@@ -31,14 +31,8 @@ async function fetchHentaiAnime() {
   // Fetching specifically rx rating or hentai genre (12)
   for (let page = 1; page <= 20; page++) {
       const url = `${SHIKIMORI_API}/animes?limit=50&rating=rx&page=${page}`;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3500);
       try {
-          const response = await fetch(url, { 
-            headers: { 'User-Agent': 'KamiAnimeBot' },
-            signal: controller.signal
-          });
-          clearTimeout(timer);
+          const response = await fetch(url, { headers: { 'User-Agent': 'KamiAnimeBot' } });
           if (!response.ok) break;
           const data = await response.json();
           if (!data || data.length === 0) break;
@@ -50,9 +44,8 @@ async function fetchHentaiAnime() {
           });
           hentaiUrls.push(...urls);
           process.stdout.write('.');
-          await delay(200);
+          await delay(500);
       } catch (e) {
-          clearTimeout(timer);
           break;
       }
   }

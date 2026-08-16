@@ -19,14 +19,7 @@ export interface KodikAnime {
   kinopoisk_id?: string;
 }
 
-export const KODIK_TOKENS = [
-  "b7cc4293ed475c4ad1fd599d114f4435",
-  "17cc4ee691bc251131a9041e6e89e78e",
-  "45c53578f11ecfb74e31267b634cc6a8",
-  "93699ec16dae9882a1705e4dfb12c7bb",
-  "1d643a758d41de5ccb2f66be4e3f421d"
-];
-export const KODIK_TOKEN = KODIK_TOKENS[0];
+export const KODIK_TOKEN = "a0457eb45312af80bbb9f3fb33de3e93";
 
 export const checkKodikAvailability = async (shikimoriIds: string[]): Promise<Set<string>> => {
   if (!shikimoriIds.length) return new Set();
@@ -35,7 +28,7 @@ export const checkKodikAvailability = async (shikimoriIds: string[]): Promise<Se
   
   const promises = shikimoriIds.map(async (id) => {
     try {
-      const url = `https://kodikapi.com/search?token=${KODIK_TOKEN}&shikimori_id=${id}`;
+      const url = `https://kodik-api.com/search?token=${KODIK_TOKEN}&shikimori_id=${id}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data?.results && data.results.length > 0) {
@@ -52,56 +45,43 @@ export const checkKodikAvailability = async (shikimoriIds: string[]): Promise<Se
 };
 
 export const fetchKodikData = async (shikimoriId: string, title?: string): Promise<KodikAnime[]> => {
-  const mirrors = ["https://kodikapi.com/search", "https://kodik-api.com/search", "https://kodik.info/search"];
-  
-  for (const mirror of mirrors) {
-    for (const token of KODIK_TOKENS) {
-      try {
-        let url = `${mirror}?token=${token}&shikimori_id=${shikimoriId}&with_episodes=true&with_material_data=true`;
-        let res = await fetch(url);
-        if (!res.ok) continue;
-        let data = await res.json();
+  try {
+     let url = `https://kodik-api.com/search?token=${KODIK_TOKEN}&shikimori_id=${shikimoriId}&with_episodes=true&with_material_data=true`;
+     let res = await fetch(url);
+     let data = await res.json();
 
-        if ((!data || !data.results?.length) && title) {
-          const cleanTitle = title.split('/')[0].trim();
-          url = `${mirror}?token=${token}&title=${encodeURIComponent(cleanTitle)}&with_episodes=true&with_material_data=true`;
-          res = await fetch(url);
-          if (res.ok) {
-            data = await res.json();
-          }
-        }
-        
-        if (data?.results && data.results.length > 0) {
-          const uniqueTranslations = new Map();
-          data.results.forEach((item: any) => {
-            const tId = item.translation?.id || item.translation?.title;
-            const trans = uniqueTranslations.get(tId);
-            if (!trans || (item.last_episode || 0) > (trans.last_episode || 0)) {
-              let link = item.link || '';
-              if (link.startsWith('//')) link = `https:${link}`;
-              uniqueTranslations.set(tId, {
+     if ((!data || !data.results?.length) && title) {
+        const cleanTitle = title.split('/')[0].trim();
+        url = `https://kodik-api.com/search?token=${KODIK_TOKEN}&title=${encodeURIComponent(cleanTitle)}&with_episodes=true&with_material_data=true`;
+        res = await fetch(url);
+        data = await res.json();
+     }
+     
+     if (!data?.results) return [];
+
+     const uniqueTranslations = new Map();
+     data.results.forEach((item: any) => {
+        const trans = uniqueTranslations.get(item.translation.id);
+        if (!trans || item.last_episode > trans.last_episode) {
+            uniqueTranslations.set(item.translation.id, {
                 id: item.id,
-                link: link,
-                translation: item.translation || { id: 0, title: 'Озвучка', type: 'voice' },
-                episodes_count: item.episodes_count || item.last_episode || 1,
-                last_episode: item.last_episode || item.episodes_count || 1,
+                link: item.link.replace(/^https?:\/\/[^\/]+/, "https://kodikplayer.com").replace(/^\/\/[^\/]+/, "https://kodikplayer.com"),
+                translation: item.translation,
+                episodes_count: item.episodes_count,
+                last_episode: item.last_episode,
                 screenshots: item.screenshots || [],
-                kinopoisk_id: item.kinopoisk_id,
-                quality: item.quality || '720p'
-              });
-            }
-          });
-
-          const result = Array.from(uniqueTranslations.values()).sort((a: any, b: any) => (b.last_episode || 0) - (a.last_episode || 0));
-          if (result.length > 0) return result;
+                kinopoisk_id: item.kinopoisk_id
+            });
         }
-      } catch (e) {
-        // Try next token / mirror
-      }
-    }
+     });
+
+     const result = Array.from(uniqueTranslations.values()).sort((a: any, b: any) => b.last_episode - a.last_episode);
+     return result;
+  } catch (e) {
+     console.error("Error in fetchKodikData:", e);
+     return [];
   }
-  return [];
-};
+}
 
 export interface KodikRecentUpdate {
   id: string;

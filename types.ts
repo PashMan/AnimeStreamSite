@@ -4,8 +4,6 @@ export interface Anime {
   slug?: string;
   title: string;
   originalName: string;
-  russian?: string;
-  name?: string;
   image: string;
   image_preview?: string;
   cover?: string;

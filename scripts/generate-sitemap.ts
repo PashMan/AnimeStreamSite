@@ -13,19 +13,15 @@ const __dirname = path.dirname(__filename);
 const SITE_URL = 'https://kamianime.club';
 const SHIKIMORI_API = 'https://shikimori.one/api';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 let supabase: any = null;
 
-if (supabaseUrl && supabaseKey && !supabaseUrl.includes('ulumbarwutnsodmzxpst')) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } catch (e: any) {
-    console.warn('Supabase initialization failed:', e.message || e);
-  }
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey);
 } else {
-  console.log('Skipping Supabase database routes (no active credentials).');
+  console.warn('Missing Supabase credentials, skipping database routes');
 }
 
 const staticRoutes = [
@@ -44,54 +40,48 @@ const staticRoutes = [
 // Helper to delay execution (to avoid rate limits)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const MAX_RETRIES = 1;
-const BASE_DELAY = 1000;
+const MAX_RETRIES = 5;
+const BASE_DELAY = 3000;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-let shikimoriReachable = true;
-
 async function fetchWithRetry(url: string, retries = 0): Promise<any> {
-    if (!shikimoriReachable && url.includes('shikimori.one')) {
-        return null;
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
     try {
         const response = await fetch(url, {
             headers: { 
                 'User-Agent': USER_AGENT,
                 'Accept': 'application/json'
-            },
-            signal: controller.signal
+            }
         });
-        clearTimeout(timer);
 
         if (response.ok) {
             return await response.json();
         }
 
         const status = response.status;
-        if (status === 403 || status === 429) {
-            console.warn(`\n[Sitemap] API returned ${status} for ${url}, skipping further external scraping.`);
-            if (url.includes('shikimori.one')) shikimoriReachable = false;
-            return null;
-        }
-
+        
         if (retries >= MAX_RETRIES) {
-            console.warn(`\n[Sitemap] Failed to fetch ${url} (Status: ${status}).`);
+            console.error(`\nFailed to fetch ${url} after ${MAX_RETRIES} retries. Status: ${status}`);
             return null;
         }
 
-        const delayTime = BASE_DELAY;
+        if (status === 429 || status === 403 || status >= 500) {
+            const delayTime = BASE_DELAY * Math.pow(2, retries);
+            console.warn(`\nRequest failed (${status}), retrying in ${delayTime}ms...`);
+            await delay(delayTime);
+            return fetchWithRetry(url, retries + 1);
+        }
+
+        console.error(`\nRequest failed with status ${status}`);
+        return null;
+    } catch (error) {
+        if (retries >= MAX_RETRIES) {
+            console.error(`\nFailed to fetch ${url} after ${MAX_RETRIES} retries. Error:`, error);
+            return null;
+        }
+        const delayTime = BASE_DELAY * Math.pow(2, retries);
+        console.warn(`\nRequest failed (error), retrying in ${delayTime}ms...`);
         await delay(delayTime);
         return fetchWithRetry(url, retries + 1);
-    } catch (error: any) {
-        clearTimeout(timer);
-        if (url.includes('shikimori.one')) {
-            console.warn(`\n[Sitemap] Shikimori unreachable from build environment (${error.message || error}). Skipping external scraping.`);
-            shikimoriReachable = false;
-        }
-        return null;
     }
 }
 
@@ -156,8 +146,8 @@ async function fetchTopAnime() {
       if (data) {
         dmcaBlocks = data.map((d: any) => d.anime_id);
       }
-    } catch (e: any) {
-      console.warn('Skipping dmca_blocks:', e.message || e);
+    } catch (e) {
+      console.error('Failed to fetch dmca_blocks', e);
     }
   }
 
@@ -183,43 +173,34 @@ async function fetchTopAnime() {
 async function fetchForumTopics() {
   if (!supabase) return [];
   console.log('Fetching forum topics...');
-  try {
-    const { data, error } = await supabase
-      .from('forum_topics')
-      .select('id')
-      .order('created_at', { ascending: false })
-      .limit(500);
-      
-    if (error) {
-        console.warn('Could not fetch forum topics:', error.message || error);
-        return [];
-    }
-    return (data || []).map((t: any) => `/forum/${t.id}`);
-  } catch (err: any) {
-    console.warn('Could not fetch forum topics:', err.message || err);
-    return [];
+  // Fetch more topics for better indexing
+  const { data, error } = await supabase
+    .from('forum_topics')
+    .select('id')
+    .order('created_at', { ascending: false })
+    .limit(500);
+    
+  if (error) {
+      console.error('Failed to fetch forum topics:', error);
+      return [];
   }
+  return (data || []).map((t: any) => `/forum/${t.id}`);
 }
 
 async function fetchClubs() {
   if (!supabase) return [];
   console.log('Fetching clubs...');
-  try {
-    const { data, error } = await supabase
-      .from('clubs')
-      .select('id')
-      .order('created_at', { ascending: false })
-      .limit(200);
-      
-    if (error) {
-        console.warn('Could not fetch clubs:', error.message || error);
-        return [];
-    }
-    return (data || []).map((c: any) => `/club/${c.id}`);
-  } catch (err: any) {
-    console.warn('Could not fetch clubs:', err.message || err);
-    return [];
+  const { data, error } = await supabase
+    .from('clubs')
+    .select('id')
+    .order('created_at', { ascending: false })
+    .limit(200);
+    
+  if (error) {
+      console.error('Failed to fetch clubs:', error);
+      return [];
   }
+  return (data || []).map((c: any) => `/club/${c.id}`);
 }
 
 async function fetchNews() {
