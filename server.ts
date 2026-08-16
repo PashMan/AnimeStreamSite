@@ -614,13 +614,12 @@ app.get('/api/balancer', async (c) => {
 
     // Build list of successfully resolved players
     const players: any[] = [];
-    if (kodik_iframe) {
-      players.push({ name: 'Kodik', iframe: kodik_iframe });
-    } else {
-      // Default placeholder just in case
-      players.push({ name: 'Kodik', iframe: null });
-    }
+    // Kodik temporarily hidden for Aniboom testing
+    // if (kodik_iframe) {
+    //   players.push({ name: 'Kodik', iframe: kodik_iframe });
+    // }
 
+    players.push({ name: 'Aniboom', iframe: 'https://aniboom.one/embed/7P9qko4qQ8v' });
     if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
     if (bhcesh_iframe) players.push({ name: 'Bhcesh', iframe: bhcesh_iframe });
     if (videocdn_iframe) players.push({ name: 'VideoCDN', iframe: videocdn_iframe });

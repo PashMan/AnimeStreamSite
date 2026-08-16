@@ -59,6 +59,20 @@ import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
 import { filterProfanity } from "../utils/profanity";
 
+const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
+  const num = epNum || 1;
+  const target = t?.aniboom_iframe || (t?.iframe && t.iframe.includes("aniboom") ? t.iframe : null) || defaultUrl || `https://aniboom.one/embed/7P9qko4qQ8v?episode=${num}&translation=16`;
+  if (!target) return null;
+  try {
+    const url = new URL(target.startsWith("//") ? `https:${target}` : target);
+    url.searchParams.set("episode", String(num));
+    return url.toString();
+  } catch (_) {
+    const sep = target.includes("?") ? "&" : "?";
+    return `${target}${sep}episode=${num}`;
+  }
+};
+
 const getResolvedKodikUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
   const num = epNum || 1;
   const target = t?.kodik_iframe || (t?.iframe && !t.iframe.includes("collaps") && !t.iframe.includes("ortified") ? t.iframe : null) || defaultUrl;
@@ -404,7 +418,7 @@ const Details: React.FC = () => {
     const ep = paramEpisode || "1";
     const tr = selectedTranslation?.title || selectedTranslation?.author || "По умолчанию";
     if (selectedPlayer === "KamiPlayer") {
-      console.log(`🎬 [Player Engine] ACTIVE PLAYER: KamiPlayer (Кастомный Artplayer) | Источник: Kodik HLS Stream Parser | Серия: ${ep} | Озвучка: ${tr}`);
+      console.log(`🎬 [Player Engine] ACTIVE PLAYER: KamiPlayer (Кастомный Artplayer) | Источник: Aniboom HLS Stream Parser | Серия: ${ep} | Озвучка: ${tr}`);
     } else if (selectedPlayer === "Collaps") {
       console.log(`🎬 [Player Engine] ACTIVE PLAYER: Collaps Embed (/api/collaps/embed) | Источник: Collaps | Серия: ${ep} | Озвучка: ${tr}`);
     } else if (selectedPlayer === "Kodik") {
@@ -892,7 +906,8 @@ const Details: React.FC = () => {
             year.toString(),
           );
 
-          const playersList = data?.players || [];
+          // Filter out Kodik temporarily for Aniboom test
+          const playersList = (data?.players || []).filter((p) => p.name !== "Kodik");
           const translationsList = data?.kodik_translations || [];
 
           if (playersList.length > 0) {
@@ -1767,13 +1782,13 @@ const Details: React.FC = () => {
                                   ]
                                 : undefined;
                             } else {
-                              // For general anime, extract Kodik stream URL for KamiPlayer or Collaps fallback
+                              // Extract Aniboom stream URL for KamiPlayer (Kodik temporarily hidden for test)
                               const epNum = parseInt(paramEpisode || "1") || 1;
-                              const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
-                              const kodikStream = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
+                              const defaultAniboom = players.find((p) => p.name === "Aniboom")?.iframe;
+                              const aniboomStream = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
 
-                              if (kodikStream) {
-                                customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikStream)}`;
+                              if (aniboomStream) {
+                                customSrc = `/api/media/playlist?url=${encodeURIComponent(aniboomStream)}`;
                               } else {
                                 const defaultCollaps = players.find((p) => p.name === "Collaps")?.iframe;
                                 const collapsIframeUrl = getResolvedIframeUrl(selectedTranslation, epNum, defaultCollaps);
