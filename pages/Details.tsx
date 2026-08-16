@@ -1781,7 +1781,10 @@ const Details: React.FC = () => {
                         return (
                           <button
                             key={p.name}
-                            onClick={() => setSelectedPlayer(p.name)}
+                            onClick={() => {
+                              setSelectedPlayer(p.name);
+                              setPlayerViewMode("custom");
+                            }}
                             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 border ${
                               isSelected
                                 ? "bg-primary text-white border-primary shadow-lg shadow-primary/25"
@@ -1949,8 +1952,9 @@ const Details: React.FC = () => {
                                 src={targetIframeWithEpisode}
                                 title={`${selectedPlayer} Player`}
                                 className="w-full h-full border-0 bg-black"
-                                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                                allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope"
                                 allowFullScreen
+                                referrerPolicy="no-referrer"
                               />
                             );
                           }
@@ -1991,6 +1995,12 @@ const Details: React.FC = () => {
                               onPrevEpisode={handlePrevEp}
                               showInspectorBelow={showStreamInspector}
                               is1080Source={is1080Translation}
+                              onPlayerError={() => {
+                                console.warn("[PLAYER FALLBACK] Custom player encountered an error, switching to iframe view");
+                                if (targetIframeWithEpisode) {
+                                  setPlayerViewMode("iframe");
+                                }
+                              }}
                             />
                           );
                         })()

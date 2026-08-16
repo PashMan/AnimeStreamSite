@@ -759,6 +759,26 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     switch (data.type) {
                       case Hls.ErrorTypes.NETWORK_ERROR:
                         networkRetryCount++;
+                        if (data.details === "manifestLoadError" || data.details === "manifestParsingError") {
+                          if (networkRetryCount <= 1 && activeUrl.includes('/api/media/playlist') && !activeUrl.includes('direct=false')) {
+                            addLog("HLS", "Ошибка загрузки манифеста. Пробуем резервный прокси...", "warn");
+                            const separator = activeUrl.includes('?') ? '&' : '?';
+                            const fallbackUrl = `${activeUrl}${separator}direct=false`;
+                            activeUrl = fallbackUrl;
+                            hls.loadSource(fallbackUrl);
+                            hls.startLoad();
+                            break;
+                          } else {
+                            addLog("HLS", "Манифест недоступен. Переключаемся на резервный плеер...", "warn");
+                            if (artInstance && artInstance.notice) {
+                              artInstance.notice.show = "Поток недоступен. Переключение на плеер источника...";
+                            }
+                            if (onPlayerErrorRef.current) {
+                              onPlayerErrorRef.current();
+                            }
+                            break;
+                          }
+                        }
                         if (networkRetryCount <= 4) {
                           if (data.details === "levelLoadError" && hls.levels && hls.levels.length > 1) {
                             addLog("HLS", "Ошибка уровня HLS (levelLoadError). Пробуем другой доступный уровень...", "warn");

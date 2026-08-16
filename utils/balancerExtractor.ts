@@ -93,6 +93,35 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
       return { m3u8Url: null, logs, htmlLength: 0 };
     }
 
+    // Check for inner iframe (Alloha / Collaps / Balancer wrapper)
+    const innerIframeMatch = html.match(/<iframe\b[^>]*?\bsrc=["']([^"']+)["']/i);
+    if (innerIframeMatch && innerIframeMatch[1] && !innerIframeMatch[1].includes('recaptcha') && !innerIframeMatch[1].includes('about:blank')) {
+      let innerUrl = innerIframeMatch[1];
+      if (innerUrl.startsWith('//')) innerUrl = `https:${innerUrl}`;
+      else if (innerUrl.startsWith('/')) innerUrl = `https://${host}${innerUrl}`;
+      
+      logs.push(`[4.5] Found inner iframe: ${innerUrl}. Fetching inner player page...`);
+      try {
+        const innerRes = await fetch(innerUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': targetUrl
+          },
+          signal: AbortSignal.timeout(4000)
+        });
+        if (innerRes.ok) {
+          const innerTxt = await innerRes.text();
+          if (innerTxt && innerTxt.length > 50) {
+            logs.push(`[4.6] Successfully loaded inner iframe HTML (${innerTxt.length} bytes)`);
+            html = innerTxt + '\n' + html;
+            targetUrl = innerUrl;
+          }
+        }
+      } catch (innerErr: any) {
+        logs.push(`[4.6] Error loading inner iframe: ${innerErr.message}`);
+      }
+    }
+
     // Step A: Dean Edwards unpacker & String Decoders
     const unpacked = unpackDeanEdwards(html);
     if (unpacked.length > html.length) {

@@ -156,20 +156,10 @@ export async function onRequest(context: any) {
         iframeUrl = fallbackKodikUrl;
         console.log(`[CF BALANCER PROXY] Switched to Kodik fallback URL: ${iframeUrl}`);
       } else {
-        const proxyOrigin = getProxyOrigin(request);
-        const errorPlaylist = [
-          '#EXTM3U',
-          '#EXT-X-VERSION:3',
-          '#EXT-X-TARGETDURATION:10',
-          '#EXT-X-MEDIA-SEQUENCE:0',
-          '#EXTINF:10.0,',
-          `${proxyOrigin}/api/media/segment?error=stream_not_found`,
-          '#EXT-X-ENDLIST'
-        ];
-        return new Response(errorPlaylist.join('\n'), {
-          status: 200,
+        return new Response(JSON.stringify({ error: 'stream_not_found', message: 'Stream extraction unavailable for balancer' }), {
+          status: 404,
           headers: {
-            'Content-Type': 'application/x-mpegURL',
+            'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, OPTIONS',
             'Access-Control-Allow-Headers': '*',
