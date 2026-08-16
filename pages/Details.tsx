@@ -55,6 +55,7 @@ import { LazyRender } from "../components/LazyRender";
 import { usePlayerSync } from "../hooks/usePlayerSync";
 import { CustomPlayer, isTvDevice } from "../components/CustomPlayer";
 import { BrowserDownloadWidget } from "../components/BrowserDownloadWidget";
+import { AniboomDiagnostics, AniboomLogsState, DiagnosticStep } from "../components/AniboomDiagnostics";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
 import { filterProfanity } from "../utils/profanity";
@@ -248,6 +249,13 @@ const Details: React.FC = () => {
   const [isResolvingStream, setIsResolvingStream] = useState(false);
   const [streamResolutionError, setStreamResolutionError] = useState<string | null>(null);
 
+  // New Diagnostics State
+  const [aniboomLogs, setAniboomLogs] = useState<AniboomLogsState[]>([]);
+  const [serverSteps, setServerSteps] = useState<any[]>([]);
+  const [isCacheHit, setIsCacheHit] = useState(false);
+  const [bypassCacheNext, setBypassCacheNext] = useState(false);
+  const [resolveCounter, setResolveCounter] = useState(0);
+
   // Smoothly resolve AniBoom streams via the secure backend proxy/resolver
   useEffect(() => {
     const isSuzume = id === "50594" || id === "62568";
@@ -259,7 +267,6 @@ const Details: React.FC = () => {
     if (selectedPlayer !== "KamiPlayer (1080p)" || isNative1080) {
       setResolvedStream(null);
       setIsResolvingStream(false);
-      setStreamResolutionError(null);
       return;
     }
 
@@ -268,13 +275,70 @@ const Details: React.FC = () => {
       setIsResolvingStream(true);
       setStreamResolutionError(null);
       setResolvedStream(null);
+      setServerSteps([]);
+      setIsCacheHit(false);
+
+      const localLogs: AniboomLogsState[] = [];
+      const addLog = (stepName: string, status: "info" | "success" | "error", message: string, details?: any) => {
+        const timestamp = new Date().toLocaleTimeString();
+        const detailsStr = details ? (typeof details === 'object' ? JSON.stringify(details, null, 2) : String(details)) : undefined;
+        localLogs.push({ timestamp, step: stepName, status, message, details: detailsStr });
+        setAniboomLogs([...localLogs]);
+      };
 
       const epNum = parseInt(paramEpisode || "1") || 1;
       const defaultAniboom = players.find((p) => p.name === "Aniboom")?.iframe;
+
+      addLog(
+        "Инициализация",
+        "info",
+        `Запуск клиента-резолвера для Shikimori ID: ${id || "нет"}, Серия: ${epNum}, Озвучка: ${selectedTranslation?.title || "По умолчанию"}`
+      );
+
+      // Collect extensive telemetry about current selection states
+      const tAsAny = selectedTranslation as any;
+      const gatherTelemetry = {
+        shikimoriId: id,
+        episode: epNum,
+        selectedTranslation: tAsAny ? {
+          id: tAsAny.id,
+          title: tAsAny.title,
+          type: tAsAny.type,
+          iframeExcerpt: tAsAny.iframe ? tAsAny.iframe.substring(0, 50) + "..." : null,
+          hasAniboomIframe: !!tAsAny.aniboom_iframe,
+          aniboomIframeExcerpt: tAsAny.aniboom_iframe ? tAsAny.aniboom_iframe.substring(0, 50) + "..." : null
+        } : null,
+        availablePlayersCount: players.length,
+        availablePlayersList: players.map(p => ({
+          name: p.name,
+          hasIframe: !!p.iframe,
+          iframeType: p.iframe ? (p.iframe.includes("aniboom") ? "aniboom" : p.iframe.includes("kodik") ? "kodik" : "other") : "none"
+        })),
+        defaultAniboomFound: !!defaultAniboom,
+        defaultAniboomExcerpt: defaultAniboom ? defaultAniboom.substring(0, 50) + "..." : null
+      };
+
+      addLog(
+        "Сбор параметров", 
+        "info", 
+        "Выполняется глубокий анализ и сопоставление метаданных провайдеров...",
+        gatherTelemetry
+      );
+
       const aniboomStreamUrl = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
 
       if (!aniboomStreamUrl) {
         if (isCurrent) {
+          const failureTelemetry = {
+            ...gatherTelemetry,
+            reason: "Ни один из проверенных источников (selectedTranslation.aniboom_iframe, selectedTranslation.iframe, defaultAniboom) не содержал подстроку 'aniboom'."
+          };
+          addLog(
+            "Сбор параметров", 
+            "error", 
+            "Ссылка на плеер AniBoom не обнаружена в доступных источниках. Проверьте детали JSON.",
+            failureTelemetry
+          );
           setIsResolvingStream(false);
           setStreamResolutionError("Aniboom stream URL not found");
           handleAniboomFallback();
@@ -282,19 +346,48 @@ const Details: React.FC = () => {
         return;
       }
 
-      try {
-        console.log("🌐 [Aniboom Resolver] Initiating backend resolution:", aniboomStreamUrl);
-        const res = await fetch(`/api/media/aniboom/resolve?url=${encodeURIComponent(aniboomStreamUrl)}&shikimori_id=${id}&episode=${epNum}`);
-        if (!res.ok) {
-          throw new Error(`Server returned HTTP ${res.status}`);
+      addLog(
+        "Сбор параметров", 
+        "success", 
+        `Параметры успешно собраны. Ссылка: ${aniboomStreamUrl}`,
+        {
+          resolvedUrl: aniboomStreamUrl,
+          queryParameters: {
+            episode: epNum,
+            translation: "16 (стандарт)"
+          },
+          sourceUsed: tAsAny?.aniboom_iframe ? "translation.aniboom_iframe" : (tAsAny?.iframe && tAsAny.iframe.includes("aniboom") ? "translation.iframe" : "defaultAniboom")
         }
+      );
+
+      try {
+        const fetchUrl = `/api/media/aniboom/resolve?url=${encodeURIComponent(aniboomStreamUrl)}&shikimori_id=${id}&episode=${epNum}${bypassCacheNext ? "&nocache=true" : ""}`;
+        addLog("Запрос к бэкенду", "info", `Отправка GET-запроса к: ${fetchUrl}`);
+
+        const res = await fetch(fetchUrl);
+        
+        // Clear bypass flag for future changes
+        setBypassCacheNext(false);
+
         const data = await res.json();
+        
+        if (data.steps) {
+          setServerSteps(data.steps);
+        }
+        if (data.is_cache_hit !== undefined) {
+          setIsCacheHit(data.is_cache_hit);
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || `Server returned HTTP ${res.status}`);
+        }
+        
         if (!data.success || !data.url) {
           throw new Error(data.error || "No URL returned from resolver");
         }
 
         if (isCurrent) {
-          console.log("✅ [Aniboom Resolver] Successfully resolved stream:", data);
+          addLog("Воспроизведение", "success", `Поток получен: ${data.url.substring(0, 70)}... [Качество: ${data.quality || "1080p"}]`);
           setResolvedStream({
             url: data.url,
             streamType: data.stream_type || "hls",
@@ -305,6 +398,7 @@ const Details: React.FC = () => {
       } catch (err: any) {
         console.error("❌ [Aniboom Resolver] Error resolving stream:", err);
         if (isCurrent) {
+          addLog("Критический сбой", "error", `Сбой парсера: ${err.message || "Неизвестная ошибка"}`);
           setIsResolvingStream(false);
           setStreamResolutionError(err.message || "Failed to resolve stream");
           handleAniboomFallback();
@@ -337,7 +431,7 @@ const Details: React.FC = () => {
     return () => {
       isCurrent = false;
     };
-  }, [selectedPlayer, paramEpisode, selectedTranslation, id, players]);
+  }, [selectedPlayer, paramEpisode, selectedTranslation, id, players, resolveCounter]);
 
   // Auto scroll to active episode on change
   useEffect(() => {
@@ -2077,6 +2171,27 @@ const Details: React.FC = () => {
                     </>
                   )}
                 </div>
+
+                {/* Diagnostics Panel for AniBoom Stream Parser */}
+                {aniboomLogs.length > 0 && (
+                  <div className="mt-6">
+                    <AniboomDiagnostics
+                      logs={aniboomLogs}
+                      serverSteps={serverSteps}
+                      isResolving={isResolvingStream}
+                      error={streamResolutionError}
+                      resolvedUrl={resolvedStream?.url || null}
+                      isCacheHit={isCacheHit}
+                      activeEpisode={paramEpisode || "1"}
+                      activeTranslation={selectedTranslation?.title || "По умолчанию"}
+                      onRetry={() => {
+                        setSelectedPlayer("KamiPlayer (1080p)");
+                        setBypassCacheNext(true);
+                        setResolveCounter((prev) => prev + 1);
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* Voice Translations & Clean Episode List Widget */}
                 {anime && (
