@@ -6,6 +6,7 @@ import { makeRoomWebSocketHandler } from './utils/socketServer';
 import { upgradeWebSocket as nodeUpgradeWebSocket } from '@hono/node-server';
 import { upgradeWebSocket as cfUpgradeWebSocket } from 'hono/cloudflare-workers';
 import { extractBalancersM3u8 } from './utils/balancerExtractor';
+import { generateBorth, executeAllohaHandshake } from './utils/borthCrypto';
 import { decodeKodikUrl, decryptStreamUrl, extractStreamsFromPayload, parseQualitySources, selectBestStreamUrl } from './utils/streamDecryptor';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -2403,6 +2404,50 @@ function getErrorHlsResponse(reason = 'Stream unavailable') {
     }
   );
 }
+
+app.post('/api/get-stream', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const movieId = body.movieId || body.movie_id || body.id;
+    const tokenMovie = body.tokenMovie || body.token_movie || body.token;
+    const host = body.host || 'larkin-as.stravers.live';
+    const season = String(body.season || '1');
+    const episode = String(body.episode || '1');
+    const translation = body.translation ? String(body.translation) : undefined;
+
+    if (!tokenMovie && !movieId) {
+      return c.json({ error: 'movieId or tokenMovie is required' }, 400);
+    }
+
+    const handshakeResult = await executeAllohaHandshake({
+      host,
+      tokenMovie: tokenMovie || '',
+      movieId: movieId ? String(movieId) : undefined,
+      season,
+      episode,
+      translation
+    });
+
+    if (handshakeResult.manifestUrl) {
+      return c.json({
+        manifestUrl: handshakeResult.manifestUrl,
+        streamToken: handshakeResult.authorizations?.replace('Bearer ', '') || '',
+        acceptsControls: handshakeResult.acceptsControls || '',
+        referer: handshakeResult.referer,
+        origin: handshakeResult.origin,
+        logs: handshakeResult.logs
+      });
+    }
+
+    return c.json({
+      error: 'Failed to extract video stream via Borth handshake',
+      logs: handshakeResult.logs
+    }, 404);
+  } catch (error: any) {
+    console.error('[API GET-STREAM ERR]', error);
+    return c.json({ error: error.message || 'Handshake failed' }, 500);
+  }
+});
 
 app.get('/api/media/playlist', async (c) => {
   const urlParam = c.req.query('url');

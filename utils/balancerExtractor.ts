@@ -1,5 +1,6 @@
 // Shared Balancer Extractor Helper for Server and Cloudflare Functions
 import { decryptStreamUrl, extractStreamsFromPayload, unpackDeanEdwards } from './streamDecryptor';
+import { executeAllohaHandshake } from './borthCrypto';
 
 export { unpackDeanEdwards };
 
@@ -26,6 +27,57 @@ export async function extractBalancersM3u8(iframeUrl: string): Promise<{ m3u8Url
     const parsedUrl = new URL(targetUrl);
     const host = parsedUrl.host;
     logs.push(`[2] Target host identified: ${host}`);
+
+    // Check if URL belongs to Alloha / Yani / Stravers / Pljjalgo / Borth balancer
+    const tokenMovieParam = parsedUrl.searchParams.get('token_movie') || parsedUrl.searchParams.get('token');
+    const isAllohaFamily = targetUrl.includes('alloha') ||
+                           targetUrl.includes('stravers') ||
+                           targetUrl.includes('pljjalgo') ||
+                           targetUrl.includes('yani.tv') ||
+                           targetUrl.includes('apbugall') ||
+                           Boolean(tokenMovieParam && tokenMovieParam.length >= 20);
+
+    if (isAllohaFamily && tokenMovieParam) {
+      logs.push(`[2.1] Detected Alloha/Borth stream provider with token_movie: ${tokenMovieParam.slice(0, 8)}...`);
+      const episodeParam = parsedUrl.searchParams.get('episode') || parsedUrl.searchParams.get('ep') || '1';
+      const seasonParam = parsedUrl.searchParams.get('season') || '1';
+      const translationParam = parsedUrl.searchParams.get('translation') || undefined;
+      const movieIdParam = parsedUrl.searchParams.get('id') || parsedUrl.pathname.replace(/[^\d]/g, '') || undefined;
+
+      const handshakeResult = await executeAllohaHandshake({
+        host,
+        tokenMovie: tokenMovieParam,
+        movieId: movieIdParam,
+        season: seasonParam,
+        episode: episodeParam,
+        translation: translationParam
+      });
+
+      logs.push(...handshakeResult.logs);
+
+      if (handshakeResult.manifestUrl) {
+        logs.push(`[2.2] Alloha Borth Handshake succeeded with manifest: ${handshakeResult.manifestUrl}`);
+        const headers: Record<string, string> = {
+          'Referer': handshakeResult.referer || targetUrl,
+          'Origin': handshakeResult.origin || `https://${host}`
+        };
+        if (handshakeResult.authorizations) {
+          headers['Authorizations'] = handshakeResult.authorizations;
+        }
+        if (handshakeResult.acceptsControls) {
+          headers['Accepts-Controls'] = handshakeResult.acceptsControls;
+        }
+
+        return {
+          m3u8Url: handshakeResult.manifestUrl,
+          headers,
+          logs,
+          htmlLength: 0
+        };
+      } else {
+        logs.push(`[2.2] Borth handshake did not yield manifest, continuing with HTML scrapers...`);
+      }
+    }
 
     const referersToTry = [
       `https://${host}/`,
