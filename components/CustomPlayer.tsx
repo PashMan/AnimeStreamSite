@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, forwardRef, useState } from "react";
 import Artplayer from "artplayer";
 import Hls from "hls.js";
+import * as dashjs from "dashjs";
 import {
   FastForward,
   SkipForward,
@@ -36,6 +37,7 @@ interface CustomPlayerProps {
   onNextEpisode?: () => void;
   onPrevEpisode?: () => void;
   onPlayerError?: () => void;
+  streamType?: "dash" | "hls";
 }
 
 // WebGL pristine-sampling 1080p upscaler for crisp anime lines
@@ -307,6 +309,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
   (
     {
       src,
+      poster,
       maxAudioTracks,
       audioTrackNames,
       autoPlay,
@@ -315,6 +318,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       onNextEpisode,
       onPrevEpisode,
       onPlayerError,
+      streamType,
     },
     ref,
   ) => {
@@ -509,9 +513,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           url: finalUrl,
           poster: poster || "",
           type:
-            src.includes(".m3u8") || src.includes("/playlist")
+            src.includes(".m3u8") || src.includes("/playlist") || streamType === "hls"
               ? "m3u8"
-              : undefined,
+              : src.includes(".mpd") || streamType === "dash"
+                ? "mpd"
+                : undefined,
           theme: "#8B5CF6", // KamiAnime Signature Violet Color
           volume: 0.7,
           moreVideoAttr: {
@@ -610,6 +616,27 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
             },
           ],
           customType: {
+            mpd: function (video, url, artInstance) {
+              if ((artInstance as any).dash) {
+                try {
+                  (artInstance as any).dash.destroy();
+                } catch (e) {
+                  console.error("Error destroying dash.js player:", e);
+                }
+              }
+
+              const player = dashjs.MediaPlayer().create();
+              player.initialize(video, url, true);
+              (artInstance as any).dash = player;
+
+              artInstance.on("destroy", () => {
+                try {
+                  player.destroy();
+                } catch (e) {
+                  console.error("Error destroying dash.js player on destroy:", e);
+                }
+              });
+            },
             m3u8: function (video, url, artInstance) {
               if (Hls.isSupported()) {
                 if ((artInstance as any).hls)

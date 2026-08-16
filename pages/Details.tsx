@@ -45,7 +45,7 @@ import {
 } from "../services/shikimori";
 import { FALLBACK_IMAGE as PLACEHOLDER_IMAGE, MOCK_ANIME } from "../constants";
 import { db, supabase } from "../services/db";
-import { Anime, Comment, User, Review } from "../types";
+import { Anime, Comment, User, Review, StreamProvider } from "../types";
 import { Image } from "../components/Image";
 import AnimeCard from "../components/AnimeCard";
 import SEO from "../components/SEO";
@@ -198,10 +198,10 @@ const Details: React.FC = () => {
     { name: string; iframe: string | null; isCustom?: boolean }[]
   >([{ name: "KamiPlayer (1080p)", iframe: null, isCustom: true }]);
   const [translations, setTranslations] = useState<
-    { id: number; title: string; type: string; iframe: string; episodes_count?: number; last_episode?: number }[]
+    { id: string | number; title: string; type: string; iframe: string; episodes_count?: number; last_episode?: number }[]
   >([]);
   const [selectedTranslation, setSelectedTranslation] = useState<{
-    id: number;
+    id: string | number;
     title: string;
     type: string;
     iframe: string;
@@ -238,6 +238,106 @@ const Details: React.FC = () => {
   const [isBlocked, setIsBlocked] = useState(false);
   const [epSearchVal, setEpSearchVal] = useState("");
   const [isNotifierOpen, setIsNotifierOpen] = useState(false);
+
+  // Stream Resolution State for Aniboom
+  const [resolvedStream, setResolvedStream] = useState<{
+    url: string;
+    streamType: "dash" | "hls";
+    provider: StreamProvider;
+  } | null>(null);
+  const [isResolvingStream, setIsResolvingStream] = useState(false);
+  const [streamResolutionError, setStreamResolutionError] = useState<string | null>(null);
+
+  // Smoothly resolve AniBoom streams via the secure backend proxy/resolver
+  useEffect(() => {
+    const isSuzume = id === "50594" || id === "62568";
+    const isWeathering = id === "38826";
+    const isGardenOfWords = id === "16782";
+    const isKimiNoNaWa = id === "32281";
+    const isNative1080 = isSuzume || isWeathering || isGardenOfWords || isKimiNoNaWa;
+
+    if (selectedPlayer !== "KamiPlayer (1080p)" || isNative1080) {
+      setResolvedStream(null);
+      setIsResolvingStream(false);
+      setStreamResolutionError(null);
+      return;
+    }
+
+    let isCurrent = true;
+    const resolveAniboomStream = async () => {
+      setIsResolvingStream(true);
+      setStreamResolutionError(null);
+      setResolvedStream(null);
+
+      const epNum = parseInt(paramEpisode || "1") || 1;
+      const defaultAniboom = players.find((p) => p.name === "Aniboom")?.iframe;
+      const aniboomStreamUrl = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
+
+      if (!aniboomStreamUrl) {
+        if (isCurrent) {
+          setIsResolvingStream(false);
+          setStreamResolutionError("Aniboom stream URL not found");
+          handleAniboomFallback();
+        }
+        return;
+      }
+
+      try {
+        console.log("🌐 [Aniboom Resolver] Initiating backend resolution:", aniboomStreamUrl);
+        const res = await fetch(`/api/media/aniboom/resolve?url=${encodeURIComponent(aniboomStreamUrl)}&shikimori_id=${id}&episode=${epNum}`);
+        if (!res.ok) {
+          throw new Error(`Server returned HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (!data.success || !data.url) {
+          throw new Error(data.error || "No URL returned from resolver");
+        }
+
+        if (isCurrent) {
+          console.log("✅ [Aniboom Resolver] Successfully resolved stream:", data);
+          setResolvedStream({
+            url: data.url,
+            streamType: data.stream_type || "hls",
+            provider: "aniboom"
+          });
+          setIsResolvingStream(false);
+        }
+      } catch (err: any) {
+        console.error("❌ [Aniboom Resolver] Error resolving stream:", err);
+        if (isCurrent) {
+          setIsResolvingStream(false);
+          setStreamResolutionError(err.message || "Failed to resolve stream");
+          handleAniboomFallback();
+        }
+      }
+    };
+
+    const handleAniboomFallback = () => {
+      // Smooth fallback sequence: try to find Kodik, then Collaps, or any other source
+      const kodik = players.find((p) => p.name === "Kodik");
+      const collaps = players.find((p) => p.name === "Collaps" || (p.iframe && p.iframe.includes("collaps")));
+      const anyOther = players.find((p) => p.name !== "KamiPlayer (1080p)" && p.name !== "Aniboom");
+
+      if (kodik) {
+        console.log("🔄 [Aniboom Resolver] Falling back smoothly to Kodik");
+        setSelectedPlayer("Kodik");
+      } else if (collaps) {
+        console.log("🔄 [Aniboom Resolver] Falling back smoothly to Collaps");
+        setSelectedPlayer(collaps.name);
+      } else if (anyOther) {
+        console.log(`🔄 [Aniboom Resolver] Falling back smoothly to ${anyOther.name}`);
+        setSelectedPlayer(anyOther.name);
+      } else {
+        console.warn("⚠️ [Aniboom Resolver] No fallback player available.");
+      }
+    };
+
+    resolveAniboomStream();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedPlayer, paramEpisode, selectedTranslation, id, players]);
 
   // Auto scroll to active episode on change
   useEffect(() => {
@@ -443,7 +543,7 @@ const Details: React.FC = () => {
   useEffect(() => {
     if (!selectedPlayer) return;
     const ep = paramEpisode || "1";
-    const tr = selectedTranslation?.title || selectedTranslation?.author || "По умолчанию";
+    const tr = selectedTranslation?.title || "По умолчанию";
     if (selectedPlayer === "KamiPlayer") {
       console.log(`🎬 [Player Engine] ACTIVE PLAYER: KamiPlayer (Кастомный Artplayer) | Источник: Aniboom HLS Stream Parser | Серия: ${ep} | Озвучка: ${tr}`);
     } else if (selectedPlayer === "Collaps") {
@@ -933,8 +1033,8 @@ const Details: React.FC = () => {
             year.toString(),
           );
 
-          // Filter out Kodik temporarily for Aniboom test
-          const playersList = (data?.players || []).filter((p) => p.name !== "Kodik");
+          // Keep Kodik available for selection and smooth fallback
+          const playersList = data?.players || [];
           const translationsList = data?.kodik_translations || [];
 
           if (playersList.length > 0) {
@@ -1754,11 +1854,11 @@ const Details: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      {isPlayersLoading ? (
-                        <div className="absolute inset-0 bg-dark/90 flex flex-col items-center justify-center text-center p-6">
+                      {isPlayersLoading || isResolvingStream ? (
+                        <div className="absolute inset-0 bg-dark/90 flex flex-col items-center justify-center text-center p-6 z-20">
                           <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
                           <p className="text-slate-300 font-bold text-sm uppercase tracking-widest">
-                            Поиск плеера...
+                            {isResolvingStream ? "Резолвинг потока AniBoom..." : "Поиск плеера..."}
                           </p>
                         </div>
                       ) : players.find((p) => p.name === selectedPlayer)
@@ -1809,12 +1909,14 @@ const Details: React.FC = () => {
                                   ]
                                 : undefined;
                             } else {
-                              // Extract Aniboom stream URL for KamiPlayer (Kodik temporarily hidden for test)
+                              // Extract Aniboom stream URL for KamiPlayer (and use secure backend resolution)
                               const epNum = parseInt(paramEpisode || "1") || 1;
                               const defaultAniboom = players.find((p) => p.name === "Aniboom")?.iframe;
                               const aniboomStream = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
 
-                              if (aniboomStream) {
+                              if (resolvedStream && resolvedStream.url) {
+                                customSrc = resolvedStream.url;
+                              } else if (aniboomStream) {
                                 customSrc = `/api/media/playlist?url=${encodeURIComponent(aniboomStream)}`;
                               } else {
                                 const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
@@ -1897,7 +1999,8 @@ const Details: React.FC = () => {
                               <CustomPlayer
                                 ref={nativeVideoRef}
                                 src={customSrc}
-                                poster={anime?.image || anime?.banner}
+                                streamType={resolvedStream?.streamType}
+                                poster={anime?.image || anime?.cover}
                                 maxAudioTracks={maxTracks}
                                 audioTrackNames={audioTrackNames}
                                 animeId={id}
@@ -2013,7 +2116,7 @@ const Details: React.FC = () => {
                                     onClick={() => {
                                       setSelectedTranslation(t);
                                       setIsNotifierOpen(false);
-                                      if (t.provider === "Collaps" || (t.title && t.title.includes("Collaps"))) {
+                                      if ((t as any).provider === "Collaps" || (t.title && t.title.includes("Collaps"))) {
                                         if (players.some((p) => p.name === "Collaps")) {
                                           setSelectedPlayer("Collaps");
                                         }

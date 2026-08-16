@@ -2439,6 +2439,279 @@ app.get('/api/collaps/embed', (c) => {
   return c.html(html);
 });
 
+// -------------------------------------------------------------
+// AniBoom / AnimeGO Stream Resolver API Endpoint
+// -------------------------------------------------------------
+interface AniboomCacheItem {
+  timestamp: number;
+  data: {
+    success: boolean;
+    stream_type: 'dash' | 'hls';
+    url: string;
+    direct_url: string;
+    dash_url?: string;
+    hls_url?: string;
+    quality: string;
+    poster?: string;
+    subtitles: any[];
+  };
+}
+
+const ANIBOOM_CACHE_TTL = 3 * 3600 * 1000; // 3 hours TTL
+const aniboomCache = new Map<string, AniboomCacheItem>();
+
+const getCachedAniboom = (key: string) => {
+  const item = aniboomCache.get(key);
+  if (!item) return null;
+  if (Date.now() - item.timestamp > ANIBOOM_CACHE_TTL) {
+    aniboomCache.delete(key);
+    return null;
+  }
+  return item.data;
+};
+
+const setCachedAniboom = (key: string, data: any) => {
+  aniboomCache.set(key, { timestamp: Date.now(), data });
+  if (aniboomCache.size > 1000) {
+    const now = Date.now();
+    for (const [k, v] of aniboomCache.entries()) {
+      if (now - v.timestamp > ANIBOOM_CACHE_TTL) {
+        aniboomCache.delete(k);
+      }
+    }
+  }
+};
+
+const handleAniboomResolve = async (c: any) => {
+  let shikimori_id: string | undefined;
+  let episode: number = 1;
+  let translation_id: string | undefined;
+  let embed_url: string | undefined;
+
+  if (c.req.method === 'POST') {
+    try {
+      const body = await c.req.json();
+      if (body) {
+        shikimori_id = body.shikimori_id ? String(body.shikimori_id) : undefined;
+        episode = parseInt(body.episode || '1') || 1;
+        translation_id = body.translation_id ? String(body.translation_id) : undefined;
+        embed_url = body.embed_url || body.url;
+      }
+    } catch (_) {
+      // Body parsing failed or empty
+    }
+  }
+
+  if (!shikimori_id && !embed_url) {
+    shikimori_id = c.req.query('shikimori_id');
+    const epQuery = c.req.query('episode');
+    if (epQuery) episode = parseInt(epQuery) || 1;
+    translation_id = c.req.query('translation_id');
+    embed_url = c.req.query('embed_url') || c.req.query('url');
+  }
+
+  const cacheKey = embed_url
+    ? `embed:${embed_url}:${episode}`
+    : `shiki:${shikimori_id}:${episode}:${translation_id || 'default'}`;
+
+  const cached = getCachedAniboom(cacheKey);
+  if (cached) {
+    console.debug(`⚡ [Aniboom Resolver] Cache hit for ${cacheKey}`);
+    return c.json(cached);
+  }
+
+  // Step 1: Obtain target Aniboom embed URL
+  let targetEmbedUrl = embed_url;
+
+  if (!targetEmbedUrl && shikimori_id) {
+    try {
+      const playerUrl = `https://animego.org/player/${shikimori_id}`;
+      const pRes = await fetch(playerUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Referer': `https://animego.org/anime/slug-${shikimori_id}`,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json, text/javascript, */*; q=0.01'
+        }
+      });
+      if (pRes.ok) {
+        const pJson = await pRes.json() as any;
+        const html = pJson.data?.content || '';
+        const buttonMatches = [...html.matchAll(/<[a-z0-9]+[^>]+data-player="([^"]+)"[^>]*>/gi)];
+
+        let matchedUrl: string | null = null;
+        for (const m of buttonMatches) {
+          const fullTag = m[0];
+          const rawUrl = m[1].replace(/&amp;/g, '&').replace(/\\/g, '');
+          const providerTitle = fullTag.match(/data-provider-title="([^"]+)"/i)?.[1];
+          const pTranslation = fullTag.match(/data-ptranslation="([^"]+)"/i)?.[1];
+
+          if (providerTitle === 'AniBoom' || rawUrl.includes('aniboom')) {
+            if (translation_id && pTranslation === String(translation_id)) {
+              matchedUrl = rawUrl;
+              break;
+            }
+            if (!matchedUrl) matchedUrl = rawUrl;
+          }
+        }
+
+        if (!matchedUrl) {
+          const fallbackMatch = html.match(/(?:\/\/|https?:\/\/|\\\/\\\/)aniboom\.one\/embed\/([a-zA-Z0-9_-]+)(\?[^"'\s\\]*)?/);
+          if (fallbackMatch) {
+            matchedUrl = `https://aniboom.one/embed/${fallbackMatch[1]}${fallbackMatch[2] ? fallbackMatch[2].replace(/&amp;/g, '&').replace(/\\/g, '') : ''}`;
+          }
+        }
+
+        if (matchedUrl) {
+          if (matchedUrl.startsWith('//')) matchedUrl = 'https:' + matchedUrl;
+          targetEmbedUrl = matchedUrl;
+        }
+      }
+    } catch (e: any) {
+      console.debug(`[Aniboom Resolver] AnimeGO lookup note: ${e.message}`);
+    }
+  }
+
+  if (!targetEmbedUrl) {
+    return c.json({
+      success: false,
+      error: 'Could not resolve Aniboom embed URL for given parameters'
+    }, 404);
+  }
+
+  // Normalize parameters on embed URL
+  let cleanEmbedUrl = targetEmbedUrl.startsWith('//') ? `https:${targetEmbedUrl}` : targetEmbedUrl;
+  try {
+    const u = new URL(cleanEmbedUrl);
+    u.searchParams.set('episode', String(episode));
+    if (translation_id && !u.searchParams.has('translation')) {
+      u.searchParams.set('translation', String(translation_id));
+    } else if (!u.searchParams.has('translation')) {
+      u.searchParams.set('translation', '16');
+    }
+    cleanEmbedUrl = u.toString();
+  } catch (_) {
+    if (!cleanEmbedUrl.includes('episode=')) {
+      cleanEmbedUrl += (cleanEmbedUrl.includes('?') ? '&' : '?') + `episode=${episode}`;
+    }
+    if (!cleanEmbedUrl.includes('translation=')) {
+      cleanEmbedUrl += (cleanEmbedUrl.includes('?') ? '&' : '?') + `translation=${translation_id || '16'}`;
+    }
+  }
+
+  console.debug(`🌐 [Aniboom Resolver] Fetching embed: ${cleanEmbedUrl}`);
+
+  // Step 2: Get HTML of Aniboom embed
+  try {
+    const aRes = await fetch(cleanEmbedUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Referer': 'https://animego.org/',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      }
+    });
+
+    if (!aRes.ok) {
+      return c.json({
+        success: false,
+        error: `Aniboom embed returned HTTP ${aRes.status}`
+      }, 500);
+    }
+
+    const html = await aRes.text();
+    const match = html.match(/data-parameters="([^"]+)"/) || html.match(/data-parameters='([^']+)'/);
+
+    if (!match) {
+      return c.json({
+        success: false,
+        error: 'data-parameters attribute not found in Aniboom embed HTML'
+      }, 500);
+    }
+
+    const rawParams = match[1]
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#039;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+
+    const decoded = JSON.parse(rawParams);
+    const videoHash = decoded.id;
+
+    // Step 3: Trigger /cdn2/{videoHash} with Origin & Referer
+    if (videoHash) {
+      try {
+        await fetch(`https://aniboom.one/cdn2/${videoHash}`, {
+          method: 'POST',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Origin': 'https://aniboom.one',
+            'Referer': cleanEmbedUrl,
+            'Content-Type': 'application/json'
+          }
+        });
+      } catch (cdnErr: any) {
+        console.debug(`[Aniboom Resolver] CDN2 handshake note: ${cdnErr.message}`);
+      }
+    }
+
+    // Step 4: Extract DASH (.mpd) and HLS (.m3u8)
+    let dashSrc = '';
+    if (decoded.dash) {
+      const dashObj = typeof decoded.dash === 'string' ? JSON.parse(decoded.dash) : decoded.dash;
+      dashSrc = dashObj.src || dashObj.url || '';
+    }
+
+    let hlsSrc = '';
+    if (decoded.hls) {
+      const hlsObj = typeof decoded.hls === 'string' ? JSON.parse(decoded.hls) : decoded.hls;
+      hlsSrc = hlsObj.src || hlsObj.url || '';
+    }
+
+    if (dashSrc.startsWith('//')) dashSrc = `https:${dashSrc}`;
+    if (hlsSrc.startsWith('//')) hlsSrc = `https:${hlsSrc}`;
+
+    const streamType = dashSrc ? 'dash' : 'hls';
+    const primarySrc = dashSrc || hlsSrc;
+
+    if (!primarySrc) {
+      return c.json({
+        success: false,
+        error: 'No valid DASH (.mpd) or HLS (.m3u8) video stream found in Aniboom parameters'
+      }, 500);
+    }
+
+    const proxyOrigin = getProxyOrigin(c);
+    const proxiedDashUrl = dashSrc ? `${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(dashSrc)}` : undefined;
+    const proxiedHlsUrl = hlsSrc ? `${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(hlsSrc)}` : undefined;
+    const mainProxiedUrl = proxiedDashUrl || proxiedHlsUrl!;
+
+    const responsePayload = {
+      success: true,
+      stream_type: streamType as 'dash' | 'hls',
+      url: mainProxiedUrl,
+      direct_url: primarySrc,
+      dash_url: proxiedDashUrl,
+      hls_url: proxiedHlsUrl,
+      quality: decoded.qualityVideo ? `${decoded.qualityVideo}p` : '1080p',
+      poster: decoded.poster || null,
+      subtitles: []
+    };
+
+    setCachedAniboom(cacheKey, responsePayload);
+
+    return c.json(responsePayload);
+  } catch (err: any) {
+    return c.json({
+      success: false,
+      error: `Aniboom resolution failed: ${err.message}`
+    }, 500);
+  }
+};
+
+app.get('/api/media/aniboom/resolve', handleAniboomResolve);
+app.post('/api/media/aniboom/resolve', handleAniboomResolve);
+
 app.get('/api/media/playlist', async (c) => {
   let urlParam = c.req.query('url');
   const fallbackUrl = c.req.query('fallback_url');

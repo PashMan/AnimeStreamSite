@@ -248,3 +248,5 @@ export interface MangaItem {
   cover: string;
   isPremium?: boolean;
 }
+
+export type StreamProvider = 'aniboom' | 'kodik' | 'anilibria';
