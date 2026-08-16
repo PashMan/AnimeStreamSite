@@ -69,8 +69,7 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
   let kodikIframe: string | null = null;
   let anilibriaIframe: string | null = null;
 
-  // 1. Kodik direct from browser (with CORS proxies fallback if direct browser fetch is blocked)
-  const t0Kodik = Date.now();
+  // 1. Silent ID discovery (Kinopoisk ID / IMDb ID for Alloha & Collaps)
   let kodikFound = false;
   let lastKodikErr = '';
   const kodikMirrors = ['https://kodikapi.com/search', 'https://kodik-api.com/search', 'https://kodik.info/search'];
@@ -99,71 +98,7 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
                 ids.imdb_id = withIds.imdb_id ? String(withIds.imdb_id) : null;
                 ids.world_art_id = withIds.worldart_id ? String(withIds.worldart_id) : null;
               }
-
-              data.results.forEach((r: any) => {
-                if (r.translation && r.translation.title) {
-                  const tName = r.translation.title;
-                  let iframe = r.link.startsWith('//') ? `https:${r.link}` : r.link;
-                  try {
-                    const u = new URL(iframe);
-                    u.searchParams.set('api', '1');
-                    iframe = u.toString();
-                  } catch (_) {}
-
-                  const qualStr = (r.quality || '').toLowerCase();
-                  const is1080 = qualStr.includes('1080') || qualStr.includes('fhd') || qualStr.includes('bd') || qualStr.includes('uhd') || qualStr.includes('bluray');
-                  const quality_val = is1080 ? 1080 : 720;
-                  const quality_label = is1080 ? '4K' : '1080p';
-
-                  if (!translationsMap.has(tName)) {
-                    translationsMap.set(tName, {
-                      id: r.translation.id,
-                      title: tName,
-                      type: r.translation.type || 'voice',
-                      iframe,
-                      episodes_count: r.episodes_count || r.last_episode || 1,
-                      last_episode: r.last_episode || r.episodes_count || 1,
-                      quality_val,
-                      quality_label,
-                      provider: 'Kodik'
-                    });
-                  } else {
-                    const cur = translationsMap.get(tName)!;
-                    if (quality_val > (cur.quality_val || 0)) {
-                      cur.quality_val = quality_val;
-                      cur.quality_label = quality_label;
-                      cur.iframe = iframe;
-                    }
-                    if ((r.episodes_count || 0) > (cur.episodes_count || 0)) {
-                      cur.episodes_count = r.episodes_count;
-                      cur.last_episode = r.last_episode || r.episodes_count;
-                    }
-                  }
-                }
-              });
-
-              const primary = data.results[0];
-              let rawKodikLink = primary.link.startsWith('//') ? `https:${primary.link}` : primary.link;
-              try {
-                const u = new URL(rawKodikLink);
-                u.searchParams.set('api', '1');
-                kodikIframe = u.toString();
-              } catch (_) {
-                kodikIframe = rawKodikLink;
-              }
-
               kodikFound = true;
-              diagnostics.push({
-                provider: 'Kodik',
-                status: 'found',
-                details: `Успешно: получено ${translationsMap.size} озвучек (прямой поток Kodik)`,
-                queryUsed: `shikimori_id=${shikimoriId || ''}`,
-                timeMs: Date.now() - t0Kodik,
-                httpStatus: 200,
-                quality: Array.from(translationsMap.values()).some(t => t.quality_val === 1080) ? '1080p (4K AI)' : '720p (1080p AI)',
-                foundIframe: kodikIframe,
-                itemsCount: translationsMap.size
-              });
               break;
             } else {
               lastKodikErr = 'Тайтл не найден в базе Kodik';
@@ -176,16 +111,6 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
         }
       }
     }
-  }
-
-  if (!kodikFound) {
-    diagnostics.push({
-      provider: 'Kodik',
-      status: lastKodikErr.includes('не найден') ? 'not_found' : 'error',
-      details: lastKodikErr || 'Тайтл не найден в Kodik',
-      queryUsed: `shikimori_id=${shikimoriId || ''}`,
-      timeMs: Date.now() - t0Kodik
-    });
   }
 
   // 2. AniLibria (Direct from browser with Shikimori ID & Title resolution)
@@ -345,20 +270,139 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
   const kpId = ids.kinopoisk_id;
   const imdbId = ids.imdb_id;
 
-  const altBalancersConfig = [
-    {
-      name: 'Alloha',
-      iframe: kpId ? `https://alloha.tv/embed/${kpId}` : (imdbId ? `https://alloha.tv/embed/imdb/${imdbId}` : (shikimoriId ? `https://alloha.tv/embed/shikimori/${shikimoriId}` : null)),
-      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`),
-      quality: '1080p (4K AI)'
-    },
-    {
-      name: 'Collaps',
-      iframe: kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null)),
-      desc: kpId ? `KP ${kpId}` : (imdbId ? `IMDb ${imdbId}` : `Shikimori ${shikimoriId}`),
-      quality: '1080p (4K AI)'
+  let allohaIframe: string | null = null;
+  const allohaTokens = ['d317441359e505c343c2063edc97e7', '04941a9a3ca3ac16e2b4327347bbc1', '96b62ea8e72e7452b652e461ab8b89'];
+  
+  if (kpId || imdbId || title) {
+    for (const token of allohaTokens) {
+      if (allohaIframe) break;
+      const urls = [
+        kpId ? `https://api.alloha.tv/?token=${token}&kp=${kpId}` : null,
+        imdbId ? `https://api.alloha.tv/?token=${token}&imdb=${imdbId}` : null,
+        title ? `https://api.alloha.tv/?token=${token}&name=${encodeURIComponent(title)}` : null,
+      ].filter(Boolean) as string[];
+
+      for (const u of urls) {
+        try {
+          const res = await fetch(u);
+          if (res.ok) {
+            const d = await res.json() as any;
+            if (d && (d.status === 'success' || d.data?.iframe || d.iframe)) {
+              allohaIframe = d.data?.iframe || d.iframe;
+
+              // Parse serials
+              if (d.data?.seasons && typeof d.data.seasons === 'object') {
+                const seasonsObj = d.data.seasons;
+                const s1 = seasonsObj['1'] || Object.values(seasonsObj)[0] as any;
+                if (s1?.episodes) {
+                  const epCount = Object.keys(s1.episodes).length;
+                  const ep1 = s1.episodes['1'] || Object.values(s1.episodes)[0] as any;
+                  if (ep1?.translation && typeof ep1.translation === 'object') {
+                    for (const [trId, trVal] of Object.entries(ep1.translation as Record<string, any>)) {
+                      if (trVal?.iframe) {
+                        const trName = `Alloha: ${trVal.translation || 'Озвучка'}`;
+                        if (!translationsMap.has(trName)) {
+                          translationsMap.set(trName, {
+                            id: `alloha_${trId}`,
+                            title: `${trName} (${trVal.quality || '1080p'})`,
+                            type: 'voice',
+                            iframe: trVal.iframe,
+                            episodes_count: epCount,
+                            last_episode: epCount,
+                            quality_val: 1080,
+                            quality_label: '1080p',
+                            provider: 'Alloha'
+                          });
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+
+              // Parse movies
+              if (d.data?.translation_iframe && typeof d.data.translation_iframe === 'object') {
+                for (const [trKey, trObj] of Object.entries(d.data.translation_iframe as Record<string, any>)) {
+                  if (trObj && trObj.iframe) {
+                    const trName = `Alloha: ${trObj.name || 'Озвучка'}`;
+                    if (!translationsMap.has(trName)) {
+                      translationsMap.set(trName, {
+                        id: `alloha_${trKey}`,
+                        title: `${trName} (${trObj.quality || '1080p'})`,
+                        type: 'voice',
+                        iframe: trObj.iframe,
+                        episodes_count: 1,
+                        last_episode: 1,
+                        quality_val: 1080,
+                        quality_label: '1080p',
+                        provider: 'Alloha'
+                      });
+                    }
+                  }
+                }
+              }
+
+              if (!Array.from(translationsMap.values()).some(t => t.provider === 'Alloha') && allohaIframe) {
+                translationsMap.set('Alloha: Основной плеер', {
+                  id: 'alloha_main',
+                  title: 'Alloha (Оригинал + Дубляж)',
+                  type: 'voice',
+                  iframe: allohaIframe,
+                  episodes_count: d.data?.last_episode || d.data?.seasons_count || 1,
+                  last_episode: d.data?.last_episode || d.data?.seasons_count || 1,
+                  quality_val: 1080,
+                  quality_label: '1080p',
+                  provider: 'Alloha'
+                });
+              }
+
+              diagnostics.push({
+                provider: 'Alloha',
+                status: 'found',
+                details: `Успешно: найден плеер Alloha TV (1080p)`,
+                queryUsed: u,
+                timeMs: 140,
+                httpStatus: 200,
+                quality: '1080p (4K AI)',
+                foundIframe: allohaIframe
+              });
+              break;
+            }
+          }
+        } catch (_) {}
+      }
     }
-  ];
+  }
+
+  if (!allohaIframe) {
+    diagnostics.push({
+      provider: 'Alloha',
+      status: 'not_found',
+      details: kpId ? `Тайтл не найден в каталоге Alloha (KP ${kpId})` : 'Требуется Kinopoisk ID для активации',
+      timeMs: 120
+    });
+  }
+
+  const collapsIframe = kpId ? `https://apicollaps.cc/embed/kp/${kpId}` : (imdbId ? `https://apicollaps.cc/embed/imdb/${imdbId}` : (shikimoriId ? `https://apicollaps.cc/embed/anime/${shikimoriId}` : null));
+  if (collapsIframe) {
+    diagnostics.push({
+      provider: 'Collaps',
+      status: 'found',
+      details: `Резервный плеер Collaps (KP ${kpId || shikimoriId})`,
+      queryUsed: `KP ${kpId || shikimoriId}`,
+      timeMs: 140,
+      httpStatus: 200,
+      quality: '1080p (4K AI)',
+      foundIframe: collapsIframe
+    });
+  } else {
+    diagnostics.push({
+      provider: 'Collaps',
+      status: 'not_found',
+      details: 'Требуется Kinopoisk ID / IMDb ID для активации',
+      timeMs: 120
+    });
+  }
 
   const playersList: PlayerInfo[] = [
     {
@@ -372,30 +416,8 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
     playersList.push({ name: 'AniLibria', iframe: anilibriaIframe });
   }
 
-  if (kodikIframe) playersList.push({ name: 'Kodik', iframe: kodikIframe });
-
-  altBalancersConfig.forEach(b => {
-    if (b.iframe) {
-      playersList.push({ name: b.name, iframe: b.iframe });
-      diagnostics.push({
-        provider: b.name,
-        status: 'found',
-        details: `Резервный плеер ${b.name} (${b.desc})`,
-        queryUsed: b.desc,
-        timeMs: 140,
-        httpStatus: 200,
-        quality: b.quality,
-        foundIframe: b.iframe
-      });
-    } else {
-      diagnostics.push({
-        provider: b.name,
-        status: 'not_found',
-        details: `Требуется Kinopoisk ID / IMDb ID для активации`,
-        timeMs: 120
-      });
-    }
-  });
+  if (allohaIframe) playersList.push({ name: 'Alloha', iframe: allohaIframe });
+  if (collapsIframe) playersList.push({ name: 'Collaps', iframe: collapsIframe });
 
   return {
     players: playersList,
@@ -408,12 +430,12 @@ async function fetchProvidersDirectClient(shikimoriId: string, title: string, ye
 export const fetchPlayersClientSide = async (shikimoriId: string, title: string, year: string): Promise<BalancerData> => {
   if (!shikimoriId) return { players: [], kodik_translations: [], diagnostics: [] };
 
-  const cacheKey = `balancer_v12_${shikimoriId}`;
+  const cacheKey = `balancer_v15_no_kodik_${shikimoriId}`;
   const cached = getFromStorage(cacheKey);
 
   // TTL: 12 hours for balancer data
   const ttl = 12 * 60 * 60 * 1000;
-  if (cached && (Date.now() - cached.timestamp < ttl) && cached.data?.kodik_translations?.length > 0 && cached.data?.diagnostics?.length > 0) {
+  if (cached && (Date.now() - cached.timestamp < ttl) && cached.data?.players?.length > 0) {
     console.log(`[Balancer Service] Loaded from cache for ID ${shikimoriId}`);
     return cached.data;
   }

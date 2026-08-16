@@ -430,29 +430,8 @@ app.get('/api/balancer', async (c) => {
                     }
                   }
                 });
-                kodik_translations = Array.from(translationsMap.values());
-
-                const res = kodikData.results[0];
-                let link = res.link.startsWith('//') ? `https:${res.link}` : res.link;
-                try {
-                  const url = new URL(link);
-                  url.searchParams.set('api', '1');
-                  kodik_iframe = url.toString();
-                } catch (_) {
-                  kodik_iframe = link;
-                }
+                // Kodik used in background purely for ID discovery (Kinopoisk / IMDb ID)
                 kodikSuccess = true;
-                diagnostics.push({
-                  provider: 'Kodik',
-                  status: 'found',
-                  details: `Успешно: найдено ${kodik_translations.length} озвучек, до ${kodik_translations[0]?.episodes_count || 1} эп. (базовый поток 1080p FHD)`,
-                  queryUsed: `shikimori_id=${shikimori_id || ''}`,
-                  timeMs: Date.now() - t0Kodik,
-                  httpStatus: 200,
-                  quality: '1080p (4K AI)',
-                  foundIframe: kodik_iframe,
-                  itemsCount: kodik_translations.length
-                });
                 break;
               } else {
                 lastKodikError = 'Результатов по запросу не найдено (results: [])';
@@ -540,6 +519,7 @@ app.get('/api/balancer', async (c) => {
                 alloha_iframe = d.data?.iframe || d.iframe;
                 found = true;
 
+                // 1. Movie translations
                 if (d.data?.translation_iframe && typeof d.data.translation_iframe === 'object') {
                   for (const [trKey, trObj] of Object.entries(d.data.translation_iframe as Record<string, any>)) {
                     if (trObj && trObj.iframe) {
@@ -549,12 +529,55 @@ app.get('/api/balancer', async (c) => {
                         type: 'voice',
                         iframe: trObj.iframe,
                         episodes_count: 1,
+                        last_episode: 1,
                         quality_val: 1080,
                         quality_label: '1080p',
                         provider: 'Alloha'
                       });
                     }
                   }
+                }
+
+                // 2. Serial / Anime translations
+                if (d.data?.seasons && typeof d.data.seasons === 'object') {
+                  const seasonsObj = d.data.seasons;
+                  const s1 = seasonsObj['1'] || Object.values(seasonsObj)[0] as any;
+                  if (s1?.episodes) {
+                    const epCount = Object.keys(s1.episodes).length;
+                    const ep1 = s1.episodes['1'] || Object.values(s1.episodes)[0] as any;
+                    if (ep1?.translation && typeof ep1.translation === 'object') {
+                      for (const [trId, trVal] of Object.entries(ep1.translation as Record<string, any>)) {
+                        if (trVal?.iframe) {
+                          kodik_translations.push({
+                            id: `alloha_${trId}`,
+                            title: `Alloha: ${trVal.translation || 'Озвучка'} (${trVal.quality || '1080p'})`,
+                            type: 'voice',
+                            iframe: trVal.iframe,
+                            episodes_count: epCount,
+                            last_episode: epCount,
+                            quality_val: 1080,
+                            quality_label: '1080p',
+                            provider: 'Alloha'
+                          });
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // 3. Fallback generic Alloha entry if no specific translations were extracted
+                if (!kodik_translations.some(t => t.provider === 'Alloha') && alloha_iframe) {
+                  kodik_translations.push({
+                    id: 'alloha_main',
+                    title: 'Alloha (Оригинал + Дубляж)',
+                    type: 'voice',
+                    iframe: alloha_iframe,
+                    episodes_count: d.data?.last_episode || d.data?.seasons_count || 1,
+                    last_episode: d.data?.last_episode || d.data?.seasons_count || 1,
+                    quality_val: 1080,
+                    quality_label: '1080p',
+                    provider: 'Alloha'
+                  });
                 }
 
                 diagnostics.push({
@@ -665,13 +688,10 @@ app.get('/api/balancer', async (c) => {
     // Resolve Alloha and Collaps promises concurrently
     await Promise.allSettled(jobs);
 
-    // Build list of active players: Alloha, Collaps, and Kodik (as fallback)
+    // Build list of active players: Alloha, Collaps
     const players: any[] = [];
     if (alloha_iframe) players.push({ name: 'Alloha', iframe: alloha_iframe });
     if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
-    if (kodik_iframe) {
-      players.push({ name: 'Kodik', iframe: kodik_iframe });
-    }
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
     addLog(`Balancer Completed`, { playersCount: players.length, ids, diagnosticsCount: diagnostics.length });

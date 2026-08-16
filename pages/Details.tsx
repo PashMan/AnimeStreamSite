@@ -1772,11 +1772,12 @@ const Details: React.FC = () => {
                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
                         <Film className="w-3.5 h-3.5 text-primary" /> Плеер / Источник:
                       </span>
-                      {players.map((p) => {
+                      {players
+                        .filter((p) => p.name.toLowerCase() !== "kodik")
+                        .map((p) => {
                         const isSelected = selectedPlayer === p.name;
                         const is1080p = p.name === "AniLibria" || p.name === "Collaps" || p.name === "Alloha";
                         const is4K = p.name === "KamiPlayer (4K UHD)";
-                        const is720p = p.name === "Kodik";
 
                         return (
                           <button
@@ -1784,6 +1785,12 @@ const Details: React.FC = () => {
                             onClick={() => {
                               setSelectedPlayer(p.name);
                               setPlayerViewMode("custom");
+                              const matchingTrans = translations.find(
+                                (t) => (t.provider || "").toLowerCase() === p.name.toLowerCase()
+                              );
+                              if (matchingTrans) {
+                                setSelectedTranslation(matchingTrans);
+                              }
                             }}
                             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 border ${
                               isSelected
@@ -1801,11 +1808,6 @@ const Details: React.FC = () => {
                             {is1080p && (
                               <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-green-500/20 text-green-300 border border-green-500/30">
                                 1080p
-                              </span>
-                            )}
-                            {is720p && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                720p
                               </span>
                             )}
                           </button>
@@ -1909,18 +1911,34 @@ const Details: React.FC = () => {
                               : undefined;
                           } else {
                             // Player source resolution:
-                            const explicitPlayer = selectedPlayer !== "KamiPlayer (4K UHD)" 
-                              ? players.find((p) => p.name === selectedPlayer && p.iframe)
-                              : null;
+                            let explicitIframe = "";
+                            if (selectedPlayer && selectedPlayer !== "KamiPlayer (4K UHD)") {
+                              // 1. If currently selected translation belongs to the selected player
+                              if (
+                                selectedTranslation &&
+                                (selectedTranslation.provider || "").toLowerCase() === selectedPlayer.toLowerCase() &&
+                                selectedTranslation.iframe
+                              ) {
+                                explicitIframe = selectedTranslation.iframe;
+                              } else {
+                                // 2. Find any translation from the selected player
+                                const matchingTrans = translations.find(
+                                  (t) => (t.provider || "").toLowerCase() === selectedPlayer.toLowerCase() && t.iframe
+                                );
+                                const matchingPlayer = players.find(
+                                  (p) => p.name.toLowerCase() === selectedPlayer.toLowerCase() && p.iframe
+                                );
+                                explicitIframe = matchingTrans?.iframe || matchingPlayer?.iframe || "";
+                              }
+                            }
 
                             const baseIframe =
-                              explicitPlayer?.iframe ||
+                              explicitIframe ||
                               selectedTranslation?.iframe ||
                               translations[0]?.iframe ||
-                              players.find((p) => p.name === "AniLibria" && p.iframe)?.iframe ||
-                              players.find((p) => p.name === "Kodik" && p.iframe)?.iframe ||
-                              players.find((p) => p.name === "Collaps" && p.iframe)?.iframe ||
                               players.find((p) => p.name === "Alloha" && p.iframe)?.iframe ||
+                              players.find((p) => p.name === "Collaps" && p.iframe)?.iframe ||
+                              players.find((p) => p.name === "AniLibria" && p.iframe)?.iframe ||
                               players.find((p) => p.iframe)?.iframe ||
                               "";
 
@@ -2068,6 +2086,14 @@ const Details: React.FC = () => {
                                     onClick={() => {
                                       setSelectedTranslation(t);
                                       setIsNotifierOpen(false);
+                                      if (t.provider) {
+                                        const matchingPlayer = players.find(
+                                          (p) => p.name.toLowerCase() === (t.provider || "").toLowerCase()
+                                        );
+                                        if (matchingPlayer) {
+                                          setSelectedPlayer(matchingPlayer.name);
+                                        }
+                                      }
                                     }}
                                     className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-between gap-2 ${
                                       isSelected
@@ -2075,7 +2101,20 @@ const Details: React.FC = () => {
                                         : "text-slate-300 hover:text-white hover:bg-white/5"
                                     }`}
                                   >
-                                    <span className="truncate pr-2">{t.title}</span>
+                                    <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                                      {t.provider && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
+                                          t.provider.toLowerCase() === 'alloha'
+                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                            : t.provider.toLowerCase() === 'anilibria'
+                                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                                            : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                                        }`}>
+                                          {t.provider}
+                                        </span>
+                                      )}
+                                      <span className="truncate">{t.title}</span>
+                                    </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
                                         qualityLabel === "4K"
