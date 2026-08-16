@@ -62,32 +62,40 @@ import { filterProfanity } from "../utils/profanity";
 const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null) => {
   const num = epNum || 1;
   let target: string | null = null;
-  if (t) {
-    if (t.aniboom_iframe) {
-      target = t.aniboom_iframe;
-    } else if (t.iframe && t.iframe.includes("aniboom")) {
-      target = t.iframe;
-    }
+
+  if (t?.aniboom_iframe) {
+    target = t.aniboom_iframe;
+  } else if (t?.iframe && t.iframe.includes("aniboom")) {
+    target = t.iframe;
   } else if (defaultUrl && defaultUrl.includes("aniboom")) {
     target = defaultUrl;
   }
 
-  if (!target) return null;
+  if (!target) {
+    console.warn("⚠️ [Aniboom Resolver] No Aniboom target URL found in translation or default players.");
+    return null;
+  }
+
   try {
     const url = new URL(target.startsWith("//") ? `https:${target}` : target);
     url.searchParams.set("episode", String(num));
-    if (!url.searchParams.has("translation")) {
+    if (t?.id) {
+      url.searchParams.set("translation", String(t.id));
+    } else if (!url.searchParams.has("translation")) {
       url.searchParams.set("translation", "16");
     }
-    return url.toString();
+    const resolved = url.toString();
+    console.log(`🔥 [Aniboom Resolver] RESOLVED: ${resolved} | Ep: ${num} | Voice: ${t?.title || 'Default'}`);
+    return resolved;
   } catch (_) {
     let result = target;
     if (!result.includes("episode=")) {
       result += (result.includes("?") ? "&" : "?") + `episode=${num}`;
     }
     if (!result.includes("translation=")) {
-      result += (result.includes("?") ? "&" : "?") + `translation=16`;
+      result += (result.includes("?") ? "&" : "?") + `translation=${t?.id || '16'}`;
     }
+    console.log(`🔥 [Aniboom Resolver] RESOLVED (STRING): ${result}`);
     return result;
   }
 };
