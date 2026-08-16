@@ -2271,9 +2271,44 @@ app.get('/api/media/search', async (c) => {
 });
 
 app.get('/api/media/playlist', async (c) => {
-  const urlParam = c.req.query('url');
+  let urlParam = c.req.query('url');
+  const fallbackUrl = c.req.query('fallback_url');
+
   if (!urlParam) {
     return c.json({ error: 'url parameter is required' }, 400);
+  }
+
+  // If Collaps URL, attempt Collaps extraction first
+  const isCollaps = urlParam.includes('collaps') || urlParam.includes('ortified');
+  if (isCollaps) {
+    console.log(`[COLLAPS PROXY] Attempting playlist extraction for: ${urlParam}`);
+    try {
+      let iframeUrl = urlParam.startsWith('//') ? `https:${urlParam}` : urlParam;
+      const cRes = await fetch(iframeUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+          'Referer': 'https://apicollaps.cc/'
+        }
+      });
+      if (cRes.ok) {
+        const cHtml = await cRes.text();
+        const m3u8Match = cHtml.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i) ||
+                          cHtml.match(/["']([^"']+\.m3u8[^"']*)["']/i);
+        if (m3u8Match) {
+          let streamUrl = m3u8Match[1] || m3u8Match[0];
+          if (streamUrl.startsWith('//')) streamUrl = `https:${streamUrl}`;
+          console.log(`[COLLAPS PROXY] Resolved direct m3u8: ${streamUrl}`);
+          return c.redirect(streamUrl, 302);
+        }
+      }
+    } catch (cErr: any) {
+      console.warn(`[COLLAPS PROXY] Collaps extraction failed: ${cErr.message}`);
+    }
+    // If Collaps extraction failed and fallbackUrl exists, use fallbackUrl
+    if (fallbackUrl) {
+      console.log(`[MEDIA PROXY] Falling back to secondary stream URL: ${fallbackUrl}`);
+      urlParam = fallbackUrl;
+    }
   }
 
   try {

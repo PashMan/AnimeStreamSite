@@ -1734,38 +1734,14 @@ const Details: React.FC = () => {
                               const epNum = parseInt(paramEpisode || "1") || 1;
                               const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
                               const resolvedIframe = getResolvedIframeUrl(selectedTranslation, epNum, defaultKodik);
-
-                              const isCollaps = resolvedIframe && (
-                                resolvedIframe.includes("collaps") ||
-                                resolvedIframe.includes("ortified") ||
-                                selectedTranslation?.provider === "Collaps" ||
-                                selectedTranslation?.title?.includes("Collaps")
-                              );
-
-                              if (isCollaps && resolvedIframe) {
-                                let collapsUrl = resolvedIframe;
-                                try {
-                                  const url = new URL(collapsUrl.startsWith("//") ? `https:${collapsUrl}` : collapsUrl);
-                                  if (paramEpisode) url.searchParams.set("episode", paramEpisode);
-                                  collapsUrl = url.toString();
-                                } catch (e) {}
-
-                                return (
-                                  <iframe
-                                    ref={iframeRef}
-                                    src={collapsUrl}
-                                    width="100%"
-                                    height="100%"
-                                    allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
-                                    referrerPolicy="origin"
-                                    className="w-full h-full border-0"
-                                    title="KamiPlayer (Collaps 1080p)"
-                                  />
-                                );
-                              }
+                              const fallbackKodik = selectedTranslation?.kodik_iframe || defaultKodik;
 
                               if (resolvedIframe) {
-                                customSrc = `/api/media/playlist?url=${encodeURIComponent(resolvedIframe)}`;
+                                let mediaUrl = `/api/media/playlist?url=${encodeURIComponent(resolvedIframe)}`;
+                                if (fallbackKodik && fallbackKodik !== resolvedIframe) {
+                                  mediaUrl += `&fallback_url=${encodeURIComponent(fallbackKodik)}`;
+                                }
+                                customSrc = mediaUrl;
                               } else {
                                 customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
                               }
