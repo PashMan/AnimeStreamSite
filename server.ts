@@ -304,7 +304,8 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': 'https://shikimori.one/'
-      }
+      },
+      signal: AbortSignal.timeout(2500)
     });
     if (shikiRes.ok) {
       const shikiData = await shikiRes.json() as any;
@@ -321,6 +322,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
   const searchQueries = [ruTitle, enTitle].filter(Boolean) as string[];
   if (searchQueries.length === 0) {
     console.error(`[AnimeGo Scraper] No title available to search AnimeGo`);
+    animegoCache.set(shikimoriId, { animegoId: '', aniboomMap: [], defaultAniboomUrl: '', quality: '1080' });
     return null;
   }
 
@@ -338,7 +340,8 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
             'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'ru,en-US;q=0.7,en;q=0.3'
-          }
+          },
+          signal: AbortSignal.timeout(2500)
         });
         if (res.ok) {
           const html = await res.text();
@@ -358,6 +361,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
 
   if (!searchHtml) {
     console.error(`[AnimeGo Scraper] Search failed on all domains`);
+    animegoCache.set(shikimoriId, { animegoId: '', aniboomMap: [], defaultAniboomUrl: '', quality: '1080', totalEpisodes: shikiEpisodesCount || undefined });
     return null;
   }
 
@@ -380,7 +384,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
   let matchedAnimegoId: string | null = null;
   let detectedEpisodes = shikiEpisodesCount || 0;
 
-  for (const cand of candidates) {
+  for (const cand of candidates.slice(0, 3)) {
     const detailUrl = `https://${activeDomain}${cand.path}`;
     try {
       console.log(`[AnimeGo Scraper] Verification check for candidate page: ${detailUrl}`);
@@ -389,7 +393,8 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
           'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'ru,en-US;q=0.7,en;q=0.3'
-        }
+        },
+        signal: AbortSignal.timeout(2000)
       });
       if (res.ok) {
         const detailHtml = await res.text();
@@ -424,6 +429,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
 
   if (!matchedAnimegoId) {
     console.error(`[AnimeGo Scraper] Failed to resolve AnimeGo ID for Shikimori ID ${shikimoriId}`);
+    animegoCache.set(shikimoriId, { animegoId: '', aniboomMap: [], defaultAniboomUrl: '', quality: '1080', totalEpisodes: detectedEpisodes || undefined });
     return null;
   }
 
@@ -440,7 +446,8 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
         'X-Requested-With': 'XMLHttpRequest',
         'Referer': `https://${activeDomain}/anime/slug-${matchedAnimegoId}`,
         'Accept': 'application/json, text/javascript, */*; q=0.01'
-      }
+      },
+      signal: AbortSignal.timeout(2500)
     });
 
     if (playerRes.ok) {
@@ -510,7 +517,8 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Referer': 'https://animego.org/'
-        }
+        },
+        signal: AbortSignal.timeout(2000)
       });
       if (qRes.ok) {
         const qHtml = await qRes.text();
@@ -2990,11 +2998,14 @@ const handleAniboomResolve = async (c: any) => {
       status: "error",
       message: "Ссылка на плеер AniBoom не определена. Невозможно продолжить."
     });
-    return c.json({
+    const notFoundPayload = {
       success: false,
+      not_found: true,
       error: 'Could not resolve Aniboom embed URL for given parameters',
       steps
-    }, 404);
+    };
+    setCachedAniboom(cacheKey, notFoundPayload);
+    return c.json(notFoundPayload, 200);
   }
 
   // Normalize parameters on embed URL
@@ -3035,7 +3046,8 @@ const handleAniboomResolve = async (c: any) => {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Referer': 'https://animego.org/',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      }
+      },
+      signal: AbortSignal.timeout(3000)
     });
 
     if (!aRes.ok) {
@@ -3044,11 +3056,13 @@ const handleAniboomResolve = async (c: any) => {
         status: "error",
         message: `Сервер AniBoom ответил с ошибкой: HTTP ${aRes.status}`
       });
-      return c.json({
+      const errPayload = {
         success: false,
         error: `Aniboom embed returned HTTP ${aRes.status}`,
         steps
-      }, 500);
+      };
+      setCachedAniboom(cacheKey, errPayload);
+      return c.json(errPayload, 200);
     }
 
     const html = await aRes.text();

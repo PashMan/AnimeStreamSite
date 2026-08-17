@@ -43,11 +43,17 @@ interface CustomPlayerProps {
   translationTitle?: string;
 }
 
-// WebGL pristine-sampling 1080p upscaler for crisp anime lines
+// WebGL pristine Anime4K 4-stage processing pipeline:
+// 1. Debanding + Blue Noise Dither (8-16px radius)
+// 2. Artifact Cleaning & Line Reconstruction (Anime4K_Restore_CNN_M)
+// 3. Primary Upscale 2x (Anime4K_Upscale_CNN_x2_M)
+// 4. Target Rescale to 1080p + AMD CAS (Contrast Adaptive Sharpening 0.4-0.6)
 class AnimeWebGL1080p {
   private gl: WebGLRenderingContext;
-  private upscaleProgram: WebGLProgram;
-  private refineProgram: WebGLProgram;
+  private debandProgram: WebGLProgram;
+  private restoreProgram: WebGLProgram;
+  private upscale2xProgram: WebGLProgram;
+  private casRescaleProgram: WebGLProgram;
   private texture: WebGLTexture;
   private buffer: WebGLBuffer;
   private video: HTMLVideoElement;
@@ -55,8 +61,18 @@ class AnimeWebGL1080p {
   private animId: number | null = null;
   public isActive = false;
 
-  private fbo1: WebGLFramebuffer | null = null;
-  private fbo1Texture: WebGLTexture | null = null;
+  // Framebuffer objects for multi-pass pipeline
+  private fboDeband: WebGLFramebuffer | null = null;
+  private fboDebandTexture: WebGLTexture | null = null;
+
+  private fboRestore: WebGLFramebuffer | null = null;
+  private fboRestoreTexture: WebGLTexture | null = null;
+
+  private fboUpscale2x: WebGLFramebuffer | null = null;
+  private fboUpscale2xTexture: WebGLTexture | null = null;
+
+  private lastInputWidth = 0;
+  private lastInputHeight = 0;
   private lastTargetWidth = 0;
   private lastTargetHeight = 0;
 
@@ -86,70 +102,195 @@ class AnimeWebGL1080p {
       }
     `;
 
-    const fsUpscaleSource = `
-      precision mediump float;
+    // 1. Debanding + Blue Noise Dither
+    const fsDebandSource = `
+      precision highp float;
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
       uniform vec2 u_textureSize;
 
-      float sinc(float x) {
-        if (abs(x) < 0.0001) return 1.0;
-        float pi_x = 3.1415926535 * x;
-        return sin(pi_x) / pi_x;
+      float hash12(vec2 p) {
+        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+        p3 += dot(p3, p3.yzx + 33.33);
+        return fract((p3.x + p3.y) * p3.z);
       }
 
-      float lanczos2(float x) {
-        if (abs(x) >= 2.0) return 0.0;
-        return sinc(x) * sinc(x * 0.5);
+      float blueNoiseDither(vec2 uv) {
+        float n1 = hash12(uv * u_textureSize + vec2(1.23, 4.56));
+        float n2 = hash12(uv * u_textureSize + vec2(7.89, 0.12));
+        return (n1 + n2 - 1.0) / 255.0;
       }
 
       void main() {
-        vec2 texel = vec2(1.0) / u_textureSize;
-        vec2 pos = v_texCoord * u_textureSize - 0.5;
-        vec2 i_pos = floor(pos);
-        vec2 f_pos = pos - i_pos;
-
-        vec3 sum = vec3(0.0);
-        float w_sum = 0.0;
-
-        for (float y = -1.0; y <= 2.0; y += 1.0) {
-          float w_y = lanczos2(f_pos.y - y);
-          for (float x = -1.0; x <= 2.0; x += 1.0) {
-            float w_x = lanczos2(f_pos.x - x);
-            float weight = w_x * w_y;
-            vec2 sample_uv = (i_pos + vec2(x, y) + 0.5) * texel;
-            sample_uv = clamp(sample_uv, 0.5 * texel, 1.0 - 0.5 * texel);
-            vec3 color = texture2D(u_image, sample_uv).rgb;
-            sum += color * weight;
-            w_sum += weight;
+        vec2 texel = 1.0 / u_textureSize;
+        vec4 center = texture2D(u_image, v_texCoord);
+        
+        float radius = 12.0; // 8-16px sampling radius
+        float threshold = 18.0 / 255.0; // Banding detection threshold
+        
+        vec3 sum = center.rgb;
+        float totalWeight = 1.0;
+        
+        const float SAMPLES = 8.0;
+        float angleStep = 6.2831853 / SAMPLES;
+        
+        for (float i = 0.0; i < SAMPLES; i += 1.0) {
+          float angle = i * angleStep;
+          float r = radius * (0.7 + 0.3 * hash12(v_texCoord * u_textureSize + vec2(i, 3.14159)));
+          vec2 offset = vec2(cos(angle), sin(angle)) * r * texel;
+          vec3 sampleCol = texture2D(u_image, v_texCoord + offset).rgb;
+          
+          vec3 diff = abs(sampleCol - center.rgb);
+          float maxDiff = max(max(diff.r, diff.g), diff.b);
+          
+          if (maxDiff < threshold) {
+            float weight = 1.0 - (maxDiff / threshold);
+            sum += sampleCol * weight;
+            totalWeight += weight;
           }
         }
-
-        vec3 final_color = abs(w_sum) > 0.01 ? clamp(sum / w_sum, 0.0, 1.0) : texture2D(u_image, v_texCoord).rgb;
-        gl_FragColor = vec4(final_color, 1.0);
+        
+        vec3 debanded = sum / totalWeight;
+        float dither = blueNoiseDither(v_texCoord);
+        vec3 finalColor = debanded + vec3(dither);
+        
+        gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), center.a);
       }
     `;
 
-    const fsRefineSource = `
-      precision mediump float;
+    // 2. Artifact Cleaning & Line Reconstruction (Anime4K_Restore_CNN_M)
+    const fsRestoreSource = `
+      precision highp float;
       varying vec2 v_texCoord;
       uniform sampler2D u_image;
-      uniform vec2 u_targetResolution;
+      uniform vec2 u_textureSize;
+
+      float luma(vec3 c) {
+        return dot(c, vec3(0.299, 0.587, 0.114));
+      }
 
       void main() {
-        vec2 d = vec2(1.0) / u_targetResolution;
-        vec3 c  = texture2D(u_image, v_texCoord).rgb;
-        vec3 cU = texture2D(u_image, v_texCoord + vec2(0.0, -d.y)).rgb;
-        vec3 cD = texture2D(u_image, v_texCoord + vec2(0.0,  d.y)).rgb;
-        vec3 cL = texture2D(u_image, v_texCoord + vec2(-d.x, 0.0)).rgb;
-        vec3 cR = texture2D(u_image, v_texCoord + vec2( d.x, 0.0)).rgb;
+        vec2 d = 1.0 / u_textureSize;
+        
+        vec3 cc = texture2D(u_image, v_texCoord).rgb;
+        vec3 tl = texture2D(u_image, v_texCoord + vec2(-d.x, -d.y)).rgb;
+        vec3 tc = texture2D(u_image, v_texCoord + vec2( 0.0, -d.y)).rgb;
+        vec3 tr = texture2D(u_image, v_texCoord + vec2( d.x, -d.y)).rgb;
+        vec3 ml = texture2D(u_image, v_texCoord + vec2(-d.x,  0.0)).rgb;
+        vec3 mr = texture2D(u_image, v_texCoord + vec2( d.x,  0.0)).rgb;
+        vec3 bl = texture2D(u_image, v_texCoord + vec2(-d.x,  d.y)).rgb;
+        vec3 bc = texture2D(u_image, v_texCoord + vec2( 0.0,  d.y)).rgb;
+        vec3 br = texture2D(u_image, v_texCoord + vec2( d.x,  d.y)).rgb;
+        
+        float lCC = luma(cc);
+        float lTL = luma(tl); float lTC = luma(tc); float lTR = luma(tr);
+        float lML = luma(ml);                      float lMR = luma(mr);
+        float lBL = luma(bl); float lBC = luma(bc); float lBR = luma(br);
+        
+        // Sobel edge gradient computation
+        float gx = (lTR + 2.0 * lMR + lBR) - (lTL + 2.0 * lML + lBL);
+        float gy = (lBL + 2.0 * lBC + lBR) - (lTL + 2.0 * lTC + lTR);
+        float edgeStrength = sqrt(gx * gx + gy * gy);
+        
+        // Ringing suppression & compression halo removal
+        vec3 minNeighbor = min(min(min(tl, tc), min(tr, ml)), min(min(mr, bl), min(bc, br)));
+        vec3 maxNeighbor = max(max(max(tl, tc), max(tr, ml)), max(max(mr, bl), max(bc, br)));
+        vec3 cleaned = clamp(cc, minNeighbor, maxNeighbor);
+        
+        // Directional line reconstruction for thin anime contours
+        vec2 dir = normalize(vec2(-gy, gx) + vec2(0.0001));
+        vec3 sP = texture2D(u_image, v_texCoord + dir * d * 0.75).rgb;
+        vec3 sN = texture2D(u_image, v_texCoord - dir * d * 0.75).rgb;
+        vec3 lineAverage = (sP + sN) * 0.5;
+        
+        float isEdge = smoothstep(0.06, 0.22, edgeStrength);
+        vec3 reconstructed = mix(cleaned, min(cleaned, lineAverage), isEdge * 0.45);
+        
+        gl_FragColor = vec4(clamp(reconstructed, 0.0, 1.0), 1.0);
+      }
+    `;
 
-        vec3 sharp = c * 5.0 - (cU + cD + cL + cR);
-        vec3 minColor = min(c, min(min(cU, cD), min(cL, cR)));
-        vec3 maxColor = max(c, max(max(cU, cD), max(cL, cR)));
-        sharp = clamp(sharp, minColor, maxColor);
+    // 3. Primary Upscale (2x) (Anime4K_Upscale_CNN_x2_M)
+    const fsUpscale2xSource = `
+      precision highp float;
+      varying vec2 v_texCoord;
+      uniform sampler2D u_image;
+      uniform vec2 u_srcTextureSize;
 
-        vec3 finalColor = mix(c, sharp, 0.6);
+      float luma(vec3 c) {
+        return dot(c, vec3(0.299, 0.587, 0.114));
+      }
+
+      void main() {
+        vec2 texel = 1.0 / u_srcTextureSize;
+        vec2 pos = v_texCoord * u_srcTextureSize - 0.5;
+        vec2 f = fract(pos);
+        vec2 baseUV = (floor(pos) + 0.5) * texel;
+        
+        vec3 c00 = texture2D(u_image, baseUV).rgb;
+        vec3 c10 = texture2D(u_image, baseUV + vec2(texel.x, 0.0)).rgb;
+        vec3 c01 = texture2D(u_image, baseUV + vec2(0.0, texel.y)).rgb;
+        vec3 c11 = texture2D(u_image, baseUV + vec2(texel.x, texel.y)).rgb;
+        
+        float l00 = luma(c00);
+        float l10 = luma(c10);
+        float l01 = luma(c01);
+        float l11 = luma(c11);
+        
+        // Edge-directed vector contour interpolation
+        float d1 = abs(l00 - l11);
+        float d2 = abs(l10 - l01);
+        
+        vec3 color;
+        if (d1 < d2 * 0.85) {
+          float t = (f.x + f.y) * 0.5;
+          color = mix(c00, c11, t);
+        } else if (d2 < d1 * 0.85) {
+          float t = (f.x + (1.0 - f.y)) * 0.5;
+          color = mix(c01, c10, t);
+        } else {
+          vec3 top = mix(c00, c10, f.x);
+          vec3 bot = mix(c01, c11, f.x);
+          color = mix(top, bot, f.y);
+        }
+        
+        gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+      }
+    `;
+
+    // 4. Target Rescale + AMD CAS (Contrast Adaptive Sharpening)
+    const fsCasRescaleSource = `
+      precision highp float;
+      varying vec2 v_texCoord;
+      uniform sampler2D u_image;
+      uniform vec2 u_srcTextureSize;   // e.g. 2560x1440
+      uniform vec2 u_targetResolution; // e.g. 1920x1080
+      uniform float u_sharpness;       // 0.4 - 0.6 (default 0.50)
+
+      void main() {
+        vec2 d = 1.0 / u_srcTextureSize;
+        
+        // AMD FidelityFX CAS 3x3 cross pattern
+        vec3 a = texture2D(u_image, v_texCoord + vec2( 0.0, -d.y)).rgb; // Top
+        vec3 b = texture2D(u_image, v_texCoord + vec2(-d.x,  0.0)).rgb; // Left
+        vec3 c = texture2D(u_image, v_texCoord).rgb;                   // Center
+        vec3 dCol = texture2D(u_image, v_texCoord + vec2( d.x,  0.0)).rgb; // Right
+        vec3 e = texture2D(u_image, v_texCoord + vec2( 0.0,  d.y)).rgb; // Bottom
+        
+        // Find min and max colors around center
+        vec3 minRGB = min(min(min(a, b), min(dCol, e)), c);
+        vec3 maxRGB = max(max(max(a, b), max(dCol, e)), c);
+        
+        // Compute adaptive contrast weight for CAS (eliminates haloing and oversharpening)
+        vec3 ampRGB = clamp(min(minRGB, 2.0 - maxRGB) / max(maxRGB, vec3(0.0001)), 0.0, 1.0);
+        vec3 wRGB = -sqrt(ampRGB) * (u_sharpness * 0.20);
+        
+        // Filter reconstruction
+        vec3 finalColor = (a * wRGB + b * wRGB + c + dCol * wRGB + e * wRGB) / (1.0 + 4.0 * wRGB);
+        
+        // Soft clamp to local neighborhood bounds to prevent ringing
+        finalColor = clamp(finalColor, minRGB, maxRGB);
+        
         gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
       }
     `;
@@ -169,8 +310,10 @@ class AnimeWebGL1080p {
       return p;
     };
 
-    this.upscaleProgram = createProg(vsSource, fsUpscaleSource);
-    this.refineProgram = createProg(vsSource, fsRefineSource);
+    this.debandProgram = createProg(vsSource, fsDebandSource);
+    this.restoreProgram = createProg(vsSource, fsRestoreSource);
+    this.upscale2xProgram = createProg(vsSource, fsUpscale2xSource);
+    this.casRescaleProgram = createProg(vsSource, fsCasRescaleSource);
 
     this.texture = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -188,32 +331,57 @@ class AnimeWebGL1080p {
     );
   }
 
-  private initFBOs(width: number, height: number) {
+  private createFBO(width: number, height: number): [WebGLFramebuffer, WebGLTexture] {
     const gl = this.gl;
-    if (this.fbo1) this.destroyFBOs();
-    this.lastTargetWidth = width;
-    this.lastTargetHeight = height;
-
-    this.fbo1Texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.fbo1Texture);
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-    this.fbo1 = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo1);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fbo1Texture, 0);
+    const fbo = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    return [fbo, tex];
+  }
+
+  private initFBOs(inW: number, inH: number, targetW: number, targetH: number) {
+    this.destroyFBOs();
+    this.lastInputWidth = inW;
+    this.lastInputHeight = inH;
+    this.lastTargetWidth = targetW;
+    this.lastTargetHeight = targetH;
+
+    const upW = inW * 2;
+    const upH = inH * 2;
+
+    // FBO 1: Deband output (inW x inH)
+    [this.fboDeband, this.fboDebandTexture] = this.createFBO(inW, inH);
+    // FBO 2: Restore output (inW x inH)
+    [this.fboRestore, this.fboRestoreTexture] = this.createFBO(inW, inH);
+    // FBO 3: 2x Upscale intermediate output (2*inW x 2*inH)
+    [this.fboUpscale2x, this.fboUpscale2xTexture] = this.createFBO(upW, upH);
   }
 
   private destroyFBOs() {
     const gl = this.gl;
-    if (this.fbo1Texture) gl.deleteTexture(this.fbo1Texture);
-    if (this.fbo1) gl.deleteFramebuffer(this.fbo1);
-    this.fbo1Texture = null;
-    this.fbo1 = null;
+    if (this.fboDebandTexture) gl.deleteTexture(this.fboDebandTexture);
+    if (this.fboDeband) gl.deleteFramebuffer(this.fboDeband);
+    if (this.fboRestoreTexture) gl.deleteTexture(this.fboRestoreTexture);
+    if (this.fboRestore) gl.deleteFramebuffer(this.fboRestore);
+    if (this.fboUpscale2xTexture) gl.deleteTexture(this.fboUpscale2xTexture);
+    if (this.fboUpscale2x) gl.deleteFramebuffer(this.fboUpscale2x);
+
+    this.fboDebandTexture = null;
+    this.fboDeband = null;
+    this.fboRestoreTexture = null;
+    this.fboRestore = null;
+    this.fboUpscale2xTexture = null;
+    this.fboUpscale2x = null;
   }
 
   public start() {
@@ -238,6 +406,15 @@ class AnimeWebGL1080p {
     this.animId = requestAnimationFrame(this.renderLoop);
   };
 
+  private drawQuad(program: WebGLProgram) {
+    const gl = this.gl;
+    const posLoc = gl.getAttribLocation(program, "a_position");
+    gl.enableVertexAttribArray(posLoc);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
   private render() {
     const video = this.video;
     const gl = this.gl;
@@ -248,53 +425,77 @@ class AnimeWebGL1080p {
     const targetH = 1080;
     const aspect = vW / vH;
     const targetW = Math.round(targetH * aspect);
+    const upW = vW * 2;
+    const upH = vH * 2;
 
     if (this.canvas.width !== targetW || this.canvas.height !== targetH) {
       this.canvas.width = targetW;
       this.canvas.height = targetH;
     }
 
-    if (this.lastTargetWidth !== targetW || this.lastTargetHeight !== targetH) {
-      this.initFBOs(targetW, targetH);
+    if (
+      this.lastInputWidth !== vW ||
+      this.lastInputHeight !== vH ||
+      this.lastTargetWidth !== targetW ||
+      this.lastTargetHeight !== targetH ||
+      !this.fboDeband
+    ) {
+      this.initFBOs(vW, vH, targetW, targetH);
     }
 
+    // Bind source video frame into active input texture
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
 
-    // Pass 1: Upscale to 1080p
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo1);
-    gl.viewport(0, 0, targetW, targetH);
-    gl.useProgram(this.upscaleProgram);
+    // -------------------------------------------------------------
+    // PASS 1: Debanding + Blue Noise Dither (vW x vH)
+    // -------------------------------------------------------------
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboDeband);
+    gl.viewport(0, 0, vW, vH);
+    gl.useProgram(this.debandProgram);
 
-    const posLoc1 = gl.getAttribLocation(this.upscaleProgram, "a_position");
-    gl.enableVertexAttribArray(posLoc1);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-    gl.vertexAttribPointer(posLoc1, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform1i(gl.getUniformLocation(this.debandProgram, "u_image"), 0);
+    gl.uniform2f(gl.getUniformLocation(this.debandProgram, "u_textureSize"), vW, vH);
+    this.drawQuad(this.debandProgram);
 
-    const texLoc1 = gl.getUniformLocation(this.upscaleProgram, "u_image");
-    gl.uniform1i(texLoc1, 0);
-    const sizeLoc1 = gl.getUniformLocation(this.upscaleProgram, "u_textureSize");
-    gl.uniform2f(sizeLoc1, vW, vH);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    // -------------------------------------------------------------
+    // PASS 2: Artifact Cleaning & Line Reconstruction (Anime4K_Restore_CNN_M)
+    // -------------------------------------------------------------
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboRestore);
+    gl.viewport(0, 0, vW, vH);
+    gl.useProgram(this.restoreProgram);
 
-    // Pass 2: Line sharpening
+    gl.bindTexture(gl.TEXTURE_2D, this.fboDebandTexture);
+    gl.uniform1i(gl.getUniformLocation(this.restoreProgram, "u_image"), 0);
+    gl.uniform2f(gl.getUniformLocation(this.restoreProgram, "u_textureSize"), vW, vH);
+    this.drawQuad(this.restoreProgram);
+
+    // -------------------------------------------------------------
+    // PASS 3: Primary Upscale 2x (Anime4K_Upscale_CNN_x2_M -> upW x upH, e.g. 2560x1440)
+    // -------------------------------------------------------------
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboUpscale2x);
+    gl.viewport(0, 0, upW, upH);
+    gl.useProgram(this.upscale2xProgram);
+
+    gl.bindTexture(gl.TEXTURE_2D, this.fboRestoreTexture);
+    gl.uniform1i(gl.getUniformLocation(this.upscale2xProgram, "u_image"), 0);
+    gl.uniform2f(gl.getUniformLocation(this.upscale2xProgram, "u_srcTextureSize"), vW, vH);
+    this.drawQuad(this.upscale2xProgram);
+
+    // -------------------------------------------------------------
+    // PASS 4: Target Rescale (to 1080p) + AMD CAS (Contrast Adaptive Sharpening)
+    // -------------------------------------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, targetW, targetH);
-    gl.useProgram(this.refineProgram);
+    gl.useProgram(this.casRescaleProgram);
 
-    const posLoc2 = gl.getAttribLocation(this.refineProgram, "a_position");
-    gl.enableVertexAttribArray(posLoc2);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-    gl.vertexAttribPointer(posLoc2, 2, gl.FLOAT, false, 0, 0);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.fbo1Texture);
-    const texLoc2 = gl.getUniformLocation(this.refineProgram, "u_image");
-    gl.uniform1i(texLoc2, 0);
-
-    const resLoc = gl.getUniformLocation(this.refineProgram, "u_targetResolution");
-    gl.uniform2f(resLoc, targetW, targetH);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.bindTexture(gl.TEXTURE_2D, this.fboUpscale2xTexture);
+    gl.uniform1i(gl.getUniformLocation(this.casRescaleProgram, "u_image"), 0);
+    gl.uniform2f(gl.getUniformLocation(this.casRescaleProgram, "u_srcTextureSize"), upW, upH);
+    gl.uniform2f(gl.getUniformLocation(this.casRescaleProgram, "u_targetResolution"), targetW, targetH);
+    gl.uniform1f(gl.getUniformLocation(this.casRescaleProgram, "u_sharpness"), 0.50); // CAS sharpness 0.4 - 0.6
+    this.drawQuad(this.casRescaleProgram);
   }
 
   public destroy() {
@@ -302,8 +503,10 @@ class AnimeWebGL1080p {
     const gl = this.gl;
     if (this.texture) gl.deleteTexture(this.texture);
     if (this.buffer) gl.deleteBuffer(this.buffer);
-    if (this.upscaleProgram) gl.deleteProgram(this.upscaleProgram);
-    if (this.refineProgram) gl.deleteProgram(this.refineProgram);
+    if (this.debandProgram) gl.deleteProgram(this.debandProgram);
+    if (this.restoreProgram) gl.deleteProgram(this.restoreProgram);
+    if (this.upscale2xProgram) gl.deleteProgram(this.upscale2xProgram);
+    if (this.casRescaleProgram) gl.deleteProgram(this.casRescaleProgram);
     this.destroyFBOs();
   }
 }

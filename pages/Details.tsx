@@ -55,7 +55,6 @@ import { LazyRender } from "../components/LazyRender";
 import { usePlayerSync } from "../hooks/usePlayerSync";
 import { CustomPlayer, isTvDevice } from "../components/CustomPlayer";
 import { BrowserDownloadWidget } from "../components/BrowserDownloadWidget";
-import { AniboomDiagnostics, AniboomLogsState, DiagnosticStep } from "../components/AniboomDiagnostics";
 import { useSlugBlocks } from "../store/slugBlocks";
 import { useDmcaBlocks } from "../store/dmcaBlocks";
 import { filterProfanity } from "../utils/profanity";
@@ -269,13 +268,6 @@ const Details: React.FC = () => {
     return getCleanTitle(title);
   };
 
-  // Diagnostics State
-  const [aniboomLogs, setAniboomLogs] = useState<AniboomLogsState[]>([]);
-  const [serverSteps, setServerSteps] = useState<any[]>([]);
-  const [isCacheHit, setIsCacheHit] = useState(false);
-  const [bypassCacheNext, setBypassCacheNext] = useState(false);
-  const [resolveCounter, setResolveCounter] = useState(0);
-
   // Log active player tab selection to console
   useEffect(() => {
     if (selectedPlayer) {
@@ -304,117 +296,53 @@ const Details: React.FC = () => {
     }
 
     let isCurrent = true;
+    const abortController = new AbortController();
+
     const resolveAniboomStream = async () => {
       setIsResolvingStream(true);
       setStreamResolutionError(null);
       setResolvedStream(null);
-      setServerSteps([]);
-      setIsCacheHit(false);
-
-      const localLogs: AniboomLogsState[] = [];
-      const addLog = (stepName: string, status: "info" | "success" | "error", message: string, details?: any) => {
-        const timestamp = new Date().toLocaleTimeString();
-        const detailsStr = details ? (typeof details === 'object' ? JSON.stringify(details, null, 2) : String(details)) : undefined;
-        localLogs.push({ timestamp, step: stepName, status, message, details: detailsStr });
-        setAniboomLogs([...localLogs]);
-      };
 
       const epNum = parseInt(paramEpisode || "1") || 1;
       const defaultAniboom = players.find((p) => p.name === "Aniboom")?.iframe;
-
-      addLog(
-        "Инициализация",
-        "info",
-        `Запуск клиента-резолвера для Shikimori ID: ${id || "нет"}, Серия: ${epNum}, Озвучка: ${selectedTranslation?.title || "По умолчанию"}`
-      );
-
-      // Collect extensive telemetry about current selection states
-      const tAsAny = selectedTranslation as any;
-      const gatherTelemetry = {
-        shikimoriId: id,
-        episode: epNum,
-        selectedTranslation: tAsAny ? {
-          id: tAsAny.id,
-          title: tAsAny.title,
-          type: tAsAny.type,
-          iframeExcerpt: tAsAny.iframe ? tAsAny.iframe.substring(0, 50) + "..." : null,
-          hasAniboomIframe: !!tAsAny.aniboom_iframe,
-          aniboomIframeExcerpt: tAsAny.aniboom_iframe ? tAsAny.aniboom_iframe.substring(0, 50) + "..." : null
-        } : null,
-        availablePlayersCount: players.length,
-        availablePlayersList: players.map(p => ({
-          name: p.name,
-          hasIframe: !!p.iframe,
-          iframeType: p.iframe ? (p.iframe.includes("aniboom") ? "aniboom" : p.iframe.includes("kodik") ? "kodik" : "other") : "none"
-        })),
-        defaultAniboomFound: !!defaultAniboom,
-        defaultAniboomExcerpt: defaultAniboom ? defaultAniboom.substring(0, 50) + "..." : null
-      };
-
-      addLog(
-        "Сбор параметров", 
-        "info", 
-        "Выполняется глубокий анализ и сопоставление метаданных провайдеров...",
-        gatherTelemetry
-      );
+      const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+      const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
 
       let aniboomStreamUrl = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
       if (aniboomStreamUrl && aniboomStreamUrl.includes("7P9qko4qQ8v")) {
         aniboomStreamUrl = null;
       }
 
-      const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
-      const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
-
-      if (aniboomStreamUrl) {
-        addLog(
-          "Сбор параметров", 
-          "success", 
-          `Параметры успешно собраны. Ссылка: ${aniboomStreamUrl}`,
-          {
-            resolvedUrl: aniboomStreamUrl,
-            queryParameters: {
-              episode: epNum,
-              translation: selectedTranslation?.title || "16 (стандарт)"
-            },
-            sourceUsed: tAsAny?.aniboom_iframe ? "translation.aniboom_iframe" : (tAsAny?.iframe && tAsAny.iframe.includes("aniboom") ? "translation.iframe" : "defaultAniboom")
-          }
-        );
-      } else {
-        addLog(
-          "Сбор параметров",
-          "info",
-          `Прямая ссылка AniBoom отсутствует. Поиск потока через Shikimori ID ${id} и озвучку ${selectedTranslation?.title || "по умолчанию"} на AnimeGO...`
-        );
-      }
-
       try {
         const fetchUrl = aniboomStreamUrl
-          ? `/api/media/aniboom/resolve?url=${encodeURIComponent(aniboomStreamUrl)}&shikimori_id=${id}&episode=${epNum}${bypassCacheNext ? "&nocache=true" : ""}`
-          : `/api/media/aniboom/resolve?shikimori_id=${id}&episode=${epNum}&translation_id=${encodeURIComponent(selectedTranslation?.title || "")}${bypassCacheNext ? "&nocache=true" : ""}`;
+          ? `/api/media/aniboom/resolve?url=${encodeURIComponent(aniboomStreamUrl)}&shikimori_id=${id}&episode=${epNum}`
+          : `/api/media/aniboom/resolve?shikimori_id=${id}&episode=${epNum}&translation_id=${encodeURIComponent(selectedTranslation?.title || "")}`;
 
-        addLog("Запрос к бэкенду", "info", `Отправка GET-запроса к: ${fetchUrl}`);
-
-        const res = await fetch(fetchUrl);
-        
-        // Clear bypass flag for future changes
-        setBypassCacheNext(false);
+        const res = await fetch(fetchUrl, {
+          signal: abortController.signal
+        });
 
         const data = await res.json();
-        
-        if (data.steps) {
-          setServerSteps(data.steps);
-        }
-        if (data.is_cache_hit !== undefined) {
-          setIsCacheHit(data.is_cache_hit);
-        }
 
-        if (!res.ok) {
-          throw new Error(data.error || `Server returned HTTP ${res.status}`);
-        }
-        
-        if (!data.success || !data.url) {
-          throw new Error(data.error || "No URL returned from resolver");
+        if (!res.ok || !data.success || !data.url) {
+          const reason = data.error || `Server returned status ${res.status}`;
+          if (isCurrent) {
+            if (kodikIframeUrl) {
+              setResolvedStream({
+                url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
+                streamType: "hls",
+                provider: "kodik"
+              });
+              setIsResolvingStream(false);
+              return;
+            } else {
+              setStreamResolutionError(reason);
+              setIsResolvingStream(false);
+              handleAniboomFallback();
+              return;
+            }
+          }
+          return;
         }
 
         if (isCurrent) {
@@ -423,7 +351,6 @@ const Details: React.FC = () => {
           
           // Check if Kodik is available and has better quality (Kodik is always 720p, so if AniBoom is 480p or 360p, Kodik is better)
           if (parsedQuality < 720 && kodikIframeUrl) {
-            addLog("Повышение качества", "info", `Качество AniBoom (${rawQual || 'неизвестно'}) ниже чем у Kodik (720p). Переключаемся на поток Kodik...`);
             setResolvedStream({
               url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
               streamType: "hls",
@@ -432,8 +359,6 @@ const Details: React.FC = () => {
             setIsResolvingStream(false);
             return;
           }
-
-          addLog("Воспроизведение", "success", `Поток получен: ${data.url.substring(0, 70)}... [Качество: ${rawQual || "1080p"}]`);
           
           if (rawQual && selectedTranslation) {
             const mapped = rawQual === "1080p" ? "4K" : rawQual === "720p" ? "1080" : null;
@@ -454,13 +379,12 @@ const Details: React.FC = () => {
           setIsResolvingStream(false);
         }
       } catch (err: any) {
-        console.warn("⚠️ [Aniboom Resolver] Stream resolution note:", err.message);
+        if (err.name === "AbortError") {
+          return;
+        }
+        console.info("ℹ️ [Aniboom Resolver] Stream note:", err.message);
         if (isCurrent) {
-          addLog("Резолвер AniBoom не ответил", "info", `AniBoom поток недоступен для данной серии/озвучки (${err.message}). Задействуем Kodik в KamiPlayer...`);
-          
-          // Tandem Kodik fallback inside KamiPlayer
           if (kodikIframeUrl) {
-            addLog("Резервный плеер", "success", "Поток Kodik успешно подключен в KamiPlayer.");
             setResolvedStream({
               url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
               streamType: "hls",
@@ -468,7 +392,6 @@ const Details: React.FC = () => {
             });
             setIsResolvingStream(false);
           } else {
-            addLog("Критический сбой", "error", "Источники AniBoom и Kodik недоступны.");
             setIsResolvingStream(false);
             setStreamResolutionError(err.message || "Failed to resolve stream");
             handleAniboomFallback();
@@ -501,8 +424,9 @@ const Details: React.FC = () => {
 
     return () => {
       isCurrent = false;
+      abortController.abort();
     };
-  }, [selectedPlayer, paramEpisode, selectedTranslation, id, players, resolveCounter]);
+  }, [selectedPlayer, paramEpisode, selectedTranslation, id, players]);
 
   // Auto scroll to active episode on change
   useEffect(() => {
@@ -2222,27 +2146,6 @@ const Details: React.FC = () => {
                     </>
                   )}
                 </div>
-
-                {/* Diagnostics Panel for AniBoom Stream Parser */}
-                {aniboomLogs.length > 0 && (
-                  <div className="mt-6">
-                    <AniboomDiagnostics
-                      logs={aniboomLogs}
-                      serverSteps={serverSteps}
-                      isResolving={isResolvingStream}
-                      error={streamResolutionError}
-                      resolvedUrl={resolvedStream?.url || null}
-                      isCacheHit={isCacheHit}
-                      activeEpisode={paramEpisode || "1"}
-                      activeTranslation={selectedTranslation?.title || "По умолчанию"}
-                      onRetry={() => {
-                        setSelectedPlayer("KamiPlayer (1080p)");
-                        setBypassCacheNext(true);
-                        setResolveCounter((prev) => prev + 1);
-                      }}
-                    />
-                  </div>
-                )}
 
                 {/* Voice Translations & Clean Episode List Widget */}
                 {anime && (
