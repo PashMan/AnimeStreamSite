@@ -33,6 +33,36 @@
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Outfit:wght@500;700;800;900&amp;display=swap" rel="stylesheet">
     </noscript>
 
+    <!-- Global Shim & Error Shield for 3rd-party player tracking scripts (e.g. 200.js / M_ID) -->
+    <script>
+      (function() {
+        try {
+          if (!window.M_ID) {
+            window.M_ID = {};
+          }
+        } catch (_) {}
+        window.addEventListener('unhandledrejection', function(event) {
+          try {
+            var reasonStr = String(event.reason || '');
+            var stackStr = String(event.reason && event.reason.stack ? event.reason.stack : '');
+            if (reasonStr.includes('M_ID') || stackStr.includes('200.js') || reasonStr.includes('200.js')) {
+              event.preventDefault();
+            }
+          } catch (_) {}
+        });
+        window.addEventListener('error', function(event) {
+          try {
+            var msg = String(event.message || '');
+            var filename = String(event.filename || '');
+            if (msg.includes('M_ID') || filename.includes('200.js')) {
+              event.preventDefault();
+              return true;
+            }
+          } catch (_) {}
+        });
+      })();
+    </script>
+
     <!-- Early script load failure and stale chunk cache buster -->
     <script>
       (function() {

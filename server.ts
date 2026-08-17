@@ -2732,6 +2732,10 @@ app.get('/api/collaps/embed', (c) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>KamiPlayer Collaps</title>
+  <script>
+    try { window.M_ID = window.M_ID || {}; } catch(e){}
+    window.addEventListener('unhandledrejection', function(e) { e.preventDefault(); });
+  </script>
   <style>
     * { box-sizing: border-box; }
     html, body {

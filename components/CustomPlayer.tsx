@@ -802,28 +802,38 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                 });
 
                 let isQualityAdded = false;
-                hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
-                  if (isQualityAdded) return;
-                  isQualityAdded = true;
-
-                  const levels = data.levels || hls.levels || [];
+                const updateQualitiesFromLevels = (levels: any[]) => {
+                  if (!levels || levels.length === 0) return;
                   const mappedLevels = levels.map((l: any, index: number) => {
-                    const height = l.height || 0;
+                    const height = l.height || (l.attrs && l.attrs.RESOLUTION ? parseInt(l.attrs.RESOLUTION.split("x")[1]) : 0);
+                    const name = l.name || (l.attrs && l.attrs.NAME) || "";
                     let label = "Авто";
-                    if (height >= 1080) label = "1080p";
-                    else if (height >= 720) label = "720p";
-                    else if (height >= 480) label = "480p";
-                    else if (height >= 360) label = "360p";
-                    else label = height ? `${height}p` : "Авто";
+                    if (name) {
+                      label = name.includes("p") ? name : `${name}p`;
+                    } else if (height >= 1080) {
+                      label = "1080p";
+                    } else if (height >= 720) {
+                      label = "720p";
+                    } else if (height >= 480) {
+                      label = "480p";
+                    } else if (height >= 360) {
+                      label = "360p";
+                    } else if (height > 0) {
+                      label = `${height}p`;
+                    } else {
+                      label = `Качество ${index + 1}`;
+                    }
+
+                    const numericHeight = height || (label.includes("1080") ? 1080 : label.includes("720") ? 720 : label.includes("480") ? 480 : label.includes("360") ? 360 : 0);
 
                     return {
                       html: label,
                       level: index,
-                      height: height || 0
+                      height: numericHeight
                     };
                   });
 
-                  // Sort descending by height
+                  // Sort descending by resolution height
                   mappedLevels.sort((a, b) => b.height - a.height);
 
                   const finalQuals = [
@@ -838,6 +848,16 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                   console.log("📺 [HLS Quality Map] Dynamic qualities resolved:", finalQuals);
                   setAvailableQualities(finalQuals);
+                };
+
+                hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+                  if (isQualityAdded) return;
+                  isQualityAdded = true;
+                  updateQualitiesFromLevels(data.levels || hls.levels || []);
+                });
+
+                hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+                  console.log(`🎬 [HLS] Quality level actively switched to index: ${data.level}`);
                 });
 
                 artInstance.on("ready", () => {
@@ -993,10 +1013,32 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       setSelectedQuality(item.html);
       const art = artInstanceRef.current;
       if (art && (art as any).hls) {
-        (art as any).hls.currentLevel = item.level;
+        const hls = (art as any).hls;
+        try {
+          console.log(`[Quality Switch] Applying HLS quality level ${item.level} (${item.html})`);
+          if (item.level === -1) {
+            hls.currentLevel = -1;
+            hls.loadLevel = -1;
+            hls.nextLevel = -1;
+          } else {
+            hls.currentLevel = item.level;
+            hls.loadLevel = item.level;
+            hls.nextLevel = item.level;
+          }
+
+          // Trigger immediate reload of upcoming segments if actively playing
+          if (art.video && !art.video.paused) {
+            const curTime = art.currentTime;
+            hls.stopLoad();
+            hls.startLoad(curTime);
+          }
+        } catch (err) {
+          console.warn("[HLS Quality Switch Error]", err);
+        }
       } else if (art && (art as any).dash) {
         const player = (art as any).dash;
         try {
+          console.log(`[Quality Switch] Applying DASH quality level ${item.level} (${item.html})`);
           if (item.level === -1) {
             if (typeof player.updateSettings === "function") {
               player.updateSettings({
@@ -1008,7 +1050,8 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   }
                 }
               });
-            } else if (typeof player.setAutoSwitchQualityFor === "function") {
+            }
+            if (typeof player.setAutoSwitchQualityFor === "function") {
               player.setAutoSwitchQualityFor("video", true);
             }
           } else {
@@ -1022,7 +1065,8 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   }
                 }
               });
-            } else if (typeof player.setAutoSwitchQualityFor === "function") {
+            }
+            if (typeof player.setAutoSwitchQualityFor === "function") {
               player.setAutoSwitchQualityFor("video", false);
             }
 
