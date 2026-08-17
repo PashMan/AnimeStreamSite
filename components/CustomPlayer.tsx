@@ -47,7 +47,7 @@ interface CustomPlayerProps {
 // 1. Debanding + Blue Noise Dither (8-16px radius)
 // 2. Artifact Cleaning & Line Reconstruction (Anime4K_Restore_CNN_M)
 // 3. Primary Upscale 2x (Anime4K_Upscale_CNN_x2_M)
-// 4. Target Rescale to 1080p + AMD CAS (Contrast Adaptive Sharpening 0.4-0.6)
+// 4. Target Rescale to 1080p / 4K + AMD CAS (Contrast Adaptive Sharpening 0.4-0.6)
 class AnimeWebGL1080p {
   private gl: WebGLRenderingContext;
   private debandProgram: WebGLProgram;
@@ -60,6 +60,8 @@ class AnimeWebGL1080p {
   private canvas: HTMLCanvasElement;
   private animId: number | null = null;
   public isActive = false;
+  private targetMode: number = 0; // 0 = Auto (1080p -> 4K 2160p, 720p -> 1080p), 2160 = 4K, 1080 = 1080p, -1 = Off
+  private sharpness: number = 0.50; // AMD CAS sharpness
 
   // Framebuffer objects for multi-pass pipeline
   private fboDeband: WebGLFramebuffer | null = null;
@@ -384,10 +386,25 @@ class AnimeWebGL1080p {
     this.fboUpscale2x = null;
   }
 
+  public setTargetResolution(targetH: number) {
+    this.targetMode = targetH;
+    if (targetH === -1) {
+      this.canvas.style.opacity = "0";
+    } else if (this.isActive) {
+      this.canvas.style.opacity = "1";
+    }
+  }
+
+  public setSharpness(val: number) {
+    this.sharpness = Math.max(0.0, Math.min(1.0, val));
+  }
+
   public start() {
     if (this.isActive) return;
     this.isActive = true;
-    this.canvas.style.opacity = "1";
+    if (this.targetMode !== -1) {
+      this.canvas.style.opacity = "1";
+    }
     this.renderLoop();
   }
 
@@ -420,9 +437,31 @@ class AnimeWebGL1080p {
     const gl = this.gl;
     if (video.readyState < 2 || video.videoWidth === 0) return;
 
+    if (this.targetMode === -1) {
+      this.canvas.style.opacity = "0";
+      return;
+    } else {
+      this.canvas.style.opacity = "1";
+    }
+
     const vW = video.videoWidth;
     const vH = video.videoHeight;
-    const targetH = 1080;
+
+    // Determine target height:
+    // - 4K (2160p): Target 2160 for 4K upscale (especially from 1080p source)
+    // - 1080p: Target 1080 for 1080p upscale (especially from 720p source)
+    // - Auto (0): 1080p source -> 4K (2160p), 720p source -> 1080p
+    let targetH = 1080;
+    if (this.targetMode === 2160) {
+      targetH = 2160;
+    } else if (this.targetMode === 1080) {
+      targetH = 1080;
+    } else if (this.targetMode === 0) {
+      targetH = vH >= 1000 ? 2160 : 1080;
+    } else {
+      targetH = this.targetMode;
+    }
+
     const aspect = vW / vH;
     const targetW = Math.round(targetH * aspect);
     const upW = vW * 2;
@@ -472,7 +511,7 @@ class AnimeWebGL1080p {
     this.drawQuad(this.restoreProgram);
 
     // -------------------------------------------------------------
-    // PASS 3: Primary Upscale 2x (Anime4K_Upscale_CNN_x2_M -> upW x upH, e.g. 2560x1440)
+    // PASS 3: Primary Upscale 2x (Anime4K_Upscale_CNN_x2_M -> upW x upH)
     // -------------------------------------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboUpscale2x);
     gl.viewport(0, 0, upW, upH);
@@ -484,7 +523,7 @@ class AnimeWebGL1080p {
     this.drawQuad(this.upscale2xProgram);
 
     // -------------------------------------------------------------
-    // PASS 4: Target Rescale (to 1080p) + AMD CAS (Contrast Adaptive Sharpening)
+    // PASS 4: Target Rescale (to 1080p or 4K 2160p) + AMD CAS (Contrast Adaptive Sharpening)
     // -------------------------------------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, targetW, targetH);
@@ -494,7 +533,7 @@ class AnimeWebGL1080p {
     gl.uniform1i(gl.getUniformLocation(this.casRescaleProgram, "u_image"), 0);
     gl.uniform2f(gl.getUniformLocation(this.casRescaleProgram, "u_srcTextureSize"), upW, upH);
     gl.uniform2f(gl.getUniformLocation(this.casRescaleProgram, "u_targetResolution"), targetW, targetH);
-    gl.uniform1f(gl.getUniformLocation(this.casRescaleProgram, "u_sharpness"), 0.50); // CAS sharpness 0.4 - 0.6
+    gl.uniform1f(gl.getUniformLocation(this.casRescaleProgram, "u_sharpness"), this.sharpness);
     this.drawQuad(this.casRescaleProgram);
   }
 
@@ -534,6 +573,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     const artRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const artInstanceRef = useRef<Artplayer | null>(null);
+    const webglInstanceRef = useRef<AnimeWebGL1080p | null>(null);
 
     // Determine active stream provider for logging
     const activeProvider = (
@@ -584,15 +624,24 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     }, []);
 
     // Player Preferences (Stored in localStorage)
-    const [selectedQuality, setSelectedQuality] = useState<string>("Авто");
+    const [selectedQuality, setSelectedQuality] = useState<string>(() => {
+      return localStorage.getItem("kami_player_selected_quality") || "Авто";
+    });
+    const selectedQualityRef = useRef(selectedQuality);
+    useEffect(() => {
+      selectedQualityRef.current = selectedQuality;
+    }, [selectedQuality]);
+
     const [availableQualities, setAvailableQualities] = useState<
-      { html: string; level: number }[]
+      { html: string; level: number; targetH?: number; isAi?: boolean }[]
     >([
-      { html: "Авто", level: -1 },
-      { html: "1080p", level: 0 },
-      { html: "720p", level: 1 },
-      { html: "480p", level: 2 },
-      { html: "360p", level: 3 },
+      { html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true },
+      { html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true },
+      { html: "1080p", level: 0, targetH: -1 },
+      { html: "720p", level: 1, targetH: -1 },
+      { html: "480p", level: 2, targetH: -1 },
+      { html: "360p", level: 3, targetH: -1 },
+      { html: "Авто", level: -1, targetH: 0 },
     ]);
 
     const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
@@ -914,27 +963,34 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     }
                   }
 
+                  const parsedQualities: { html: string; level: number; targetH?: number; isAi?: boolean }[] = [
+                    { html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true },
+                    { html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true },
+                  ];
+
                   if (videoBitrates && videoBitrates.length > 0) {
-                    const parsedQualities = [
-                      { html: "Авто", level: -1 }
-                    ];
                     videoBitrates.forEach((bitrateInfo: any, index: number) => {
                       const height = bitrateInfo.height;
                       const name = height ? `${height}p` : `${bitrateInfo.bitrate || (index + 1)} kbps`;
                       if (!parsedQualities.some(q => q.html === name)) {
-                        parsedQualities.push({ html: name, level: index });
+                        parsedQualities.push({ html: name, level: index, targetH: -1 });
                       }
                     });
-                    // Sort descending by level (highest quality first)
-                    parsedQualities.sort((a, b) => b.level - a.level);
-                    setAvailableQualities(parsedQualities);
+                  } else {
+                    parsedQualities.push(
+                      { html: "1080p", level: 0, targetH: -1 },
+                      { html: "720p", level: 0, targetH: -1 }
+                    );
                   }
+
+                  parsedQualities.push({ html: "Авто", level: -1, targetH: 0 });
+                  setAvailableQualities(parsedQualities);
                 } catch (err) {
                   console.warn("[Dash.js Quality Read Error]", err);
                 }
               });
 
-              // Bind the Anime4K WebGL Upscaler for pristine 1080p rendering
+              // Bind the Anime4K WebGL Upscaler for pristine 1080p/4K rendering
               artInstance.on("ready", () => {
                 const videoEl = artInstance.video;
                 const isTv = isTvDevice();
@@ -953,11 +1009,29 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       }
                     }
 
-                    webglInstance = new AnimeWebGL1080p(
+                    if (webglInstanceRef.current) {
+                      webglInstanceRef.current.destroy();
+                    }
+
+                    const upscaler = new AnimeWebGL1080p(
                       canvasRef.current,
                       videoEl,
                     );
-                    webglInstance.start();
+                    webglInstance = upscaler;
+                    webglInstanceRef.current = upscaler;
+
+                    const curQ = selectedQualityRef.current;
+                    if (curQ.includes("4K")) {
+                      upscaler.setTargetResolution(2160);
+                    } else if (curQ.includes("1080p (Anime4K")) {
+                      upscaler.setTargetResolution(1080);
+                    } else if (curQ === "Авто") {
+                      upscaler.setTargetResolution(0);
+                    } else {
+                      upscaler.setTargetResolution(-1);
+                    }
+
+                    upscaler.start();
                   } catch (e) {
                     console.error("Anime WebGL Initialization Error with DASH:", e);
                   }
@@ -1009,48 +1083,57 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                 let isQualityAdded = false;
                 const updateQualitiesFromLevels = (levels: any[]) => {
-                  if (!levels || levels.length === 0) return;
-                  const mappedLevels = levels.map((l: any, index: number) => {
-                    const height = l.height || (l.attrs && l.attrs.RESOLUTION ? parseInt(l.attrs.RESOLUTION.split("x")[1]) : 0);
-                    const name = l.name || (l.attrs && l.attrs.NAME) || "";
-                    let label = "Авто";
-                    if (name) {
-                      label = name.includes("p") ? name : `${name}p`;
-                    } else if (height >= 1080) {
-                      label = "1080p";
-                    } else if (height >= 720) {
-                      label = "720p";
-                    } else if (height >= 480) {
-                      label = "480p";
-                    } else if (height >= 360) {
-                      label = "360p";
-                    } else if (height > 0) {
-                      label = `${height}p`;
-                    } else {
-                      label = `Качество ${index + 1}`;
-                    }
-
-                    const numericHeight = height || (label.includes("1080") ? 1080 : label.includes("720") ? 720 : label.includes("480") ? 480 : label.includes("360") ? 360 : 0);
-
-                    return {
-                      html: label,
-                      level: index,
-                      height: numericHeight
-                    };
-                  });
-
-                  // Sort descending by resolution height
-                  mappedLevels.sort((a, b) => b.height - a.height);
-
-                  const finalQuals = [
-                    { html: "Авто", level: -1 },
+                  const finalQuals: { html: string; level: number; targetH?: number; isAi?: boolean }[] = [
+                    { html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true },
+                    { html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true },
                   ];
 
-                  mappedLevels.forEach((item) => {
-                    if (!finalQuals.some((q) => q.html === item.html)) {
-                      finalQuals.push({ html: item.html, level: item.level });
-                    }
-                  });
+                  if (levels && levels.length > 0) {
+                    const mappedLevels = levels.map((l: any, index: number) => {
+                      const height = l.height || (l.attrs && l.attrs.RESOLUTION ? parseInt(l.attrs.RESOLUTION.split("x")[1]) : 0);
+                      const name = l.name || (l.attrs && l.attrs.NAME) || "";
+                      let label = "720p";
+                      if (name) {
+                        label = name.includes("p") ? name : `${name}p`;
+                      } else if (height >= 1080) {
+                        label = "1080p";
+                      } else if (height >= 720) {
+                        label = "720p";
+                      } else if (height >= 480) {
+                        label = "480p";
+                      } else if (height >= 360) {
+                        label = "360p";
+                      } else if (height > 0) {
+                        label = `${height}p`;
+                      } else {
+                        label = `Качество ${index + 1}`;
+                      }
+
+                      const numericHeight = height || (label.includes("1080") ? 1080 : label.includes("720") ? 720 : label.includes("480") ? 480 : label.includes("360") ? 360 : 0);
+
+                      return {
+                        html: label,
+                        level: index,
+                        height: numericHeight
+                      };
+                    });
+
+                    // Sort descending by resolution height
+                    mappedLevels.sort((a, b) => b.height - a.height);
+
+                    mappedLevels.forEach((item) => {
+                      if (!finalQuals.some((q) => q.html === item.html)) {
+                        finalQuals.push({ html: item.html, level: item.level, targetH: -1 });
+                      }
+                    });
+                  } else {
+                    finalQuals.push(
+                      { html: "1080p", level: 0, targetH: -1 },
+                      { html: "720p", level: 0, targetH: -1 }
+                    );
+                  }
+
+                  finalQuals.push({ html: "Авто", level: -1, targetH: 0 });
 
                   console.log("📺 [HLS Quality Map] Dynamic qualities resolved:", finalQuals);
                   setAvailableQualities(finalQuals);
@@ -1074,20 +1157,41 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     try {
                       const videoContainer = videoEl.parentElement;
                       if (videoContainer) {
-                        videoContainer.appendChild(canvasRef.current);
-                        canvasRef.current.setAttribute(
-                          "style",
-                          "position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 0; z-index: 5;",
-                        );
+                        if (!videoContainer.querySelector("canvas.anime-webgl-canvas")) {
+                          videoContainer.appendChild(canvasRef.current);
+                          canvasRef.current.className = "anime-webgl-canvas";
+                          canvasRef.current.setAttribute(
+                            "style",
+                            "position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity 0.3s ease; opacity: 0; z-index: 5;",
+                          );
+                        }
                       }
 
-                      webglInstance = new AnimeWebGL1080p(
+                      if (webglInstanceRef.current) {
+                        webglInstanceRef.current.destroy();
+                      }
+
+                      const upscaler = new AnimeWebGL1080p(
                         canvasRef.current,
                         videoEl,
                       );
-                      webglInstance.start();
+                      webglInstance = upscaler;
+                      webglInstanceRef.current = upscaler;
+
+                      const curQ = selectedQualityRef.current;
+                      if (curQ.includes("4K")) {
+                        upscaler.setTargetResolution(2160);
+                      } else if (curQ.includes("1080p (Anime4K")) {
+                        upscaler.setTargetResolution(1080);
+                      } else if (curQ === "Авто") {
+                        upscaler.setTargetResolution(0);
+                      } else {
+                        upscaler.setTargetResolution(-1);
+                      }
+
+                      upscaler.start();
                     } catch (e) {
-                      console.error("Anime WebGL Initialization Error:", e);
+                      console.error("Anime WebGL Initialization Error with HLS:", e);
                     }
                   }
                 });
@@ -1187,7 +1291,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
       return () => {
         isCancelled = true;
-        if (webglInstance) {
+        if (webglInstanceRef.current) {
+          webglInstanceRef.current.destroy();
+          webglInstanceRef.current = null;
+        } else if (webglInstance) {
           webglInstance.destroy();
         }
         if (art) {
@@ -1215,14 +1322,33 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     ]);
 
     // Quality Selection Handler
-    const handleSelectQuality = (item: { html: string; level: number }) => {
+    const handleSelectQuality = (item: { html: string; level: number; targetH?: number; isAi?: boolean }) => {
       setSelectedQuality(item.html);
+      localStorage.setItem("kami_player_selected_quality", item.html);
+
+      // WebGL Upscaler resolution mode
+      if (webglInstanceRef.current) {
+        if (item.html.includes("4K") || item.targetH === 2160) {
+          webglInstanceRef.current.setTargetResolution(2160);
+          webglInstanceRef.current.start();
+        } else if (item.html.includes("1080p (Anime4K") || item.targetH === 1080) {
+          webglInstanceRef.current.setTargetResolution(1080);
+          webglInstanceRef.current.start();
+        } else if (item.html === "Авто" || item.targetH === 0) {
+          webglInstanceRef.current.setTargetResolution(0); // Auto mode: 1080p source -> 4K (2160p), 720p source -> 1080p
+          webglInstanceRef.current.start();
+        } else {
+          // Standard raw resolution selected without AI upscaling
+          webglInstanceRef.current.setTargetResolution(-1);
+        }
+      }
+
       const art = artInstanceRef.current;
       if (art && (art as any).hls) {
         const hls = (art as any).hls;
         try {
           console.log(`[Quality Switch] Applying HLS quality level ${item.level} (${item.html})`);
-          if (item.level === -1) {
+          if (item.level === -1 || item.isAi) {
             hls.currentLevel = -1;
             hls.loadLevel = -1;
             hls.nextLevel = -1;
@@ -1245,7 +1371,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         const player = (art as any).dash;
         try {
           console.log(`[Quality Switch] Applying DASH quality level ${item.level} (${item.html})`);
-          if (item.level === -1) {
+          if (item.level === -1 || item.isAi) {
             if (typeof player.updateSettings === "function") {
               player.updateSettings({
                 streaming: {
@@ -1677,7 +1803,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                               : "text-slate-300 hover:bg-white/5 hover:text-white"
                           }`}
                         >
-                          <span>{q.html}</span>
+                          <div className="flex items-center gap-2">
+                            <span>{q.html}</span>
+                            {(q.isAi || q.html.includes("AI") || q.html.includes("4K")) && (
+                              <span className="text-[10px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded bg-[#8B5CF6]/20 text-[#A78BFA] border border-[#8B5CF6]/30">
+                                AI Шейдер
+                              </span>
+                            )}
+                          </div>
                           {isSelected && (
                             <Check className="w-4 h-4 text-[#8B5CF6]" />
                           )}
