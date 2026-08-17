@@ -639,14 +639,17 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               const baseCdnDir = rawMpdUrl.substring(0, rawMpdUrl.lastIndexOf("/") + 1);
 
               // Перехватываем все внутренние запросы чанков (.m4s)
-              player.extend("RequestModifier", () => ({
-                modifyRequest: (req: { url: string }) => {
-                  let target = req.url;
+              player.extend("RequestModifier", () => {
+                const processUrl = (urlStr: string): string => {
+                  if (!urlStr) return urlStr;
+                  let target = urlStr;
 
-                  if (target.startsWith(PROXY_WORKER)) {
-                    return req;
+                  // Если URL уже содержит параметр ?url= — это уже проксированный запрос, не трогаем его
+                  if (target.includes("?url=") || target.includes("&url=")) {
+                    return target;
                   }
 
+                  // Если путь не начинается с оригинальной директории CDN, восстанавливаем его
                   if (!target.startsWith(baseCdnDir)) {
                     const filename = target.split("?")[0].split("/").pop();
                     if (filename) {
@@ -654,10 +657,21 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     }
                   }
 
-                  req.url = PROXY_WORKER + encodeURIComponent(target);
-                  return req;
-                }
-              }), true);
+                  return PROXY_WORKER + encodeURIComponent(target);
+                };
+
+                return {
+                  modifyRequestURL: (urlVal: string) => {
+                    return processUrl(urlVal);
+                  },
+                  modifyRequest: (req: any) => {
+                    if (req && req.url) {
+                      req.url = processUrl(req.url);
+                    }
+                    return req;
+                  }
+                };
+              }, true);
 
               // Инициализируем плеер СРАЗУ через адрес воркера (чтобы первый .mpd не ушел напрямую)
               const initialUrl = PROXY_WORKER + encodeURIComponent(rawMpdUrl);
