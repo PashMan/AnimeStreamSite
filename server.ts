@@ -935,22 +935,21 @@ app.get('/api/balancer', async (c) => {
     if (pleer_iframe) players.push({ name: 'Pleer', iframe: pleer_iframe });
     if (anilibria_iframe) players.push({ name: 'Anilibria', iframe: anilibria_iframe });
 
-    // Decide quality badge based on AniBoom native quality:
-    // AniBoom with 1080p native is badged as '4K', 720p native is badged as '1080'
-    const aniboomNativeQuality = animego_quality || (aniboom_iframe ? '1080' : undefined);
-    const aniboomBadge = aniboomNativeQuality === '720' ? '1080' : '4K';
+    // Determine quality badge: 4K for native 4K films, 1080p for standard series (Kodik/Aniboom with 1080p/Anime4K)
+    const isNative4K = shikimori_id === '32281' || shikimori_id === '50594' || shikimori_id === '62568' || shikimori_id === '38826' || shikimori_id === '16782';
+    const qualityBadge = isNative4K ? '4K' : '1080p';
 
     const normalizeVoice = (name: string): string => {
       return (name || '')
         .toLowerCase()
-        .replace(/\s*\((4k|1080|720)\)\s*/gi, '')
+        .replace(/\s*\((4k|1080|720|4к|1080p|720p)\)\s*/gi, '')
         .replace(/[^a-zа-яё0-9]/gi, '')
         .replace(/ё/g, 'е')
         .trim();
     };
 
     const cleanTitle = (raw: string): string => {
-      return raw.replace(/\s*\((4K|1080|720)\)\s*/gi, '').trim();
+      return raw.replace(/\s*\((4K|1080|720|4к|1080p|720p)\)\s*/gi, '').trim();
     };
 
     const matchedAnimegoVoices = new Set<string>();
@@ -983,7 +982,7 @@ app.get('/api/balancer', async (c) => {
           matchedAnimegoVoices.add(normalizeVoice(matchedAb.voice));
           unifiedTranslations.push({
             id: kt.id || `voice_${normKt}`,
-            title: `${baseVoice} (${aniboomBadge})`,
+            title: baseVoice,
             type: kt.type || 'voice',
             provider: 'AniBoom',
             iframe: matchedAb.url,
@@ -991,14 +990,14 @@ app.get('/api/balancer', async (c) => {
             kodik_iframe: kt.iframe,
             episodes_count: maxEpisodes,
             last_episode: maxEpisodes,
-            quality_label: aniboomBadge,
-            is_native_1080: aniboomBadge === '4K'
+            quality_label: qualityBadge,
+            is_native_1080: isNative4K
           });
         } else {
-          // Kodik only
+          // Kodik only (Displays as 1080p, never 4K)
           unifiedTranslations.push({
             id: kt.id || `kodik_${normKt}`,
-            title: `${baseVoice} (1080)`,
+            title: baseVoice,
             type: kt.type || 'voice',
             provider: 'Kodik',
             iframe: kt.iframe,
@@ -1006,8 +1005,8 @@ app.get('/api/balancer', async (c) => {
             kodik_iframe: kt.iframe,
             episodes_count: maxEpisodes,
             last_episode: maxEpisodes,
-            quality_label: '1080',
-            is_native_1080: false
+            quality_label: isNative4K ? '4K' : '1080p',
+            is_native_1080: isNative4K
           });
         }
       });
@@ -1035,7 +1034,7 @@ app.get('/api/balancer', async (c) => {
 
           unifiedTranslations.push({
             id: `aniboom_only_${idx}`,
-            title: `${baseVoice} (${aniboomBadge})`,
+            title: baseVoice,
             type: 'voice',
             provider: 'AniBoom',
             iframe: ab.url,
@@ -1043,8 +1042,8 @@ app.get('/api/balancer', async (c) => {
             kodik_iframe: null,
             episodes_count: maxEpisodes,
             last_episode: maxEpisodes,
-            quality_label: aniboomBadge,
-            is_native_1080: aniboomBadge === '4K'
+            quality_label: qualityBadge,
+            is_native_1080: isNative4K
           });
         }
       });
@@ -1056,7 +1055,7 @@ app.get('/api/balancer', async (c) => {
         const maxEpisodes = Math.max(animego_total_episodes || 0, 1);
         unifiedTranslations.push({
           id: 'aniboom_default',
-          title: `AniBoom (${aniboomBadge})`,
+          title: `Основная озвучка`,
           type: 'voice',
           provider: 'AniBoom',
           iframe: aniboom_iframe,
@@ -1064,13 +1063,13 @@ app.get('/api/balancer', async (c) => {
           kodik_iframe: kodik_iframe || null,
           episodes_count: maxEpisodes,
           last_episode: maxEpisodes,
-          quality_label: aniboomBadge,
-          is_native_1080: aniboomBadge === '4K'
+          quality_label: qualityBadge,
+          is_native_1080: isNative4K
         });
       } else if (kodik_iframe) {
         unifiedTranslations.push({
           id: 'kodik_default',
-          title: `Kodik (1080)`,
+          title: `Основная озвучка`,
           type: 'voice',
           provider: 'Kodik',
           iframe: kodik_iframe,
@@ -1078,8 +1077,8 @@ app.get('/api/balancer', async (c) => {
           kodik_iframe: kodik_iframe,
           episodes_count: 1,
           last_episode: 1,
-          quality_label: '1080',
-          is_native_1080: false
+          quality_label: isNative4K ? '4K' : '1080p',
+          is_native_1080: isNative4K
         });
       }
     }

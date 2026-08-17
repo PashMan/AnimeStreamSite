@@ -560,7 +560,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         art = new Artplayer({
           container: artRef.current,
           url: finalUrl,
-          poster: poster || "",
+          poster: "",
           type:
             src.includes(".m3u8") || src.includes("/playlist") || streamType === "hls"
               ? "m3u8"
@@ -941,6 +941,13 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
           }
         });
 
+        art.on("fullscreen", (state) => {
+          setIsFullscreen(Boolean(state));
+        });
+        art.on("fullscreenWeb", (state) => {
+          setIsFullscreen(Boolean(state));
+        });
+
         if (typeof ref === "function") {
           (art.video as any).art = art;
           ref(art.video);
@@ -1160,8 +1167,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         {/* REFERENCE-PERFECT POPUP SETTINGS MODAL / BOTTOM SHEET */}
         {isSettingsOpen && createPortal(
           <div
-            className={`${isFullscreen ? "absolute" : "fixed"} inset-0 z-[999999] bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200`}
+            className="fixed inset-0 z-[9999999] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+            style={{ pointerEvents: "auto" }}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
+              e.stopPropagation();
               if (e.target === e.currentTarget) {
                 setIsSettingsOpen(false);
                 setActiveSubmenu("main");
@@ -1171,6 +1181,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
             <div
               className="w-full sm:max-w-md bg-[#121318] border border-white/10 rounded-t-[1.75rem] sm:rounded-[1.75rem] p-5 sm:p-6 shadow-2xl font-sans text-white animate-in slide-in-from-bottom-5 duration-200 max-h-[90%] overflow-y-auto custom-scrollbar"
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
             >
               {/* Drag handle line pill */}
               <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
@@ -1475,8 +1486,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                 </div>
               )}
             </div>
-          </div>
-        , (isFullscreen && containerRef.current) ? containerRef.current : document.body)}
+          </div>,
+          (typeof document !== "undefined"
+            ? (document.fullscreenElement ||
+               (document as any).webkitFullscreenElement ||
+               containerRef.current ||
+               document.body)
+            : (null as unknown as Element))
+        )}
 
         {/* FLOATING MINI-PLAYER (Triggered when scrolled down) */}
         {miniOnScroll && isMiniPlayer && (

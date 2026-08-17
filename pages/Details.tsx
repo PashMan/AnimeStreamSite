@@ -250,13 +250,23 @@ const Details: React.FC = () => {
 
   const [translationQualityOverrides, setTranslationQualityOverrides] = useState<Record<string, string>>({});
 
-  const getDisplayTitle = (title: string) => {
-    const baseTitle = title.replace(/\s*\((4K|1080|720)\)\s*/gi, "").trim();
+  const getCleanTitle = (title: string) => {
+    return (title || "").replace(/\s*\((4K|1080|720|4к|1080p|720p)\)\s*/gi, "").trim();
+  };
+
+  const getTranslationQuality = (t: any) => {
+    if (!t) return "1080p";
+    if (t.quality_label) return t.quality_label;
+    const baseTitle = getCleanTitle(t.title || "");
     const override = translationQualityOverrides[baseTitle];
-    if (override) {
-      return `${baseTitle} (${override})`;
-    }
-    return title;
+    if (override) return override;
+    const match = (t.title || "").match(/\b(4K|1080|720)\b/i);
+    if (match) return match[0].toUpperCase() === "4K" ? "4K" : `${match[0]}p`;
+    return "1080p";
+  };
+
+  const getDisplayTitle = (title: string) => {
+    return getCleanTitle(title);
   };
 
   // Diagnostics State
@@ -2125,7 +2135,7 @@ const Details: React.FC = () => {
                                 streamType={resolvedStream?.streamType}
                                 provider={resolvedStream?.provider || (selectedTranslation as any)?.provider}
                                 translationTitle={selectedTranslation?.title}
-                                poster={anime?.image || anime?.cover}
+                                poster=""
                                 maxAudioTracks={maxTracks}
                                 audioTrackNames={audioTrackNames}
                                 animeId={id}
@@ -2174,6 +2184,16 @@ const Details: React.FC = () => {
                           const playerSrc = isCollaps && finalIframeUrl
                             ? `/api/collaps/embed?url=${encodeURIComponent(finalIframeUrl)}`
                             : (finalIframeUrl || undefined);
+
+                          console.log(
+                            `%c[Player Source]%c ВЫБРАН ИСТОЧНИК: %c ${(player.name || "IFRAME").toUpperCase()} %c | Серия: ${paramEpisode || 1} | Озвучка: ${selectedTranslation?.title || "Основная"}`,
+                            "background: #1e1b4b; color: #a78bfa; font-weight: bold; padding: 4px 6px; border-radius: 4px 0 0 4px;",
+                            "background: #312e81; color: #ffffff; font-weight: bold; padding: 4px 6px;",
+                            player.name.toLowerCase().includes("kodik")
+                              ? "background: #d97706; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;"
+                              : "background: #2563eb; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;",
+                            "background: #1e1b4b; color: #cbd5e1; padding: 4px 6px; border-radius: 0 4px 4px 0;"
+                          );
 
                           return (
                             <iframe
@@ -2231,22 +2251,37 @@ const Details: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
                       {/* Collapsible Dropdown for Voice Translations */}
                       <div className="relative flex-1 max-w-md">
-                        <button
-                          onClick={() => setIsNotifierOpen(!isNotifierOpen)}
-                          className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-primary border border-white/5 py-3 px-4 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <Crown className="w-4 h-4 text-primary fill-current shrink-0" />
-                            <span className="text-xs sm:text-sm font-black uppercase tracking-wider truncate">
-                              {selectedTranslation
-                                ? `${getDisplayTitle(selectedTranslation.title)} • ${selectedTranslation.last_episode || selectedTranslation.episodes_count || 1} сер.`
-                                : translations[0]
-                                  ? `${getDisplayTitle(translations[0].title)} • ${translations[0].last_episode || translations[0].episodes_count || 1} сер.`
-                                  : "Дубляж KamiAnime"}
-                            </span>
-                          </div>
-                          <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-300 ${isNotifierOpen ? "rotate-180" : ""}`} />
-                        </button>
+                        {(() => {
+                          const activeT = selectedTranslation || translations[0];
+                          const activeCleanTitle = activeT ? getCleanTitle(activeT.title) : "Дубляж KamiAnime";
+                          const activeEpTotal = activeT ? (activeT.last_episode || activeT.episodes_count || 1) : 1;
+                          const activeQuality = activeT ? getTranslationQuality(activeT) : "1080p";
+
+                          return (
+                            <button
+                              onClick={() => setIsNotifierOpen(!isNotifierOpen)}
+                              className="w-full bg-black/40 hover:bg-[#25262c] text-white border-l-4 border-l-primary border border-white/5 py-3 px-4 rounded-r-xl cursor-pointer flex items-center justify-between transition-all"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                <Crown className="w-4 h-4 text-primary fill-current shrink-0" />
+                                <span className="text-xs sm:text-sm font-black uppercase tracking-wider truncate">
+                                  {activeCleanTitle}
+                                </span>
+                                {activeT && (
+                                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
+                                      {activeEpTotal} сер.
+                                    </span>
+                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
+                                      {activeQuality}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-300 ${isNotifierOpen ? "rotate-180" : ""}`} />
+                            </button>
+                          );
+                        })()}
 
                         {isNotifierOpen && (
                           <div className="absolute top-full left-0 right-0 mt-2 bg-[#1c1d21] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150">
@@ -2256,6 +2291,9 @@ const Details: React.FC = () => {
                                   ? t.title === selectedTranslation.title
                                   : index === 0;
                                 const epTotal = t.last_episode || t.episodes_count || 1;
+                                const tQuality = getTranslationQuality(t);
+                                const tCleanTitle = getCleanTitle(t.title);
+
                                 return (
                                   <button
                                     key={t.id || index}
@@ -2275,12 +2313,21 @@ const Details: React.FC = () => {
                                     }`}
                                   >
                                     <div className="flex items-center gap-2 truncate pr-2">
-                                      <span className="truncate">{getDisplayTitle(t.title)}</span>
-                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-300 shrink-0">
+                                      <span className="truncate">{tCleanTitle}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
                                         {epTotal} сер.
                                       </span>
+                                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                                        isSelected
+                                          ? "bg-primary/20 text-primary border border-primary/30"
+                                          : "bg-white/5 text-slate-400 border border-white/10"
+                                      }`}>
+                                        {tQuality}
+                                      </span>
+                                      {isSelected && <Check className="w-4 h-4 text-primary ml-0.5 shrink-0" />}
                                     </div>
-                                    {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
                                   </button>
                                 );
                               })}
