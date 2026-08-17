@@ -31,7 +31,7 @@ export interface BalancerData {
 export const fetchPlayersClientSide = async (shikimoriId: string, title: string, year: string): Promise<BalancerData> => {
   if (!shikimoriId) return { players: [], kodik_translations: [] };
 
-  const cacheKey = `balancer_v3_${shikimoriId}`;
+  const cacheKey = `balancer_v6_${shikimoriId}`;
   const cached = getFromStorage(cacheKey);
 
   // TTL: 24 hours for balancer data (prevents domain rot but keeps it ultra fast)

@@ -318,8 +318,8 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
     console.error(`[AnimeGo Scraper] Shikimori title fetch failed: ${err.message}`);
   }
 
-  const queryTitle = ruTitle || enTitle || '';
-  if (!queryTitle) {
+  const searchQueries = [ruTitle, enTitle].filter(Boolean) as string[];
+  if (searchQueries.length === 0) {
     console.error(`[AnimeGo Scraper] No title available to search AnimeGo`);
     return null;
   }
@@ -328,26 +328,32 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
   let searchHtml = '';
   let activeDomain = 'animego.me';
 
-  for (const domain of domains) {
-    const searchUrl = `https://${domain}/search/anime?q=${encodeURIComponent(queryTitle)}`;
-    try {
-      console.log(`[AnimeGo Scraper] Searching on ${domain}: ${searchUrl}`);
-      const res = await fetch(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'ru,en-US;q=0.7,en;q=0.3'
+  for (const queryTitle of searchQueries) {
+    for (const domain of domains) {
+      const searchUrl = `https://${domain}/search/anime?q=${encodeURIComponent(queryTitle)}`;
+      try {
+        console.log(`[AnimeGo Scraper] Searching on ${domain}: ${searchUrl}`);
+        const res = await fetch(searchUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'ru,en-US;q=0.7,en;q=0.3'
+          }
+        });
+        if (res.ok) {
+          const html = await res.text();
+          if (html.includes('/anime/')) {
+            searchHtml = html;
+            activeDomain = domain;
+            console.log(`[AnimeGo Scraper] Search request succeeded on ${domain} for query "${queryTitle}"`);
+            break;
+          }
         }
-      });
-      if (res.ok) {
-        searchHtml = await res.text();
-        activeDomain = domain;
-        console.log(`[AnimeGo Scraper] Search request succeeded on ${domain}`);
-        break;
+      } catch (err: any) {
+        console.warn(`[AnimeGo Scraper] Search failed on ${domain}: ${err.message}`);
       }
-    } catch (err: any) {
-      console.warn(`[AnimeGo Scraper] Search failed on ${domain}: ${err.message}`);
     }
+    if (searchHtml) break;
   }
 
   if (!searchHtml) {
@@ -486,12 +492,12 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
     console.error(`[AnimeGo Scraper] Player fetch failed: ${err.message}`);
   }
 
-  if (!defaultAniboomUrl) {
-    defaultAniboomUrl = 'https://aniboom.one/embed/7P9qko4qQ8v';
+  if (!defaultAniboomUrl && aniboomMap.length > 0) {
+    defaultAniboomUrl = aniboomMap[0].url;
   }
 
   let quality = '1080'; // default native for AniBoom
-  if (defaultAniboomUrl && defaultAniboomUrl !== 'https://aniboom.one/embed/7P9qko4qQ8v') {
+  if (defaultAniboomUrl) {
     try {
       let testUrl = defaultAniboomUrl;
       if (!testUrl.includes('episode=')) {

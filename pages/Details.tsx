@@ -64,18 +64,15 @@ const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null
   const num = epNum || 1;
   let target: string | null = null;
 
-  if (t) {
-    if (t.aniboom_iframe) {
-      target = t.aniboom_iframe;
-    } else if (t.iframe && t.iframe.includes("aniboom")) {
-      target = t.iframe;
-    }
+  if (t?.aniboom_iframe) {
+    target = t.aniboom_iframe;
+  } else if (t?.iframe && t.iframe.includes("aniboom")) {
+    target = t.iframe;
   } else if (defaultUrl && defaultUrl.includes("aniboom")) {
     target = defaultUrl;
   }
 
   if (!target) {
-    console.warn("⚠️ [Aniboom Resolver] No Aniboom target URL found in translation.");
     return null;
   }
 
@@ -343,38 +340,8 @@ const Details: React.FC = () => {
         aniboomStreamUrl = null;
       }
 
-      if (!aniboomStreamUrl) {
-        // Fall back to Kodik inside KamiPlayer
-        const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
-        const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
-
-        if (kodikIframeUrl) {
-          addLog(
-            "Резервный плеер",
-            "info",
-            "Серия отсутствует на AniBoom. Попытка запустить Kodik поток в KamiPlayer..."
-          );
-          if (isCurrent) {
-            setResolvedStream({
-              url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
-              streamType: "hls",
-              provider: "kodik"
-            });
-            setIsResolvingStream(false);
-          }
-        } else {
-          if (isCurrent) {
-            addLog(
-              "Сбор параметров",
-              "error",
-              "Источники AniBoom и Kodik не найдены. Невозможно запустить воспроизведение."
-            );
-            setIsResolvingStream(false);
-            setStreamResolutionError("No playable stream sources found");
-          }
-        }
-        return;
-      }
+      const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+      const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
 
       if (aniboomStreamUrl) {
         addLog(
@@ -389,6 +356,12 @@ const Details: React.FC = () => {
             },
             sourceUsed: tAsAny?.aniboom_iframe ? "translation.aniboom_iframe" : (tAsAny?.iframe && tAsAny.iframe.includes("aniboom") ? "translation.iframe" : "defaultAniboom")
           }
+        );
+      } else {
+        addLog(
+          "Сбор параметров",
+          "info",
+          `Прямая ссылка AniBoom отсутствует. Поиск потока через Shikimori ID ${id} и озвучку ${selectedTranslation?.title || "по умолчанию"} на AnimeGO...`
         );
       }
 
@@ -426,9 +399,6 @@ const Details: React.FC = () => {
           const parsedQuality = parseInt(rawQual) || 1080;
           
           // Check if Kodik is available and has better quality (Kodik is always 720p, so if AniBoom is 480p or 360p, Kodik is better)
-          const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
-          const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
-
           if (parsedQuality < 720 && kodikIframeUrl) {
             addLog("Повышение качества", "info", `Качество AniBoom (${rawQual || 'неизвестно'}) ниже чем у Kodik (720p). Переключаемся на поток Kodik...`);
             setResolvedStream({
@@ -461,16 +431,13 @@ const Details: React.FC = () => {
           setIsResolvingStream(false);
         }
       } catch (err: any) {
-        console.error("❌ [Aniboom Resolver] Error resolving stream:", err);
+        console.warn("⚠️ [Aniboom Resolver] Stream resolution note:", err.message);
         if (isCurrent) {
-          addLog("Резолвер AniBoom не ответил", "error", `Сбой парсера AniBoom: ${err.message || "Неизвестная ошибка"}`);
+          addLog("Резолвер AniBoom не ответил", "info", `AniBoom поток недоступен для данной серии/озвучки (${err.message}). Задействуем Kodik в KamiPlayer...`);
           
-          // Attempt Kodik fallback inside KamiPlayer
-          const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
-          const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
-          
+          // Tandem Kodik fallback inside KamiPlayer
           if (kodikIframeUrl) {
-            addLog("Резервный плеер", "info", "Автоматический запуск Kodik потока внутри KamiPlayer...");
+            addLog("Резервный плеер", "success", "Поток Kodik успешно подключен в KamiPlayer.");
             setResolvedStream({
               url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
               streamType: "hls",
@@ -478,7 +445,7 @@ const Details: React.FC = () => {
             });
             setIsResolvingStream(false);
           } else {
-            addLog("Критический сбой", "error", "Резервный плеер Kodik недоступен.");
+            addLog("Критический сбой", "error", "Источники AniBoom и Kodik недоступны.");
             setIsResolvingStream(false);
             setStreamResolutionError(err.message || "Failed to resolve stream");
             handleAniboomFallback();
@@ -2102,53 +2069,16 @@ const Details: React.FC = () => {
                                 const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
                                 const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
                                 if (kodikIframeUrl) {
-                                  let finalKodikUrl = kodikIframeUrl;
-                                  if (finalKodikUrl.startsWith("//")) finalKodikUrl = `https:${finalKodikUrl}`;
-                                  try {
-                                    const u = new URL(finalKodikUrl);
-                                    if (paramEpisode) u.searchParams.set("episode", paramEpisode);
-                                    finalKodikUrl = u.toString();
-                                  } catch (_) {}
-
-                                  return (
-                                    <iframe
-                                      ref={iframeRef}
-                                      src={finalKodikUrl}
-                                      width="100%"
-                                      height="100%"
-                                      allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
-                                      referrerPolicy="no-referrer"
-                                      className="w-full h-full border-0 rounded-2xl"
-                                      title="KamiPlayer (Kodik)"
-                                    />
-                                  );
+                                  customSrc = `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`;
+                                } else {
+                                  const defaultCollaps = players.find((p) => p.name === "Collaps")?.iframe;
+                                  const collapsIframeUrl = getResolvedCollapsUrl(selectedTranslation, epNum, defaultCollaps);
+                                  if (collapsIframeUrl) {
+                                    customSrc = `/api/media/playlist?url=${encodeURIComponent(collapsIframeUrl)}`;
+                                  } else {
+                                    customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
+                                  }
                                 }
-
-                                const defaultCollaps = players.find((p) => p.name === "Collaps")?.iframe;
-                                const collapsIframeUrl = getResolvedCollapsUrl(selectedTranslation, epNum, defaultCollaps);
-                                if (collapsIframeUrl) {
-                                  let finalCollapsUrl = collapsIframeUrl;
-                                  if (finalCollapsUrl.startsWith("//")) finalCollapsUrl = `https:${finalCollapsUrl}`;
-                                  try {
-                                    const u = new URL(finalCollapsUrl);
-                                    if (paramEpisode) u.searchParams.set("episode", paramEpisode);
-                                    finalCollapsUrl = u.toString();
-                                  } catch (_) {}
-
-                                  return (
-                                    <iframe
-                                      ref={iframeRef}
-                                      src={`/api/collaps/embed?url=${encodeURIComponent(finalCollapsUrl)}`}
-                                      width="100%"
-                                      height="100%"
-                                      allow="autoplay *; fullscreen *; accelerometer; gyroscope; picture-in-picture; encrypted-media;"
-                                      referrerPolicy="no-referrer"
-                                      className="w-full h-full border-0 rounded-2xl"
-                                      title="KamiPlayer (Collaps)"
-                                    />
-                                  );
-                                }
-                                customSrc = `/api/proxy-4k?url=${encodeURIComponent("https://cdn.kamianime.club/kimi-no-na-wa/master.m3u8")}`;
                               }
                             }
 
