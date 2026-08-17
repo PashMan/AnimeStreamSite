@@ -2315,8 +2315,13 @@ app.get('/api/proxy-4k', async (c) => {
       reqHeaders['Origin'] = 'https://aniboom.one';
     }
 
+    const clientRange = c.req.header('range');
+    if (clientRange) {
+      reqHeaders['Range'] = clientRange;
+    }
+
     const res = await fetch(targetUrl, { headers: reqHeaders });
-    if (!res.ok) {
+    if (!res.ok && res.status !== 206) {
       return c.text(`Proxy failed with status ${res.status}`, res.status as any);
     }
 
@@ -2347,13 +2352,13 @@ app.get('/api/proxy-4k', async (c) => {
         const trimmed = line.trim();
         if (!trimmed) return line;
         if (trimmed.startsWith('#')) {
-          if (trimmed.includes('URI="')) {
-            return trimmed.replace(/URI="([^"]+)"/, (m, p1) => {
+          if (trimmed.includes('URI=')) {
+            return trimmed.replace(/URI=["']([^"']+)["']/g, (m, p1) => {
               let absUrl = p1;
               if (!p1.startsWith('http')) {
                 absUrl = p1.startsWith('/') ? new URL(p1, targetUrl).toString() : parentUrl + p1;
               }
-              return `URI="${getProxyOrigin(c)}/api/proxy-4k?url=${encodeURIComponent(absUrl)}"`;
+              return `URI="/api/proxy-4k?url=${encodeURIComponent(absUrl)}"`;
             });
           }
           return line;
@@ -2365,32 +2370,45 @@ app.get('/api/proxy-4k', async (c) => {
             ? new URL(trimmed, targetUrl).toString()
             : parentUrl + trimmed;
         }
-        return `${getProxyOrigin(c)}/api/proxy-4k?url=${encodeURIComponent(absUrl)}`;
+        return `/api/proxy-4k?url=${encodeURIComponent(absUrl)}`;
       });
       
       return new Response(rewrittenLines.join('\n'), {
         status: 200,
         headers: {
-          'Content-Type': 'application/x-mpegURL',
+          'Content-Type': 'application/vnd.apple.mpegurl',
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
           'Access-Control-Allow-Headers': '*',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
         }
       });
     }
 
     const arrayBuffer = await res.arrayBuffer();
 
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': contentType || (targetUrl.endsWith('.m4s') ? 'video/mp4' : 'video/mp2t'),
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
+      'Cache-Control': 'public, max-age=86400'
+    };
+
+    if (res.headers.get('content-range')) {
+      responseHeaders['Content-Range'] = res.headers.get('content-range')!;
+    }
+    if (res.headers.get('accept-ranges')) {
+      responseHeaders['Accept-Ranges'] = res.headers.get('accept-ranges')!;
+    }
+    if (res.headers.get('content-length')) {
+      responseHeaders['Content-Length'] = res.headers.get('content-length')!;
+    }
+
     return new Response(arrayBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType || 'video/mp2t',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': '*',
-        'Cache-Control': 'public, max-age=86400'
-      }
+      status: res.status,
+      headers: responseHeaders
     });
 
   } catch (err: any) {
