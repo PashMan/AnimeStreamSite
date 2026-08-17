@@ -277,9 +277,10 @@ app.get('/api/anilibria/title', async (c) => {
 
 interface AnimegoData {
   animegoId: string;
-  aniboomMap: { voice: string; url: string }[];
+  aniboomMap: { voice: string; url: string; episodesCount?: number }[];
   defaultAniboomUrl: string;
   quality?: string;
+  totalEpisodes?: number;
 }
 
 const animegoCache = new Map<string, AnimegoData>();
@@ -296,6 +297,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
 
   let ruTitle = searchTitle;
   let enTitle = '';
+  let shikiEpisodesCount = 0;
   
   try {
     const shikiRes = await fetch(`https://shikimori.one/api/animes/${shikimoriId}`, {
@@ -309,6 +311,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
       if (shikiData) {
         if (shikiData.russian) ruTitle = shikiData.russian;
         if (shikiData.name) enTitle = shikiData.name;
+        shikiEpisodesCount = shikiData.episodes_aired || shikiData.episodes || 0;
       }
     }
   } catch (err: any) {
@@ -369,6 +372,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
   console.log(`[AnimeGo Scraper] Found ${candidates.length} search candidate pages`);
 
   let matchedAnimegoId: string | null = null;
+  let detectedEpisodes = shikiEpisodesCount || 0;
 
   for (const cand of candidates) {
     const detailUrl = `https://${activeDomain}${cand.path}`;
@@ -386,6 +390,16 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
         const shikiPattern = new RegExp(`shikimori\\.(one|io|org|me)\\/animes\\/${shikimoriId}\\b|\\b/animes/${shikimoriId}\\b|\\b/animes/y${shikimoriId}\\b`, 'i');
         const isMatched = shikiPattern.test(detailHtml);
         
+        // Extract episode counts from AnimeGo HTML if available
+        const epMatch = detailHtml.match(/(?:Эпизоды|Серии)[\s\S]*?<dd[^>]*>([\s\S]*?)<\/dd>/i) || detailHtml.match(/(\d+)\s*(?:из|\/)\s*(\d+)\s*(?:эп|сер)/i);
+        if (epMatch) {
+          const numMatch = epMatch[0].match(/(\d+)/g);
+          if (numMatch && numMatch.length > 0) {
+            const foundMax = Math.max(...numMatch.map(n => parseInt(n)));
+            if (foundMax > detectedEpisodes) detectedEpisodes = foundMax;
+          }
+        }
+
         if (isMatched) {
           console.log(`[AnimeGo Scraper] MATCH SUCCESS! Verified Shikimori ID ${shikimoriId} inside candidate: ${detailUrl}`);
           matchedAnimegoId = cand.id;
@@ -410,7 +424,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
   const playerUrl = `https://${activeDomain}/player/${matchedAnimegoId}`;
   console.log(`[AnimeGo Scraper] Fetching players from: ${playerUrl}`);
 
-  let aniboomMap: { voice: string; url: string }[] = [];
+  let aniboomMap: { voice: string; url: string; episodesCount?: number }[] = [];
   let defaultAniboomUrl = '';
 
   try {
@@ -427,6 +441,13 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
       const playerJson = await playerRes.json() as any;
       const html = playerJson.data?.content || '';
 
+      // Check max episodes in player tabs/data-episode attributes
+      const epAttrMatches = [...html.matchAll(/data-episode="(\d+)"/gi), ...html.matchAll(/data-count="(\d+)"/gi)];
+      for (const em of epAttrMatches) {
+        const parsed = parseInt(em[1]);
+        if (parsed > detectedEpisodes) detectedEpisodes = parsed;
+      }
+
       const buttonMatches = [...html.matchAll(/<[a-z0-9]+[^>]+data-player="([^"]+)"[^>]*>/gi)];
       for (const m of buttonMatches) {
         const fullTag = m[0];
@@ -439,7 +460,11 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
           if (cleanUrl.startsWith('//')) cleanUrl = 'https:' + cleanUrl;
           
           if (translationTitle) {
-            aniboomMap.push({ voice: translationTitle, url: cleanUrl });
+            aniboomMap.push({ 
+              voice: translationTitle, 
+              url: cleanUrl,
+              episodesCount: detectedEpisodes || undefined
+            });
           }
           if (!defaultAniboomUrl) {
             defaultAniboomUrl = cleanUrl;
@@ -465,7 +490,7 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
     defaultAniboomUrl = 'https://aniboom.one/embed/7P9qko4qQ8v';
   }
 
-  let quality = '1080'; // default
+  let quality = '1080'; // default native for AniBoom
   if (defaultAniboomUrl && defaultAniboomUrl !== 'https://aniboom.one/embed/7P9qko4qQ8v') {
     try {
       let testUrl = defaultAniboomUrl;
@@ -504,11 +529,12 @@ async function fetchAnimegoData(shikimoriId: string, searchTitle?: string): Prom
     animegoId: matchedAnimegoId,
     aniboomMap,
     defaultAniboomUrl,
-    quality
+    quality,
+    totalEpisodes: detectedEpisodes || undefined
   };
 
   animegoCache.set(shikimoriId, result);
-  console.log(`[AnimeGo Scraper] Completed resolution for Shikimori ID ${shikimoriId}. Found ${aniboomMap.length} AniBoom streams.`);
+  console.log(`[AnimeGo Scraper] Completed resolution for Shikimori ID ${shikimoriId}. Found ${aniboomMap.length} AniBoom streams. Max episodes: ${detectedEpisodes}`);
   return result;
 }
 
@@ -603,34 +629,35 @@ app.get('/api/balancer', async (c) => {
                 ids.world_art_id = world_art_id;
               }
 
-              // Group and collect unique translations from Kodik results
+              // Group and collect unique translations from Kodik results with accurate max episodes
               const translationsMap = new Map();
               kodikData.results.forEach((res: any) => {
                 if (res.translation && res.translation.title) {
-                  const tName = res.translation.title;
+                  const tName = res.translation.title.trim();
                   const iframe = res.link.startsWith('//') ? `https:${res.link}` : res.link;
+                  let formattedIframe = iframe;
+                  try {
+                    const url = new URL(iframe);
+                    url.searchParams.set('api', '1');
+                    formattedIframe = url.toString();
+                  } catch (_) {}
+
+                  const epCount = res.episodes_count || res.last_episode || 1;
+                  const lastEp = res.last_episode || res.episodes_count || 1;
+
                   if (!translationsMap.has(tName)) {
-                    try {
-                      const url = new URL(iframe);
-                      url.searchParams.set('api', '1');
-                      translationsMap.set(tName, {
-                        id: res.translation.id,
-                        title: tName,
-                        type: res.translation.type,
-                        iframe: url.toString(),
-                        episodes_count: res.episodes_count || 1,
-                        last_episode: res.last_episode || 1
-                      });
-                    } catch (_) {
-                      translationsMap.set(tName, {
-                        id: res.translation.id,
-                        title: tName,
-                        type: res.translation.type,
-                        iframe: iframe,
-                        episodes_count: res.episodes_count || 1,
-                        last_episode: res.last_episode || 1
-                      });
-                    }
+                    translationsMap.set(tName, {
+                      id: res.translation.id,
+                      title: tName,
+                      type: res.translation.type || 'voice',
+                      iframe: formattedIframe,
+                      episodes_count: epCount,
+                      last_episode: lastEp
+                    });
+                  } else {
+                    const existing = translationsMap.get(tName);
+                    existing.episodes_count = Math.max(existing.episodes_count, epCount);
+                    existing.last_episode = Math.max(existing.last_episode, lastEp);
                   }
                 }
               });
@@ -859,8 +886,9 @@ app.get('/api/balancer', async (c) => {
 
     let aniboom_iframe: string | null = null;
     let animego_aniboom_urls: string[] = [];
-    let animego_aniboom_map: Array<{ voice: string; url: string }> = [];
+    let animego_aniboom_map: Array<{ voice: string; url: string; episodesCount?: number }> = [];
     let animego_quality: string | undefined = undefined;
+    let animego_total_episodes: number = 0;
 
     // 11. AnimeGO (Aniboom embed parser)
     jobs.push((async () => {
@@ -872,7 +900,8 @@ app.get('/api/balancer', async (c) => {
             animego_aniboom_map = animegoData.aniboomMap;
             animego_aniboom_urls = animegoData.aniboomMap.map(m => m.url);
             animego_quality = animegoData.quality;
-            addLog(`AnimeGO Aniboom parsed: ${aniboom_iframe} (Quality: ${animego_quality}, Streams: ${animego_aniboom_urls.length})`);
+            animego_total_episodes = animegoData.totalEpisodes || 0;
+            addLog(`AnimeGO Aniboom parsed: ${aniboom_iframe} (Quality: ${animego_quality}, Streams: ${animego_aniboom_urls.length}, Episodes: ${animego_total_episodes})`);
           }
         }
       } catch (e: any) {
@@ -885,13 +914,11 @@ app.get('/api/balancer', async (c) => {
 
     // Build list of successfully resolved players
     const players: any[] = [];
-    if (kodik_iframe) {
-      players.push({ name: 'Kodik', iframe: kodik_iframe });
-    }
     if (aniboom_iframe) {
       players.push({ name: 'Aniboom', iframe: aniboom_iframe });
-    } else {
-      players.push({ name: 'Aniboom', iframe: 'https://aniboom.one/embed/7P9qko4qQ8v' });
+    }
+    if (kodik_iframe) {
+      players.push({ name: 'Kodik', iframe: kodik_iframe });
     }
     if (collaps_iframe) players.push({ name: 'Collaps', iframe: collaps_iframe });
     if (bhcesh_iframe) players.push({ name: 'Bhcesh', iframe: bhcesh_iframe });
@@ -902,126 +929,182 @@ app.get('/api/balancer', async (c) => {
     if (pleer_iframe) players.push({ name: 'Pleer', iframe: pleer_iframe });
     if (anilibria_iframe) players.push({ name: 'Anilibria', iframe: anilibria_iframe });
 
-    // Merge Kodik, Collaps, and Aniboom translations
-    const defaultAniboomUrl = aniboom_iframe || 'https://aniboom.one/embed/7P9qko4qQ8v';
-    const matchVoiceToAniboom = (titleText: string): string | null => {
-      const baseTitle = titleText.replace(/\s*\((4K|1080|720)\)\s*/gi, '').trim().toLowerCase();
-      if (animego_aniboom_map.length > 0) {
-        const found = animego_aniboom_map.find(m => {
-          const v = m.voice.toLowerCase();
-          return v === baseTitle || v.includes(baseTitle) || baseTitle.includes(v);
-        });
-        if (found) return found.url;
-      }
-      return null;
-    };
+    // Decide quality badge based on AniBoom native quality:
+    // AniBoom with 1080p native is badged as '4K', 720p native is badged as '1080'
+    const aniboomNativeQuality = animego_quality || (aniboom_iframe ? '1080' : undefined);
+    const aniboomBadge = aniboomNativeQuality === '720' ? '1080' : '4K';
 
-    // Decide quality badge based on AniBoom native quality
-    // "если у аниме в озвучке есть 1080 натива с анибума то в списке озвучек пишется 4к, если там в нативе 720 то пишется 1080"
-    let defaultBadge = '1080';
-    if (animego_quality) {
-      defaultBadge = animego_quality === '1080' ? '4K' : '1080';
-    } else if (collaps_info) {
-      defaultBadge = collaps_info.has1080 ? '4K' : '1080';
-    }
-
-    if (collaps_info) {
-      if (kodik_translations && kodik_translations.length > 0) {
-        kodik_translations = kodik_translations.map((t: any) => {
-          const baseTitle = t.title.replace(/\s*\((4K|1080|720)\)\s*/gi, '').trim();
-          const matchedAniboom = matchVoiceToAniboom(baseTitle);
-          const badge = matchedAniboom ? defaultBadge : '1080';
-          return {
-            ...t,
-            title: `${baseTitle} (${badge})`,
-            has_1080_collaps: collaps_info!.has1080,
-            collaps_iframe: collaps_info!.iframe,
-            kodik_iframe: t.iframe,
-            aniboom_iframe: matchedAniboom,
-            collaps_episodes_count: collaps_info!.epCount,
-            kodik_episodes_count: t.episodes_count || 1,
-            episodes_count: Math.max(collaps_info!.epCount, t.episodes_count || 1),
-            last_episode: Math.max(collaps_info!.epCount, t.last_episode || 1),
-            quality_label: badge
-          };
-        });
-      } else {
-        kodik_translations = [{
-          id: 'collaps_main',
-          title: `Collaps (${defaultBadge})`,
-          type: 'voice',
-          provider: 'Collaps',
-          iframe: collaps_info.iframe,
-          has_1080_collaps: collaps_info.has1080,
-          collaps_iframe: collaps_info.iframe,
-          kodik_iframe: null,
-          aniboom_iframe: defaultAniboomUrl,
-          collaps_episodes_count: collaps_info.epCount,
-          kodik_episodes_count: 0,
-          episodes_count: collaps_info.epCount,
-          last_episode: collaps_info.epCount,
-          quality_label: defaultBadge
-        }];
-      }
-    } else if (kodik_translations && kodik_translations.length > 0) {
-      kodik_translations = kodik_translations.map((t: any) => {
-        const baseTitle = t.title.replace(/\s*\((4K|1080|720)\)\s*/gi, '').trim();
-        const matchedAniboom = matchVoiceToAniboom(baseTitle);
-        const badge = matchedAniboom ? defaultBadge : '1080';
-        return {
-          ...t,
-          title: `${baseTitle} (${badge})`,
-          has_1080_collaps: false,
-          collaps_iframe: null,
-          kodik_iframe: t.iframe,
-          aniboom_iframe: matchedAniboom,
-          kodik_episodes_count: t.episodes_count || 1,
-          episodes_count: t.episodes_count || t.last_episode || 1,
-          last_episode: t.last_episode || t.episodes_count || 1,
-          quality_label: badge
-        };
-      });
-    }
-
-    // Ensure kodik_translations is an array and fully unified
-    let final_translations = kodik_translations ? [...kodik_translations] : [];
-
-    // Helper to normalize strings for comparison
-    const getCleanVoiceName = (name: string) => {
-      return name.toLowerCase()
+    const normalizeVoice = (name: string): string => {
+      return (name || '')
+        .toLowerCase()
         .replace(/\s*\((4k|1080|720)\)\s*/gi, '')
         .replace(/[^a-zа-яё0-9]/gi, '')
+        .replace(/ё/g, 'е')
         .trim();
     };
 
-    // Unify lists: find AniBoom-only translations and add them
-    if (animego_aniboom_map.length > 0) {
-      animego_aniboom_map.forEach((ab, idx) => {
-        const cleanAb = getCleanVoiceName(ab.voice);
-        if (!cleanAb) return;
-        const exists = final_translations.some(kt => {
-          const cleanKt = getCleanVoiceName(kt.title || '');
-          return cleanKt === cleanAb || cleanKt.includes(cleanAb) || cleanAb.includes(cleanKt);
-        });
+    const cleanTitle = (raw: string): string => {
+      return raw.replace(/\s*\((4K|1080|720)\)\s*/gi, '').trim();
+    };
 
-        if (!exists) {
-          final_translations.push({
-            id: `aniboom_only_${idx}`,
-            title: `${ab.voice} (${badge})`,
-            type: 'voice',
-            provider: 'AniboomOnly',
-            iframe: ab.url,
-            kodik_iframe: null,
-            aniboom_iframe: ab.url,
-            episodes_count: 1, // default, will be estimated on details page
-            last_episode: 1,
-            quality_label: badge
+    const matchedAnimegoVoices = new Set<string>();
+    const unifiedTranslations: any[] = [];
+
+    // Step 1: Process Kodik translations and match with AniBoom
+    if (kodik_translations && kodik_translations.length > 0) {
+      kodik_translations.forEach((kt: any) => {
+        const baseVoice = cleanTitle(kt.title || '');
+        const normKt = normalizeVoice(baseVoice);
+
+        // Find match in AniBoom
+        let matchedAb: { voice: string; url: string; episodesCount?: number } | null = null;
+        if (animego_aniboom_map.length > 0) {
+          matchedAb = animego_aniboom_map.find(ab => {
+            const normAb = normalizeVoice(ab.voice);
+            return normAb === normKt || normAb.includes(normKt) || normKt.includes(normAb);
+          }) || null;
+        }
+
+        const maxEpisodes = Math.max(
+          kt.episodes_count || 1,
+          kt.last_episode || 1,
+          animego_total_episodes || 0,
+          matchedAb?.episodesCount || 0
+        );
+
+        if (matchedAb) {
+          // Present in both: ALWAYS prefer AniBoom as primary stream, Kodik as fallback
+          matchedAnimegoVoices.add(normalizeVoice(matchedAb.voice));
+          unifiedTranslations.push({
+            id: kt.id || `voice_${normKt}`,
+            title: `${baseVoice} (${aniboomBadge})`,
+            type: kt.type || 'voice',
+            provider: 'AniBoom',
+            iframe: matchedAb.url,
+            aniboom_iframe: matchedAb.url,
+            kodik_iframe: kt.iframe,
+            episodes_count: maxEpisodes,
+            last_episode: maxEpisodes,
+            quality_label: aniboomBadge,
+            is_native_1080: aniboomBadge === '4K'
+          });
+        } else {
+          // Kodik only
+          unifiedTranslations.push({
+            id: kt.id || `kodik_${normKt}`,
+            title: `${baseVoice} (1080)`,
+            type: kt.type || 'voice',
+            provider: 'Kodik',
+            iframe: kt.iframe,
+            aniboom_iframe: aniboom_iframe || null,
+            kodik_iframe: kt.iframe,
+            episodes_count: maxEpisodes,
+            last_episode: maxEpisodes,
+            quality_label: '1080',
+            is_native_1080: false
           });
         }
       });
     }
 
-    kodik_translations = final_translations;
+    // Step 2: Add AniBoom translations not found in Kodik
+    if (animego_aniboom_map.length > 0) {
+      animego_aniboom_map.forEach((ab, idx) => {
+        const normAb = normalizeVoice(ab.voice);
+        if (!normAb || matchedAnimegoVoices.has(normAb)) return;
+
+        // Check if already in unified list
+        const alreadyExists = unifiedTranslations.some(t => {
+          const normT = normalizeVoice(cleanTitle(t.title || ''));
+          return normT === normAb || normT.includes(normAb) || normAb.includes(normT);
+        });
+
+        if (!alreadyExists) {
+          const baseVoice = cleanTitle(ab.voice);
+          const maxEpisodes = Math.max(
+            animego_total_episodes || 0,
+            ab.episodesCount || 0,
+            1
+          );
+
+          unifiedTranslations.push({
+            id: `aniboom_only_${idx}`,
+            title: `${baseVoice} (${aniboomBadge})`,
+            type: 'voice',
+            provider: 'AniBoom',
+            iframe: ab.url,
+            aniboom_iframe: ab.url,
+            kodik_iframe: null,
+            episodes_count: maxEpisodes,
+            last_episode: maxEpisodes,
+            quality_label: aniboomBadge,
+            is_native_1080: aniboomBadge === '4K'
+          });
+        }
+      });
+    }
+
+    // Step 3: Fallback if no voiceovers found but we have player iframes
+    if (unifiedTranslations.length === 0) {
+      if (aniboom_iframe) {
+        const maxEpisodes = Math.max(animego_total_episodes || 0, 1);
+        unifiedTranslations.push({
+          id: 'aniboom_default',
+          title: `AniBoom (${aniboomBadge})`,
+          type: 'voice',
+          provider: 'AniBoom',
+          iframe: aniboom_iframe,
+          aniboom_iframe: aniboom_iframe,
+          kodik_iframe: kodik_iframe || null,
+          episodes_count: maxEpisodes,
+          last_episode: maxEpisodes,
+          quality_label: aniboomBadge,
+          is_native_1080: aniboomBadge === '4K'
+        });
+      } else if (kodik_iframe) {
+        unifiedTranslations.push({
+          id: 'kodik_default',
+          title: `Kodik (1080)`,
+          type: 'voice',
+          provider: 'Kodik',
+          iframe: kodik_iframe,
+          aniboom_iframe: null,
+          kodik_iframe: kodik_iframe,
+          episodes_count: 1,
+          last_episode: 1,
+          quality_label: '1080',
+          is_native_1080: false
+        });
+      }
+    }
+
+    // Step 4: Sort translations so highest native quality (4K/AniBoom) comes FIRST
+    const priorityVoices = ['anilibria', 'дубляж', 'shiza', 'studioband', 'anidub', 'dreamcast', 'субтитры'];
+    unifiedTranslations.sort((a, b) => {
+      // 1. Highest quality first (4K > 1080)
+      if (a.is_native_1080 && !b.is_native_1080) return -1;
+      if (!a.is_native_1080 && b.is_native_1080) return 1;
+
+      // 2. Priority voice names
+      const aNorm = normalizeVoice(a.title);
+      const bNorm = normalizeVoice(b.title);
+      const aPriIdx = priorityVoices.findIndex(p => aNorm.includes(p));
+      const bPriIdx = priorityVoices.findIndex(p => bNorm.includes(p));
+      if (aPriIdx !== -1 && bPriIdx === -1) return -1;
+      if (aPriIdx === -1 && bPriIdx !== -1) return 1;
+      if (aPriIdx !== -1 && bPriIdx !== -1) return aPriIdx - bPriIdx;
+
+      // 3. Highest episode count
+      const aEp = a.episodes_count || a.last_episode || 0;
+      const bEp = b.episodes_count || b.last_episode || 0;
+      if (aEp !== bEp) return bEp - aEp;
+
+      return 0;
+    });
+
+    kodik_translations = unifiedTranslations;
+
+    console.log(`[BALANCER] Unification complete. Generated ${kodik_translations.length} translations. Quality badge: ${aniboomBadge}. Max episodes: ${kodik_translations[0]?.episodes_count || 1}`);
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
     addLog(`Balancer Completed`, { playersCount: players.length, ids });

@@ -833,6 +833,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         art.on("video:play", () => setIsPlaying(true));
         art.on("video:pause", () => setIsPlaying(false));
 
+        // Track Fullscreen state
+        art.on("fullscreen", (state: boolean) => {
+          setIsFullscreen(state || !!document.fullscreenElement);
+        });
+        art.on("fullscreenWeb", (state: boolean) => {
+          setIsFullscreen(state || !!document.fullscreenElement);
+        });
+
         // Time updates: Progress, Skip Opening (+85s) & Skip Ending logic
         art.on("video:timeupdate", () => {
           if (!art) return;
