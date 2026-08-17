@@ -927,6 +927,8 @@ app.get('/api/balancer', async (c) => {
           kodik_iframe: t.iframe,
           aniboom_iframe: matchedAniboom,
           kodik_episodes_count: t.episodes_count || 1,
+          episodes_count: t.episodes_count || t.last_episode || 1,
+          last_episode: t.last_episode || t.episodes_count || 1,
           quality_label: '1080'
         };
       });

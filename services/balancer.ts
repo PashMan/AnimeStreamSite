@@ -63,11 +63,13 @@ export const fetchPlayersClientSide = async (shikimoriId: string, title: string,
       // Filter out Anilibria
       playersList = playersList.filter(p => p.name !== 'Anilibria');
 
-      // Add custom player for 1080p encodes OR any anime containing Kodik stream
+      // Add custom player for 1080p encodes OR any anime containing Kodik/Aniboom/Collaps stream
       const hasKodik = playersList.some(p => p.name === 'Kodik' && p.iframe);
+      const hasAniboom = playersList.some(p => p.name === 'Aniboom' && p.iframe);
+      const hasCollaps = playersList.some(p => p.name === 'Collaps' && p.iframe);
       const isNative1080 = shikimoriId === '32281' || shikimoriId === '50594' || shikimoriId === '62568' || shikimoriId === '38826' || shikimoriId === '16782';
 
-      if (isNative1080 || hasKodik) {
+      if (isNative1080 || hasKodik || hasAniboom || hasCollaps) {
         if (!playersList.some(p => p.name === 'KamiPlayer (1080p)')) {
           playersList.unshift({
             name: 'KamiPlayer (1080p)',

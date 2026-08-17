@@ -249,6 +249,17 @@ const Details: React.FC = () => {
   const [isResolvingStream, setIsResolvingStream] = useState(false);
   const [streamResolutionError, setStreamResolutionError] = useState<string | null>(null);
 
+  const [translationQualityOverrides, setTranslationQualityOverrides] = useState<Record<string, string>>({});
+
+  const getDisplayTitle = (title: string) => {
+    const baseTitle = title.replace(/\s*\((4K|1080|720)\)\s*/gi, "").trim();
+    const override = translationQualityOverrides[baseTitle];
+    if (override) {
+      return `${baseTitle} (${override})`;
+    }
+    return title;
+  };
+
   // New Diagnostics State
   const [aniboomLogs, setAniboomLogs] = useState<AniboomLogsState[]>([]);
   const [serverSteps, setServerSteps] = useState<any[]>([]);
@@ -327,21 +338,35 @@ const Details: React.FC = () => {
 
       const aniboomStreamUrl = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
 
-      if (!aniboomStreamUrl && !id) {
-        if (isCurrent) {
-          const failureTelemetry = {
-            ...gatherTelemetry,
-            reason: "Ни один из проверенных источников не содержал подстроку 'aniboom', и Shikimori ID отсутствует."
-          };
+      if (!aniboomStreamUrl) {
+        // Fall back to Kodik inside KamiPlayer
+        const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+        const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
+
+        if (kodikIframeUrl) {
           addLog(
-            "Сбор параметров", 
-            "error", 
-            "Ссылка на плеер AniBoom и Shikimori ID не обнаружены. Невозможно выполнить резолв.",
-            failureTelemetry
+            "Резервный плеер",
+            "info",
+            "Серия отсутствует на AniBoom. Попытка запустить Kodik поток в KamiPlayer..."
           );
-          setIsResolvingStream(false);
-          setStreamResolutionError("Aniboom stream URL not found");
-          handleAniboomFallback();
+          if (isCurrent) {
+            setResolvedStream({
+              url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
+              streamType: "hls",
+              provider: "kodik"
+            });
+            setIsResolvingStream(false);
+          }
+        } else {
+          if (isCurrent) {
+            addLog(
+              "Сбор параметров",
+              "error",
+              "Источники AniBoom и Kodik не найдены. Невозможно запустить воспроизведение."
+            );
+            setIsResolvingStream(false);
+            setStreamResolutionError("No playable stream sources found");
+          }
         }
         return;
       }
@@ -359,12 +384,6 @@ const Details: React.FC = () => {
             },
             sourceUsed: tAsAny?.aniboom_iframe ? "translation.aniboom_iframe" : (tAsAny?.iframe && tAsAny.iframe.includes("aniboom") ? "translation.iframe" : "defaultAniboom")
           }
-        );
-      } else {
-        addLog(
-          "Сбор параметров", 
-          "info", 
-          `Ссылка на AniBoom отсутствует локально. Будет выполнен автоматический поиск на бэкенде по Shikimori ID: ${id} и озвучке: ${selectedTranslation?.title || "По умолчанию"}`
         );
       }
 
@@ -399,6 +418,19 @@ const Details: React.FC = () => {
 
         if (isCurrent) {
           addLog("Воспроизведение", "success", `Поток получен: ${data.url.substring(0, 70)}... [Качество: ${data.quality || "1080p"}]`);
+          
+          const rawQual = data.quality;
+          if (rawQual && selectedTranslation) {
+            const mapped = rawQual === "1080p" ? "4K" : rawQual === "720p" ? "1080" : null;
+            if (mapped) {
+              const baseT = selectedTranslation.title.replace(/\s*\((4K|1080|720)\)\s*/gi, "").trim();
+              setTranslationQualityOverrides(prev => ({
+                ...prev,
+                [baseT]: mapped
+              }));
+            }
+          }
+
           setResolvedStream({
             url: data.url,
             streamType: data.stream_type || "hls",
@@ -409,10 +441,26 @@ const Details: React.FC = () => {
       } catch (err: any) {
         console.error("❌ [Aniboom Resolver] Error resolving stream:", err);
         if (isCurrent) {
-          addLog("Критический сбой", "error", `Сбой парсера: ${err.message || "Неизвестная ошибка"}`);
-          setIsResolvingStream(false);
-          setStreamResolutionError(err.message || "Failed to resolve stream");
-          handleAniboomFallback();
+          addLog("Резолвер AniBoom не ответил", "error", `Сбой парсера AniBoom: ${err.message || "Неизвестная ошибка"}`);
+          
+          // Attempt Kodik fallback inside KamiPlayer
+          const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+          const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
+          
+          if (kodikIframeUrl) {
+            addLog("Резервный плеер", "info", "Автоматический запуск Kodik потока внутри KamiPlayer...");
+            setResolvedStream({
+              url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
+              streamType: "hls",
+              provider: "kodik"
+            });
+            setIsResolvingStream(false);
+          } else {
+            addLog("Критический сбой", "error", "Резервный плеер Kodik недоступен.");
+            setIsResolvingStream(false);
+            setStreamResolutionError(err.message || "Failed to resolve stream");
+            handleAniboomFallback();
+          }
         }
       }
     };
@@ -715,11 +763,11 @@ const Details: React.FC = () => {
       setReviews([]);
       setComments([]);
       setIsDescriptionExpanded(false);
-      setPlayers([{ name: "Kodik", iframe: null }]);
+      setPlayers([{ name: "KamiPlayer (1080p)", iframe: null, isCustom: true }]);
       setTranslations([]);
       setSelectedTranslation(null);
       setHasFetchedPlayers(false);
-      setSelectedPlayer("Kodik");
+      setSelectedPlayer("KamiPlayer (1080p)");
 
       // Reset lazy load triggers
       setShouldLoadRelated(false);
@@ -2224,9 +2272,9 @@ const Details: React.FC = () => {
                             <Crown className="w-4 h-4 text-primary fill-current shrink-0" />
                             <span className="text-xs sm:text-sm font-black uppercase tracking-wider truncate">
                               {selectedTranslation
-                                ? `${selectedTranslation.title} • ${selectedTranslation.last_episode || selectedTranslation.episodes_count || 1} сер.`
+                                ? `${getDisplayTitle(selectedTranslation.title)} • ${selectedTranslation.last_episode || selectedTranslation.episodes_count || 1} сер.`
                                 : translations[0]
-                                  ? `${translations[0].title} • ${translations[0].last_episode || translations[0].episodes_count || 1} сер.`
+                                  ? `${getDisplayTitle(translations[0].title)} • ${translations[0].last_episode || translations[0].episodes_count || 1} сер.`
                                   : "Дубляж KamiAnime"}
                             </span>
                           </div>
@@ -2260,7 +2308,7 @@ const Details: React.FC = () => {
                                     }`}
                                   >
                                     <div className="flex items-center gap-2 truncate pr-2">
-                                      <span className="truncate">{t.title}</span>
+                                      <span className="truncate">{getDisplayTitle(t.title)}</span>
                                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-300 shrink-0">
                                         {epTotal} сер.
                                       </span>
