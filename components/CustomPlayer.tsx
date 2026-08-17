@@ -620,39 +620,33 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               if ((artInstance as any).dash) {
                 try {
                   (artInstance as any).dash.destroy();
-                } catch (e) {
-                  console.error("Error destroying dash.js player:", e);
-                }
+                } catch (e) {}
               }
 
               const player = dashjs.MediaPlayer().create();
 
-              // Calculate the base directory of the MPD file on CDN
-              // If the URL is already proxied, we extract the actual target URL from the query param
+              // URL вашего задеплоенного воркера
+              const PROXY_WORKER = "https://tight-sky-85f8.oshxycfdjab.workers.dev/?url=";
+
+              // Извлекаем чистый URL CDN
               let rawMpdUrl = url;
               if (url.includes("url=")) {
                 try {
-                  const queryStart = url.indexOf("url=");
-                  rawMpdUrl = decodeURIComponent(url.substring(queryStart + 4));
+                  rawMpdUrl = decodeURIComponent(url.split("url=")[1]);
                 } catch (_) {}
               }
 
-              // 2. Базовая директория CDN для склейки путей чанков
               const baseCdnDir = rawMpdUrl.substring(0, rawMpdUrl.lastIndexOf("/") + 1);
 
-              // 3. Твой собственный высокопроизводительный прокси-воркер на Cloudflare
-              const proxyPrefix = "https://tight-sky-85f8.oshxycfdjab.workers.dev/?url=";
-
+              // Перехватываем все внутренние запросы чанков (.m4s)
               player.extend("RequestModifier", () => ({
                 modifyRequest: (req: { url: string }) => {
                   let target = req.url;
 
-                  // Если URL уже содержит прокси — не трогаем
-                  if (target.startsWith(proxyPrefix) || target.includes("tight-sky-85f8.oshxycfdjab.workers.dev") || target.includes("/api/proxy-4k")) {
+                  if (target.startsWith(PROXY_WORKER)) {
                     return req;
                   }
 
-                  // Если путь ушел на локальный хост или не содержит baseCdnDir — восстанавливаем адрес CDN
                   if (!target.startsWith(baseCdnDir)) {
                     const filename = target.split("?")[0].split("/").pop();
                     if (filename) {
@@ -660,14 +654,14 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     }
                   }
 
-                  // Оборачиваем запрос в прокси воркера
-                  req.url = proxyPrefix + encodeURIComponent(target);
+                  req.url = PROXY_WORKER + encodeURIComponent(target);
                   return req;
                 }
               }), true);
 
-              // Инициализируем плеер ОРИГИНАЛЬНЫМ URL (RequestModifier сам обернет первый запрос в прокси)
-              player.initialize(video, rawMpdUrl, true);
+              // Инициализируем плеер СРАЗУ через адрес воркера (чтобы первый .mpd не ушел напрямую)
+              const initialUrl = PROXY_WORKER + encodeURIComponent(rawMpdUrl);
+              player.initialize(video, initialUrl, true);
               (artInstance as any).dash = player;
 
               // Populate qualities on stream initialization
