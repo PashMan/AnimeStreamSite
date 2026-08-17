@@ -640,15 +640,15 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               // 2. Базовая директория CDN для склейки путей чанков
               const baseCdnDir = rawMpdUrl.substring(0, rawMpdUrl.lastIndexOf("/") + 1);
 
-              // 3. Прокси Cloudflare Worker (или локальный прокси как запасной вариант)
-              const proxyPrefix = "https://frosty-resonance-63b1.oshxycfdjab.workers.dev/?url=";
+              // 3. Твой собственный высокопроизводительный прокси-воркер на Cloudflare
+              const proxyPrefix = "https://tight-sky-85f8.oshxycfdjab.workers.dev/?url=";
 
               player.extend("RequestModifier", () => ({
                 modifyRequest: (req: { url: string }) => {
                   let target = req.url;
 
                   // Если URL уже содержит прокси — не трогаем
-                  if (target.startsWith(proxyPrefix) || target.includes("/api/proxy-4k")) {
+                  if (target.startsWith(proxyPrefix) || target.includes("tight-sky-85f8.oshxycfdjab.workers.dev") || target.includes("/api/proxy-4k")) {
                     return req;
                   }
 
