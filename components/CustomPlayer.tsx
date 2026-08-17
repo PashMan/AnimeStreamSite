@@ -625,10 +625,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
               const player = dashjs.MediaPlayer().create();
 
-              // URL вашего задеплоенного воркера
-              const PROXY_WORKER = "https://tight-sky-85f8.oshxycfdjab.workers.dev/?url=";
-
-              // Извлекаем чистый URL CDN
+              // Извлекаем чистый оригинальный URL CDN
               let rawMpdUrl = url;
               if (url.includes("url=")) {
                 try {
@@ -636,47 +633,15 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                 } catch (_) {}
               }
 
-              const baseCdnDir = rawMpdUrl.substring(0, rawMpdUrl.lastIndexOf("/") + 1);
+              // Собираем сквозной path-based URL
+              const proxyUrl = `https://tight-sky-85f8.oshxycfdjab.workers.dev/${rawMpdUrl}`;
 
-              // Перехватываем все внутренние запросы чанков (.m4s)
-              player.extend("RequestModifier", () => {
-                const processUrl = (urlStr: string): string => {
-                  if (!urlStr) return urlStr;
-                  let target = urlStr;
-
-                  // Если URL уже содержит параметр ?url= — это уже проксированный запрос, не трогаем его
-                  if (target.includes("?url=") || target.includes("&url=")) {
-                    return target;
-                  }
-
-                  // Если путь не начинается с оригинальной директории CDN, восстанавливаем его
-                  if (!target.startsWith(baseCdnDir)) {
-                    const filename = target.split("?")[0].split("/").pop();
-                    if (filename) {
-                      target = baseCdnDir + filename;
-                    }
-                  }
-
-                  return PROXY_WORKER + encodeURIComponent(target);
-                };
-
-                return {
-                  modifyRequestURL: (urlVal: string) => {
-                    return processUrl(urlVal);
-                  },
-                  modifyRequest: (req: any) => {
-                    if (req && req.url) {
-                      req.url = processUrl(req.url);
-                    }
-                    return req;
-                  }
-                };
-              }, true);
-
-              // Инициализируем плеер СРАЗУ через адрес воркера (чтобы первый .mpd не ушел напрямую)
-              const initialUrl = PROXY_WORKER + encodeURIComponent(rawMpdUrl);
-              player.initialize(video, initialUrl, true);
+              player.initialize(video, proxyUrl, true);
               (artInstance as any).dash = player;
+
+              player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => {
+                console.error("[Dash.js Error]:", e);
+              });
 
               // Populate qualities on stream initialization
               player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
@@ -731,9 +696,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               artInstance.on("destroy", () => {
                 try {
                   player.destroy();
-                } catch (e) {
-                  console.error("Error destroying dash.js player on destroy:", e);
-                }
+                } catch (_) {}
               });
             },
             m3u8: function (video, url, artInstance) {
