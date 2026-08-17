@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, forwardRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Artplayer from "artplayer";
 import Hls from "hls.js";
 import * as dashjs from "dashjs";
@@ -330,6 +331,23 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [activeSubmenu, setActiveSubmenu] = useState<"main" | "quality" | "speed">("main");
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    useEffect(() => {
+      const handleFullscreenChange = () => {
+        setIsFullscreen(!!document.fullscreenElement);
+      };
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+      return () => {
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
+        document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+        document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+        document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
+      };
+    }, []);
 
     // Player Preferences (Stored in localStorage)
     const [selectedQuality, setSelectedQuality] = useState<string>("Авто");
@@ -741,35 +759,38 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                   if (isQualityAdded) return;
                   isQualityAdded = true;
 
-                  const getQualityName = (level: any) => {
-                    const height = level.height || 0;
-                    if (height >= 1000) return "1080p";
-                    if (height >= 700) return "720p";
-                    if (height >= 400) return "480p";
-                    if (height >= 300) return "360p";
-                    return height ? `${height}p` : "Авто";
-                  };
+                  const levels = data.levels || hls.levels || [];
+                  const mappedLevels = levels.map((l: any, index: number) => {
+                    const height = l.height || 0;
+                    let label = "Авто";
+                    if (height >= 1080) label = "1080p";
+                    else if (height >= 720) label = "720p";
+                    else if (height >= 480) label = "480p";
+                    else if (height >= 360) label = "360p";
+                    else label = height ? `${height}p` : "Авто";
 
-                  const levels = data.levels || hls.levels;
-                  const parsedQualities: { html: string; level: number }[] = [
+                    return {
+                      html: label,
+                      level: index,
+                      height: height || 0
+                    };
+                  });
+
+                  // Sort descending by height
+                  mappedLevels.sort((a, b) => b.height - a.height);
+
+                  const finalQuals = [
                     { html: "Авто", level: -1 },
                   ];
 
-                  levels.forEach((l: any, index: number) => {
-                    const name = getQualityName(l);
-                    if (!parsedQualities.some((q) => q.html === name)) {
-                      parsedQualities.push({ html: name, level: index });
+                  mappedLevels.forEach((item) => {
+                    if (!finalQuals.some((q) => q.html === item.html)) {
+                      finalQuals.push({ html: item.html, level: item.level });
                     }
                   });
 
-                  if (!parsedQualities.some((q) => q.html === "1080p")) {
-                    parsedQualities.push({
-                      html: "1080p",
-                      level: levels.length - 1,
-                    });
-                  }
-
-                  setAvailableQualities(parsedQualities);
+                  console.log("📺 [HLS Quality Map] Dynamic qualities resolved:", finalQuals);
+                  setAvailableQualities(finalQuals);
                 });
 
                 artInstance.on("ready", () => {
@@ -1058,9 +1079,9 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         </button>
 
         {/* REFERENCE-PERFECT POPUP SETTINGS MODAL / BOTTOM SHEET */}
-        {isSettingsOpen && (
+        {isSettingsOpen && createPortal(
           <div
-            className="absolute inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+            className={`${isFullscreen ? "absolute" : "fixed"} inset-0 z-[999999] bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200`}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setIsSettingsOpen(false);
@@ -1376,7 +1397,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               )}
             </div>
           </div>
-        )}
+        , (isFullscreen && containerRef.current) ? containerRef.current : document.body)}
 
         {/* FLOATING MINI-PLAYER (Triggered when scrolled down) */}
         {miniOnScroll && isMiniPlayer && (

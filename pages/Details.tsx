@@ -64,16 +64,18 @@ const getResolvedAniboomUrl = (t: any, epNum: number, defaultUrl?: string | null
   const num = epNum || 1;
   let target: string | null = null;
 
-  if (t?.aniboom_iframe) {
-    target = t.aniboom_iframe;
-  } else if (t?.iframe && t.iframe.includes("aniboom")) {
-    target = t.iframe;
+  if (t) {
+    if (t.aniboom_iframe) {
+      target = t.aniboom_iframe;
+    } else if (t.iframe && t.iframe.includes("aniboom")) {
+      target = t.iframe;
+    }
   } else if (defaultUrl && defaultUrl.includes("aniboom")) {
     target = defaultUrl;
   }
 
   if (!target) {
-    console.warn("⚠️ [Aniboom Resolver] No Aniboom target URL found in translation or default players.");
+    console.warn("⚠️ [Aniboom Resolver] No Aniboom target URL found in translation.");
     return null;
   }
 
@@ -336,7 +338,10 @@ const Details: React.FC = () => {
         gatherTelemetry
       );
 
-      const aniboomStreamUrl = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
+      let aniboomStreamUrl = getResolvedAniboomUrl(selectedTranslation, epNum, defaultAniboom);
+      if (aniboomStreamUrl && aniboomStreamUrl.includes("7P9qko4qQ8v")) {
+        aniboomStreamUrl = null;
+      }
 
       if (!aniboomStreamUrl) {
         // Fall back to Kodik inside KamiPlayer
@@ -417,9 +422,26 @@ const Details: React.FC = () => {
         }
 
         if (isCurrent) {
-          addLog("Воспроизведение", "success", `Поток получен: ${data.url.substring(0, 70)}... [Качество: ${data.quality || "1080p"}]`);
-          
           const rawQual = data.quality;
+          const parsedQuality = parseInt(rawQual) || 1080;
+          
+          // Check if Kodik is available and has better quality (Kodik is always 720p, so if AniBoom is 480p or 360p, Kodik is better)
+          const defaultKodik = players.find((p) => p.name === "Kodik")?.iframe;
+          const kodikIframeUrl = getResolvedKodikUrl(selectedTranslation, epNum, defaultKodik);
+
+          if (parsedQuality < 720 && kodikIframeUrl) {
+            addLog("Повышение качества", "info", `Качество AniBoom (${rawQual || 'неизвестно'}) ниже чем у Kodik (720p). Переключаемся на поток Kodik...`);
+            setResolvedStream({
+              url: `/api/media/playlist?url=${encodeURIComponent(kodikIframeUrl)}`,
+              streamType: "hls",
+              provider: "kodik"
+            });
+            setIsResolvingStream(false);
+            return;
+          }
+
+          addLog("Воспроизведение", "success", `Поток получен: ${data.url.substring(0, 70)}... [Качество: ${rawQual || "1080p"}]`);
+          
           if (rawQual && selectedTranslation) {
             const mapped = rawQual === "1080p" ? "4K" : rawQual === "720p" ? "1080" : null;
             if (mapped) {
