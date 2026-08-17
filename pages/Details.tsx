@@ -259,12 +259,25 @@ const Details: React.FC = () => {
     return title;
   };
 
-  // New Diagnostics State
+  // Diagnostics State
   const [aniboomLogs, setAniboomLogs] = useState<AniboomLogsState[]>([]);
   const [serverSteps, setServerSteps] = useState<any[]>([]);
   const [isCacheHit, setIsCacheHit] = useState(false);
   const [bypassCacheNext, setBypassCacheNext] = useState(false);
   const [resolveCounter, setResolveCounter] = useState(0);
+
+  // Log active player tab selection to console
+  useEffect(() => {
+    if (selectedPlayer) {
+      console.log(
+        `%c[Player Switch]%c Выбран плеер в интерфейсе: %c ${selectedPlayer} %c`,
+        "background: #1e1b4b; color: #a78bfa; font-weight: bold; padding: 3px 6px; border-radius: 4px 0 0 4px;",
+        "background: #3730a3; color: #ffffff; padding: 3px 6px;",
+        "background: #4f46e5; color: #ffffff; font-weight: bold; padding: 3px 8px; border-radius: 3px;",
+        "background: #1e1b4b; padding: 3px;"
+      );
+    }
+  }, [selectedPlayer]);
 
   // Smoothly resolve AniBoom streams via the secure backend proxy/resolver
   useEffect(() => {
@@ -2110,6 +2123,8 @@ const Details: React.FC = () => {
                                 ref={nativeVideoRef}
                                 src={customSrc}
                                 streamType={resolvedStream?.streamType}
+                                provider={resolvedStream?.provider || (selectedTranslation as any)?.provider}
+                                translationTitle={selectedTranslation?.title}
                                 poster={anime?.image || anime?.cover}
                                 maxAudioTracks={maxTracks}
                                 audioTrackNames={audioTrackNames}

@@ -39,6 +39,8 @@ interface CustomPlayerProps {
   onPrevEpisode?: () => void;
   onPlayerError?: () => void;
   streamType?: "dash" | "hls";
+  provider?: "aniboom" | "kodik" | "collaps" | "custom" | string;
+  translationTitle?: string;
 }
 
 // WebGL pristine-sampling 1080p upscaler for crisp anime lines
@@ -320,6 +322,8 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       onPrevEpisode,
       onPlayerError,
       streamType,
+      provider,
+      translationTitle,
     },
     ref,
   ) => {
@@ -327,6 +331,33 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
     const artRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const artInstanceRef = useRef<Artplayer | null>(null);
+
+    // Determine active stream provider for logging
+    const activeProvider = (
+      provider
+        ? (provider.toLowerCase().includes("aniboom") ? "AniBoom" : provider.toLowerCase().includes("kodik") ? "Kodik" : provider)
+        : src.includes("aniboom") || streamType === "dash" || (src.includes("playlist") && src.includes("aniboom"))
+          ? "AniBoom"
+          : src.includes("kodik") || (src.includes("playlist") && src.includes("kodik"))
+            ? "Kodik"
+            : src.includes("collaps")
+              ? "Collaps"
+              : "KamiPlayer (Direct/Anime4K)"
+    );
+
+    useEffect(() => {
+      console.log(
+        `%c[Player Source]%c АКТИВНЫЙ ИСТОЧНИК: %c ${activeProvider.toUpperCase()} %c | Серия: ${episodeNumber || 1} | Озвучка: ${translationTitle || "Основная"} | Тип: ${streamType || (src.includes(".mpd") ? "DASH" : "HLS")}`,
+        "background: #1e1b4b; color: #a78bfa; font-weight: bold; padding: 4px 6px; border-radius: 4px 0 0 4px;",
+        "background: #312e81; color: #ffffff; font-weight: bold; padding: 4px 6px;",
+        activeProvider === "AniBoom"
+          ? "background: #059669; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;"
+          : activeProvider === "Kodik"
+            ? "background: #d97706; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;"
+            : "background: #2563eb; color: #ffffff; font-weight: bold; padding: 4px 8px; border-radius: 4px;",
+        "background: #1e1b4b; color: #cbd5e1; padding: 4px 6px; border-radius: 0 4px 4px 0;"
+      );
+    }, [src, activeProvider, episodeNumber, translationTitle, streamType]);
 
     // Settings Modal State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -654,30 +685,46 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
               // Собираем сквозной path-based URL
               const proxyUrl = `https://tight-sky-85f8.oshxycfdjab.workers.dev/${rawMpdUrl}`;
 
-              player.initialize(video, proxyUrl, true);
+              const shouldAutoPlay = Boolean(autoPlay);
+              player.initialize(video, proxyUrl, shouldAutoPlay);
               (artInstance as any).dash = player;
 
               player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => {
-                console.error("[Dash.js Error]:", e);
+                console.warn("[Dash.js Error]:", e);
               });
 
-              // Populate qualities on stream initialization
+              // Populate qualities on stream initialization safely for Dash.js v4 & v5
               player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
-                const videoBitrates = (player as any).getBitrateInfoListFor("video");
-                if (videoBitrates && videoBitrates.length > 0) {
-                  const parsedQualities = [
-                    { html: "Авто", level: -1 }
-                  ];
-                  videoBitrates.forEach((bitrateInfo: any, index: number) => {
-                    const height = bitrateInfo.height;
-                    const name = height ? `${height}p` : `${bitrateInfo.bitrate} kbps`;
-                    if (!parsedQualities.some(q => q.html === name)) {
-                      parsedQualities.push({ html: name, level: index });
+                try {
+                  let videoBitrates: any[] = [];
+                  if (typeof (player as any).getBitrateInfoListFor === "function") {
+                    videoBitrates = (player as any).getBitrateInfoListFor("video") || [];
+                  } else if (typeof (player as any).getRepresentationsByType === "function") {
+                    videoBitrates = (player as any).getRepresentationsByType("video") || [];
+                  } else if (typeof (player as any).getTracksFor === "function") {
+                    const tracks = (player as any).getTracksFor("video");
+                    if (tracks && tracks.length > 0) {
+                      videoBitrates = tracks[0].bitrateList || tracks[0].representations || [];
                     }
-                  });
-                  // Sort descending by level (highest quality first)
-                  parsedQualities.sort((a, b) => b.level - a.level);
-                  setAvailableQualities(parsedQualities);
+                  }
+
+                  if (videoBitrates && videoBitrates.length > 0) {
+                    const parsedQualities = [
+                      { html: "Авто", level: -1 }
+                    ];
+                    videoBitrates.forEach((bitrateInfo: any, index: number) => {
+                      const height = bitrateInfo.height;
+                      const name = height ? `${height}p` : `${bitrateInfo.bitrate || (index + 1)} kbps`;
+                      if (!parsedQualities.some(q => q.html === name)) {
+                        parsedQualities.push({ html: name, level: index });
+                      }
+                    });
+                    // Sort descending by level (highest quality first)
+                    parsedQualities.sort((a, b) => b.level - a.level);
+                    setAvailableQualities(parsedQualities);
+                  }
+                } catch (err) {
+                  console.warn("[Dash.js Quality Read Error]", err);
                 }
               });
 
@@ -942,27 +989,51 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
         (art as any).hls.currentLevel = item.level;
       } else if (art && (art as any).dash) {
         const player = (art as any).dash;
-        if (item.level === -1) {
-          player.updateSettings({
-            streaming: {
-              abr: {
-                autoSwitchBitrate: {
-                  video: true
+        try {
+          if (item.level === -1) {
+            if (typeof player.updateSettings === "function") {
+              player.updateSettings({
+                streaming: {
+                  abr: {
+                    autoSwitchBitrate: {
+                      video: true
+                    }
+                  }
                 }
+              });
+            } else if (typeof player.setAutoSwitchQualityFor === "function") {
+              player.setAutoSwitchQualityFor("video", true);
+            }
+          } else {
+            if (typeof player.updateSettings === "function") {
+              player.updateSettings({
+                streaming: {
+                  abr: {
+                    autoSwitchBitrate: {
+                      video: false
+                    }
+                  }
+                }
+              });
+            } else if (typeof player.setAutoSwitchQualityFor === "function") {
+              player.setAutoSwitchQualityFor("video", false);
+            }
+
+            if (typeof player.setQualityFor === "function") {
+              player.setQualityFor("video", item.level);
+            } else if (typeof player.setRepresentationIndexFor === "function") {
+              player.setRepresentationIndexFor("video", item.level);
+            } else if (typeof player.setRepresentationFor === "function") {
+              const reps = typeof player.getRepresentationsByType === "function"
+                ? player.getRepresentationsByType("video")
+                : [];
+              if (reps && reps[item.level]) {
+                player.setRepresentationFor("video", reps[item.level]);
               }
             }
-          });
-        } else {
-          player.updateSettings({
-            streaming: {
-              abr: {
-                autoSwitchBitrate: {
-                  video: false
-                }
-              }
-            }
-          });
-          player.setQualityFor("video", item.level);
+          }
+        } catch (err) {
+          console.warn("[Dash.js Quality Switch Error]", err);
         }
       }
       if (art && art.notice) {
