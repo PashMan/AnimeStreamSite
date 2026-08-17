@@ -310,3 +310,99 @@ a, button, .group {
   color: #8B5CF6 !important;
 }
 
+/* ==========================================================================
+   Smart TV & 10-Foot UI Optimizations (Tizen, webOS, Android TV, VIDAA)
+   ========================================================================== */
+
+/* Robust Aspect-Ratio Fallback for TV Browsers lacking native CSS aspect-ratio */
+.aspect-video {
+  aspect-ratio: 16 / 9;
+  min-height: clamp(260px, 56.25vw, 85vh);
+}
+
+/* Base font-size scaling for 10-foot viewing distance */
+html.tv-mode,
+body.tv-mode {
+  font-size: 18px !important;
+}
+
+@media (min-width: 1920px) {
+  html.tv-mode,
+  body.tv-mode {
+    font-size: 20px !important;
+  }
+}
+
+/* TV safe area overscan margins */
+html.tv-mode body {
+  padding-left: 2.5vw !important;
+  padding-right: 2.5vw !important;
+  overflow-x: hidden !important;
+}
+
+/* Scale tiny text labels so they are clearly readable from 3+ meters away */
+html.tv-mode .text-\[10px\],
+html.tv-mode .text-\[11px\],
+html.tv-mode .text-\[12px\],
+html.tv-mode .text-xs {
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+
+html.tv-mode .text-sm {
+  font-size: 16px !important;
+}
+
+html.tv-mode .text-base {
+  font-size: 18px !important;
+}
+
+html.tv-mode .text-lg {
+  font-size: 22px !important;
+}
+
+html.tv-mode .text-xl {
+  font-size: 26px !important;
+}
+
+html.tv-mode .text-2xl,
+html.tv-mode .text-3xl {
+  font-size: 32px !important;
+}
+
+/* Enlarge badges, chips, and interactive buttons for TV visibility */
+html.tv-mode button,
+html.tv-mode .art-control,
+html.tv-mode input,
+html.tv-mode select {
+  min-height: 44px !important;
+}
+
+/* High-contrast TV Remote D-Pad Focus Ring */
+html.tv-mode a:focus-visible,
+html.tv-mode button:focus-visible,
+html.tv-mode input:focus-visible,
+html.tv-mode select:focus-visible,
+html.tv-mode [tabindex]:focus-visible {
+  outline: 4px solid #8B5CF6 !important;
+  outline-offset: 4px !important;
+  transform: scale(1.03) !important;
+  z-index: 50 !important;
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.9) !important;
+}
+
+/* TV Player screen alignment and height preservation */
+html.tv-mode .art-video-player {
+  font-size: 16px !important;
+  border-radius: 1.5rem !important;
+}
+
+/* Stabilize headers and prevent floating layout distortion */
+html.tv-mode header {
+  position: sticky !important;
+  top: 0 !important;
+  backdrop-filter: none !important;
+  background-color: #070709 !important;
+}
+
+

@@ -1935,7 +1935,13 @@ const Details: React.FC = () => {
                 )}
 
                 {/* Primary Video Player Screen */}
-                <div className="w-full aspect-video bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group">
+                <div
+                  className="w-full aspect-video bg-black rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] relative group"
+                  style={{
+                    aspectRatio: "16 / 9",
+                    minHeight: "clamp(260px, 56.25vw, 85vh)",
+                  }}
+                >
                   {isBlocked ? (
                     <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center text-center p-6">
                       <Shield className="w-16 h-16 text-red-500 mb-4" />

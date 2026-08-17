@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown, Bookmark, BookOpen, Gamepad2, Home, Compass } from 'lucide-react';
+import { Menu, X, Search, MessageSquareText, Shuffle, Crown, ChevronDown, Bookmark, BookOpen, Gamepad2, Home, Compass, Tv } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
 import AuthModal from './AuthModal';
 import { fetchAnimes, fetchAnimeDetails } from '../services/shikimori';
 import { FALLBACK_IMAGE } from '../constants';
 import { AIChatBot } from './AIChatBot';
+import { isTvModeEnabled, toggleTvMode } from '../utils/tvDetection';
 
 import { useSlugBlocks } from '../store/slugBlocks';
 import { useDmcaBlocks } from '../store/dmcaBlocks';
@@ -73,6 +74,7 @@ const Layout: React.FC = () => {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [isTv, setIsTv] = useState<boolean>(() => isTvModeEnabled());
   const { user, logout, openAuthModal } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -786,6 +788,20 @@ const Layout: React.FC = () => {
                 <li><Link to="/dmca" className={`transition-colors ${isMangaMode ? 'hover:text-[#8B5CF6]' : 'hover:text-primary'}`}>DMCA</Link></li>
                 <li><Link to="/faq" className={`transition-colors ${isMangaMode ? 'hover:text-[#8B5CF6]' : 'hover:text-primary'}`}>Помощь</Link></li>
                 <li><Link to="/contact" className={`transition-colors ${isMangaMode ? 'hover:text-[#8B5CF6]' : 'hover:text-primary'}`}>Контакты</Link></li>
+                <li>
+                  <button
+                    onClick={() => {
+                      const next = toggleTvMode();
+                      setIsTv(next);
+                    }}
+                    className={`transition-colors flex items-center gap-2 cursor-pointer ${
+                      isTv ? 'text-primary font-black' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Tv className="w-4 h-4" />
+                    <span>ТВ Режим ({isTv ? "ВКЛ" : "ВЫКЛ"})</span>
+                  </button>
+                </li>
               </ul>
             </div>
           </div>

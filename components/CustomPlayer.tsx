@@ -20,12 +20,9 @@ import {
   Maximize2,
   Sliders,
 } from "lucide-react";
+import { isTvDevice } from "../utils/tvDetection";
 
-export const isTvDevice = (): boolean => {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  return /TV|SmartTV|Tizen|WebOS|VIDAA|Android.*TV|HbbTV|CrKey|Roku|AppleTV|BRAVIA|NetCast|GoogleTV|Opera TV|Viera|SmartHub|Large Screen/i.test(ua);
-};
+export { isTvDevice };
 
 interface CustomPlayerProps {
   src: string;
@@ -788,7 +785,7 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
     // Handle Mini-Player on Scroll using IntersectionObserver
     useEffect(() => {
-      if (!miniOnScroll || !containerRef.current) {
+      if (!miniOnScroll || !containerRef.current || isTvDevice()) {
         setIsMiniPlayer(false);
         return;
       }
@@ -1594,6 +1591,10 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       <div
         ref={containerRef}
         className="relative w-full aspect-video rounded-[1.5rem] md:rounded-[2rem] bg-black overflow-hidden group/player select-none"
+        style={{
+          aspectRatio: "16 / 9",
+          minHeight: "clamp(260px, 56.25vw, 85vh)",
+        }}
       >
         {/* Invisible HTML5 video element strictly for SEO crawlers */}
         {src && (
