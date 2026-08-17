@@ -629,65 +629,45 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
               // Calculate the base directory of the MPD file on CDN
               // If the URL is already proxied, we extract the actual target URL from the query param
-              let actualMpdUrl = url;
-              if (url.includes("/api/proxy-4k")) {
+              let rawMpdUrl = url;
+              if (url.includes("url=")) {
                 try {
                   const queryStart = url.indexOf("url=");
-                  if (queryStart !== -1) {
-                    actualMpdUrl = decodeURIComponent(url.substring(queryStart + 4));
-                  }
-                } catch (e) {
-                  console.error("Error decoding MPD URL in CustomPlayer:", e);
-                }
+                  rawMpdUrl = decodeURIComponent(url.substring(queryStart + 4));
+                } catch (_) {}
               }
 
-              const baseCdnDir = actualMpdUrl.substring(0, actualMpdUrl.lastIndexOf("/") + 1);
-              const proxyUrlBase = `${window.location.origin}/api/proxy-4k?url=`;
+              // 2. Базовая директория CDN для склейки путей чанков
+              const baseCdnDir = rawMpdUrl.substring(0, rawMpdUrl.lastIndexOf("/") + 1);
 
-              // Intercept each segment/manifest request and route through our proxy to bypass CORS
-              player.extend("RequestModifier", () => {
-                const processUrl = (urlStr: string): string => {
-                  if (!urlStr) return urlStr;
-                  let target = urlStr;
+              // 3. Прокси Cloudflare Worker (или локальный прокси как запасной вариант)
+              const proxyPrefix = "https://frosty-resonance-63b1.oshxycfdjab.workers.dev/?url=";
 
-                  // Prevent infinite proxy wrapping if it's already a proxied URL
-                  if (target.startsWith(proxyUrlBase) || target.includes("/api/proxy-4k")) {
-                    return target;
-                  }
+              player.extend("RequestModifier", () => ({
+                modifyRequest: (req: { url: string }) => {
+                  let target = req.url;
 
-                  // If path is relative or points to localhost (not starting with http), restore CDN address
-                  if (!target.startsWith("http")) {
-                    target = baseCdnDir + target;
-                  } else if (target.startsWith(window.location.origin) && !target.includes("/api/proxy-4k")) {
-                    // This is a relative URL resolved against our origin by the browser (e.g. /api/chunk_1_00001.m4s)
-                    const filename = target.split("?")[0].split("/").pop();
-                    if (filename) {
-                      target = baseCdnDir + filename;
-                    }
-                  } else if (target !== actualMpdUrl && !target.startsWith(baseCdnDir)) {
-                    const filename = target.split("?")[0].split("/").pop();
-                    if (filename) {
-                      target = baseCdnDir + filename;
-                    }
-                  }
-
-                  return proxyUrlBase + encodeURIComponent(target);
-                };
-
-                return {
-                  modifyRequestURL: (urlVal: string) => {
-                    return processUrl(urlVal);
-                  },
-                  modifyRequest: (req: any) => {
-                    if (req && req.url) {
-                      req.url = processUrl(req.url);
-                    }
+                  // Если URL уже содержит прокси — не трогаем
+                  if (target.startsWith(proxyPrefix) || target.includes("/api/proxy-4k")) {
                     return req;
                   }
-                };
-              }, true);
 
-              player.initialize(video, url, true);
+                  // Если путь ушел на локальный хост или не содержит baseCdnDir — восстанавливаем адрес CDN
+                  if (!target.startsWith(baseCdnDir)) {
+                    const filename = target.split("?")[0].split("/").pop();
+                    if (filename) {
+                      target = baseCdnDir + filename;
+                    }
+                  }
+
+                  // Оборачиваем запрос в прокси воркера
+                  req.url = proxyPrefix + encodeURIComponent(target);
+                  return req;
+                }
+              }), true);
+
+              // Инициализируем плеер ОРИГИНАЛЬНЫМ URL (RequestModifier сам обернет первый запрос в прокси)
+              player.initialize(video, rawMpdUrl, true);
               (artInstance as any).dash = player;
 
               // Populate qualities on stream initialization
