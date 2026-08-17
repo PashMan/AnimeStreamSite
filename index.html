@@ -63,40 +63,86 @@
       })();
     </script>
 
-    <!-- Early script load failure and stale chunk cache buster -->
+    <!-- Early script/style load failure and stale chunk cache buster -->
     <script>
       (function() {
+        function bustStaleCacheAndReload(reason) {
+          console.warn('[KamiAnime CacheBuster] Stale chunk or stylesheet failure detected:', reason);
+          var reloadKey = 'kami_stale_reload_timestamp';
+          var lastReload = sessionStorage.getItem(reloadKey);
+          var now = Date.now();
+          
+          // Prevent infinite reload loops (cooldown 4 seconds)
+          if (!lastReload || (now - parseInt(lastReload, 10)) > 4000) {
+            sessionStorage.setItem(reloadKey, String(now));
+            
+            // 1. Unregister all ServiceWorkers
+            if ('serviceWorker' in navigator) {
+              try {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  for (var i = 0; i < regs.length; i++) {
+                    regs[i].unregister();
+                  }
+                });
+              } catch (_) {}
+            }
+
+            // 2. Clear Cache Storage API
+            if ('caches' in window) {
+              try {
+                caches.keys().then(function(names) {
+                  for (var i = 0; i < names.length; i++) {
+                    caches.delete(names[i]);
+                  }
+                });
+              } catch (_) {}
+            }
+
+            // 3. Force hard navigation bypassing HTTP/CDN cache
+            var url = new URL(window.location.href);
+            url.searchParams.set('_v', String(now));
+            window.location.replace(url.toString());
+          }
+        }
+
+        // Intercept asset (script/link) load errors
         window.addEventListener('error', function(e) {
           try {
             var target = e.target;
-            var src = target && (target.src || target.href || '');
-            var isAppScript = target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK') && (
+            var src = target ? (target.src || target.href || '') : '';
+            var isAppAsset = target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK') && (
               src.indexOf('/assets/') !== -1 || src.indexOf('/index.') !== -1
             );
             var msg = String(e.message || '');
-            var isModuleFail = msg.indexOf('Failed to load module script') !== -1 ||
-                               msg.indexOf('Strict MIME type') !== -1 ||
-                               msg.indexOf('dynamically imported module') !== -1 ||
-                               msg.indexOf('error loading dynamically imported module') !== -1;
-            
-            // Only trigger if an actual application asset or module failed
-            if (isAppScript || isModuleFail) {
-              var reloadKey = 'kami_stale_bundle_reload_ts';
-              var last = sessionStorage.getItem(reloadKey);
-              var now = Date.now();
-              if (!last || now - parseInt(last, 10) > 10000) {
-                console.warn('[CacheBuster] Stale chunk detected in cached HTML. Clearing caches and reloading...');
-                sessionStorage.setItem(reloadKey, String(now));
-                if ('caches' in window) {
-                  caches.keys().then(function(names) {
-                    names.forEach(function(name) { caches.delete(name); });
-                  });
-                }
-                window.location.reload();
-              }
+            var isMimeOrModuleError = 
+              msg.indexOf('Failed to load module script') !== -1 ||
+              msg.indexOf('Strict MIME type') !== -1 ||
+              msg.indexOf('supported stylesheet MIME type') !== -1 ||
+              msg.indexOf('dynamically imported module') !== -1 ||
+              msg.indexOf('error loading dynamically imported module') !== -1 ||
+              msg.indexOf('Importing a module script failed') !== -1;
+
+            if (isAppAsset || isMimeOrModuleError) {
+              bustStaleCacheAndReload(msg || src || 'Asset load error');
             }
           } catch (_) {}
         }, true);
+
+        // Intercept unhandled dynamic import promise rejections
+        window.addEventListener('unhandledrejection', function(e) {
+          try {
+            var reason = e.reason;
+            var msg = String((reason && (reason.message || reason)) || '');
+            if (
+              msg.indexOf('dynamically imported module') !== -1 ||
+              msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+              msg.indexOf('error loading dynamically imported module') !== -1 ||
+              msg.indexOf('Importing a module script failed') !== -1
+            ) {
+              bustStaleCacheAndReload(msg);
+            }
+          } catch (_) {}
+        });
       })();
     </script>
 

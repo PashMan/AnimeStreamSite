@@ -4096,7 +4096,9 @@ app.get('/*', async (c) => {
     /\.(js|mjs|cjs|ts|tsx|jsx|css|map|wasm|png|jpg|jpeg|gif|svg|ico|webp|json|woff|woff2|ttf|eot|xml|txt)$/i.test(reqPath)
   ) {
     c.header('Content-Type', 'text/plain; charset=utf-8');
-    c.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
     return c.text('Asset Not Found', 404);
   }
 
@@ -4105,9 +4107,10 @@ app.get('/*', async (c) => {
   if (fs.existsSync(indexPath)) {
     const html = await fs.promises.readFile(indexPath, 'utf-8');
     c.header('Content-Type', 'text/html; charset=utf-8');
-    c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0');
     c.header('Pragma', 'no-cache');
     c.header('Expires', '0');
+    c.header('Surrogate-Control', 'no-store');
     return c.html(html);
   }
   return c.text('Application is compiling or index.html missing', 503);

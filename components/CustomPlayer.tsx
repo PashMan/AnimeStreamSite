@@ -59,6 +59,8 @@ class AnimeWebGL1080p {
   private video: HTMLVideoElement;
   private canvas: HTMLCanvasElement;
   private animId: number | null = null;
+  private rvfcId: number | null = null;
+  private lastRenderedTime: number = -1;
   public isActive = false;
   private targetMode: number = 0; // 0 = Auto (1080p -> 4K 2160p, 720p -> 1080p), 2160 = 4K, 1080 = 1080p, -1 = Off
   private sharpness: number = 0.50; // AMD CAS sharpness
@@ -283,15 +285,18 @@ class AnimeWebGL1080p {
         vec3 minRGB = min(min(min(a, b), min(dCol, e)), c);
         vec3 maxRGB = max(max(max(a, b), max(dCol, e)), c);
         
-        // Compute adaptive contrast weight for CAS (eliminates haloing and oversharpening)
+        // Compute adaptive contrast weight for CAS (AMD FidelityFX CAS algorithm)
         vec3 ampRGB = clamp(min(minRGB, 2.0 - maxRGB) / max(maxRGB, vec3(0.0001)), 0.0, 1.0);
-        vec3 wRGB = -sqrt(ampRGB) * (u_sharpness * 0.20);
+        vec3 wRGB = -sqrt(ampRGB) * (u_sharpness * 0.25);
         
         // Filter reconstruction
         vec3 finalColor = (a * wRGB + b * wRGB + c + dCol * wRGB + e * wRGB) / (1.0 + 4.0 * wRGB);
         
-        // Soft clamp to local neighborhood bounds to prevent ringing
-        finalColor = clamp(finalColor, minRGB, maxRGB);
+        // Dynamic edge preservation range
+        vec3 range = maxRGB - minRGB;
+        vec3 minClamped = max(minRGB - range * 0.15, vec3(0.0));
+        vec3 maxClamped = min(maxRGB + range * 0.15, vec3(1.0));
+        finalColor = clamp(finalColor, minClamped, maxClamped);
         
         gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
       }
@@ -388,6 +393,13 @@ class AnimeWebGL1080p {
 
   public setTargetResolution(targetH: number) {
     this.targetMode = targetH;
+    if (targetH === 2160 || targetH === 0) {
+      this.sharpness = 0.85; // 4K Super-Resolution boost
+    } else if (targetH === 1080) {
+      this.sharpness = 0.60;
+    } else {
+      this.sharpness = 0.50;
+    }
     if (targetH === -1) {
       this.canvas.style.opacity = "0";
     } else if (this.isActive) {
@@ -405,22 +417,48 @@ class AnimeWebGL1080p {
     if (this.targetMode !== -1) {
       this.canvas.style.opacity = "1";
     }
-    this.renderLoop();
+    this.scheduleFrame();
   }
 
   public stop() {
     this.isActive = false;
     this.canvas.style.opacity = "0";
+    if (this.rvfcId !== null && "cancelVideoFrameCallback" in this.video) {
+      try {
+        (this.video as any).cancelVideoFrameCallback(this.rvfcId);
+      } catch (_) {}
+      this.rvfcId = null;
+    }
     if (this.animId !== null) {
       cancelAnimationFrame(this.animId);
       this.animId = null;
     }
   }
 
-  private renderLoop = () => {
+  private scheduleFrame = () => {
     if (!this.isActive) return;
-    this.render();
-    this.animId = requestAnimationFrame(this.renderLoop);
+
+    if ("requestVideoFrameCallback" in this.video) {
+      this.rvfcId = (this.video as any).requestVideoFrameCallback(() => {
+        if (!this.isActive) return;
+        this.render();
+        this.scheduleFrame();
+      });
+    } else {
+      this.animId = requestAnimationFrame(() => {
+        if (!this.isActive) return;
+        if (
+          !this.video.paused &&
+          !this.video.seeking &&
+          this.video.readyState >= 2 &&
+          this.video.currentTime !== this.lastRenderedTime
+        ) {
+          this.lastRenderedTime = this.video.currentTime;
+          this.render();
+        }
+        this.scheduleFrame();
+      });
+    }
   };
 
   private drawQuad(program: WebGLProgram) {
@@ -435,7 +473,7 @@ class AnimeWebGL1080p {
   private render() {
     const video = this.video;
     const gl = this.gl;
-    if (video.readyState < 2 || video.videoWidth === 0) return;
+    if (video.readyState < 2 || video.videoWidth === 0 || video.seeking) return;
 
     if (this.targetMode === -1) {
       this.canvas.style.opacity = "0";
@@ -447,19 +485,25 @@ class AnimeWebGL1080p {
     const vW = video.videoWidth;
     const vH = video.videoHeight;
 
-    // Determine target height:
-    // - 4K (2160p): Target 2160 for 4K upscale (especially from 1080p source)
-    // - 1080p: Target 1080 for 1080p upscale (especially from 720p source)
-    // - Auto (0): 1080p source -> 4K (2160p), 720p source -> 1080p
+    // STRICT RESOLUTION RULES:
+    // 1. 720p -> 1080p (Anime4K AI)
+    // 2. 1080p -> 4K 2160p (Anime4K AI)
+    // 3. 720p -> 4K is strictly FORBIDDEN (clamped to 1080p)
     let targetH = 1080;
-    if (this.targetMode === 2160) {
-      targetH = 2160;
-    } else if (this.targetMode === 1080) {
+    if (vH < 1000) {
+      // Source is 720p (or lower) - 4K is strictly prohibited!
       targetH = 1080;
-    } else if (this.targetMode === 0) {
-      targetH = vH >= 1000 ? 2160 : 1080;
     } else {
-      targetH = this.targetMode;
+      // Source is native 1080p (or higher)
+      if (this.targetMode === 2160 || this.targetMode === 0) {
+        targetH = 2160; // 1080p -> 4K
+      } else if (this.targetMode === 1080) {
+        // Native 1080p selected without upscale
+        this.canvas.style.opacity = "0";
+        return;
+      } else {
+        targetH = this.targetMode;
+      }
     }
 
     const aspect = vW / vH;
@@ -632,17 +676,55 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
       selectedQualityRef.current = selectedQuality;
     }, [selectedQuality]);
 
+    const isKodikStream = Boolean(
+      (provider && provider.toLowerCase().includes("kodik")) ||
+      src.includes("kodik")
+    );
+
     const [availableQualities, setAvailableQualities] = useState<
       { html: string; level: number; targetH?: number; isAi?: boolean }[]
-    >([
-      { html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true },
-      { html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true },
-      { html: "1080p", level: 0, targetH: -1 },
-      { html: "720p", level: 1, targetH: -1 },
-      { html: "480p", level: 2, targetH: -1 },
-      { html: "360p", level: 3, targetH: -1 },
-      { html: "Авто", level: -1, targetH: 0 },
-    ]);
+    >(() => {
+      if (isKodikStream) {
+        return [
+          { html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true },
+          { html: "720p", level: 0, targetH: -1 },
+          { html: "480p", level: 1, targetH: -1 },
+          { html: "360p", level: 2, targetH: -1 },
+          { html: "Авто", level: -1, targetH: 0 },
+        ];
+      }
+      return [
+        { html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true },
+        { html: "1080p", level: 0, targetH: -1 },
+        { html: "720p", level: 1, targetH: -1 },
+        { html: "480p", level: 2, targetH: -1 },
+        { html: "360p", level: 3, targetH: -1 },
+        { html: "Авто", level: -1, targetH: 0 },
+      ];
+    });
+
+    // Keep selected quality valid across provider/quality list changes
+    useEffect(() => {
+      if (availableQualities.length > 0) {
+        const isValid = availableQualities.some((q) => q.html === selectedQuality);
+        if (!isValid) {
+          if (selectedQuality.includes("4K")) {
+            const ai1080 = availableQualities.find((q) => q.html.includes("1080p (Anime4K"));
+            if (ai1080) {
+              setSelectedQuality(ai1080.html);
+              return;
+            }
+          } else if (selectedQuality.includes("1080p (Anime4K")) {
+            const ai4k = availableQualities.find((q) => q.html.includes("4K"));
+            if (ai4k) {
+              setSelectedQuality(ai4k.html);
+              return;
+            }
+          }
+          setSelectedQuality("Авто");
+        }
+      }
+    }, [availableQualities]);
 
     const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
     const speedOptions = [
@@ -963,25 +1045,49 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                     }
                   }
 
-                  const parsedQualities: { html: string; level: number; targetH?: number; isAi?: boolean }[] = [
-                    { html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true },
-                    { html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true },
-                  ];
+                  let maxNativeH = 0;
+                  const nativeList: { html: string; level: number; targetH?: number; height: number }[] = [];
 
                   if (videoBitrates && videoBitrates.length > 0) {
                     videoBitrates.forEach((bitrateInfo: any, index: number) => {
-                      const height = bitrateInfo.height;
+                      const height = bitrateInfo.height || 0;
+                      if (height > maxNativeH) maxNativeH = height;
                       const name = height ? `${height}p` : `${bitrateInfo.bitrate || (index + 1)} kbps`;
-                      if (!parsedQualities.some(q => q.html === name)) {
-                        parsedQualities.push({ html: name, level: index, targetH: -1 });
+                      if (!nativeList.some(q => q.html === name)) {
+                        nativeList.push({ html: name, level: index, targetH: -1, height });
                       }
                     });
                   } else {
-                    parsedQualities.push(
-                      { html: "1080p", level: 0, targetH: -1 },
-                      { html: "720p", level: 0, targetH: -1 }
+                    nativeList.push(
+                      { html: "720p", level: 0, targetH: -1, height: 720 }
                     );
+                    maxNativeH = 720;
                   }
+
+                  // Sort descending
+                  nativeList.sort((a, b) => b.height - a.height);
+
+                  const isKodik = Boolean(
+                    (provider && provider.toLowerCase().includes("kodik")) ||
+                    src.includes("kodik")
+                  );
+                  const hasNative1080 = !isKodik && maxNativeH >= 1080;
+
+                  const parsedQualities: { html: string; level: number; targetH?: number; isAi?: boolean }[] = [];
+
+                  // RULE: If has native 1080p -> 1080p can upscale to 4K. Do not offer 1080p AI.
+                  // RULE: If Kodik / max quality <= 720p -> 720p can upscale to 1080p. 4K AI is unavailable.
+                  if (hasNative1080) {
+                    parsedQualities.push({ html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true });
+                  } else {
+                    parsedQualities.push({ html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true });
+                  }
+
+                  nativeList.forEach(item => {
+                    if (!parsedQualities.some(q => q.html === item.html)) {
+                      parsedQualities.push({ html: item.html, level: item.level, targetH: -1 });
+                    }
+                  });
 
                   parsedQualities.push({ html: "Авто", level: -1, targetH: 0 });
                   setAvailableQualities(parsedQualities);
@@ -1083,13 +1189,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
                 let isQualityAdded = false;
                 const updateQualitiesFromLevels = (levels: any[]) => {
-                  const finalQuals: { html: string; level: number; targetH?: number; isAi?: boolean }[] = [
-                    { html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true },
-                    { html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true },
-                  ];
+                  let maxNativeH = 0;
+                  const mappedLevels: { html: string; level: number; height: number }[] = [];
 
                   if (levels && levels.length > 0) {
-                    const mappedLevels = levels.map((l: any, index: number) => {
+                    levels.forEach((l: any, index: number) => {
                       const height = l.height || (l.attrs && l.attrs.RESOLUTION ? parseInt(l.attrs.RESOLUTION.split("x")[1]) : 0);
                       const name = l.name || (l.attrs && l.attrs.NAME) || "";
                       let label = "720p";
@@ -1110,28 +1214,45 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
                       }
 
                       const numericHeight = height || (label.includes("1080") ? 1080 : label.includes("720") ? 720 : label.includes("480") ? 480 : label.includes("360") ? 360 : 0);
+                      if (numericHeight > maxNativeH) maxNativeH = numericHeight;
 
-                      return {
+                      mappedLevels.push({
                         html: label,
                         level: index,
-                        height: numericHeight
-                      };
+                        height: numericHeight,
+                      });
                     });
 
                     // Sort descending by resolution height
                     mappedLevels.sort((a, b) => b.height - a.height);
-
-                    mappedLevels.forEach((item) => {
-                      if (!finalQuals.some((q) => q.html === item.html)) {
-                        finalQuals.push({ html: item.html, level: item.level, targetH: -1 });
-                      }
-                    });
                   } else {
-                    finalQuals.push(
-                      { html: "1080p", level: 0, targetH: -1 },
-                      { html: "720p", level: 0, targetH: -1 }
+                    mappedLevels.push(
+                      { html: "720p", level: 0, height: 720 }
                     );
+                    maxNativeH = 720;
                   }
+
+                  const isKodik = Boolean(
+                    (provider && provider.toLowerCase().includes("kodik")) ||
+                    src.includes("kodik")
+                  );
+                  const hasNative1080 = !isKodik && maxNativeH >= 1080;
+
+                  const finalQuals: { html: string; level: number; targetH?: number; isAi?: boolean }[] = [];
+
+                  // RULE: If has native 1080p -> 1080p can upscale to 4K. Do not offer 1080p AI.
+                  // RULE: If Kodik / max quality <= 720p -> 720p can upscale to 1080p. 4K AI is unavailable.
+                  if (hasNative1080) {
+                    finalQuals.push({ html: "4K (Anime4K AI)", level: 0, targetH: 2160, isAi: true });
+                  } else {
+                    finalQuals.push({ html: "1080p (Anime4K AI)", level: 0, targetH: 1080, isAi: true });
+                  }
+
+                  mappedLevels.forEach((item) => {
+                    if (!finalQuals.some((q) => q.html === item.html)) {
+                      finalQuals.push({ html: item.html, level: item.level, targetH: -1 });
+                    }
+                  });
 
                   finalQuals.push({ html: "Авто", level: -1, targetH: 0 });
 
@@ -1356,13 +1477,6 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
             hls.currentLevel = item.level;
             hls.loadLevel = item.level;
             hls.nextLevel = item.level;
-          }
-
-          // Trigger immediate reload of upcoming segments if actively playing
-          if (art.video && !art.video.paused) {
-            const curTime = art.currentTime;
-            hls.stopLoad();
-            hls.startLoad(curTime);
           }
         } catch (err) {
           console.warn("[HLS Quality Switch Error]", err);
