@@ -533,10 +533,8 @@ export async function onRequest(context: any) {
 
     // Determine request host/origin to route proxy links
     const origin = urlObj.origin;
-    const maxQuality = decoded.qualityVideo ? parseInt(String(decoded.qualityVideo), 10) : 1080;
-    const masterPlaylistUrl = hlsSrc ? `${origin}/api/media/aniboom/master.m3u8?url=${encodeURIComponent(hlsSrc)}&max=${maxQuality}` : undefined;
     const proxiedDashUrl = dashSrc ? `${origin}/api/proxy-4k?url=${encodeURIComponent(dashSrc)}` : undefined;
-    const proxiedHlsUrl = masterPlaylistUrl || (hlsSrc ? `${origin}/api/proxy-4k?url=${encodeURIComponent(hlsSrc)}` : undefined);
+    const proxiedHlsUrl = hlsSrc ? `${origin}/api/proxy-4k?url=${encodeURIComponent(hlsSrc)}` : undefined;
     const mainProxiedUrl = proxiedHlsUrl || proxiedDashUrl || '';
 
     steps.push({

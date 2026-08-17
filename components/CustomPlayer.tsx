@@ -509,8 +509,11 @@ export const CustomPlayer = forwardRef<HTMLVideoElement, CustomPlayerProps>(
 
       const initPlayer = async () => {
         let finalUrl = src;
+        if (window.location.protocol === 'https:' && finalUrl.startsWith('http://')) {
+          finalUrl = finalUrl.replace(/^http:\/\//i, 'https://');
+        }
         console.log(`🎬 [KamiPlayer Engine] Initializing player instance...`);
-        console.log(`🔗 [KamiPlayer Engine] Raw Stream Source URL:`, src);
+        console.log(`🔗 [KamiPlayer Engine] Raw Stream Source URL:`, finalUrl);
 
         if (maxAudioTracks && src.endsWith(".m3u8")) {
           try {

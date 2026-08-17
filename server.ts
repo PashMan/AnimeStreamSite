@@ -1109,7 +1109,7 @@ app.get('/api/balancer', async (c) => {
 
     kodik_translations = unifiedTranslations;
 
-    console.log(`[BALANCER] Unification complete. Generated ${kodik_translations.length} translations. Quality badge: ${aniboomBadge}. Max episodes: ${kodik_translations[0]?.episodes_count || 1}`);
+    console.log(`[BALANCER] Unification complete. Generated ${kodik_translations.length} translations. Max episodes: ${kodik_translations[0]?.episodes_count || 1}`);
 
     console.log(`[BALANCER] Found IDs -> Shikimori: ${shikimori_id}, Kinopoisk: ${kinopoisk_id}, IMDb: ${imdb_id}, WorldArt: ${world_art_id}`);
     addLog(`Balancer Completed`, { playersCount: players.length, ids });
@@ -2258,10 +2258,14 @@ function decodeKodikUrl(encoded: string, rotNum?: number): string {
 }
 
 function getProxyOrigin(c: any): string {
-  const proto = c.req.header('x-forwarded-proto') || 'http';
+  let proto = c.req.header('x-forwarded-proto');
   const host = c.req.header('x-forwarded-host') || c.req.header('host') || 'localhost:3000';
   if (host.startsWith('http://') || host.startsWith('https://')) {
     return host;
+  }
+  const isLocal = host.includes('localhost') || host.startsWith('127.0.0.1');
+  if (!proto || (!isLocal && proto === 'http')) {
+    proto = isLocal ? 'http' : 'https';
   }
   return `${proto}://${host}`;
 }
@@ -3187,10 +3191,8 @@ const handleAniboomResolve = async (c: any) => {
     });
 
     const proxyOrigin = getProxyOrigin(c);
-    const maxQuality = decoded.qualityVideo ? parseInt(String(decoded.qualityVideo), 10) : 1080;
-    const masterPlaylistUrl = hlsSrc ? `${proxyOrigin}/api/media/aniboom/master.m3u8?url=${encodeURIComponent(hlsSrc)}&max=${maxQuality}` : undefined;
     const proxiedDashUrl = dashSrc ? `${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(dashSrc)}` : undefined;
-    const proxiedHlsUrl = masterPlaylistUrl || (hlsSrc ? `${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(hlsSrc)}` : undefined);
+    const proxiedHlsUrl = hlsSrc ? `${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(hlsSrc)}` : undefined;
     const mainProxiedUrl = proxiedHlsUrl || proxiedDashUrl || '';
 
     steps.push({
@@ -3202,7 +3204,7 @@ const handleAniboomResolve = async (c: any) => {
     steps.push({
       title: "Готовность к воспроизведению",
       status: "success",
-      message: "Все этапы пройдены успешно! Поток передан в плеер KamiPlayer с поддержкой всех качеств (1080p, 720p, 480p, 360p, Авто)."
+      message: "Все этапы пройдены успешно! Поток передан в плеер KamiPlayer с поддержкой всех качеств и аудиодорожек."
     });
 
     const responsePayload = {
@@ -3238,22 +3240,11 @@ const handleAniboomResolve = async (c: any) => {
 
 app.get('/api/media/aniboom/master.m3u8', async (c) => {
   const urlParam = c.req.query('url');
-  const maxQ = c.req.query('max') || '1080';
   if (!urlParam) {
     return c.text('Error: missing url param', 400);
   }
   const proxyOrigin = getProxyOrigin(c);
-  const masterContent = buildAniboomMasterPlaylist(urlParam, maxQ, proxyOrigin);
-  return new Response(masterContent, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/vnd.apple.mpegurl',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': '*',
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
-    }
-  });
+  return c.redirect(`${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(urlParam)}`, 302);
 });
 
 app.get('/api/media/aniboom/resolve', handleAniboomResolve);
@@ -3330,27 +3321,16 @@ app.get('/api/media/playlist', async (c) => {
             const targetQuality = c.req.query('quality');
             const proxyOrigin = getProxyOrigin(c);
 
-            // If no specific quality is requested, deliver dynamic Master Playlist with all quality options!
+            // Directly proxy the full Master Playlist with all resolutions & audio streams
             if (!targetQuality) {
-              console.log(`🎬 [ANIBOOM PARSER] Serving dynamic Master Playlist for ${hlsSrc}`);
-              const maxQ = decoded.qualityVideo ? parseInt(String(decoded.qualityVideo), 10) : 1080;
-              const masterContent = buildAniboomMasterPlaylist(hlsSrc, maxQ, proxyOrigin);
-              return new Response(masterContent, {
-                status: 200,
-                headers: {
-                  'Content-Type': 'application/vnd.apple.mpegurl',
-                  'Access-Control-Allow-Origin': '*',
-                  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                  'Access-Control-Allow-Headers': '*',
-                  'Cache-Control': 'no-cache, no-store, must-revalidate'
-                }
-              });
+              console.log(`🎬 [ANIBOOM PARSER] Proxying authentic Master Playlist: ${hlsSrc}`);
+              return c.redirect(`${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(hlsSrc)}`, 302);
             }
 
             // If a specific quality was requested, redirect to proxy for that specific variant
             const baseUrl = hlsSrc.substring(0, hlsSrc.lastIndexOf('/') + 1);
             const variantUrl = `${baseUrl}${targetQuality}.m3u8`;
-            return c.redirect(`${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(variantUrl)}`);
+            return c.redirect(`${proxyOrigin}/api/proxy-4k?url=${encodeURIComponent(variantUrl)}`, 302);
           } else {
             console.error(`❌ [ANIBOOM PARSER] 'hls' parameter missing in decoded JSON`);
           }
