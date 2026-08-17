@@ -33,6 +33,35 @@
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Outfit:wght@500;700;800;900&amp;display=swap" rel="stylesheet">
     </noscript>
 
+    <!-- Early script load failure and stale chunk cache buster -->
+    <script>
+      (function() {
+        window.addEventListener('error', function(e) {
+          var target = e.target;
+          var isScriptOrLink = target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK');
+          var msg = String(e.message || '');
+          var isModuleFail = msg.indexOf('Failed to load module script') !== -1 ||
+                             msg.indexOf('Strict MIME type') !== -1 ||
+                             msg.indexOf('dynamically imported module') !== -1;
+          if (isScriptOrLink || isModuleFail) {
+            console.warn('[CacheBuster] Stale chunk detected in cached HTML. Clearing caches and reloading...');
+            var reloadKey = 'kami_stale_bundle_reload_ts';
+            var last = sessionStorage.getItem(reloadKey);
+            var now = Date.now();
+            if (!last || now - parseInt(last, 10) > 5000) {
+              sessionStorage.setItem(reloadKey, String(now));
+              if ('caches' in window) {
+                caches.keys().then(function(names) {
+                  names.forEach(function(name) { caches.delete(name); });
+                });
+              }
+              window.location.reload();
+            }
+          }
+        }, true);
+      })();
+    </script>
+
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-LVD0M2PPJN"></script>
     <script>
