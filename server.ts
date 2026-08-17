@@ -4040,8 +4040,39 @@ app.get('/api/media/download/file', async (c) => {
 // WS Room Route (must be registered before SPA fallback)
 app.get('/ws/room', handleRoomWebSocket);
 
-// SPA Fallback
-app.get('*', serveStatic({ root: './dist' }));
+// Explicit Static Assets Serving
+app.use('/assets/*', serveStatic({ root: './dist' }));
+app.use('/favicon.ico', serveStatic({ root: './dist' }));
+app.use('/manifest.json', serveStatic({ root: './dist' }));
+app.use('/robots.txt', serveStatic({ root: './dist' }));
+app.use('/sw.js', serveStatic({ root: './dist' }));
+
+// Never serve HTML for missing static files (scripts, styles, images) - return 404 to avoid MIME type errors
+app.get('/assets/*', (c) => {
+  c.header('Cache-Control', 'no-store');
+  return c.text('Asset Not Found', 404);
+});
+
+// SPA Fallback for HTML navigation routes
+app.get('*', async (c) => {
+  const reqPath = c.req.path;
+  // If request contains a file extension, return 404
+  if (/\.(js|mjs|css|map|wasm|png|jpg|jpeg|gif|svg|ico|webp|json|woff|woff2|ttf|eot)$/i.test(reqPath)) {
+    c.header('Cache-Control', 'no-store');
+    return c.text('Not Found', 404);
+  }
+
+  const indexPath = path.join(process.cwd(), 'dist', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    const html = await fs.promises.readFile(indexPath, 'utf-8');
+    c.header('Content-Type', 'text/html; charset=utf-8');
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
+    return c.html(html);
+  }
+  return c.text('Application is compiling or index.html missing', 503);
+});
 
 const isCloudflareEnvironment = typeof WebSocketPair !== 'undefined';
 
